@@ -51,6 +51,8 @@ export interface ManageTabProps extends SubscriptionTabProps {
   /** Stripe list prices for the comparison table billing row; null when unavailable. */
   catalogPrices: SubscriptionCatalogPricesMap | null;
   catalogPricesLoading: boolean;
+  promoLoading: boolean;
+  onRedeemPromo: (shortcode: string) => Promise<{ ok: true } | { ok: false; errorCode?: string }>;
 }
 
 /** Column order in the comparison table (and keys used in `featureVariables`). */

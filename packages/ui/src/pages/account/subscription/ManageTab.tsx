@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { SegmentGroup } from '@ark-ui/react';
 import { BorderGlow } from '../../../components/BorderGlow';
 import { Card } from '../../../components/Card';
@@ -13,6 +14,7 @@ import type { ManageTabProps } from './types';
 import { formatDate } from './types';
 import { AnnualPlansCards } from './PlansTab';
 import { PlansComparisonTable } from './PlansComparisonTable';
+import { PromoCodeCard, PROMO_CODE_CARD_ID } from '../../../components/PromoCodeCard';
 
 const ANNUAL_PLANS_HEADING_ID = 'subscription-annual-plans-heading';
 
@@ -69,8 +71,12 @@ export function ManageTab({
   onCheckout,
   catalogPrices,
   catalogPricesLoading,
+  promoLoading,
+  onRedeemPromo,
 }: ManageTabProps) {
   const { t } = useTranslation();
+  const location = useLocation();
+  const routerNavigate = useNavigate();
   const glowTheme = useSummaryBorderGlowColors();
   const { hasAccess, hasInsider, isLifetime, hasVanguard, hasFounder, hasGifted, hasPaidPlan } =
     derived;
@@ -84,6 +90,21 @@ export function ManageTab({
     const id = window.setTimeout(() => setSummaryGlowIntro(false), SUBSCRIPTION_SUMMARY_BORDER_GLOW_INTRO_MS);
     return () => window.clearTimeout(id);
   }, []);
+
+  useEffect(() => {
+    const state = location.state as { scrollToPromo?: boolean } | null;
+    if (!state?.scrollToPromo) return;
+
+    routerNavigate(location.pathname, { replace: true, state: {} });
+
+    const raf = requestAnimationFrame(() => {
+      document.getElementById(PROMO_CODE_CARD_ID)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [location.state, location.pathname, routerNavigate]);
 
   const currentTierKey = hasFounder
     ? 'founder'
@@ -257,6 +278,23 @@ export function ManageTab({
               <p>{t('account.subscription.manage.sponsorshipCta')}</p>
             </div>
           )}
+
+          {!hasPaidPlan && !identityMode && (
+            <p className="subscription-promo-prompt">
+              <button
+                type="button"
+                className="subscription-promo-prompt-link"
+                onClick={() => {
+                  document.getElementById(PROMO_CODE_CARD_ID)?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start',
+                  });
+                }}
+              >
+                {t('account.subscription.promo.unpaidPrompt')}
+              </button>
+            </p>
+          )}
         </Card>
       </BorderGlow>
 
@@ -303,6 +341,10 @@ export function ManageTab({
           />
         )}
       </div>
+
+      {!identityMode && (
+        <PromoCodeCard loading={promoLoading} onRedeem={onRedeemPromo} />
+      )}
 
       {!identityMode && (
         <Alert variant="info" className="subscription-manual-change-notice">

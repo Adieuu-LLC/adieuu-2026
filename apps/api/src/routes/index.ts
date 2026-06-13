@@ -35,6 +35,8 @@ import { geoRoutes } from './geo';
 import { ageVerificationRoutes } from './age-verification';
 import { customEmojiRoutes } from './custom-emojis';
 import { sponsorshipRoutes } from './sponsorship';
+import { promoCodeRoutes } from './account/promo-code';
+import { adminPromoCodesRoutes } from './admin/promo-codes';
 import { supportRoutes } from './support';
 import { unfurlRoutes } from './unfurl';
 import { complianceRoutes } from './compliance';
@@ -86,6 +88,9 @@ export function registerRoutes(app: Router): void {
   // Platform admin (session + admin list)
   app.merge(adminRoutes, '/api');
 
+  // Admin promo code management
+  app.merge(adminPromoCodesRoutes, '/api');
+
   // Admin user management (search, profile, moderation actions)
   app.merge(adminUsersRoutes, '/api');
 
@@ -127,6 +132,9 @@ export function registerRoutes(app: Router): void {
 
   // Account subscription management (checkout, portal, status)
   app.merge(subscriptionRoutes, '/api');
+
+  // Promotional code redemption
+  app.merge(promoCodeRoutes, '/api');
 
   // Jurisdiction / regulatory reference (account session)
   app.merge(geoRoutes, '/api');

@@ -23,6 +23,7 @@ import { UploadApi } from './upload-api';
 import { UsersApi } from './users-api';
 import { GeoApi } from './geo-api';
 import { ComplianceApi } from './compliance-api';
+import { PromoCodeApi } from './promo-code-api';
 
 /**
  * Creates an API client instance with all API modules.
@@ -54,6 +55,7 @@ export function createApiClient(config: ApiClientConfig) {
     achievements: new AchievementsApi(client),
     subscription: new SubscriptionApi(client),
     sponsorship: new SponsorshipApi(client),
+    promoCode: new PromoCodeApi(client),
     geo: new GeoApi(client),
     compliance: new ComplianceApi(client),
   };

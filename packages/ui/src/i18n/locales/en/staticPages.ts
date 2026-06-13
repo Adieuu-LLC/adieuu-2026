@@ -111,6 +111,7 @@ export const staticPages = {
           title: 'Choose a plan',
           description: 'An active subscription unlocks messaging, and social features.',
           action: 'View plans',
+          promoAction: 'Have a promo code?',
         },
         verifyAge: {
           title: 'Verify your age',

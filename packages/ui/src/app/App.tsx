@@ -66,6 +66,7 @@ import {
   AdminUserProfile,
   AdminIdentitySearch,
   AdminIdentityProfile,
+  AdminPromoCodes,
 } from '../pages/admin';
 import {
   ModeratorGate,
@@ -343,6 +344,7 @@ export function App() {
             <Route path="users/:id" element={<AdminUserProfile />} />
             <Route path="identities" element={<AdminIdentitySearch />} />
             <Route path="identities/:id" element={<AdminIdentityProfile />} />
+            <Route path="promo-codes" element={<AdminPromoCodes />} />
           </Route>
         </Route>
 

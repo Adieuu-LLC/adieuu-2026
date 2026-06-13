@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, test, mock, beforeEach } from 'bun:test';
-import type { UserBilling } from '../models/user';
+import type { UserBilling, SubscriptionOverride } from '../models/user';
 import type { ResolvedAccess } from '../services/billing/resolve-access';
 
 type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
@@ -120,12 +120,41 @@ describe('evaluateBillingAccess', () => {
   test('overrides provide subscription with canceled billing -> null (allowed)', () => {
     const billing = makeBilling({ status: 'canceled', activeSubscriptions: ['access'] });
     const resolved = makeResolved({ subscriptions: ['access', 'insider'] });
-    expect(evaluateBillingAccess(resolved, billing)).toBeNull();
+    const overrides: SubscriptionOverride[] = [{ tier: 'insider', expiresAt: new Date(Date.now() + 86_400_000) }];
+    expect(evaluateBillingAccess(resolved, billing, overrides)).toBeNull();
   });
 
   test('overrides provide subscription with no billing -> null (allowed)', () => {
     const resolved = makeResolved({ subscriptions: ['insider'] });
     expect(evaluateBillingAccess(resolved, undefined)).toBeNull();
+  });
+
+  test('same-tier override with canceled billing -> null (allowed)', () => {
+    const billing = makeBilling({ status: 'canceled', activeSubscriptions: ['access'] });
+    const resolved = makeResolved({ subscriptions: ['access'] });
+    const overrides: SubscriptionOverride[] = [{ tier: 'access', expiresAt: new Date(Date.now() + 86_400_000) }];
+    expect(evaluateBillingAccess(resolved, billing, overrides)).toBeNull();
+  });
+
+  test('expired override with canceled billing -> SUBSCRIPTION_EXPIRED', () => {
+    const billing = makeBilling({ status: 'canceled', activeSubscriptions: ['access'] });
+    const resolved = makeResolved({ subscriptions: ['access'] });
+    const overrides: SubscriptionOverride[] = [{ tier: 'access', expiresAt: new Date(Date.now() - 86_400_000) }];
+    expect(evaluateBillingAccess(resolved, billing, overrides)).toBe('SUBSCRIPTION_EXPIRED');
+  });
+
+  test('no-expiry override with canceled billing -> null (allowed)', () => {
+    const billing = makeBilling({ status: 'canceled', activeSubscriptions: ['access'] });
+    const resolved = makeResolved({ subscriptions: ['access'] });
+    const overrides: SubscriptionOverride[] = [{ tier: 'access' }];
+    expect(evaluateBillingAccess(resolved, billing, overrides)).toBeNull();
+  });
+
+  test('same-tier override with past_due beyond grace -> null (allowed)', () => {
+    const billing = makeBilling({ status: 'past_due', updatedAt: new Date(Date.now() - PAST_DUE_GRACE_MS - 10000) });
+    const resolved = makeResolved({ subscriptions: ['access'] });
+    const overrides: SubscriptionOverride[] = [{ tier: 'access', expiresAt: new Date(Date.now() + 86_400_000) }];
+    expect(evaluateBillingAccess(resolved, billing, overrides)).toBeNull();
   });
 });
 

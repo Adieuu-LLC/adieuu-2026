@@ -8,3 +8,4 @@ export { AdminUserSearch } from './UserSearch';
 export { AdminUserProfile } from './UserProfile';
 export { AdminIdentitySearch } from './IdentitySearch';
 export { AdminIdentityProfile } from './IdentityProfile';
+export { AdminPromoCodes } from './PromoCodes';

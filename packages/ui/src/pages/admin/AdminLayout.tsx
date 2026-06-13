@@ -32,6 +32,9 @@ export function AdminLayout() {
           <NavLink to="/admin/identities" className={navClass}>
             {t('admin.nav.identityManagement')}
           </NavLink>
+          <NavLink to="/admin/promo-codes" className={navClass}>
+            {t('admin.nav.promoCodes')}
+          </NavLink>
         </nav>
       </aside>
       <div className="admin-outlet">

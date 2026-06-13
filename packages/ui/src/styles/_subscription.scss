@@ -795,3 +795,55 @@
   font-weight: var(--font-weight-medium);
   color: var(--color-text-primary);
 }
+
+.subscription-promo-prompt {
+  margin: var(--spacing-sm) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.subscription-promo-prompt-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-accent-primary);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-accent-secondary);
+  }
+}
+
+.subscription-promo-card {
+  margin-top: var(--spacing-lg);
+}
+
+.subscription-promo-description {
+  margin: 0 0 var(--spacing-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.45;
+}
+
+.subscription-promo-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--spacing-md);
+
+  .input-wrapper {
+    flex: 1 1 12rem;
+    min-width: 12rem;
+    margin: 0;
+  }
+}
+
+.subscription-promo-submit {
+  flex-shrink: 0;
+}
+
+.subscription-promo-feedback {
+  margin-top: var(--spacing-md);
+}

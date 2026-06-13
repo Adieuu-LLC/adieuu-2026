@@ -98,6 +98,7 @@ export function AccountSubscription() {
   const [pollRun, setPollRun] = useState<UseCheckoutPollingRun | null>(null);
   const [catalogPrices, setCatalogPrices] = useState<SubscriptionCatalogPricesMap | null>(null);
   const [catalogPricesLoading, setCatalogPricesLoading] = useState(false);
+  const [promoLoading, setPromoLoading] = useState(false);
 
   /** From session API — not useAuth alone: auth can lag after identity login until refreshSession runs. */
   const identityMode = identitySessionData != null;
@@ -293,6 +294,33 @@ export function AccountSubscription() {
     }
   };
 
+  const handleRedeemPromo = async (
+    shortcode: string,
+  ): Promise<{ ok: true } | { ok: false; errorCode?: string }> => {
+    if (identityMode) {
+      return { ok: false };
+    }
+
+    setPromoLoading(true);
+    try {
+      const res = await api.promoCode.redeem({ shortcode });
+      if (res.success && res.data) {
+        setStatus(res.data.subscriptionStatus);
+        await refreshSession();
+        return { ok: true };
+      }
+
+      return {
+        ok: false,
+        errorCode: res.error?.code,
+      };
+    } catch {
+      return { ok: false };
+    } finally {
+      setPromoLoading(false);
+    }
+  };
+
   const statusLabel = status?.status
     ? t(`account.subscription.status.${status.status === 'past_due' ? 'pastDue' : status.status}`, { defaultValue: status.status })
     : null;
@@ -361,6 +389,8 @@ export function AccountSubscription() {
             onCheckout={handleCheckout}
             catalogPrices={catalogPrices}
             catalogPricesLoading={catalogPricesLoading}
+            promoLoading={promoLoading}
+            onRedeemPromo={handleRedeemPromo}
           />
         </TabContent>
 

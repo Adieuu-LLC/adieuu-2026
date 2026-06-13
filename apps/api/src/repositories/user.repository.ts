@@ -668,6 +668,7 @@ export class UserRepository extends BaseRepository<UserDocument> implements IUse
       },
     );
   }
+
 }
 
 // Singleton instance

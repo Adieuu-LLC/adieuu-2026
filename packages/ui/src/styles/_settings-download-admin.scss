@@ -1053,6 +1053,124 @@
   }
 }
 
+.admin-promo-codes {
+  &__message {
+    margin-bottom: var(--spacing-md);
+
+    &--error {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--spacing-sm);
+      color: var(--color-danger, #c62828);
+    }
+  }
+
+  &__pagination-hint {
+    margin-bottom: var(--spacing-md);
+  }
+
+  &__table-wrap {
+    margin-bottom: var(--spacing-lg);
+  }
+
+  &__row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+  }
+
+  &__subtitle {
+    margin: 0 0 var(--spacing-md);
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-medium);
+  }
+
+  &__form {
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--color-border-subtle, var(--color-border));
+    margin-top: var(--spacing-md);
+  }
+
+  &__form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+  }
+
+  &__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+
+    &--wide {
+      grid-column: 1 / -1;
+    }
+  }
+
+  &__textarea {
+    min-height: 4.5rem;
+    resize: vertical;
+  }
+
+  &__subscription-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-sm);
+  }
+
+  &__checkbox {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+  }
+
+  &__checkbox-control {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--color-primary);
+  }
+
+  &__checkbox-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+  }
+
+  &__form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+  }
+
+  &__dialog {
+    max-width: 48rem;
+    width: min(100%, 48rem);
+  }
+
+  &__dialog-body {
+    max-height: 24rem;
+    overflow: auto;
+  }
+
+  &__redemptions-table {
+    font-size: var(--font-size-sm);
+  }
+
+  &__user-link {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-family: var(--font-mono, monospace);
+    font-size: var(--font-size-xs);
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
 @media (max-width: 720px) {
   .admin-shell {
     flex-direction: column;

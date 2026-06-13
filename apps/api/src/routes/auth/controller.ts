@@ -574,6 +574,13 @@ function detectIdentifierType(identifier: string): 'email' | 'phone' {
  * @param identifierType - Whether it's email or phone
  * @returns The user document
  */
+/**
+ * Finds an existing user by identifier or creates a new one.
+ *
+ * IMPORTANT: `identifier` must already be sanitized via `sanitizeString()`
+ * before calling this function. The caller (verifyOtpHandler) is responsible
+ * for sanitization at the request boundary.
+ */
 async function findOrCreateUser(
   identifier: string,
   identifierType: 'email' | 'phone'
@@ -581,25 +588,36 @@ async function findOrCreateUser(
   const userRepo = getUserRepository();
   const existingUser = await userRepo.findByIdentifier(identifier);
 
+  let user: UserDocument;
+
   if (existingUser) {
-    // Record successful login
     await userRepo.recordLogin(existingUser._id);
-    return existingUser;
+    user = existingUser;
+  } else {
+    user = await userRepo.create({
+      ...(identifierType === 'email'
+        ? { email: identifier, emailVerified: true }
+        : { phone: identifier, phoneVerified: true }),
+    });
+
+    elog.info('New user created', {
+      userId: user._id.toHexString(),
+      identifierType,
+    });
   }
 
-  // Create new user
-  const newUser = await userRepo.create({
-    ...(identifierType === 'email'
-      ? { email: identifier, emailVerified: true }
-      : { phone: identifier, phoneVerified: true }),
-  });
+  if (config.stripe?.enabled && !user.stripeCustomerId) {
+    import('../../services/billing/billing.service')
+      .then(({ getOrCreateStripeCustomer }) => getOrCreateStripeCustomer(user))
+      .catch((err) =>
+        elog.warn('Failed to ensure Stripe customer', {
+          userId: user._id.toHexString(),
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+  }
 
-  elog.info('New user created', {
-    userId: newUser._id.toHexString(),
-    identifierType,
-  });
-
-  return newUser;
+  return user;
 }
 
 /**

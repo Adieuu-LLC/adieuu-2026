@@ -74,9 +74,18 @@ function PrimaryStepAction({
   switch (step.id) {
     case 'subscribe':
       return (
-        <Link to="/account/subscription" className="btn btn-primary btn-sm">
-          {t('home.account.steps.subscribe.action')}
-        </Link>
+        <>
+          <Link to="/account/subscription" className="btn btn-primary btn-sm">
+            {t('home.account.steps.subscribe.action')}
+          </Link>
+          <Link
+            to="/account/subscription/manage"
+            state={{ scrollToPromo: true }}
+            className="btn btn-secondary btn-sm"
+          >
+            {t('home.account.steps.subscribe.promoAction')}
+          </Link>
+        </>
       );
     case 'verifyAge':
       if (step.disabled) {

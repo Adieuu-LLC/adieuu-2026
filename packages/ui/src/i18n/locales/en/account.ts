@@ -413,6 +413,32 @@ export const account = {
         manualChangeEmail: 'say@adieuu.com',
       },
 
+      promo: {
+        heading: 'Have a promotional code?',
+        description:
+          'Enter a code below to unlock subscription access or entitlements granted by Adieuu or a partner.',
+        inputLabel: 'Promotional code',
+        inputPlaceholder: 'Enter your code',
+        submit: 'Redeem code',
+        success: 'Your promotional code was applied successfully.',
+        unpaidPrompt: 'Or, have a promotional code? Enter it below.',
+        errors: {
+          generic: 'We could not redeem that code. Please try again.',
+          invalid: 'Enter a valid promotional code.',
+          invalidCode: 'That promotional code is not valid or cannot be redeemed.',
+          notFound: 'That promotional code was not found.',
+          expired: 'That promotional code is not currently valid.',
+          jurisdiction: 'That promotional code is not available in your region.',
+          maxUses: 'That promotional code has reached its maximum number of uses.',
+          alreadyRedeemed: 'You have already redeemed this promotional code.',
+          missingRequired: 'You must redeem other required promotional codes first.',
+          incompatible:
+            'This promotional code cannot be combined with one you have already redeemed.',
+          rateLimited: 'Too many attempts. Please wait and try again later.',
+          audience: 'This code is not available for your current subscription status.',
+        },
+      },
+
       // Identity/alias banner
       identityBanner: 'Because of our separation of accounts & aliases (for your privacy), we are unable to pull billing information while signed into an alias. To manage your subscription and billing details, logout of your alias and sign in to your account.',
 

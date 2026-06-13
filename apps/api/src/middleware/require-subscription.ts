@@ -14,7 +14,7 @@
 
 import { getSessionFromRequest, type AccountSessionData } from '../services/session.service';
 import { getUserRepository } from '../repositories/user.repository';
-import type { UserDocument, UserBilling } from '../models/user';
+import type { UserDocument, UserBilling, SubscriptionOverride } from '../models/user';
 import type { ResolvedAccess } from '../services/billing/resolve-access';
 import { resolveEffectiveAccess } from '../services/billing/resolve-access';
 import { error } from '../utils/response';
@@ -42,6 +42,7 @@ const EXEMPT_PREFIXES: readonly string[] = [
   '/api/health',
   '/api/webhooks',
   '/api/account/subscription',
+  '/api/account/promo-code',
   '/api/sponsorship',
   '/api/v1/releases',
   '/api/users/me',
@@ -66,6 +67,7 @@ function isExemptPath(pathname: string): boolean {
 export function evaluateBillingAccess(
   resolved: ResolvedAccess,
   billing: UserBilling | undefined,
+  overrides?: SubscriptionOverride[],
 ): 'SUBSCRIPTION_REQUIRED' | 'SUBSCRIPTION_EXPIRED' | null {
   if (resolved.isLifetime) return null;
 
@@ -76,15 +78,19 @@ export function evaluateBillingAccess(
   if (!billing) return null;
 
   if (billing.status && DENIED_STATUSES.has(billing.status)) {
-    const hasOverrideSubs = resolved.subscriptions.length > (billing.activeSubscriptions?.length ?? 0);
-    if (!hasOverrideSubs) return 'SUBSCRIPTION_EXPIRED';
+    const hasActiveOverrides = (overrides ?? []).some(
+      (o) => !o.expiresAt || o.expiresAt > new Date(),
+    );
+    if (!hasActiveOverrides) return 'SUBSCRIPTION_EXPIRED';
   }
 
   if (billing.status === 'past_due') {
     const elapsed = Date.now() - billing.updatedAt.getTime();
     if (elapsed > PAST_DUE_GRACE_MS) {
-      const hasOverrideSubs = resolved.subscriptions.length > (billing.activeSubscriptions?.length ?? 0);
-      if (!hasOverrideSubs) return 'SUBSCRIPTION_EXPIRED';
+      const hasActiveOverrides = (overrides ?? []).some(
+        (o) => !o.expiresAt || o.expiresAt > new Date(),
+      );
+      if (!hasActiveOverrides) return 'SUBSCRIPTION_EXPIRED';
     }
   }
 
@@ -149,7 +155,7 @@ export function requireActiveSubscription() {
     ctx.accountUser = user;
     ctx.resolvedAccess = resolved;
 
-    const denial = evaluateBillingAccess(resolved, user.billing);
+    const denial = evaluateBillingAccess(resolved, user.billing, user.subscriptionOverrides);
     if (denial) {
       elog.info('Subscription guard denied access', {
         userId: accountSession.userId,

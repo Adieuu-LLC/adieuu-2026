@@ -388,6 +388,10 @@ export const Collections = {
   SPONSORSHIP_REQUESTS: 'sponsorship_requests',
   /** Sponsorship fulfillment audit logs */
   SPONSORSHIP_LOGS: 'sponsorship_logs',
+  /** Promotional code definitions */
+  PROMO_CODES: 'promo_codes',
+  /** Promotional code redemption records */
+  PROMO_REDEMPTIONS: 'promo_redemptions',
 } as const;
 
 /**
@@ -709,6 +713,14 @@ async function createIndexes(): Promise<void> {
   const sponsorshipLogs = database.collection(Collections.SPONSORSHIP_LOGS);
   await sponsorshipLogs.createIndex({ recipientUserId: 1, grantedAt: -1 });
   await sponsorshipLogs.createIndex({ requestId: 1 }, { unique: true });
+
+  const promoCodes = database.collection(Collections.PROMO_CODES);
+  await promoCodes.createIndex({ shortcode: 1 }, { unique: true });
+  await promoCodes.createIndex({ validFrom: 1, validTo: 1 });
+
+  const promoRedemptions = database.collection(Collections.PROMO_REDEMPTIONS);
+  await promoRedemptions.createIndex({ userId: 1, shortcode: 1 }, { unique: true });
+  await promoRedemptions.createIndex({ shortcode: 1, redeemedAt: -1 });
 
   const supportTickets = database.collection(Collections.SUPPORT_TICKETS);
   await supportTickets.createIndex({ ticketId: 1 }, { unique: true });

@@ -309,6 +309,21 @@ export {
 } from './sponsorship-api';
 
 export {
+  PromoCodeApi,
+  type PromoCodeRedeemErrorCode,
+  type PromoCodeAudience,
+  type RedeemPromoCodeParams,
+  type RedeemPromoCodeResponse,
+  type PublicPromoCode,
+  type PublicPromoRedemption,
+  type PromoCodeSubscriptionGrant,
+  type CreatePromoCodeParams,
+  type UpdatePromoCodeParams,
+  type PromoCodeListResponse,
+  type PromoRedemptionListResponse,
+} from './promo-code-api';
+
+export {
   AchievementsApi,
   type AchievementCategory,
   type PublicAchievementDefinition,
