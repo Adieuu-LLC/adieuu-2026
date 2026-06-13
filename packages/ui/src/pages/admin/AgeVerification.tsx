@@ -10,6 +10,7 @@ import { useAppConfig } from '../../config';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { EffectiveAvJurisdictionsPanel } from './EffectiveAvJurisdictionsPanel';
+import { SanctionedCountriesPanel } from './SanctionedCountriesPanel';
 
 function settingMap(settings: PublicPlatformSetting[]): Map<string, PublicPlatformSetting> {
   return new Map(settings.map((s) => [s.key, s]));
@@ -379,6 +380,10 @@ export function AdminAgeVerification() {
               placeholder={t('compliance.admin.lawLinksPlaceholder')}
               spellCheck={false}
             />
+          </Card>
+
+          <Card className="admin-card">
+            <SanctionedCountriesPanel />
           </Card>
 
           {saveError && <p className="admin-inline-error">{saveError}</p>}

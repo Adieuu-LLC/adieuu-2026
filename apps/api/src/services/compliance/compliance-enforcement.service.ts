@@ -95,6 +95,19 @@ async function getActiveSanctionedCountryCodes(): Promise<Set<string>> {
   return codes;
 }
 
+/** Clears in-process and Redis sanctioned-country caches after admin mutations. */
+export async function invalidateSanctionedCountriesCache(): Promise<void> {
+  sanctionedCache = null;
+  if (isRedisConnected()) {
+    try {
+      const redis = getRedis();
+      await redis.del(RedisKeys.sanctionedCountries());
+    } catch {
+      // best-effort
+    }
+  }
+}
+
 export async function isSanctionedCountry(countryCode: string): Promise<boolean> {
   const codes = await getActiveSanctionedCountryCodes();
   return codes.has(countryCode.trim().toUpperCase());

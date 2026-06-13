@@ -22,6 +22,11 @@ import {
   grantPlatformAttributeResult,
   revokePlatformAttributeResult,
 } from './roles.controller';
+import {
+  listSanctionedCountriesAdminResult,
+  runSanctionedCountriesSeedAdminResult,
+  upsertSanctionedCountryAdminResult,
+} from './sanctioned-countries.controller';
 
 const router = new Router();
 
@@ -199,5 +204,44 @@ async function upsertPlatformSettingHandler(ctx: import('../../router').RouteCon
 
 router.put('/admin/platform-settings/:key', upsertPlatformSettingHandler);
 router.patch('/admin/platform-settings/:key', upsertPlatformSettingHandler);
+
+router.get('/admin/sanctioned-countries', async (ctx) => {
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_PLATFORM_SETTINGS);
+  if (!auth.ok) return auth.response;
+
+  const result = await listSanctionedCountriesAdminResult();
+  return success({ countries: result.countries });
+});
+
+router.put('/admin/sanctioned-countries/:countryCode', async (ctx) => {
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_PLATFORM_SETTINGS);
+  if (!auth.ok) return auth.response;
+
+  const countryCode = ctx.params.countryCode;
+  if (!countryCode) {
+    return ctx.errors.validationFailed();
+  }
+
+  const result = await upsertSanctionedCountryAdminResult(countryCode, ctx.body);
+  if (!result.ok) {
+    if (result.reason === 'validation_failed') return ctx.errors.validationFailed();
+    return ctx.errors.internal();
+  }
+
+  return success({ country: result.country });
+});
+
+router.post('/admin/sanctioned-countries/seed', async (ctx) => {
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_PLATFORM_SETTINGS);
+  if (!auth.ok) return auth.response;
+
+  const result = await runSanctionedCountriesSeedAdminResult(ctx.body);
+  if (!result.ok) {
+    if (result.reason === 'validation_failed') return ctx.errors.validationFailed();
+    return ctx.errors.internal();
+  }
+
+  return success({ result: result.result, countries: result.countries });
+});
 
 export const adminRoutes = router;

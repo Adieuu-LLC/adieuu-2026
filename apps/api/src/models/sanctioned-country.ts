@@ -10,6 +10,13 @@ export interface PublicSanctionedCountry {
   program?: string;
 }
 
+/** Admin view includes enforcement flag and timestamps. */
+export interface AdminSanctionedCountry extends PublicSanctionedCountry {
+  active: boolean;
+  updatedAt: string;
+  createdAt: string;
+}
+
 export interface SanctionedCountryDocument extends BaseDocument {
   /** ISO 3166-1 alpha-2 country code */
   countryCode: string;
@@ -28,5 +35,16 @@ export function toPublicSanctionedCountry(
     countryCode: doc.countryCode,
     countryName: doc.countryName,
     program: doc.program,
+  };
+}
+
+export function toAdminSanctionedCountry(
+  doc: SanctionedCountryDocument,
+): AdminSanctionedCountry {
+  return {
+    ...toPublicSanctionedCountry(doc),
+    active: doc.active,
+    createdAt: doc.createdAt.toISOString(),
+    updatedAt: doc.updatedAt.toISOString(),
   };
 }

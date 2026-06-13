@@ -12,7 +12,8 @@
     "test:ci": "bash scripts/run-tests-with-coverage.sh --reporter=junit --reporter-outfile=junit.xml",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist coverage",
-    "seed:jurisdiction-requirements": "bun run scripts/seed-jurisdiction-requirements.ts"
+    "seed:jurisdiction-requirements": "bun run scripts/seed-jurisdiction-requirements.ts",
+    "seed:sanctioned-countries": "bun run scripts/seed-sanctioned-countries.ts"
   },
   "dependencies": {
     "@adieuu/crypto": "workspace:*",
