@@ -8,8 +8,8 @@
  * transactions are or may be prohibited. Maintainers should review Treasury
  * guidance periodically and re-run the seed script after updates.
  *
- * Accounts or Aliases that establish a session from an active OFAC/sanctioned location are permanently banned immediately,
- * and self-attesting sanctioned residency on VPN also results in a permanent ban.
+ * Accounts or Aliases that establish a session from an active OFAC/sanctioned location are banned while the country remains sanctioned,
+ * and self-attesting sanctioned residency on VPN also results in a ban.
  * 
  * Additional countries can be manually added through admin UI.
  * 

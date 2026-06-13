@@ -58,7 +58,7 @@ export const ACCOUNT_MODERATION_PRESETS: Record<AccountModerationCategory, strin
   security_abuse:
     'Abuse of platform security features, including credential stuffing, automated access, or circumvention of restrictions.',
   ofac_sanctioned:
-    'Your country is subject to U.S. sanctions. We are unable to provide service. Appeals are not available.',
+    'You connected from an IP address associated with a country subject to US sanctions. We are unable to provide service. Appeals are not available.',
   ofac_self_attestation:
     'Account restricted due to export-control self-attestation.',
   other:

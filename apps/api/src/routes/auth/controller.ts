@@ -50,6 +50,7 @@ import {
   evaluateComplianceOnAccess,
   listSanctionedCountriesForClient,
   buildVpnAttestationSessionPayload,
+  tryLiftOfacSanctionedBanIfExpired,
 } from '../../services/compliance/compliance-enforcement.service';
 import { getEmailTemplate, getSmsMessage, type Locale, DEFAULT_LOCALE } from '../../i18n';
 import { getRedis, isRedisConnected } from '../../db';
@@ -84,6 +85,25 @@ async function buildAccountBannedResult(user: UserDocument): Promise<{
     moderationCategory: user.moderationCategory,
     bannedPeerCount: Math.max(0, total - 1),
   };
+}
+
+async function resolveAccountBanStatus(
+  user: UserDocument,
+): Promise<
+  | { blocked: true; banned: Awaited<ReturnType<typeof buildAccountBannedResult>> }
+  | { blocked: false; user: UserDocument }
+> {
+  if (!user.isBanned) {
+    return { blocked: false, user };
+  }
+
+  const lifted = await tryLiftOfacSanctionedBanIfExpired(user);
+  if (lifted) {
+    return { blocked: false, user: lifted };
+  }
+
+  const banned = await buildAccountBannedResult(user);
+  return { blocked: true, banned };
 }
 
 type PostLoginComplianceFailure =
@@ -715,10 +735,11 @@ export async function verifyOtpHandler(
   const userId = user._id.toHexString();
 
   // Account-level moderation enforcement
-  if (user.isBanned) {
-    const banned = await buildAccountBannedResult(user);
-    return { success: false, error: 'account_banned', ...banned };
+  const banStatus = await resolveAccountBanStatus(user);
+  if (banStatus.blocked) {
+    return { success: false, error: 'account_banned', ...banStatus.banned };
   }
+  user = banStatus.user;
   if (user.suspendedUntil && user.suspendedUntil > new Date()) {
     return {
       success: false,
@@ -947,6 +968,20 @@ export async function getSessionHandler(
     user = await userRepo.findById(session.userId);
   }
   if (!user) return null;
+
+  const banStatus = await resolveAccountBanStatus(user);
+  if (banStatus.blocked) {
+    return {
+      blocked: {
+        code: 'ACCOUNT_BANNED',
+        message: banStatus.banned.moderationReason ?? 'This account has been banned.',
+        moderationReason: banStatus.banned.moderationReason,
+        moderationCategory: banStatus.banned.moderationCategory,
+        bannedPeerCount: banStatus.banned.bannedPeerCount,
+      },
+    };
+  }
+  user = banStatus.user;
 
   const clientIp = getClientIp(request);
   const complianceOutcome = await evaluateComplianceOnAccess(user, clientIp);
@@ -1392,10 +1427,12 @@ export async function verifyMfaTotpHandler(
   // Re-check moderation status (admin may have banned/suspended during MFA window)
   const userRepo = getUserRepository();
   const mfaCheckUser = await userRepo.findById(pendingLogin.userId);
-  if (mfaCheckUser?.isBanned) {
-    await clearPendingLogin(mfaToken);
-    const banned = await buildAccountBannedResult(mfaCheckUser);
-    return { success: false, error: 'account_banned', ...banned };
+  if (mfaCheckUser) {
+    const banStatus = await resolveAccountBanStatus(mfaCheckUser);
+    if (banStatus.blocked) {
+      await clearPendingLogin(mfaToken);
+      return { success: false, error: 'account_banned', ...banStatus.banned };
+    }
   }
   if (mfaCheckUser?.suspendedUntil && mfaCheckUser.suspendedUntil > new Date()) {
     await clearPendingLogin(mfaToken);
@@ -1440,10 +1477,12 @@ export async function verifyMfaWebAuthnHandler(
   // Re-check moderation status (admin may have banned/suspended during MFA window)
   const userRepo = getUserRepository();
   const mfaCheckUser = await userRepo.findById(pendingLogin.userId);
-  if (mfaCheckUser?.isBanned) {
-    await clearPendingLogin(mfaToken);
-    const banned = await buildAccountBannedResult(mfaCheckUser);
-    return { success: false, error: 'account_banned', ...banned };
+  if (mfaCheckUser) {
+    const banStatus = await resolveAccountBanStatus(mfaCheckUser);
+    if (banStatus.blocked) {
+      await clearPendingLogin(mfaToken);
+      return { success: false, error: 'account_banned', ...banStatus.banned };
+    }
   }
   if (mfaCheckUser?.suspendedUntil && mfaCheckUser.suspendedUntil > new Date()) {
     await clearPendingLogin(mfaToken);

@@ -585,7 +585,12 @@ export class UserRepository extends BaseRepository<UserDocument> implements IUse
    */
   async banAccount(
     id: string | ObjectId,
-    opts: { reason: string; moderatedBy: string; category?: AccountModerationCategory },
+    opts: {
+      reason: string;
+      moderatedBy: string;
+      category?: AccountModerationCategory;
+      countryCode?: string;
+    },
   ): Promise<void> {
     const objectId = this.toObjectId(id);
     const $set: Record<string, unknown> = {
@@ -600,6 +605,11 @@ export class UserRepository extends BaseRepository<UserDocument> implements IUse
       $set.moderationCategory = opts.category;
     } else {
       $unset.moderationCategory = '';
+    }
+    if (opts.countryCode) {
+      $set.moderationCountryCode = opts.countryCode.trim().toUpperCase();
+    } else {
+      $unset.moderationCountryCode = '';
     }
     await this.collection.updateOne(
       { _id: objectId },
@@ -623,6 +633,7 @@ export class UserRepository extends BaseRepository<UserDocument> implements IUse
           isBanned: '',
           moderationReason: '',
           moderationCategory: '',
+          moderationCountryCode: '',
           moderatedBy: '',
           moderatedAt: '',
         },

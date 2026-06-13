@@ -21,7 +21,7 @@ import { error } from '../utils/response';
 import elog from '../utils/adieuuLogger';
 import { sanitizePathForLog } from '../utils/sanitize';
 import { getClientIp } from '../routes/auth/controller';
-import { hasPendingVpnAttestation } from '../services/compliance/compliance-enforcement.service';
+import { hasPendingVpnAttestation, tryLiftOfacSanctionedBanIfExpired } from '../services/compliance/compliance-enforcement.service';
 
 /** How long (ms) a past_due status is tolerated before cutting access. */
 export const PAST_DUE_GRACE_MS = 48 * 60 * 60 * 1000; // 48 hours
@@ -118,14 +118,19 @@ export function requireActiveSubscription() {
     const accountSession = session as AccountSessionData;
 
     const userRepo = getUserRepository();
-    const user = await userRepo.findById(accountSession.userId);
+    let user = await userRepo.findById(accountSession.userId);
     if (!user) {
       return next();
     }
 
     // Account-level ban/suspension enforcement
     if (user.isBanned) {
-      return error('ACCOUNT_BANNED', 'This account has been permanently banned.', 403);
+      const lifted = await tryLiftOfacSanctionedBanIfExpired(user);
+      if (lifted) {
+        user = lifted;
+      } else {
+        return error('ACCOUNT_BANNED', 'This account has been banned.', 403);
+      }
     }
     if (user.suspendedUntil && user.suspendedUntil > new Date()) {
       return error('ACCOUNT_SUSPENDED', 'This account is currently suspended.', 403);

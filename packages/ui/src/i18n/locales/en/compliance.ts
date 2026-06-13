@@ -124,7 +124,7 @@ export const compliance = {
     sanctionedCountriesDescription:
       'Countries subject to export-control enforcement. Active rows block access and appear in VPN attestation. Separate from geofence-blocked jurisdictions.',
     sanctionedCountriesPermabanWarning:
-      'Warning: accounts that establish a session from an active OFAC/sanctioned location are permanently banned immediately. Self-attesting sanctioned residency on VPN also results in a permanent ban.',
+      'Warning: accounts that establish a session from an active OFAC/sanctioned location are banned while the country remains sanctioned. Self-attesting sanctioned residency on VPN also results in a ban.',
     sanctionedCountriesCount: '{{active}} active / {{total}} total',
     sanctionedCountriesEmpty: 'No sanctioned countries in the database. Run the seed or add a country below.',
     sanctionedCountriesLoadError: 'Could not load sanctioned countries.',

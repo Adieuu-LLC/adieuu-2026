@@ -325,6 +325,19 @@ mock.module('../../services/geo/geo.service', () => ({
   refreshUserGeoIfStale: mock(() => Promise.resolve()),
 }));
 
+const mockTryLiftOfacSanctionedBanIfExpired = mock(() => Promise.resolve(null)) as AnyMock;
+const mockEvaluateComplianceOnAccess = mock((user: typeof mockUser) =>
+  Promise.resolve({ action: 'none', user }),
+) as AnyMock;
+
+mock.module('../../services/compliance/compliance-enforcement.service', () => ({
+  evaluateComplianceOnAccess: mockEvaluateComplianceOnAccess,
+  tryLiftOfacSanctionedBanIfExpired: mockTryLiftOfacSanctionedBanIfExpired,
+  listSanctionedCountriesForClient: mock(() => Promise.resolve([])),
+  buildVpnAttestationSessionPayload: mock(() => undefined),
+  hasPendingVpnAttestation: mock(() => false),
+}));
+
 mock.module('../../utils/adieuuLogger', () => ({
   default: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
 }));
@@ -942,6 +955,7 @@ describe('auth controller', () => {
     });
 
     test('returns account_banned with moderationReason for banned user', async () => {
+      mockTryLiftOfacSanctionedBanIfExpired.mockImplementationOnce(() => Promise.resolve(null));
       mockCountBannedUsers.mockImplementation(() => Promise.resolve(5));
       mockFindByIdentifier.mockImplementation(() => Promise.resolve({
         ...mockUser,
@@ -964,6 +978,34 @@ describe('auth controller', () => {
       }
       expect(mockCountBannedUsers).toHaveBeenCalledWith('tos_violation');
       expect(mockCreateAccountSession).not.toHaveBeenCalled();
+    });
+
+    test('allows login when OFAC ban country is no longer sanctioned', async () => {
+      mockTryLiftOfacSanctionedBanIfExpired.mockImplementationOnce(() =>
+        Promise.resolve({
+          ...mockUser,
+          isBanned: undefined,
+          moderationReason: undefined,
+          moderationCategory: undefined,
+          moderationCountryCode: undefined,
+        }),
+      );
+      mockFindByIdentifier.mockImplementation(() => Promise.resolve({
+        ...mockUser,
+        isBanned: true,
+        moderationCategory: 'ofac_sanctioned',
+        moderationCountryCode: 'ML',
+        moderationReason: 'You connected from an IP address associated with Mali, which is subject to US sanctions. We are unable to provide service. Appeals are not available.',
+      }));
+
+      const result = await verifyOtpHandler(
+        { identifier: 'user@example.com', code: '123456' },
+        '192.168.1.1'
+      );
+
+      expect(result.success).toBe(true);
+      expect(mockTryLiftOfacSanctionedBanIfExpired).toHaveBeenCalled();
+      expect(mockCreateAccountSession).toHaveBeenCalled();
     });
 
     test('returns account_suspended with suspendedUntil for suspended user', async () => {

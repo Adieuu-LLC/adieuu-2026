@@ -109,8 +109,12 @@ export async function invalidateSanctionedCountriesCache(): Promise<void> {
 }
 
 export async function isSanctionedCountry(countryCode: string): Promise<boolean> {
-  const codes = await getActiveSanctionedCountryCodes();
-  return codes.has(countryCode.trim().toUpperCase());
+  const code = countryCode.trim().toUpperCase();
+  if (!code) return false;
+
+  const repo = getSanctionedCountryRepository();
+  const row = await repo.findActiveByCountryCode(code);
+  return row !== null;
 }
 
 export async function listSanctionedCountriesForClient(): Promise<SanctionedCountrySummary[]> {
@@ -119,17 +123,34 @@ export async function listSanctionedCountriesForClient(): Promise<SanctionedCoun
   return rows.map((r) => toPublicSanctionedCountry(r));
 }
 
+export function buildOfacSanctionedBanReason(countryName: string): string {
+  return `You connected from an IP address associated with ${countryName}, which is subject to US sanctions. We are unable to provide service. Appeals are not available.`;
+}
+
 export async function enforceOfacBan(
   user: UserDocument,
   category: 'ofac_sanctioned' | 'ofac_self_attestation',
   ipHash: string,
-): Promise<void> {
-  const reason = ACCOUNT_MODERATION_PRESETS[category];
+  countryCode?: string,
+): Promise<{ reason: string; countryCode?: string }> {
+  let reason = ACCOUNT_MODERATION_PRESETS[category];
+  let storedCountryCode: string | undefined;
+
+  if (category === 'ofac_sanctioned' && countryCode) {
+    const normalizedCode = countryCode.trim().toUpperCase();
+    const repo = getSanctionedCountryRepository();
+    const country = await repo.findActiveByCountryCode(normalizedCode);
+    const countryName = country?.countryName ?? normalizedCode;
+    reason = buildOfacSanctionedBanReason(countryName);
+    storedCountryCode = normalizedCode;
+  }
+
   const userRepo = getUserRepository();
   await userRepo.banAccount(user._id, {
     reason,
     moderatedBy: SYSTEM_MODERATOR,
     category,
+    countryCode: storedCountryCode,
   });
 
   const sessionRepo = getSessionRepository();
@@ -140,13 +161,56 @@ export async function enforceOfacBan(
     userId: user._id,
     action: 'compliance_ofac_ban',
     ipHash,
-    metadata: { category },
+    metadata: { category, countryCode: storedCountryCode },
   });
 
   elog.info('OFAC compliance ban applied', {
     userId: user._id.toHexString(),
     category,
+    countryCode: storedCountryCode,
   });
+
+  return { reason, countryCode: storedCountryCode };
+}
+
+/**
+ * Lifts an OFAC geo ban when the recorded country is no longer sanctioned.
+ * Returns an updated in-memory user when the ban was lifted; otherwise null.
+ */
+export async function tryLiftOfacSanctionedBanIfExpired(
+  user: UserDocument,
+): Promise<UserDocument | null> {
+  if (!user.isBanned || user.moderationCategory !== 'ofac_sanctioned') {
+    return null;
+  }
+
+  const countryCode = user.moderationCountryCode ?? user.geo?.countryCode;
+  if (!countryCode) {
+    return null;
+  }
+
+  const stillSanctioned = await isSanctionedCountry(countryCode);
+  if (stillSanctioned) {
+    return null;
+  }
+
+  const userRepo = getUserRepository();
+  await userRepo.unbanAccount(user._id);
+
+  elog.info('OFAC compliance ban lifted after country de-sanctioned', {
+    userId: user._id.toHexString(),
+    countryCode,
+  });
+
+  return {
+    ...user,
+    isBanned: undefined,
+    moderationReason: undefined,
+    moderationCategory: undefined,
+    moderationCountryCode: undefined,
+    moderatedBy: undefined,
+    moderatedAt: undefined,
+  };
 }
 
 function defaultAgeVerification(user: UserDocument): UserAgeVerification {
@@ -223,11 +287,11 @@ export async function evaluateComplianceOnAccess(
   const countryCode = currentUser.geo?.countryCode;
   if (countryCode && (await isSanctionedCountry(countryCode))) {
     const ipHash = hashIpForGeo(ip);
-    await enforceOfacBan(currentUser, 'ofac_sanctioned', ipHash);
+    const ban = await enforceOfacBan(currentUser, 'ofac_sanctioned', ipHash, countryCode);
     return {
       action: 'ofac_banned',
       category: 'ofac_sanctioned',
-      reason: ACCOUNT_MODERATION_PRESETS.ofac_sanctioned,
+      reason: ban.reason,
     };
   }
 

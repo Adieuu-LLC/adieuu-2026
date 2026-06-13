@@ -230,4 +230,43 @@ describe('user.repository', () => {
     expect(results).toEqual([]);
     expect(mockCollection.find).not.toHaveBeenCalled();
   });
+
+  test('banAccount stores moderationCountryCode for OFAC bans', async () => {
+    const repo = new UserRepository();
+    const userId = new ObjectId();
+
+    await repo.banAccount(userId, {
+      reason: 'You connected from an IP address associated with Mali, which is subject to US sanctions. We are unable to provide service. Appeals are not available.',
+      moderatedBy: 'system:compliance',
+      category: 'ofac_sanctioned',
+      countryCode: 'ml',
+    });
+
+    expect(mockCollection.updateOne).toHaveBeenCalledWith(
+      { _id: userId },
+      expect.objectContaining({
+        $set: expect.objectContaining({
+          isBanned: true,
+          moderationCategory: 'ofac_sanctioned',
+          moderationCountryCode: 'ML',
+        }),
+      }),
+    );
+  });
+
+  test('unbanAccount clears moderationCountryCode', async () => {
+    const repo = new UserRepository();
+    const userId = new ObjectId();
+
+    await repo.unbanAccount(userId);
+
+    expect(mockCollection.updateOne).toHaveBeenCalledWith(
+      { _id: userId },
+      expect.objectContaining({
+        $unset: expect.objectContaining({
+          moderationCountryCode: '',
+        }),
+      }),
+    );
+  });
 });
