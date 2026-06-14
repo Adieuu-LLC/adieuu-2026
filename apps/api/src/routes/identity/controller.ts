@@ -57,8 +57,6 @@ import { applyPrivacyFilter, areFriends } from './profile.controller';
 import { z } from '@adieuu/shared/schemas';
 import { getKeyBundleRepository } from '../../repositories/key-bundle.repository';
 import { deriveBundleId } from '../../utils/crypto';
-import type { ClientSession } from 'mongodb';
-
 // ============================================================================
 // Zod Schemas
 // ============================================================================
@@ -1007,7 +1005,7 @@ export async function initializeE2ECtrl(ctx: RouteContext): Promise<Response> {
 
   try {
     const { withTransaction } = await import('../../db');
-    await withTransaction(async (_session: ClientSession) => {
+    await withTransaction(async (_session) => {
       const identityRepo = getIdentityRepository();
       const keyBundleRepo = getKeyBundleRepository();
       const bundleId = deriveBundleId(identity.ident);

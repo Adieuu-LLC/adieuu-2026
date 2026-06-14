@@ -69,6 +69,9 @@ export interface UserDocument extends BaseDocument {
   /** Denormalised count of sponsorships received (for future directory display). */
   sponsorshipCount?: number;
 
+  /** Pending account-scoped events surfaced to the client (e.g. subscription upgrades). */
+  pendingAccountEvents?: PendingAccountEvent[];
+
   /** Account suspended until this date (null/undefined = not suspended). */
   suspendedUntil?: Date | null;
   /** Account permanently banned. */
@@ -171,6 +174,29 @@ export interface SubscriptionOverride {
   tier: SubscriptionTierId;
   /** When the override expires. Omit for lifetime (no expiry). */
   expiresAt?: Date;
+}
+
+export type PendingAccountEventType = 'subscription_upgraded';
+
+export type SubscriptionUpgradeSource =
+  | 'sponsorship'
+  | 'promo_code'
+  | 'admin_gift'
+  | 'purchase';
+
+export interface PendingAccountEventData {
+  tier: SubscriptionTierId;
+  source: SubscriptionUpgradeSource;
+  sponsorFirstName?: string;
+  sponsorLastInitial?: string;
+  isLifetime?: boolean;
+}
+
+export interface PendingAccountEvent {
+  id: string;
+  type: PendingAccountEventType;
+  data: PendingAccountEventData;
+  createdAt: Date;
 }
 
 /**

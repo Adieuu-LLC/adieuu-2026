@@ -179,18 +179,18 @@ export function getMongoClient(): MongoClient {
 }
 
 /**
- * Executes a callback within a MongoDB transaction.
- * 
- * Provides ACID transaction support for multi-document operations.
- * The transaction is automatically committed on success or aborted on error.
- * 
- * NOTE: Requires a MongoDB replica set. Single-node deployments won't support transactions.
- * 
- * @param callback - Function to execute within the transaction
+ * Executes a callback within a MongoDB transaction when replica set support is
+ * available, otherwise falls back to running the callback without a transaction.
+ *
+ * The fallback keeps operations functional on standalone MongoDB instances
+ * (e.g. local dev) at the cost of losing atomicity guarantees.
+ *
+ * @param callback - Function to execute. Receives a `ClientSession` when
+ *   transactions are supported, or `undefined` when falling back.
  * @param options - Transaction options (read/write concern, etc.)
  * @returns The result of the callback
- * @throws Error if the transaction fails
- * 
+ * @throws Error if the callback itself fails
+ *
  * @example
  * ```typescript
  * const result = await withTransaction(async (session) => {
@@ -201,17 +201,28 @@ export function getMongoClient(): MongoClient {
  * ```
  */
 export async function withTransaction<T>(
-  callback: (session: ClientSession) => Promise<T>,
+  callback: (session: ClientSession | undefined) => Promise<T>,
   options?: TransactionOptions
 ): Promise<T> {
   const mongoClient = getMongoClient();
-  const session = mongoClient.startSession();
-  
+
+  let session: ClientSession | undefined;
   try {
-    const result = await session.withTransaction(callback, options);
+    session = mongoClient.startSession();
+    const result = await session.withTransaction(
+      () => callback(session),
+      options,
+    );
     return result as T;
+  } catch (error: unknown) {
+    const mongoErr = error as { codeName?: string };
+    if (mongoErr.codeName === 'IllegalOperation') {
+      elog.warn('Transactions not supported (no replica set) -- running without transaction');
+      return callback(undefined);
+    }
+    throw error;
   } finally {
-    await session.endSession();
+    await session?.endSession();
   }
 }
 

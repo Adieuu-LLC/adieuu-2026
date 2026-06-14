@@ -109,10 +109,10 @@ function OverrideFormFields({
         checked={lifetime}
         onCheckedChange={(e) => onLifetimeChange(e.checked === true)}
         disabled={disabled}
-        className="admin-subscription-checkbox"
+        className="admin-checkbox"
       >
-        <Checkbox.Control className="admin-subscription-checkbox-control" />
-        <Checkbox.Label className="admin-subscription-checkbox-label">
+        <Checkbox.Control className="admin-checkbox-control" />
+        <Checkbox.Label className="admin-checkbox-label">
           {t('admin.users.modals.lifetime')}
         </Checkbox.Label>
         <Checkbox.HiddenInput />

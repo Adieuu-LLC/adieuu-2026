@@ -11,11 +11,13 @@ import { getUserRepository } from '../../repositories/user.repository';
 import { getSessionRepository } from '../../repositories/session.repository';
 import { getAuditLogRepository } from '../../repositories/audit.repository';
 import { resolveEffectiveAccess } from '../../services/billing/resolve-access';
+import { emitSubscriptionUpgradedEvent } from '../../services/pending-account-event.service';
 import { maskIpAddress, toPublicSession } from '../../models/session';
 import type { UserDocument } from '../../models/user';
 import type { AuditAction, AuditLogDocument } from '../../models/audit';
 import type { SessionDocument } from '../../models/session';
 import { isSelfIdentityTarget } from './moderation-guards';
+import elog from '../../utils/adieuuLogger';
 
 // ---------------------------------------------------------------------------
 // Schemas
@@ -363,6 +365,17 @@ export async function giftSubscription(
 
   const override = subscriptionOverrideFromInput(parsed.data);
   await userRepo.addSubscriptionOverride(user._id, override);
+
+  void emitSubscriptionUpgradedEvent(user._id, {
+    tier: override.tier,
+    source: 'admin_gift',
+    isLifetime: !override.expiresAt,
+  }).catch((err) => {
+    elog.warn('Failed to emit admin gift subscription upgrade event', {
+      userId: user._id.toString(),
+      error: err instanceof Error ? err.message : String(err),
+    });
+  });
 
   const auditRepo = getAuditLogRepository();
   await auditRepo.create({

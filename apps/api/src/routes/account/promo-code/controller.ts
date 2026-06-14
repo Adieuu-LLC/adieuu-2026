@@ -3,9 +3,10 @@
  */
 
 import { getUserRepository } from '../../../repositories/user.repository';
-import { resolveEffectiveAccess } from '../../../services/billing/resolve-access';
 import { redeemPromoCode, type PromoCodeRedeemReason } from '../../../services/promo-code.service';
+import type { PublicPendingAccountEvent } from '../../../services/pending-account-event.service';
 import {
+  buildSubscriptionSummaryFromUser,
   getSubscriptionSummary,
   type SubscriptionSummaryPayload,
 } from '../subscription/controller';
@@ -19,6 +20,7 @@ export type RedeemPromoCodeResponseResult =
         subscriptionApplied?: { tier: string; expiresAt: string };
         entitlementsApplied: string[];
         subscriptionStatus: SubscriptionSummaryPayload;
+        pendingEvent?: PublicPendingAccountEvent;
       };
     }
   | { ok: false; reason: PromoCodeRedeemReason };
@@ -52,6 +54,8 @@ async function buildSubscriptionSummaryPayload(
       activeSubscriptions: [],
       entitlements: [],
       isLifetime: false,
+      planBadge: 'annual',
+      planExpiresAt: null,
       status: null,
       currentPeriodEnd: null,
       cancelAtPeriodEnd: false,
@@ -61,30 +65,7 @@ async function buildSubscriptionSummaryPayload(
     };
   }
 
-  const resolved = resolveEffectiveAccess(user);
-  const hasGifted = resolved.entitlements.includes('gifted');
-  let sponsoredExpiry: string | null = null;
-  if (hasGifted && user.subscriptionOverrides?.length) {
-    const now = new Date();
-    const activeOverrides = user.subscriptionOverrides
-      .filter((o) => o.expiresAt && o.expiresAt > now)
-      .sort((a, b) => a.expiresAt!.getTime() - b.expiresAt!.getTime());
-    if (activeOverrides.length > 0) {
-      sponsoredExpiry = activeOverrides[0]!.expiresAt!.toISOString();
-    }
-  }
-
-  return {
-    activeSubscriptions: resolved.subscriptions,
-    entitlements: resolved.entitlements,
-    isLifetime: resolved.isLifetime,
-    status: user.billing?.status ?? null,
-    currentPeriodEnd: user.billing?.currentPeriodEnd?.toISOString() ?? null,
-    cancelAtPeriodEnd: user.billing?.cancelAtPeriodEnd ?? false,
-    cancelAt: user.billing?.cancelAt?.toISOString() ?? null,
-    hasStripeCustomer: !!user.stripeCustomerId,
-    sponsoredExpiry,
-  };
+  return buildSubscriptionSummaryFromUser(user);
 }
 
 export async function redeemPromoCodeForUser(
@@ -105,6 +86,7 @@ export async function redeemPromoCodeForUser(
       subscriptionApplied: result.subscriptionApplied,
       entitlementsApplied: result.entitlementsApplied,
       subscriptionStatus,
+      pendingEvent: result.pendingEvent,
     },
   };
 }

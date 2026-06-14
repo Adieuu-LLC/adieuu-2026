@@ -387,6 +387,44 @@ export const account = {
         openStripe: 'Open Stripe billing portal',
         noCustomer:
           'You do not have a Stripe billing profile yet. When you subscribe to a paid plan, you will see billing information here.',
+        loading: 'Loading billing details...',
+        loadError: 'We could not load your billing details. Please try again.',
+        renewalHeading: 'Subscription renewal',
+        lifetime: 'Lifetime access',
+        autoRenewOn: 'Auto-renew is on',
+        autoRenewOff: 'Auto-renew is off',
+        renewsOn: 'Renews on {{date}}',
+        expiresOn: 'Expires on {{date}}',
+        cancelsOn: 'Cancels on {{date}}',
+        cancelAtPeriodEnd: 'Your subscription will not renew at the end of the current period.',
+        noRenewalInfo: 'No active subscription renewal information.',
+        paymentMethodHeading: 'Payment method',
+        noPaymentMethod: 'No payment method on file.',
+        paymentMethodCard: '{{brand}} ending in {{last4}}',
+        paymentMethodExpires: 'Expires {{month}}/{{year}}',
+        updatePaymentMethod: 'Update in Stripe portal',
+        historyHeading: 'Billing history',
+        historyEmpty: 'No invoices or promotional redemptions yet.',
+        historyDate: 'Date',
+        historyDescription: 'Description',
+        historyAmount: 'Amount',
+        historyStatus: 'Status',
+        invoiceDescription: 'Invoice {{number}}',
+        invoiceDescriptionFallback: 'Invoice',
+        promoDescription: 'Promo code: {{shortcode}}',
+        promoGrantedTier: '{{tier}} until {{date}}',
+        promoGrantedEntitlements: 'Entitlements: {{entitlements}}',
+        promoNoGrant: 'Promotional access applied',
+        invoiceStatus: {
+          draft: 'Draft',
+          open: 'Open',
+          paid: 'Paid',
+          uncollectible: 'Uncollectible',
+          void: 'Void',
+        },
+        historyTypePromo: 'Promo',
+        historyTypeInvoice: 'Invoice',
+        viewInvoice: 'View invoice',
       },
 
       // Manage tab
@@ -394,6 +432,9 @@ export const account = {
         currentTier: 'Your current plan',
         currentPlanLabel: 'Your current plan',
         billingPeriodAnnual: 'Annual',
+        expiresInOneDay: 'Expires in 1 day',
+        expiresInDays: 'Expires in {{count}} days',
+        expiresAtTooltip: 'Expires {{datetime}}',
         noPlan:
           'Without a paid plan, your account stays read-only. Paying for a subscription helps us cover costs without having to rely on ads, data collection, etc. It also makes it more expensive for bots. Subscribe below to unlock posting and full features.',
         sponsorshipCta:
@@ -422,6 +463,7 @@ export const account = {
         submit: 'Redeem code',
         success: 'Your promotional code was applied successfully.',
         unpaidPrompt: 'Or, have a promotional code? Enter it below.',
+        toolbarCta: 'Promo code',
         errors: {
           generic: 'We could not redeem that code. Please try again.',
           invalid: 'Enter a valid promotional code.',
@@ -444,7 +486,7 @@ export const account = {
 
       // Section headings
       sections: {
-        annual: 'Annual Plans',
+        annual: 'Compare Plans',
         lifetime: 'Lifetime Access',
         lifetimeDescription: 'One-time purchase. Insider access forever, plus exclusive entitlements.',
       },
@@ -588,6 +630,7 @@ export const account = {
       periodEnd: 'Current period ends {{date}}',
       cancelAtPeriodEnd: 'Your subscription will cancel at the end of this period.',
       renewsOn: 'Renews on {{date}}',
+      expiresOn: 'Expires on {{date}}',
       cancelsOn: 'Cancels on {{date}}',
 
       // Toasts
@@ -603,6 +646,21 @@ export const account = {
         cancel: 'Stop waiting',
         timeout:
           'We could not confirm your purchase yet. If you completed payment, your plan may still update shortly — check back on this page or restart the app.',
+      },
+
+      upgradeNotification: {
+        title: 'Subscription Upgraded',
+        sponsorship: 'You have been gifted a subscription!',
+        sponsorshipWithSponsor: '{{firstName}} {{lastInitial}} gifted you a subscription!',
+        promoCode: 'Your promo code has been successfully applied!',
+        adminGift: "You've received a subscription upgrade!",
+        purchase: 'Welcome to {{tier}}!',
+        lifetime: 'Lifetime Access',
+        tierLabel: 'Plan: {{tier}}',
+        dismiss: 'Great!',
+        dismiss1: 'Awesome!',
+        dismiss2: "Let's go!",
+        dismiss3: 'Nice!',
       },
     },
 

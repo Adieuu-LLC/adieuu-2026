@@ -22,6 +22,7 @@ import { getCollection, Collections } from '../../db';
 import type { UserDocument, UserBilling } from '../../models/user';
 import elog from '../../utils/adieuuLogger';
 import { initiateBackgroundCheck } from '../age-verification/background-check.service';
+import { emitSubscriptionUpgradedEvent } from '../pending-account-event.service';
 
 /** Thrown when Stripe is enabled but a required price id env var is missing (ops misconfiguration). */
 export class BillingConfigurationError extends Error {
@@ -744,6 +745,19 @@ async function handleSponsorshipCheckoutCompleted(
   });
 
   void initiateBackgroundCheck(beneficiary);
+
+  void emitSubscriptionUpgradedEvent(beneficiary._id, {
+    tier: grantedTier,
+    source: 'sponsorship',
+    sponsorFirstName: revealIdentity ? (meta.sponsorFirstName || undefined) : undefined,
+    sponsorLastInitial: revealIdentity ? (meta.sponsorLastInitial || undefined) : undefined,
+    isLifetime: productMeta.isLifetime,
+  }).catch((err) => {
+    elog.warn('Failed to emit sponsorship subscription upgrade event', {
+      beneficiaryUserId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  });
 
   elog.info('Sponsorship fulfilled', {
     beneficiaryUserId,

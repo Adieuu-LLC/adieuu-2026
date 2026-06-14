@@ -46,6 +46,7 @@ import { KeyStorageBanner } from '../components/KeyStorageBanner';
 import { WebSecurityBanner } from '../components/WebSecurityBanner';
 import { UpdateOverlay } from '../components/UpdateOverlay';
 import { AchievementListener } from '../components/AchievementListener';
+import { SubscriptionChangeListener } from '../components/SubscriptionChangeListener';
 import { AppPlainTextContextMenu } from '../components/AppPlainTextContextMenu';
 import { UpdateProvider } from '../hooks/useUpdateContext';
 import { ToasterOutlet } from '../components/Toast';
@@ -152,6 +153,7 @@ function ProtectedLayoutContent({ children }: { children?: ReactNode }) {
       <AppCallOverlay />
       <UpdateOverlay />
       <AchievementListener />
+      <SubscriptionChangeListener />
       <AppPlainTextContextMenu />
     </>
   );

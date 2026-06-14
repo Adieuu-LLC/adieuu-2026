@@ -11,6 +11,7 @@ import {
   type PurchasableProductId,
   type SubscriptionTierId,
   type SubscriptionCatalogPricesMap,
+  type BillingDetailsPayload,
 } from '@adieuu/shared';
 import { useAuth } from '../../../hooks/useAuth';
 import { useIdentity } from '../../../hooks/useIdentity';
@@ -25,6 +26,7 @@ import type { SubscriptionDerivedState } from './types';
 import '../../../styles/_subscription.scss';
 import '../../../styles/_sponsorship.scss';
 import { SessionLockedPage } from '../../../components/SessionLockedPage';
+import { emitSubscriptionUpgraded, onSubscriptionUpgraded } from '../../../services/subscriptionEvents';
 
 const VALID_TABS = ['manage', 'billing', 'lifetime', 'sponsorships'] as const;
 type SubscriptionTab = (typeof VALID_TABS)[number];
@@ -99,6 +101,9 @@ export function AccountSubscription() {
   const [catalogPrices, setCatalogPrices] = useState<SubscriptionCatalogPricesMap | null>(null);
   const [catalogPricesLoading, setCatalogPricesLoading] = useState(false);
   const [promoLoading, setPromoLoading] = useState(false);
+  const [billingDetails, setBillingDetails] = useState<BillingDetailsPayload | null>(null);
+  const [billingDetailsLoading, setBillingDetailsLoading] = useState(false);
+  const [billingDetailsError, setBillingDetailsError] = useState(false);
 
   /** From session API — not useAuth alone: auth can lag after identity login until refreshSession runs. */
   const identityMode = identitySessionData != null;
@@ -192,6 +197,20 @@ export function AccountSubscription() {
     loadStatus();
   }, [loadStatus, authStatus, identityStatus]);
 
+  // Refresh subscription details when an upgrade event arrives (promo, sponsorship, etc.).
+  useEffect(() => {
+    if (identityMode || authStatus !== 'authenticated') return;
+
+    return onSubscriptionUpgraded(() => {
+      void refreshSession().catch(() => {
+        // Best-effort session refresh after upgrade notification.
+      });
+      void loadStatus({ silent: true }).catch(() => {
+        // Best-effort subscription status refresh after upgrade notification.
+      });
+    });
+  }, [identityMode, authStatus, refreshSession, loadStatus]);
+
   useEffect(() => {
     if (activeTab !== 'manage') return;
     let cancelled = false;
@@ -216,6 +235,39 @@ export function AccountSubscription() {
       setCatalogPricesLoading(false);
     };
   }, [activeTab, api]);
+
+  useEffect(() => {
+    if (activeTab !== 'billing' || identityMode) return;
+    let cancelled = false;
+    setBillingDetailsLoading(true);
+    setBillingDetailsError(false);
+    void (async () => {
+      try {
+        const res = await api.subscription.getBillingDetails();
+        if (cancelled) return;
+        if (res.success && res.data) {
+          setBillingDetails(res.data);
+          setBillingDetailsError(false);
+        } else {
+          setBillingDetails(null);
+          setBillingDetailsError(true);
+        }
+      } catch {
+        if (!cancelled) {
+          setBillingDetails(null);
+          setBillingDetailsError(true);
+        }
+      } finally {
+        if (!cancelled) {
+          setBillingDetailsLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+      setBillingDetailsLoading(false);
+    };
+  }, [activeTab, api, identityMode]);
 
   useEffect(() => {
     if (identityMode) return;
@@ -305,11 +357,14 @@ export function AccountSubscription() {
     try {
       const res = await api.promoCode.redeem({ shortcode });
       if (res.success && res.data) {
-        setStatus(res.data.subscriptionStatus);
+        if (res.data.pendingEvent) {
+          emitSubscriptionUpgraded(res.data.pendingEvent);
+        }
         try {
           await refreshSession();
+          await loadStatus({ silent: true });
         } catch (err) {
-          console.error('Failed to refresh session after promo redemption', err);
+          console.error('Failed to refresh subscription after promo redemption', err);
         }
         return { ok: true };
       }
@@ -405,6 +460,9 @@ export function AccountSubscription() {
             identityMode={identityMode}
             actionLoading={actionLoading}
             onManage={handleManage}
+            billingDetails={billingDetails}
+            billingDetailsLoading={billingDetailsLoading}
+            billingDetailsError={billingDetailsError}
           />
         </TabContent>
 

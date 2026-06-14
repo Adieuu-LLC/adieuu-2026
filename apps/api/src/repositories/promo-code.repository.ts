@@ -27,6 +27,15 @@ export class PromoCodeRepository extends BaseRepository<PromoCodeDocument> {
     return this.findOne({ shortcode } as Filter<PromoCodeDocument>);
   }
 
+  async findByShortcodes(shortcodes: string[]): Promise<PromoCodeDocument[]> {
+    if (shortcodes.length === 0) return [];
+    const unique = [...new Set(shortcodes)];
+    const docs = await this.collection
+      .find({ shortcode: { $in: unique } } as Filter<PromoCodeDocument>)
+      .toArray();
+    return docs as PromoCodeDocument[];
+  }
+
   async listPaginated(
     offset: number,
     limit: number,
@@ -117,6 +126,17 @@ export class PromoRedemptionRepository extends BaseRepository<PromoRedemptionDoc
       .project({ shortcode: 1 })
       .toArray();
     return docs.map((d) => (d as { shortcode: string }).shortcode);
+  }
+
+  async findAllByUser(userId: ObjectId, limit?: number): Promise<PromoRedemptionDocument[]> {
+    let cursor = this.collection
+      .find({ userId } as Filter<PromoRedemptionDocument>)
+      .sort({ redeemedAt: -1 } as Sort);
+    if (limit != null) {
+      cursor = cursor.limit(limit);
+    }
+    const docs = await cursor.toArray();
+    return docs as PromoRedemptionDocument[];
   }
 
   async createRedemption(

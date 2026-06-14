@@ -6,7 +6,7 @@
 import { ObjectId } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
-import type { UserDocument, CreateUserInput, UpdateUserInput, UserGeo, UserBilling, UserAgeVerification, UserCompliance, SubscriptionOverride } from '../models/user';
+import type { UserDocument, CreateUserInput, UpdateUserInput, UserGeo, UserBilling, UserAgeVerification, UserCompliance, SubscriptionOverride, PendingAccountEvent } from '../models/user';
 import type { AccountModerationCategory } from '@adieuu/shared';
 import { DEFAULT_IDENTITY_LOCKOUT_DURATION } from '../models/user';
 import { withTimestamps } from '../models/base';
@@ -34,6 +34,9 @@ export interface IUserRepository {
   updateBilling(id: string | ObjectId, billing: UserBilling): Promise<void>;
   updateAgeVerification(id: string | ObjectId, ageVerification: UserAgeVerification): Promise<void>;
   updateCompliance(id: string | ObjectId, compliance: UserCompliance): Promise<void>;
+  addPendingAccountEvent(id: string | ObjectId, event: PendingAccountEvent): Promise<void>;
+  dismissPendingAccountEvent(id: string | ObjectId, eventId: string): Promise<boolean>;
+  getPendingAccountEvents(id: string | ObjectId): Promise<PendingAccountEvent[]>;
 }
 
 /**
@@ -689,6 +692,40 @@ export class UserRepository extends BaseRepository<UserDocument> implements IUse
         },
       },
     );
+  }
+
+  async addPendingAccountEvent(
+    id: string | ObjectId,
+    event: PendingAccountEvent,
+  ): Promise<void> {
+    const objectId = this.toObjectId(id);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $push: { pendingAccountEvents: event },
+        $set: { updatedAt: new Date() },
+      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    );
+  }
+
+  async dismissPendingAccountEvent(
+    id: string | ObjectId,
+    eventId: string,
+  ): Promise<boolean> {
+    const objectId = this.toObjectId(id);
+    const result = await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $pull: { pendingAccountEvents: { id: eventId } },
+        $set: { updatedAt: new Date() },
+      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    );
+    return result.modifiedCount > 0;
+  }
+
+  async getPendingAccountEvents(id: string | ObjectId): Promise<PendingAccountEvent[]> {
+    const user = await this.findById(id);
+    return user?.pendingAccountEvents ?? [];
   }
 
 }

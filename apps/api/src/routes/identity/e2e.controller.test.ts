@@ -68,7 +68,7 @@ mock.module('../../models/identity', () => ({
 }));
 
 mock.module('../../db', () => ({
-  withTransaction: async (fn: (session: unknown) => Promise<unknown>) => fn({}),
+  withTransaction: async (fn: (session: unknown) => Promise<unknown>) => fn(undefined),
 }));
 
 import {

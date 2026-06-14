@@ -292,10 +292,16 @@ export {
 
 export {
   SubscriptionApi,
+  type SubscriptionPlanBadge,
   type SubscriptionStatus,
   type SubscriptionCatalogPriceEntry,
   type SubscriptionCatalogPricesMap,
   type SubscriptionCatalogPricesResponse,
+  type BillingInvoiceEntry,
+  type BillingPaymentMethod,
+  type BillingPromoRedemptionEntry,
+  type BillingRenewalInfo,
+  type BillingDetailsPayload,
 } from './subscription-api';
 
 export {
@@ -322,6 +328,17 @@ export {
   type PromoCodeListResponse,
   type PromoRedemptionListResponse,
 } from './promo-code-api';
+
+export {
+  AccountEventsApi,
+  type PendingAccountEventType,
+  type SubscriptionUpgradeSource,
+  type PendingAccountEventData,
+  type PublicPendingAccountEvent,
+  type PendingAccountEventsResponse,
+  type DismissPendingAccountEventParams,
+  type DismissPendingAccountEventResponse,
+} from './account-events-api';
 
 export {
   AchievementsApi,
