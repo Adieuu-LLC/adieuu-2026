@@ -16,6 +16,7 @@ import {
 } from './services/platform-settings.service';
 import { elog } from './utils';
 import { verifyStripeCredentials } from './services/billing/stripe.client';
+import { logIntegrationEnvironments } from './services/integration-diagnostics.service';
 import { startCallReaper, stopCallReaper } from './services/call-reaper.service';
 
 // Validate production configuration
@@ -61,6 +62,8 @@ async function start(): Promise<void> {
       throw error;
     }
   }
+
+  await logIntegrationEnvironments();
 
   const reaperHandle = startCallReaper();
 

@@ -62,7 +62,7 @@ function mapStatus(raw: string): ProviderVerificationStatus {
  * Resolves the active VerifyMy environment ('sandbox' | 'production').
  * Platform setting overrides the env default.
  */
-async function resolveEnvironment(): Promise<'sandbox' | 'production'> {
+export async function resolveVerifyMyDeployEnv(): Promise<'sandbox' | 'production'> {
   try {
     const repo = getPlatformSettingsRepository();
     const doc = await repo.findByKey(PLATFORM_SETTING_KEYS.AGE_VERIFICATION_VERIFYMY_ENV);
@@ -107,7 +107,7 @@ export class VerifyMyProvider implements AgeVerificationProvider {
   readonly id = PROVIDER_ID;
 
   async startVerification(input: StartVerificationInput): Promise<StartVerificationResult> {
-    const env = await resolveEnvironment();
+    const env = await resolveVerifyMyDeployEnv();
     const baseUrl = getBaseUrl(env);
 
     // VerifyMy expects ISO country codes only (e.g. 'us', not 'us-ut')
@@ -203,7 +203,7 @@ export class VerifyMyProvider implements AgeVerificationProvider {
   }
 
   async getVerificationStatus(verificationId: string): Promise<VerificationStatusResult> {
-    const env = await resolveEnvironment();
+    const env = await resolveVerifyMyDeployEnv();
     const baseUrl = getBaseUrl(env);
 
     const requestUri = `/api/v3/verifications/${encodeURIComponent(verificationId)}`;

@@ -574,7 +574,7 @@ export async function createIndexes(): Promise<void> {
   await calls.createIndex({ conversationId: 1, status: 1 });
   await calls.createIndex(
     { conversationId: 1 },
-    { unique: true, partialFilterExpression: { status: { $ne: 'ended' } } }
+    { unique: true, partialFilterExpression: { status: { $in: ['ringing', 'active'] } } }
   );
   try { await calls.dropIndex('endedAt_1'); } catch { /* index may not exist yet */ }
   await calls.createIndex({ endedAt: 1 }, { expireAfterSeconds: 60 * 60, sparse: true });

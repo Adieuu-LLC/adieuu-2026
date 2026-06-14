@@ -34,7 +34,7 @@ export interface CallParticipant {
 /**
  * Call document stored in MongoDB.
  *
- * The unique partial index `{ conversationId: 1 } WHERE { status: { $ne: 'ended' } }`
+ * The unique partial index `{ conversationId: 1 } WHERE { status: { $in: ['ringing', 'active'] } }`
  * enforces at most one active/ringing call per conversation.
  */
 export interface CallDocument extends BaseDocument {
