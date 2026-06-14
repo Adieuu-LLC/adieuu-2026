@@ -11,10 +11,11 @@ import { CheckoutPendingBanner } from '../../../components/CheckoutPendingBanner
 import { Icon } from '../../../icons/Icon';
 import { useIsMobile } from '../../../hooks/useIsMobile';
 import type { ManageTabProps } from './types';
-import { formatDate } from './types';
+import { formatDate, formatDateTime, daysUntil } from './types';
 import { AnnualPlansCards } from './PlansTab';
 import { PlansComparisonTable } from './PlansComparisonTable';
 import { PromoCodeCard, PROMO_CODE_CARD_ID } from '../../../components/PromoCodeCard';
+import { Tooltip } from '../../../components/Tooltip';
 
 const ANNUAL_PLANS_HEADING_ID = 'subscription-annual-plans-heading';
 
@@ -155,6 +156,35 @@ export function ManageTab({
     [hasFounder, glowTheme.primary],
   );
 
+  const planBadgeLabel = useMemo(() => {
+    const badge = status?.planBadge ?? (isLifetime ? 'lifetime' : 'annual');
+    if (badge === 'lifetime') {
+      return t('account.subscription.lifetime');
+    }
+    if (badge === 'expiring' && status?.planExpiresAt) {
+      const remainingDays = daysUntil(status.planExpiresAt);
+      if (remainingDays <= 1) {
+        return t('account.subscription.manage.expiresInOneDay');
+      }
+      return t('account.subscription.manage.expiresInDays', { count: remainingDays });
+    }
+    return t('account.subscription.manage.billingPeriodAnnual');
+  }, [isLifetime, status?.planBadge, status?.planExpiresAt, t]);
+
+  const planBadgeTooltip = useMemo(() => {
+    if (status?.planBadge !== 'expiring' || !status.planExpiresAt) return null;
+    return t('account.subscription.manage.expiresAtTooltip', {
+      datetime: formatDateTime(status.planExpiresAt),
+    });
+  }, [status?.planBadge, status?.planExpiresAt, t]);
+
+  const scrollToPromoCode = () => {
+    document.getElementById(PROMO_CODE_CARD_ID)?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    });
+  };
+
   return (
     <div className="subscription-manage">
       {identityMode && (
@@ -190,11 +220,17 @@ export function ManageTab({
             </div>
             {hasPaidPlan && (
               <div className="subscription-manage-badges">
-                <span className="subscription-tier-badge subscription-manage-plan-badge">
-                  {isLifetime
-                    ? t('account.subscription.lifetime')
-                    : t('account.subscription.manage.billingPeriodAnnual')}
-                </span>
+                {planBadgeTooltip ? (
+                  <Tooltip content={planBadgeTooltip} position="bottom">
+                    <span className="subscription-tier-badge subscription-manage-plan-badge">
+                      {planBadgeLabel}
+                    </span>
+                  </Tooltip>
+                ) : (
+                  <span className="subscription-tier-badge subscription-manage-plan-badge">
+                    {planBadgeLabel}
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -242,11 +278,13 @@ export function ManageTab({
                 ? t('account.subscription.cancelsOn', { date: formatDate(status.cancelAt) })
                 : status.cancelAtPeriodEnd
                   ? t('account.subscription.cancelAtPeriodEnd')
-                  : t('account.subscription.renewsOn', { date: formatDate(status.currentPeriodEnd) })}
+                  : status.status === 'trialing' || status.planBadge === 'expiring'
+                    ? t('account.subscription.expiresOn', { date: formatDate(status.currentPeriodEnd) })
+                    : t('account.subscription.renewsOn', { date: formatDate(status.currentPeriodEnd) })}
             </p>
           )}
 
-          {!identityMode && status?.hasStripeCustomer && (
+          {!identityMode && hasPaidPlan && status?.hasStripeCustomer && (
             <div className="subscription-manage-actions">
               <p className="subscription-manage-stripe-intro">
                 {t('account.subscription.manage.stripeBillingIntro')}
@@ -285,10 +323,7 @@ export function ManageTab({
                 type="button"
                 className="subscription-promo-prompt-link"
                 onClick={() => {
-                  document.getElementById(PROMO_CODE_CARD_ID)?.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'start',
-                  });
+                  scrollToPromoCode();
                 }}
               >
                 {t('account.subscription.promo.unpaidPrompt')}
@@ -303,9 +338,22 @@ export function ManageTab({
           <p className="subscription-read-only-plans-intro">{t('account.subscription.manage.readOnlyPlansIntro')}</p>
         )} */}
         <div className="subscription-manage-plans-toolbar">
-          <h2 id={ANNUAL_PLANS_HEADING_ID} className="subscription-section-heading">
-            {t('account.subscription.sections.annual')}
-          </h2>
+          <div className="subscription-manage-plans-toolbar-start">
+            <h2 id={ANNUAL_PLANS_HEADING_ID} className="subscription-section-heading">
+              {t('account.subscription.sections.annual')}
+            </h2>
+            {hasPaidPlan && !identityMode && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="subscription-promo-toolbar-cta"
+                onClick={scrollToPromoCode}
+              >
+                {t('account.subscription.promo.toolbarCta')}
+              </Button>
+            )}
+          </div>
           <SegmentGroup.Root
             className="subscription-layout-segment-group"
             value={plansLayout}

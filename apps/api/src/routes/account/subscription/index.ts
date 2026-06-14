@@ -17,6 +17,7 @@ import {
   createSubscriptionCheckout,
   createSubscriptionPortal,
   confirmCheckoutSession,
+  getBillingDetails,
 } from './controller';
 import { getClientIp } from '../../auth/controller';
 
@@ -63,6 +64,29 @@ router.get('/account/subscription/catalog-prices', async (ctx) => {
   if (!result.ok) {
     if (result.reason === 'stripe_disabled') return STRIPE_UNAVAILABLE_RESPONSE;
     if (result.reason === 'rate_limited') return ctx.errors.rateLimited();
+    return ctx.errors.internal();
+  }
+
+  return success(result.data);
+});
+
+/**
+ * GET /account/subscription/billing-details
+ *
+ * Returns invoice history, payment method, promo redemptions, and renewal info.
+ * Refreshed on each request when the client opens the Billing tab.
+ *
+ * @route GET /api/account/subscription/billing-details
+ */
+router.get('/account/subscription/billing-details', async (ctx) => {
+  const session = await requireAccountSession(ctx.request);
+  if (!session) return ctx.errors.unauthorized();
+
+  const result = await getBillingDetails(session.userId);
+  if (!result.ok) {
+    if (result.reason === 'stripe_disabled') return STRIPE_UNAVAILABLE_RESPONSE;
+    if (result.reason === 'rate_limited') return ctx.errors.rateLimited();
+    if (result.reason === 'user_not_found') return ctx.errors.notFound();
     return ctx.errors.internal();
   }
 

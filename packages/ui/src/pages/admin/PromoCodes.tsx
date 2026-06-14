@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Checkbox, Dialog, Portal, Select, createListCollection } from '@ark-ui/react';
@@ -11,6 +11,7 @@ import {
 } from '@adieuu/shared';
 import { useAppConfig } from '../../config';
 import { Button } from '../../components/Button';
+import { Input } from '../../components/Input';
 import { Icon } from '../../icons/Icon';
 import {
   EMPTY_PROMO_FORM,
@@ -63,6 +64,7 @@ export function AdminPromoCodes() {
   const [redemptionsPage, setRedemptionsPage] = useState(0);
   const [redemptionsLoading, setRedemptionsLoading] = useState(false);
   const [redemptionsError, setRedemptionsError] = useState<string | null>(null);
+  const formRef = useRef<HTMLDivElement>(null);
 
   const tierCollection = useMemo(
     () =>
@@ -153,7 +155,6 @@ export function AdminPromoCodes() {
     setForm(EMPTY_PROMO_FORM);
     setEditingShortcode(null);
     setSaveError(null);
-    setSaveSuccess(null);
   };
 
   const startEdit = (code: PublicPromoCode) => {
@@ -161,6 +162,9 @@ export function AdminPromoCodes() {
     setForm(codeToForm(code));
     setSaveError(null);
     setSaveSuccess(null);
+    requestAnimationFrame(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   };
 
   const validationMessage = (error: PromoFormValidationError): string => {
@@ -402,7 +406,7 @@ export function AdminPromoCodes() {
             </div>
           )}
 
-          <div className="admin-promo-codes__form">
+          <div ref={formRef} className="admin-promo-codes__form">
             <h2 className="admin-promo-codes__subtitle">
               {editingShortcode
                 ? t('admin.promoCodes.editTitle', { shortcode: editingShortcode })
@@ -444,17 +448,17 @@ export function AdminPromoCodes() {
                     setForm((prev) => ({ ...prev, grantSubscription: e.checked === true }))
                   }
                   disabled={saving}
-                  className="admin-promo-codes__checkbox"
+                  className="admin-checkbox"
                 >
-                  <Checkbox.Control className="admin-promo-codes__checkbox-control" />
-                  <Checkbox.Label className="admin-promo-codes__checkbox-label">
+                  <Checkbox.Control className="admin-checkbox-control" />
+                  <Checkbox.Label className="admin-checkbox-label">
                     {t('admin.promoCodes.form.grantSubscription')}
                   </Checkbox.Label>
                   <Checkbox.HiddenInput />
                 </Checkbox.Root>
 
                 {form.grantSubscription && (
-                  <div className="admin-promo-codes__subscription-fields">
+                  <div className="admin-subscription-form admin-promo-codes__subscription-fields">
                     <div className="input-wrapper">
                       <label className="input-label">{t('admin.promoCodes.form.tier')}</label>
                       <Select.Root
@@ -498,25 +502,21 @@ export function AdminPromoCodes() {
                       </Select.Root>
                     </div>
 
-                    <label className="admin-promo-codes__field">
-                      <span className="admin-field-label">
-                        {t('admin.promoCodes.form.durationMonths')}
-                      </span>
-                      <input
-                        className="admin-input"
-                        type="number"
-                        min={1}
-                        max={120}
-                        value={form.subscriptionDurationMonths}
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            subscriptionDurationMonths: e.target.value,
-                          }))
-                        }
-                        disabled={saving}
-                      />
-                    </label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={120}
+                      label={t('admin.promoCodes.form.durationMonths')}
+                      value={form.subscriptionDurationMonths}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          subscriptionDurationMonths: e.target.value,
+                        }))
+                      }
+                      disabled={saving}
+                      inputSize="sm"
+                    />
                   </div>
                 )}
               </div>
@@ -568,27 +568,25 @@ export function AdminPromoCodes() {
                     setForm((prev) => ({ ...prev, unlimitedUses: e.checked === true }))
                   }
                   disabled={saving}
-                  className="admin-promo-codes__checkbox"
+                  className="admin-checkbox"
                 >
-                  <Checkbox.Control className="admin-promo-codes__checkbox-control" />
-                  <Checkbox.Label className="admin-promo-codes__checkbox-label">
+                  <Checkbox.Control className="admin-checkbox-control" />
+                  <Checkbox.Label className="admin-checkbox-label">
                     {t('admin.promoCodes.form.unlimitedUses')}
                   </Checkbox.Label>
                   <Checkbox.HiddenInput />
                 </Checkbox.Root>
 
                 {!form.unlimitedUses && (
-                  <label className="admin-promo-codes__field">
-                    <span className="admin-field-label">{t('admin.promoCodes.form.maxUses')}</span>
-                    <input
-                      className="admin-input"
-                      type="number"
-                      min={1}
-                      value={form.maxUses}
-                      onChange={(e) => setForm((prev) => ({ ...prev, maxUses: e.target.value }))}
-                      disabled={saving}
-                    />
-                  </label>
+                  <Input
+                    type="number"
+                    min={1}
+                    label={t('admin.promoCodes.form.maxUses')}
+                    value={form.maxUses}
+                    onChange={(e) => setForm((prev) => ({ ...prev, maxUses: e.target.value }))}
+                    disabled={saving}
+                    inputSize="sm"
+                  />
                 )}
               </div>
 

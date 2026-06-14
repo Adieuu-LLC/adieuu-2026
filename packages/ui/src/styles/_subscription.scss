@@ -97,7 +97,11 @@
   color: var(--color-text-secondary);
 
   &--muted {
-    color: var(--color-text-tertiary);
+    color: var(--color-text-muted);
+  }
+
+  &--excluded {
+    color: var(--color-text-muted);
   }
 }
 
@@ -109,6 +113,12 @@
 
 .subscription-feature-check {
   color: var(--color-accent-primary);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.subscription-feature-excluded {
+  color: var(--color-text-muted);
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -491,6 +501,113 @@
   color: var(--color-text-muted);
 }
 
+.subscription-billing-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-xl) 0;
+  color: var(--color-text-secondary);
+}
+
+.subscription-billing-subheading {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.subscription-billing-meta {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.subscription-billing-renewal-details,
+.subscription-billing-payment-method {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.subscription-billing-history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.subscription-billing-history-header,
+.subscription-billing-history-row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 1fr) minmax(0, 2.5fr) minmax(5rem, 1fr) minmax(5rem, 1fr);
+  gap: var(--spacing-md);
+  align-items: start;
+}
+
+.subscription-billing-history-header {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.subscription-billing-history-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.subscription-billing-history-row {
+  padding: var(--spacing-sm) 0;
+  border-top: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.subscription-billing-history-description {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.subscription-billing-history-type {
+  display: inline-block;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.subscription-billing-history-grant {
+  color: var(--color-text-muted);
+}
+
+.subscription-billing-history-link {
+  color: var(--color-accent-primary);
+  text-decoration: none;
+}
+
+.subscription-billing-history-link:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+  .subscription-billing-history-header {
+    display: none;
+  }
+
+  .subscription-billing-history-row {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-xs);
+  }
+}
+
 // ============================================================================
 // Tab content sections
 // ============================================================================
@@ -527,6 +644,18 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-md);
+}
+
+.subscription-manage-plans-toolbar-start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-sm);
+  min-width: 0;
+}
+
+.subscription-promo-toolbar-cta {
+  flex-shrink: 0;
 }
 
 .subscription-layout-segment-group {

@@ -2,6 +2,7 @@ import type {
   SubscriptionStatus,
   PurchasableProductId,
   SubscriptionCatalogPricesMap,
+  BillingDetailsPayload,
 } from '@adieuu/shared';
 
 export interface SubscriptionDerivedState {
@@ -39,6 +40,9 @@ export interface BillingTabProps {
   identityMode: boolean;
   actionLoading: boolean;
   onManage: () => void | Promise<void>;
+  billingDetails: BillingDetailsPayload | null;
+  billingDetailsLoading: boolean;
+  billingDetailsError: boolean;
 }
 
 export interface ManageTabProps extends SubscriptionTabProps {
@@ -115,4 +119,19 @@ export function formatDate(iso: string): string {
     month: 'long',
     day: 'numeric',
   });
+}
+
+export function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+export function daysUntil(iso: string): number {
+  const ms = new Date(iso).getTime() - Date.now();
+  return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
 }

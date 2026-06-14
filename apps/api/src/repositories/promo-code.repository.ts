@@ -119,6 +119,14 @@ export class PromoRedemptionRepository extends BaseRepository<PromoRedemptionDoc
     return docs.map((d) => (d as { shortcode: string }).shortcode);
   }
 
+  async findAllByUser(userId: ObjectId): Promise<PromoRedemptionDocument[]> {
+    const docs = await this.collection
+      .find({ userId } as Filter<PromoRedemptionDocument>)
+      .sort({ redeemedAt: -1 } as Sort)
+      .toArray();
+    return docs as PromoRedemptionDocument[];
+  }
+
   async createRedemption(
     input: Omit<PromoRedemptionDocument, '_id' | 'createdAt' | 'updatedAt'>,
     options?: { session?: ClientSession },

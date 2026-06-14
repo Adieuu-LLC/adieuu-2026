@@ -51,7 +51,7 @@ const mockFindShortcodesByUser = mock((): any => Promise.resolve([]));
 const mockCreateRedemption = mock((): any => Promise.resolve());
 const mockUpdateStripeAction = mock((): any => Promise.resolve());
 
-const mockWithTransaction = mock(async (fn: any) => fn({}));
+const mockWithTransaction = mock(async (fn: any) => fn(undefined));
 mock.module('../db/mongo', () => ({
   withTransaction: mockWithTransaction,
 }));

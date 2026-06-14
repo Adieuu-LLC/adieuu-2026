@@ -23,6 +23,10 @@ import { parseJurisdictionList } from './geo/jurisdiction';
 import { config } from '../config';
 import { PURCHASABLE_PRODUCTS, type StripePriceConfigKey } from '../constants/subscription-tiers';
 import elog from '../utils/adieuuLogger';
+import {
+  emitSubscriptionUpgradedEvent,
+  type PublicPendingAccountEvent,
+} from './pending-account-event.service';
 
 const PROMO_REDEEM_RATE_LIMIT: RateLimitConfig = { limit: 15, windowSeconds: 3600 };
 
@@ -127,7 +131,11 @@ export const CreatePromoCodeSchema = z.object({
   validTo: z.string().datetime().nullable().optional(),
 });
 
-export const UpdatePromoCodeSchema = CreatePromoCodeSchema.omit({ shortcode: true }).partial();
+export const UpdatePromoCodeSchema = CreatePromoCodeSchema.omit({ shortcode: true })
+  .partial()
+  .extend({
+    subscription: PromoSubscriptionGrantSchema.nullable().optional(),
+  });
 
 export const PromoCodeListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
@@ -168,6 +176,7 @@ export type RedeemPromoCodeResult =
       shortcode: string;
       subscriptionApplied?: { tier: SubscriptionTierId; expiresAt: string };
       entitlementsApplied: string[];
+      pendingEvent?: PublicPendingAccountEvent;
     }
   | { ok: false; reason: PromoCodeRedeemReason };
 
@@ -544,6 +553,21 @@ export async function redeemPromoCode(
     const months = code.subscription.durationMonths;
     const trial = await createPromoTrialSubscription(user, tier, months);
     if (trial) {
+      try {
+        const { getStripe } = await import('./billing/stripe.client');
+        const { deriveSubscriptionBilling } = await import('./billing/billing.service');
+        const stripe = getStripe();
+        const billing = await deriveSubscriptionBilling(stripe, trial.subscriptionId, user.billing);
+        await userRepo.updateBilling(userId, billing);
+      } catch (syncErr) {
+        elog.warn('Promo redemption: failed to sync billing after trial creation', {
+          userId,
+          shortcode,
+          subscriptionId: trial.subscriptionId,
+          error: syncErr instanceof Error ? syncErr.message : String(syncErr),
+        });
+      }
+
       elog.info('Promo redemption: trial subscription created', {
         userId,
         shortcode,
@@ -586,6 +610,16 @@ export async function redeemPromoCode(
     entitlements: entitlementsApplied,
   });
 
+  let pendingEvent: PublicPendingAccountEvent | undefined;
+  if (code.subscription && finalStripeAction !== 'credit') {
+    const tier = code.subscription.tier as SubscriptionTierId;
+    pendingEvent = await emitSubscriptionUpgradedEvent(userId, {
+      tier,
+      source: 'promo_code',
+      isLifetime: false,
+    });
+  }
+
   return {
     ok: true,
     shortcode,
@@ -601,6 +635,7 @@ export async function redeemPromoCode(
           }
         : undefined,
     entitlementsApplied,
+    pendingEvent,
   };
 }
 

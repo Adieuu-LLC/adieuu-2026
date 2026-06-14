@@ -6,6 +6,7 @@ import type { ApiResponse } from '../types';
 import type { HttpClient } from './http-client';
 import type { SubscriptionStatus } from './subscription-api';
 import type { SubscriptionTierId } from '../subscriptions';
+import type { PublicPendingAccountEvent } from './account-events-api';
 
 // ---------------------------------------------------------------------------
 // User-facing types
@@ -33,6 +34,7 @@ export interface RedeemPromoCodeResponse {
   subscriptionApplied?: { tier: SubscriptionTierId; expiresAt: string };
   entitlementsApplied: string[];
   subscriptionStatus: SubscriptionStatus;
+  pendingEvent?: PublicPendingAccountEvent;
 }
 
 // ---------------------------------------------------------------------------
@@ -85,7 +87,10 @@ export interface CreatePromoCodeParams {
   validTo?: string | null;
 }
 
-export type UpdatePromoCodeParams = Omit<CreatePromoCodeParams, 'shortcode'>;
+export type UpdatePromoCodeParams = Omit<CreatePromoCodeParams, 'shortcode' | 'subscription'> & {
+  /** Pass `null` to remove an existing subscription grant on update. */
+  subscription?: PromoCodeSubscriptionGrant | null;
+};
 
 export interface PromoCodeListResponse {
   codes: PublicPromoCode[];

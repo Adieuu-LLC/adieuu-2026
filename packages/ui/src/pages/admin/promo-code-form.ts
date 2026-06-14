@@ -177,7 +177,11 @@ export function formToCreateParams(form: PromoCodeFormState): CreatePromoCodePar
 }
 
 export function formToUpdateParams(form: PromoCodeFormState): UpdatePromoCodeParams {
-  return buildCommonParams(form);
+  const common = buildCommonParams(form);
+  return {
+    ...common,
+    subscription: form.grantSubscription ? common.subscription : null,
+  };
 }
 
 export function formatGrantsSummary(

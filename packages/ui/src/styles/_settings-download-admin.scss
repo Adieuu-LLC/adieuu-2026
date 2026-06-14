@@ -661,6 +661,62 @@
   margin: var(--spacing-sm) 0 0;
 }
 
+.admin-inline-success {
+  color: var(--color-success, #2e7d32);
+  font-size: var(--font-size-sm);
+  margin: var(--spacing-sm) 0 0;
+}
+
+// Ark UI checkbox pattern for admin forms (matches .fs-checkbox-control)
+.admin-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+}
+
+.admin-checkbox-control {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  margin-top: 1px;
+  flex-shrink: 0;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  &[data-state='checked'] {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+
+    &::after {
+      content: '';
+      display: block;
+      width: 5px;
+      height: 9px;
+      border: solid var(--color-on-primary, #fff);
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg) translateY(-1px);
+    }
+  }
+
+  &[data-disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.admin-checkbox-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  line-height: 1.4;
+}
+
 .admin-field-label {
   display: block;
   font-weight: var(--font-weight-medium);
@@ -1016,26 +1072,6 @@
   gap: var(--spacing-md);
 }
 
-.admin-subscription-checkbox {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-sm);
-}
-
-.admin-subscription-checkbox-control {
-  width: 1rem;
-  height: 1rem;
-  margin-top: 2px;
-  flex-shrink: 0;
-  accent-color: var(--color-accent-primary);
-}
-
-.admin-subscription-checkbox-label {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-primary);
-  cursor: pointer;
-}
-
 .admin-user-profile {
   .admin-card {
     margin-bottom: var(--spacing-lg);
@@ -1123,28 +1159,7 @@
   }
 
   &__subscription-fields {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: var(--spacing-md);
     margin-top: var(--spacing-sm);
-  }
-
-  &__checkbox {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    margin-bottom: var(--spacing-sm);
-  }
-
-  &__checkbox-control {
-    width: 1rem;
-    height: 1rem;
-    accent-color: var(--color-primary);
-  }
-
-  &__checkbox-label {
-    font-size: var(--font-size-sm);
-    color: var(--color-text-primary);
   }
 
   &__form-actions {

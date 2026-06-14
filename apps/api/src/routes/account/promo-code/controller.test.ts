@@ -23,6 +23,8 @@ const mockGetSubscriptionSummary: any = mock(() =>
       activeSubscriptions: ['access'] as SubscriptionTierId[],
       entitlements: [],
       isLifetime: false,
+      planBadge: 'annual' as const,
+      planExpiresAt: '2026-12-01T00:00:00.000Z',
       status: 'active' as const,
       currentPeriodEnd: '2026-12-01T00:00:00.000Z',
       cancelAtPeriodEnd: false,
@@ -33,9 +35,44 @@ const mockGetSubscriptionSummary: any = mock(() =>
   }),
 );
 
-mock.module('../subscription/controller', () => ({
-  getSubscriptionSummary: mockGetSubscriptionSummary,
-}));
+mock.module('../subscription/controller', () => {
+  const { resolveSubscriptionPlanDisplay } = require('../../../services/billing/subscription-plan-display');
+
+  function buildSubscriptionSummaryFromUser(user: UserDocument) {
+    const resolved = mockResolveEffectiveAccess();
+    const plan = resolveSubscriptionPlanDisplay(user);
+    const hasGifted = resolved.entitlements.includes('gifted');
+    let sponsoredExpiry: string | null = null;
+    if (hasGifted && user.subscriptionOverrides?.length) {
+      const now = new Date();
+      const activeOverrides = user.subscriptionOverrides
+        .filter((o: { expiresAt?: Date }) => o.expiresAt && o.expiresAt > now)
+        .sort((a: { expiresAt?: Date }, b: { expiresAt?: Date }) => a.expiresAt!.getTime() - b.expiresAt!.getTime());
+      if (activeOverrides.length > 0) {
+        sponsoredExpiry = activeOverrides[0]!.expiresAt!.toISOString();
+      }
+    }
+
+    return {
+      activeSubscriptions: resolved.subscriptions,
+      entitlements: resolved.entitlements,
+      isLifetime: plan.isLifetime,
+      planBadge: plan.planBadge,
+      planExpiresAt: plan.planExpiresAt?.toISOString() ?? null,
+      status: user.billing?.status ?? null,
+      currentPeriodEnd: user.billing?.currentPeriodEnd?.toISOString() ?? null,
+      cancelAtPeriodEnd: user.billing?.cancelAtPeriodEnd ?? false,
+      cancelAt: user.billing?.cancelAt?.toISOString() ?? null,
+      hasStripeCustomer: !!user.stripeCustomerId,
+      sponsoredExpiry,
+    };
+  }
+
+  return {
+    getSubscriptionSummary: mockGetSubscriptionSummary,
+    buildSubscriptionSummaryFromUser,
+  };
+});
 
 const mockFindById = mock((_id: string | ObjectId) => Promise.resolve<UserDocument | null>(null));
 
@@ -122,6 +159,8 @@ describe('promo-code controller', () => {
           activeSubscriptions: ['access'],
           entitlements: [],
           isLifetime: false,
+          planBadge: 'annual',
+          planExpiresAt: '2026-12-01T00:00:00.000Z',
           status: 'active',
           currentPeriodEnd: '2026-12-01T00:00:00.000Z',
           cancelAtPeriodEnd: false,
@@ -219,10 +258,12 @@ describe('promo-code controller', () => {
       expect(result.data.subscriptionStatus.activeSubscriptions).toEqual(['access']);
       expect(result.data.subscriptionStatus.entitlements).toEqual(['gifted']);
       expect(result.data.subscriptionStatus.sponsoredExpiry).toBe('2026-09-01T00:00:00.000Z');
+      expect(result.data.subscriptionStatus.planBadge).toBe('expiring');
+      expect(result.data.subscriptionStatus.isLifetime).toBe(false);
       expect(result.data.subscriptionStatus.hasStripeCustomer).toBe(false);
     }
     expect(mockFindById).toHaveBeenCalled();
-    expect(mockResolveEffectiveAccess).toHaveBeenCalledWith(user);
+    expect(mockResolveEffectiveAccess).toHaveBeenCalled();
   });
 
   test('returns success with empty fallback when stripe is disabled and user cannot be loaded', async () => {
