@@ -33,6 +33,9 @@ import elog from '../../../utils/adieuuLogger';
 import type { UserBilling } from '../../../models/user';
 import type { UserDocument } from '../../../models/user';
 
+/** Max billing history rows returned per source (Stripe invoices, promo redemptions). */
+const BILLING_HISTORY_ENTRY_LIMIT = 24;
+
 /** Stripe checkout session creation — generous window so retries, double-clicks, and config mistakes do not quickly lock users out. */
 const CHECKOUT_RATE_LIMIT: RateLimitConfig = { limit: 30, windowSeconds: 3600 };
 /** Billing portal sessions — same idea; users may open/close portal several times while sorting payment methods. */
@@ -477,7 +480,7 @@ async function fetchStripeInvoices(customerId: string): Promise<BillingInvoiceEn
   try {
     const invoices = await stripe.invoices.list({
       customer: customerId,
-      limit: 24,
+      limit: BILLING_HISTORY_ENTRY_LIMIT,
     });
     return invoices.data.map(mapStripeInvoice);
   } catch (err) {
@@ -523,15 +526,12 @@ async function fetchStripePaymentMethod(customerId: string): Promise<BillingPaym
 async function fetchPromoRedemptions(userId: ObjectId): Promise<BillingPromoRedemptionEntry[]> {
   const redemptionRepo = getPromoRedemptionRepository();
   const promoRepo = getPromoCodeRepository();
-  const redemptions = await redemptionRepo.findAllByUser(userId);
+  const redemptions = await redemptionRepo.findAllByUser(userId, BILLING_HISTORY_ENTRY_LIMIT);
 
-  const descriptions = new Map<string, string | null>();
-  await Promise.all(
-    redemptions.map(async (redemption) => {
-      if (descriptions.has(redemption.shortcode)) return;
-      const promo = await promoRepo.findByShortcode(redemption.shortcode);
-      descriptions.set(redemption.shortcode, promo?.description ?? null);
-    }),
+  const uniqueShortcodes = [...new Set(redemptions.map((redemption) => redemption.shortcode))];
+  const promos = await promoRepo.findByShortcodes(uniqueShortcodes);
+  const descriptions = new Map(
+    promos.map((promo) => [promo.shortcode, promo.description ?? null]),
   );
 
   return redemptions.map((redemption) => ({

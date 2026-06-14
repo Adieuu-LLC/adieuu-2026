@@ -653,7 +653,7 @@ export const account = {
         sponsorship: 'You have been gifted a subscription!',
         sponsorshipWithSponsor: '{{firstName}} {{lastInitial}} gifted you a subscription!',
         promoCode: 'Your promo code has been successfully applied!',
-        adminGift: "You've'received a subscription upgrade!",
+        adminGift: "You've received a subscription upgrade!",
         purchase: 'Welcome to {{tier}}!',
         lifetime: 'Lifetime Access',
         tierLabel: 'Plan: {{tier}}',
