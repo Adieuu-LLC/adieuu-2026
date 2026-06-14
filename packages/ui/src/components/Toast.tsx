@@ -144,55 +144,68 @@ export function ToastProvider({ children }: ToastProviderProps) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <Toaster toaster={toaster}>
-        {(toast) => {
-          const meta = toast.meta as { action?: ToastOptions['action']; onClick?: () => void; expiresAt?: string } | undefined;
-          const action = meta?.action;
-          const onClick = meta?.onClick;
-          const expiresAt = meta?.expiresAt;
-          return (
-            <ArkToast.Root key={toast.id} className={`toast toast-${toast.type}${onClick ? ' toast-clickable' : ''}${expiresAt ? ' toast-expiring' : ''}`}>
-              <div
-                className="toast-content"
-                role={onClick ? 'button' : undefined}
-                tabIndex={onClick ? 0 : undefined}
-                onClick={onClick ? () => { onClick(); toaster.dismiss(toast.id); } : undefined}
-                onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); toaster.dismiss(toast.id); } } : undefined}
-              >
-                <div className="toast-icon">
-                  <ToastIcon variant={toast.type as ToastVariant} />
-                </div>
-                <div className="toast-text">
-                  <ArkToast.Title className="toast-title">{toast.title}</ArkToast.Title>
-                  {toast.description && (
-                    <ArkToast.Description className="toast-description">
-                      {toast.description}
-                    </ArkToast.Description>
-                  )}
-                  {expiresAt && <ToastExpiryCountdown expiresAt={expiresAt} />}
-                </div>
-              </div>
-              <div className="toast-actions">
-                {action && (
-                  <ArkToast.ActionTrigger
-                    className="toast-action"
-                    onClick={() => {
-                      action.onClick();
-                      toaster.dismiss(toast.id);
-                    }}
-                  >
-                    {action.label}
-                  </ArkToast.ActionTrigger>
-                )}
-                <ArkToast.CloseTrigger className="toast-close" aria-label="Close">
-                  <Icon name="x" />
-                </ArkToast.CloseTrigger>
-              </div>
-            </ArkToast.Root>
-          );
-        }}
-      </Toaster>
     </ToastContext.Provider>
+  );
+}
+
+/**
+ * Renders the toast UI. Must be placed inside IconPackProvider (or any
+ * context that Icon depends on) so toast icons resolve correctly.
+ *
+ * Separated from ToastProvider to break the circular dependency:
+ * ToastProvider needs to wrap AuthProvider (ComplianceModals uses toasts),
+ * but IconPackProvider needs AuthProvider, and toast icons need IconPackProvider.
+ */
+export function ToasterOutlet() {
+  return (
+    <Toaster toaster={toaster}>
+      {(toast) => {
+        const meta = toast.meta as { action?: ToastOptions['action']; onClick?: () => void; expiresAt?: string } | undefined;
+        const action = meta?.action;
+        const onClick = meta?.onClick;
+        const expiresAt = meta?.expiresAt;
+        return (
+          <ArkToast.Root key={toast.id} className={`toast toast-${toast.type}${onClick ? ' toast-clickable' : ''}${expiresAt ? ' toast-expiring' : ''}`}>
+            <div
+              className="toast-content"
+              role={onClick ? 'button' : undefined}
+              tabIndex={onClick ? 0 : undefined}
+              onClick={onClick ? () => { onClick(); toaster.dismiss(toast.id); } : undefined}
+              onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); toaster.dismiss(toast.id); } } : undefined}
+            >
+              <div className="toast-icon">
+                <ToastIcon variant={toast.type as ToastVariant} />
+              </div>
+              <div className="toast-text">
+                <ArkToast.Title className="toast-title">{toast.title}</ArkToast.Title>
+                {toast.description && (
+                  <ArkToast.Description className="toast-description">
+                    {toast.description}
+                  </ArkToast.Description>
+                )}
+                {expiresAt && <ToastExpiryCountdown expiresAt={expiresAt} />}
+              </div>
+            </div>
+            <div className="toast-actions">
+              {action && (
+                <ArkToast.ActionTrigger
+                  className="toast-action"
+                  onClick={() => {
+                    action.onClick();
+                    toaster.dismiss(toast.id);
+                  }}
+                >
+                  {action.label}
+                </ArkToast.ActionTrigger>
+              )}
+              <ArkToast.CloseTrigger className="toast-close" aria-label="Close">
+                <Icon name="x" />
+              </ArkToast.CloseTrigger>
+            </div>
+          </ArkToast.Root>
+        );
+      }}
+    </Toaster>
   );
 }
 

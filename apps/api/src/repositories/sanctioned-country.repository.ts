@@ -27,6 +27,34 @@ export class SanctionedCountryRepository extends BaseRepository<SanctionedCountr
     return docs.sort((a, b) => a.countryName.localeCompare(b.countryName));
   }
 
+  async findAll(limit = 200): Promise<SanctionedCountryDocument[]> {
+    const docs = await this.findMany({}, limit);
+    return docs.sort((a, b) => {
+      const activeCompare = Number(b.active) - Number(a.active);
+      if (activeCompare !== 0) return activeCompare;
+      return a.countryName.localeCompare(b.countryName);
+    });
+  }
+
+  /**
+   * Sets `active: false` on rows whose countryCode is not in the keep set.
+   * Returns the number of rows deactivated.
+   */
+  async deactivateNotIn(keepCountryCodes: readonly string[]): Promise<number> {
+    const keep = new Set(keepCountryCodes.map((c) => c.trim().toUpperCase()).filter(Boolean));
+    const docs = await this.findAll();
+    let deactivated = 0;
+    for (const doc of docs) {
+      if (!doc.active || keep.has(doc.countryCode)) continue;
+      await this.collection.updateOne(
+        { _id: doc._id } as Filter<SanctionedCountryDocument>,
+        { $set: { active: false, updatedAt: new Date() } },
+      );
+      deactivated += 1;
+    }
+    return deactivated;
+  }
+
   async upsertSeedRow(
     row: Omit<SanctionedCountryDocument, '_id' | 'createdAt' | 'updatedAt'>,
   ): Promise<void> {

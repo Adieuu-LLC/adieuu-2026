@@ -103,6 +103,33 @@
   }
 }
 
+// React Router <Link> and other anchors use global link hover colors unless overridden.
+a.btn {
+  &-primary {
+    color: var(--color-text-inverse);
+
+    &:hover {
+      color: var(--color-text-inverse);
+    }
+  }
+
+  &-secondary {
+    color: var(--color-text-primary);
+
+    &:hover {
+      color: var(--color-text-primary);
+    }
+  }
+
+  &-ghost {
+    color: var(--color-text-secondary);
+
+    &:hover {
+      color: var(--color-text-primary);
+    }
+  }
+}
+
 // ============================================================================
 // Input Component
 // ============================================================================

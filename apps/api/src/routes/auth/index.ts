@@ -257,7 +257,7 @@ router.post('/auth/verify', async (ctx) => {
       return ctx.errors.tooManyAttempts();
     }
     if (result.error === 'account_banned') {
-      return errorResponse('ACCOUNT_BANNED', 'This account has been permanently banned.', 403, {
+      return errorResponse('ACCOUNT_BANNED', 'This account has been banned.', 403, {
         moderationReason: result.moderationReason,
         moderationCategory: result.moderationCategory,
         bannedPeerCount: result.bannedPeerCount,
@@ -579,7 +579,7 @@ router.post('/auth/mfa/totp', async (ctx) => {
       return ctx.errors.unauthorized();
     }
     if (result.error === 'account_banned') {
-      return errorResponse('ACCOUNT_BANNED', 'This account has been permanently banned.', 403, {
+      return errorResponse('ACCOUNT_BANNED', 'This account has been banned.', 403, {
         moderationReason: result.moderationReason,
         moderationCategory: result.moderationCategory,
         bannedPeerCount: result.bannedPeerCount,
@@ -639,7 +639,7 @@ router.post('/auth/mfa/webauthn', async (ctx) => {
       return ctx.errors.unauthorized();
     }
     if (result.error === 'account_banned') {
-      return errorResponse('ACCOUNT_BANNED', 'This account has been permanently banned.', 403, {
+      return errorResponse('ACCOUNT_BANNED', 'This account has been banned.', 403, {
         moderationReason: result.moderationReason,
         moderationCategory: result.moderationCategory,
         bannedPeerCount: result.bannedPeerCount,

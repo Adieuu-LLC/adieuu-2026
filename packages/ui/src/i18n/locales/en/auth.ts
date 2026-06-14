@@ -18,12 +18,13 @@ export const auth = {
       changeIdentifier: 'Use a different email or phone',
     },
     restriction: {
-      bannedTitle: 'Account Permanently Banned',
+      bannedTitle: 'Account Banned',
+      ofacBannedTitle: 'Account Banned While Sanctioned',
       suspendedTitle: 'Account Suspended',
       bannedClubWithCategory:
         "You and {{count}} other accounts are banned for {{category}}.",
       bannedClubTotal:
-        "You and {{count}} other accounts are permanently banned from Adieuu.",
+        "You and {{count}} other accounts are banned from Adieuu.",
       suspendedSubtitle: 'Your account access is temporarily restricted.',
       reason: 'Reason',
       timeRemaining: 'Time remaining',
@@ -33,7 +34,7 @@ export const auth = {
       appealEmail: 'consequences@adieuu.com',
       appealInstructions: 'with your account details.',
       ofacMessage:
-        'Your country is subject to U.S. sanctions. We are unable to provide service. Appeals are not available.',
+        'You connected from an IP address associated with a country subject to US sanctions. We are unable to provide service. Appeals are not available.',
       category: {
         tos_violation: 'ToS violations',
         spam: 'spam',

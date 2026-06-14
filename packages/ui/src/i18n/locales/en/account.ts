@@ -91,7 +91,7 @@ export const account = {
       },
       ageVerification: {
         title: 'Age Verification',
-        subtitle: 'Your age verification status for compliance with applicable regulations.',
+        subtitle: 'Where required, your age verification status for compliance with applicable regulations.',
         statusNotRequired: 'Not required',
         statusRequired: 'Required',
         statusPending: 'Pending',
@@ -118,10 +118,10 @@ export const account = {
         approvalMethod: 'Verified via {{method}}',
       },
       compliance: {
-        title: 'Regulatory context',
+        title: 'Age Verification & Regulatory Info',
         subtitle:
-          'Summary of public age-assurance and related rules that apply to your area. Age checks are tied to your account, *not* your Aliases (which remain anonymous and separate from your account data)',
-        empty: 'No matching regulatory rows are loaded for this jurisdiction. You can still use Adieuu where our terms and your local law allow.',
+          "Below is a summary of public age-assurance and related rules that apply to your area (based on IP). We're the only chat platform today that fully separates your private account data (email, age verification, etc) from your Aliases and activity - this allows us to fully comply with your local law, without compromising on your privacy.",
+        empty: "We currently have no age verification or other regulatory requirements recorded for your jurisdiction. You may use Adieuu where our terms and your local law allow.",
       },
     },
 
@@ -395,11 +395,11 @@ export const account = {
         currentPlanLabel: 'Your current plan',
         billingPeriodAnnual: 'Annual',
         noPlan:
-          'You do not have a paid subscription. Your account is read-only until you subscribe — you can browse, but you cannot post or use paid features.',
+          'Without a paid plan, your account stays read-only. Paying for a subscription helps us cover costs without having to rely on ads, data collection, etc. It also makes it more expensive for bots. Subscribe below to unlock posting and full features.',
         sponsorshipCta:
-          'Cannot afford a plan? Visit the Sponsorships tab to request sponsorship from the community.',
+          "Can't afford a plan? All good! Visit the Sponsorships tab to request sponsorship from the community.",
         readOnlyPlansIntro:
-          'Without a paid plan, your account stays read-only. Paying for a subscription helps us cover costs without having to rely on ads, data collection, etc. It also makes it more expensive for bad bots. Win-Win! Subscribe below to unlock posting and full features.',
+          'Without a paid plan, your account stays read-only. Paying for a subscription helps us cover costs without having to rely on ads, data collection, etc. It also makes it more expensive for bots.Subscribe below to unlock posting and full features.',
         stripeBillingIntro:
           'Payments and invoices for your subscription are processed through Stripe.',
         giftedSubscription:
@@ -411,6 +411,32 @@ export const account = {
         manualChangeLead:
           'To upgrade, downgrade, or change your subscription, email us. Changes are processed manually for now (this is temporary) while we finish self-service plan management.',
         manualChangeEmail: 'say@adieuu.com',
+      },
+
+      promo: {
+        heading: 'Have a promotional code?',
+        description:
+          'Enter a code below to unlock subscription access or entitlements granted by Adieuu or a partner.',
+        inputLabel: 'Promotional code',
+        inputPlaceholder: 'Enter your code',
+        submit: 'Redeem code',
+        success: 'Your promotional code was applied successfully.',
+        unpaidPrompt: 'Or, have a promotional code? Enter it below.',
+        errors: {
+          generic: 'We could not redeem that code. Please try again.',
+          invalid: 'Enter a valid promotional code.',
+          invalidCode: 'That promotional code is not valid or cannot be redeemed.',
+          notFound: 'That promotional code was not found.',
+          expired: 'That promotional code is not currently valid.',
+          jurisdiction: 'That promotional code is not available in your region.',
+          maxUses: 'That promotional code has reached its maximum number of uses.',
+          alreadyRedeemed: 'You have already redeemed this promotional code.',
+          missingRequired: 'You must redeem other required promotional codes first.',
+          incompatible:
+            'This promotional code cannot be combined with one you have already redeemed.',
+          rateLimited: 'Too many attempts. Please wait and try again later.',
+          audience: 'This code is not available for your current subscription status.',
+        },
       },
 
       // Identity/alias banner
@@ -426,7 +452,7 @@ export const account = {
       // Tier names and descriptions
       tiers: {
         unpaid: {
-          name: 'No paid plan',
+          name: 'Public Read-Only',
           description: 'Read-only until you subscribe. You can browse public spaces, but posting and paid features stay locked.',
         },
         access: {

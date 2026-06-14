@@ -388,6 +388,10 @@ export const Collections = {
   SPONSORSHIP_REQUESTS: 'sponsorship_requests',
   /** Sponsorship fulfillment audit logs */
   SPONSORSHIP_LOGS: 'sponsorship_logs',
+  /** Promotional code definitions */
+  PROMO_CODES: 'promo_codes',
+  /** Promotional code redemption records */
+  PROMO_REDEMPTIONS: 'promo_redemptions',
 } as const;
 
 /**
@@ -438,9 +442,6 @@ export async function initializeCollections(): Promise<string[]> {
     elog.info('All MongoDB collections already exist');
   }
 
-  // Create indexes
-  await createIndexes();
-  
   return created;
 }
 
@@ -466,7 +467,7 @@ async function ensureCommunityThemesIndexes(database: Db): Promise<void> {
  * Ensures efficient queries on common fields like email, phone, sessionId, etc.
  * Safe to call multiple times - indexes are created if they don't exist.
  */
-async function createIndexes(): Promise<void> {
+export async function createIndexes(): Promise<void> {
   const database = getDb();
 
   // Users collection indexes
@@ -480,6 +481,7 @@ async function createIndexes(): Promise<void> {
     { unique: true, partialFilterExpression: { phone: { $type: 'string' } } }
   );
   await users.createIndex({ lockedUntil: 1 }, { sparse: true });
+  await users.createIndex({ stripeCustomerId: 1 }, { unique: true, sparse: true });
 
   // Sessions collection indexes
   const sessions = database.collection(Collections.SESSIONS);
@@ -487,11 +489,14 @@ async function createIndexes(): Promise<void> {
   await sessions.createIndex({ userId: 1 });
   await sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // TTL index for auto-cleanup
   await sessions.createIndex({ revoked: 1, expiresAt: 1 });
+  await sessions.createIndex({ identityId: 1, type: 1, revoked: 1 }, { sparse: true });
 
   // Audit logs collection indexes
   const auditLogs = database.collection(Collections.AUDIT_LOGS);
   await auditLogs.createIndex({ userId: 1, createdAt: -1 });
   await auditLogs.createIndex({ action: 1, createdAt: -1 });
+  await auditLogs.createIndex({ ipHash: 1, action: 1, createdAt: -1 });
+  await auditLogs.createIndex({ identifierHash: 1, action: 1, createdAt: -1 });
   await auditLogs.createIndex({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 }); // 90 day retention
 
   // TOTP credentials collection indexes
@@ -558,7 +563,10 @@ async function createIndexes(): Promise<void> {
   // Messages collection indexes
   const messages = database.collection(Collections.MESSAGES);
   await messages.createIndex({ conversationId: 1, createdAt: -1 });
+  await messages.createIndex({ conversationId: 1, _id: -1 });
   await messages.createIndex({ conversationId: 1, clientMessageId: 1 }, { unique: true });
+  await messages.createIndex({ fromIdentityId: 1, messageType: 1 });
+  await messages.createIndex({ e2eMediaIds: 1 });
   await messages.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, sparse: true });
 
   // Calls collection indexes
@@ -566,7 +574,7 @@ async function createIndexes(): Promise<void> {
   await calls.createIndex({ conversationId: 1, status: 1 });
   await calls.createIndex(
     { conversationId: 1 },
-    { unique: true, partialFilterExpression: { status: { $ne: 'ended' } } }
+    { unique: true, partialFilterExpression: { status: { $in: ['ringing', 'active'] } } }
   );
   try { await calls.dropIndex('endedAt_1'); } catch { /* index may not exist yet */ }
   await calls.createIndex({ endedAt: 1 }, { expireAfterSeconds: 60 * 60, sparse: true });
@@ -710,6 +718,14 @@ async function createIndexes(): Promise<void> {
   await sponsorshipLogs.createIndex({ recipientUserId: 1, grantedAt: -1 });
   await sponsorshipLogs.createIndex({ requestId: 1 }, { unique: true });
 
+  const promoCodes = database.collection(Collections.PROMO_CODES);
+  await promoCodes.createIndex({ shortcode: 1 }, { unique: true });
+  await promoCodes.createIndex({ validFrom: 1, validTo: 1 });
+
+  const promoRedemptions = database.collection(Collections.PROMO_REDEMPTIONS);
+  await promoRedemptions.createIndex({ userId: 1, shortcode: 1 }, { unique: true });
+  await promoRedemptions.createIndex({ shortcode: 1, redeemedAt: -1 });
+
   const supportTickets = database.collection(Collections.SUPPORT_TICKETS);
   await supportTickets.createIndex({ ticketId: 1 }, { unique: true });
   await supportTickets.createIndex({ status: 1, createdAt: -1 });
@@ -719,6 +735,21 @@ async function createIndexes(): Promise<void> {
   const supportTicketEvents = database.collection(Collections.SUPPORT_TICKET_EVENTS);
   await supportTicketEvents.createIndex({ ticketObjectId: 1, createdAt: 1 });
   await supportTicketEvents.createIndex({ ticketId: 1, createdAt: 1 });
+
+  const platformReports = database.collection(Collections.PLATFORM_REPORTS);
+  await platformReports.createIndex({ status: 1, createdAt: -1 });
+  await platformReports.createIndex({ assignedTo: 1, status: 1 });
+  await platformReports.createIndex({ idempotencyKey: 1 }, { unique: true, sparse: true });
+  await platformReports.createIndex({ scopeType: 1, scopeId: 1, status: 1 });
+  await platformReports.createIndex({ targetIdentityId: 1, createdAt: -1 });
+  await platformReports.createIndex({ reporterIdentityId: 1, createdAt: -1 });
+  await platformReports.createIndex(
+    { 'detectionMetadata.scanHash': 1, status: 1 },
+    { sparse: true },
+  );
+
+  const platformReportEvents = database.collection(Collections.PLATFORM_REPORT_EVENTS);
+  await platformReportEvents.createIndex({ reportId: 1, createdAt: 1 });
 
   elog.debug('MongoDB indexes created/verified');
 }

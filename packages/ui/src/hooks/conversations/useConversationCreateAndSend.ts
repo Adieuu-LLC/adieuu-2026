@@ -12,6 +12,7 @@ import {
   encryptGroupName,
   type RecipientKeys,
 } from '../../services/conversationCryptoService';
+import { markFirstMessageSent } from '../../constants/onboarding';
 import type {
   ConversationMessagesState,
   DecryptedConversation,
@@ -37,6 +38,7 @@ export interface ConversationCreateAndSendParams {
   setConversations: Dispatch<SetStateAction<DecryptedConversation[]>>;
   setMessagesState: Dispatch<SetStateAction<Record<string, ConversationMessagesState>>>;
   setSending: Dispatch<SetStateAction<boolean>>;
+  accountSubjectId?: string;
 }
 
 /**
@@ -55,6 +57,7 @@ export function useConversationCreateAndSend(params: ConversationCreateAndSendPa
     setConversations,
     setMessagesState,
     setSending,
+    accountSubjectId,
   } = params;
 
   const createDM = useCallback(
@@ -264,6 +267,8 @@ export function useConversationCreateAndSend(params: ConversationCreateAndSendPa
               return bTime - aTime;
             })
           );
+
+          markFirstMessageSent(accountSubjectId);
 
           return resp.data;
         }

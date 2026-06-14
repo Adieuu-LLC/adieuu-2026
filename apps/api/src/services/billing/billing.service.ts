@@ -129,22 +129,39 @@ export async function getOrCreateStripeCustomer(user: UserDocument): Promise<str
     return user.stripeCustomerId;
   }
 
+  const userRepo = getUserRepository();
+  const userId = user._id.toHexString();
+
+  const freshUser = await userRepo.findById(userId);
+  if (freshUser?.stripeCustomerId) {
+    return freshUser.stripeCustomerId;
+  }
+
   const stripe = getStripe();
   const email = user.emailVerified ? user.email : undefined;
-  const customer = await stripe.customers.create({
-    email,
-    metadata: { userId: user._id.toHexString() },
-  });
+  const idempotencyKey = `create_customer_${userId}`;
+  const customer = await stripe.customers.create(
+    {
+      email,
+      metadata: { userId },
+    },
+    { idempotencyKey },
+  );
 
-  const userRepo = getUserRepository();
-  await userRepo.updateStripeCustomerId(user._id, customer.id);
+  const persisted = await userRepo.setStripeCustomerIdIfAbsent(user._id, customer.id);
 
   elog.info('Stripe customer created', {
-    userId: user._id.toHexString(),
+    userId,
     customerId: customer.id,
+    persisted,
   });
 
-  return customer.id;
+  if (persisted) {
+    return customer.id;
+  }
+
+  const updated = await userRepo.findById(userId);
+  return updated?.stripeCustomerId ?? customer.id;
 }
 
 // ---------------------------------------------------------------------------

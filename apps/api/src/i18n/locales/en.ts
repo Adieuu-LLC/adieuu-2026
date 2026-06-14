@@ -240,7 +240,7 @@ If you didn't make this change, please contact our support team immediately.`,
     invalidOtp: 'Unable to verify. Please check your code or request a new one.',
     otpExpired: 'Unable to verify. Please check your code or request a new one.',
     tooManyAttempts: 'Unable to verify. Please check your code or request a new one.',
-    accountBanned: 'This account has been permanently banned.',
+    accountBanned: 'This account has been banned.',
     accountSuspended: 'This account is currently suspended.',
     // accountLocked is for ACCOUNT-level lockouts sent via email/SMS notifications,
     // NOT for OTP verification failures (which use the generic messages above)

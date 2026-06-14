@@ -3,8 +3,11 @@ import { Link } from 'react-router-dom';
 import { Card } from './Card';
 import { Button } from './Button';
 import { Spinner } from './Spinner';
+import { Tooltip } from './Tooltip';
 import { Icon } from '../icons/Icon';
 import { useTourContext, useAppearanceTour } from '../hooks/useTourContext';
+import { useIdentityModal } from '../hooks/useIdentityModal';
+import { JurisdictionRequirementDisclosure } from './compliance/JurisdictionRequirementDisclosure';
 import type { AccountProgress, AccountProgressStep } from '../hooks/useHomeProgress';
 
 function StepCheckMark({ done }: { done: boolean }) {
@@ -18,29 +21,131 @@ function StepCheckMark({ done }: { done: boolean }) {
   );
 }
 
-function PrimaryStepAction({ step }: { step: AccountProgressStep }) {
+function VerifyAgeDescription({ progress }: { progress: AccountProgress }) {
   const { t } = useTranslation();
 
-  if (step.completed || step.disabled) return null;
+  if (progress.aliasGateRequiredReason === 'abusive_ip') {
+    return (
+      <p className="action-step-description">
+        {t('compliance.ageVerification.abusiveIpReason')}
+      </p>
+    );
+  }
+
+  if (progress.aliasGateJurisdiction) {
+    return (
+      <p className="action-step-description">
+        {t('home.account.steps.verifyAge.descriptionJurisdiction', {
+          jurisdiction: progress.aliasGateJurisdiction,
+        })}
+      </p>
+    );
+  }
+
+  return (
+    <p className="action-step-description">
+      {t('home.account.steps.verifyAge.description')}
+    </p>
+  );
+}
+
+function createAliasDisabledTooltip(progress: AccountProgress, t: (key: string) => string): string {
+  if (!progress.hasSubscription) {
+    return t('home.account.steps.createAlias.subscribeFirstTooltip');
+  }
+  if (progress.avStepRelevant && progress.avStatus !== 'verified') {
+    return t('home.account.steps.createAlias.verifyAgeFirstTooltip');
+  }
+  return t('home.account.steps.createAlias.subscribeFirstTooltip');
+}
+
+function PrimaryStepAction({
+  step,
+  progress,
+}: {
+  step: AccountProgressStep;
+  progress: AccountProgress;
+}) {
+  const { t } = useTranslation();
+  const { openIdentityModal } = useIdentityModal();
+
+  if (step.completed) return null;
 
   switch (step.id) {
     case 'subscribe':
       return (
-        <Link to="/account/subscription" className="btn btn-primary btn-sm">
-          {t('home.account.steps.subscribe.action')}
-        </Link>
+        <>
+          <Link to="/account/subscription" className="btn btn-primary btn-sm">
+            {t('home.account.steps.subscribe.action')}
+          </Link>
+          <Link
+            to="/account/subscription/manage"
+            state={{ scrollToPromo: true }}
+            className="btn btn-secondary btn-sm"
+          >
+            {t('home.account.steps.subscribe.promoAction')}
+          </Link>
+        </>
       );
     case 'verifyAge':
+      if (step.disabled) {
+        return (
+          <Tooltip
+            content={t('home.account.steps.verifyAge.subscribeFirstTooltip')}
+            position="top"
+          >
+            <div tabIndex={0} role="button" className="action-step-disabled-action" aria-disabled="true">
+              <Button variant="primary" size="sm" type="button" disabled>
+                {t('home.account.steps.verifyAge.action')}
+              </Button>
+            </div>
+          </Tooltip>
+        );
+      }
       return (
-        <Link to="/identity/profile" className="btn btn-primary btn-sm">
+        <Button variant="primary" size="sm" type="button" onClick={() => openIdentityModal()}>
           {t('home.account.steps.verifyAge.action')}
-        </Link>
+        </Button>
       );
     case 'createAlias':
+      if (step.disabled) {
+        return (
+          <Tooltip
+            content={createAliasDisabledTooltip(progress, t)}
+            position="top"
+          >
+            <div tabIndex={0} role="button" className="action-step-disabled-action" aria-disabled="true">
+              <Button variant="primary" size="sm" type="button" disabled>
+                {t('home.account.steps.createAlias.action')}
+              </Button>
+            </div>
+          </Tooltip>
+        );
+      }
       return (
-        <Link to="/identity/profile" className="btn btn-primary btn-sm">
+        <Button variant="primary" size="sm" type="button" onClick={() => openIdentityModal()}>
           {t('home.account.steps.createAlias.action')}
-        </Link>
+        </Button>
+      );
+    case 'sendFirstMessage':
+      if (step.disabled) {
+        return (
+          <Tooltip
+            content={t('home.account.steps.sendFirstMessage.createAliasFirstTooltip')}
+            position="top"
+          >
+            <div tabIndex={0} role="button" className="action-step-disabled-action" aria-disabled="true">
+              <Button variant="primary" size="sm" type="button" disabled>
+                {t('home.account.steps.sendFirstMessage.action')}
+              </Button>
+            </div>
+          </Tooltip>
+        );
+      }
+      return (
+        <Button variant="primary" size="sm" type="button" onClick={() => openIdentityModal()}>
+          {t('home.account.steps.sendFirstMessage.action')}
+        </Button>
       );
     default:
       return null;
@@ -156,11 +261,22 @@ export function AccountActionSteps({ progress }: AccountActionStepsProps) {
                 <span className="action-step-title">
                   {t(`home.account.steps.${step.id}.title`)}
                 </span>
-                <p className="action-step-description">
-                  {t(`home.account.steps.${step.id}.description`)}
-                </p>
+                {step.id === 'verifyAge' ? (
+                  <>
+                    <VerifyAgeDescription progress={progress} />
+                    <JurisdictionRequirementDisclosure
+                      rows={progress.jurisdictionReqs}
+                      loading={progress.jurisdictionReqsLoading}
+                      primaryJurisdiction={progress.aliasGateJurisdiction}
+                    />
+                  </>
+                ) : (
+                  <p className="action-step-description">
+                    {t(`home.account.steps.${step.id}.description`)}
+                  </p>
+                )}
                 <div className="action-step-actions">
-                  <PrimaryStepAction step={step} />
+                  <PrimaryStepAction step={step} progress={progress} />
                 </div>
               </div>
             </li>

@@ -45,11 +45,6 @@ export class SupportTicketEventRepository extends BaseRepository<SupportTicketEv
       .sort({ createdAt: 1 })
       .toArray() as SupportTicketEventDocument[];
   }
-
-  async ensureIndexes(): Promise<void> {
-    await this.collection.createIndex({ ticketObjectId: 1, createdAt: 1 });
-    await this.collection.createIndex({ ticketId: 1, createdAt: 1 });
-  }
 }
 
 let supportTicketEventRepository: SupportTicketEventRepository | null = null;

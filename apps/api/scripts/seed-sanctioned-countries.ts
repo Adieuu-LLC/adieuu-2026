@@ -8,7 +8,7 @@
 
 import { connectMongo, disconnectMongo } from '../src/db/mongo';
 import { getSanctionedCountryRepository } from '../src/repositories/sanctioned-country.repository';
-import { SANCTIONED_COUNTRY_SEED } from './data/sanctioned-countries.seed';
+import { SANCTIONED_COUNTRY_SEED } from '../src/data/sanctioned-countries.seed';
 
 async function main() {
   console.log('Connecting to MongoDB...');

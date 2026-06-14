@@ -25,6 +25,7 @@ import {
 import { encryptReadState, decryptReadState } from '@adieuu/crypto';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../useAuth';
 import { useIdentity } from '../useIdentity';
 import { useChatSocket } from '../useChatSocket';
 import { useAppConfig, usePlatformCapabilities } from '../../config';
@@ -69,6 +70,7 @@ interface ConversationsProviderProps {
 }
 
 export function ConversationsProvider({ children }: ConversationsProviderProps) {
+  const { session } = useAuth();
   const { status: identityStatus, identity, getSigningKey, getCurrentDeviceId, getWrappingKey } =
     useIdentity();
   const { apiBaseUrl } = useAppConfig();
@@ -367,6 +369,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     setConversations,
     setMessagesState,
     setSending,
+    accountSubjectId: session?.identifier,
   });
 
   const {

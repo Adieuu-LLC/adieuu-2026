@@ -48,6 +48,7 @@ import { UpdateOverlay } from '../components/UpdateOverlay';
 import { AchievementListener } from '../components/AchievementListener';
 import { AppPlainTextContextMenu } from '../components/AppPlainTextContextMenu';
 import { UpdateProvider } from '../hooks/useUpdateContext';
+import { ToasterOutlet } from '../components/Toast';
 import { IdentityModalProvider } from '../hooks/useIdentityModal';
 import { CallSessionProvider } from '../hooks/useCallSession';
 import { GlobalCallEventsProvider } from '../hooks/useGlobalCallEvents';
@@ -65,6 +66,7 @@ import {
   AdminUserProfile,
   AdminIdentitySearch,
   AdminIdentityProfile,
+  AdminPromoCodes,
 } from '../pages/admin';
 import {
   ModeratorGate,
@@ -249,6 +251,7 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
 export function App() {
   return (
     <UpdateProvider>
+    <ToasterOutlet />
     <Routes>
       {/* Auth Routes */}
       <Route
@@ -341,6 +344,7 @@ export function App() {
             <Route path="users/:id" element={<AdminUserProfile />} />
             <Route path="identities" element={<AdminIdentitySearch />} />
             <Route path="identities/:id" element={<AdminIdentityProfile />} />
+            <Route path="promo-codes" element={<AdminPromoCodes />} />
           </Route>
         </Route>
 

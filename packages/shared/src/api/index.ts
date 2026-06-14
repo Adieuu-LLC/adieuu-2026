@@ -134,6 +134,10 @@ export {
   type PublicPlatformSetting,
   type PutPlatformSettingBody,
   type PlatformSettingValueType,
+  type AdminSanctionedCountry,
+  type UpsertSanctionedCountryBody,
+  type SanctionedCountrySeedMode,
+  type RunSanctionedCountrySeedResult,
   type PlatformAdminRow,
   type AdminUserSearchItem,
   type AdminUserProfile,
@@ -305,6 +309,21 @@ export {
 } from './sponsorship-api';
 
 export {
+  PromoCodeApi,
+  type PromoCodeRedeemErrorCode,
+  type PromoCodeAudience,
+  type RedeemPromoCodeParams,
+  type RedeemPromoCodeResponse,
+  type PublicPromoCode,
+  type PublicPromoRedemption,
+  type PromoCodeSubscriptionGrant,
+  type CreatePromoCodeParams,
+  type UpdatePromoCodeParams,
+  type PromoCodeListResponse,
+  type PromoRedemptionListResponse,
+} from './promo-code-api';
+
+export {
   AchievementsApi,
   type AchievementCategory,
   type PublicAchievementDefinition,
@@ -324,6 +343,11 @@ export {
   type JurisdictionRequirementStatus,
 } from '../geo/jurisdiction-types';
 export { expandedJurisdictionCodesForRequirements, type GeoSessionSlice } from '../geo/jurisdiction-lookup';
+export {
+  mergeEffectiveAvJurisdictions,
+  type AvJurisdictionSource,
+  type EffectiveAvJurisdiction,
+} from '../geo/effective-age-verification-jurisdictions';
 
 export {
   ChatClient,

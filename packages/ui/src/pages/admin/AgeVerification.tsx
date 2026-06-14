@@ -1,12 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { createApiClient, PLATFORM_SETTING_KEYS, type PublicPlatformSetting } from '@adieuu/shared';
+import {
+  createApiClient,
+  PLATFORM_SETTING_KEYS,
+  type PublicJurisdictionRequirement,
+  type PublicPlatformSetting,
+} from '@adieuu/shared';
 import { useAppConfig } from '../../config';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
+import { EffectiveAvJurisdictionsPanel } from './EffectiveAvJurisdictionsPanel';
+import { SanctionedCountriesPanel } from './SanctionedCountriesPanel';
 
 function settingMap(settings: PublicPlatformSetting[]): Map<string, PublicPlatformSetting> {
   return new Map(settings.map((s) => [s.key, s]));
+}
+
+function toLines(text: string): string[] {
+  return text.split('\n').map((l) => l.trim()).filter(Boolean);
 }
 
 export function AdminAgeVerification() {
@@ -24,6 +35,11 @@ export function AdminAgeVerification() {
   const [blockedJurisdictions, setBlockedJurisdictions] = useState('');
   const [lawLinks, setLawLinks] = useState('');
 
+  const [catalogRows, setCatalogRows] = useState<PublicJurisdictionRequirement[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState(false);
+  const [enrichedOverrideRows, setEnrichedOverrideRows] = useState<PublicJurisdictionRequirement[]>([]);
+
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
@@ -34,14 +50,31 @@ export function AdminAgeVerification() {
     const silent = opts?.silent === true;
     if (!silent) setLoading(true);
     setLoadError(null);
-    const res = await api.admin.getPlatformSettings();
-    if (!res.success || !res.data) {
+    setCatalogLoading(true);
+    setCatalogError(false);
+
+    const [settingsRes, catalogRes] = await Promise.all([
+      api.admin.getPlatformSettings(),
+      api.geo.getJurisdictionRequirementsCatalog(),
+    ]);
+
+    if (!settingsRes.success || !settingsRes.data) {
       setLoadError(t('compliance.admin.loadError'));
       if (!silent) setLoading(false);
+      setCatalogLoading(false);
       return;
     }
 
-    const map = settingMap(res.data);
+    if (catalogRes.success && catalogRes.data) {
+      setCatalogRows(catalogRes.data);
+      setCatalogError(false);
+    } else {
+      setCatalogRows([]);
+      setCatalogError(true);
+    }
+    setCatalogLoading(false);
+
+    const map = settingMap(settingsRes.data);
 
     const e = map.get(PLATFORM_SETTING_KEYS.AGE_VERIFICATION_ENABLED);
     setEnabled(e?.valueType === 'boolean' ? Boolean(e.value) : false);
@@ -93,13 +126,41 @@ export function AdminAgeVerification() {
     void load();
   }, [load]);
 
+  const adminOverrideCodes = useMemo(() => toLines(requiredJurisdictions), [requiredJurisdictions]);
+
+  const catalogCodeSet = useMemo(
+    () => new Set(catalogRows.map((row) => row.jurisdiction.trim().toUpperCase())),
+    [catalogRows],
+  );
+
+  const overrideCodesNeedingLookup = useMemo(
+    () =>
+      adminOverrideCodes.filter((code) => !catalogCodeSet.has(code.trim().toUpperCase())),
+    [adminOverrideCodes, catalogCodeSet],
+  );
+
+  useEffect(() => {
+    if (overrideCodesNeedingLookup.length === 0) {
+      setEnrichedOverrideRows([]);
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      const res = await api.geo.getJurisdictionRequirements(overrideCodesNeedingLookup);
+      if (cancelled) return;
+      setEnrichedOverrideRows(res.success && res.data ? res.data : []);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api, overrideCodesNeedingLookup]);
+
   const save = async () => {
     setSaving(true);
     setSaveError(null);
     setSaveSuccess(null);
-
-    const toLines = (text: string) =>
-      text.split('\n').map((l) => l.trim()).filter(Boolean);
 
     const puts = [
       api.admin.putPlatformSetting(PLATFORM_SETTING_KEYS.AGE_VERIFICATION_ENABLED, {
@@ -266,6 +327,17 @@ export function AdminAgeVerification() {
           </Card>
 
           <Card className="admin-card">
+            <EffectiveAvJurisdictionsPanel
+              requiredMode={requiredMode}
+              adminOverrides={adminOverrideCodes}
+              catalogRows={catalogRows}
+              enrichedOverrideRows={enrichedOverrideRows}
+              loading={catalogLoading}
+              error={catalogError}
+            />
+          </Card>
+
+          <Card className="admin-card">
             <label className="admin-field-label" htmlFor="admin-av-jurisdictions">
               {t('compliance.admin.jurisdictionsLabel')}
             </label>
@@ -308,6 +380,10 @@ export function AdminAgeVerification() {
               placeholder={t('compliance.admin.lawLinksPlaceholder')}
               spellCheck={false}
             />
+          </Card>
+
+          <Card className="admin-card">
+            <SanctionedCountriesPanel />
           </Card>
 
           {saveError && <p className="admin-inline-error">{saveError}</p>}

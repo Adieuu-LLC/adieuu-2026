@@ -14,14 +14,14 @@
 
 import { getSessionFromRequest, type AccountSessionData } from '../services/session.service';
 import { getUserRepository } from '../repositories/user.repository';
-import type { UserDocument, UserBilling } from '../models/user';
+import type { UserDocument, UserBilling, SubscriptionOverride } from '../models/user';
 import type { ResolvedAccess } from '../services/billing/resolve-access';
 import { resolveEffectiveAccess } from '../services/billing/resolve-access';
 import { error } from '../utils/response';
 import elog from '../utils/adieuuLogger';
 import { sanitizePathForLog } from '../utils/sanitize';
 import { getClientIp } from '../routes/auth/controller';
-import { hasPendingVpnAttestation } from '../services/compliance/compliance-enforcement.service';
+import { hasPendingVpnAttestation, tryLiftOfacSanctionedBanIfExpired } from '../services/compliance/compliance-enforcement.service';
 
 /** How long (ms) a past_due status is tolerated before cutting access. */
 export const PAST_DUE_GRACE_MS = 48 * 60 * 60 * 1000; // 48 hours
@@ -42,6 +42,7 @@ const EXEMPT_PREFIXES: readonly string[] = [
   '/api/health',
   '/api/webhooks',
   '/api/account/subscription',
+  '/api/account/promo-code',
   '/api/sponsorship',
   '/api/v1/releases',
   '/api/users/me',
@@ -66,6 +67,7 @@ function isExemptPath(pathname: string): boolean {
 export function evaluateBillingAccess(
   resolved: ResolvedAccess,
   billing: UserBilling | undefined,
+  overrides?: SubscriptionOverride[],
 ): 'SUBSCRIPTION_REQUIRED' | 'SUBSCRIPTION_EXPIRED' | null {
   if (resolved.isLifetime) return null;
 
@@ -76,15 +78,19 @@ export function evaluateBillingAccess(
   if (!billing) return null;
 
   if (billing.status && DENIED_STATUSES.has(billing.status)) {
-    const hasOverrideSubs = resolved.subscriptions.length > (billing.activeSubscriptions?.length ?? 0);
-    if (!hasOverrideSubs) return 'SUBSCRIPTION_EXPIRED';
+    const hasActiveOverrides = (overrides ?? []).some(
+      (o) => !o.expiresAt || o.expiresAt > new Date(),
+    );
+    if (!hasActiveOverrides) return 'SUBSCRIPTION_EXPIRED';
   }
 
   if (billing.status === 'past_due') {
     const elapsed = Date.now() - billing.updatedAt.getTime();
     if (elapsed > PAST_DUE_GRACE_MS) {
-      const hasOverrideSubs = resolved.subscriptions.length > (billing.activeSubscriptions?.length ?? 0);
-      if (!hasOverrideSubs) return 'SUBSCRIPTION_EXPIRED';
+      const hasActiveOverrides = (overrides ?? []).some(
+        (o) => !o.expiresAt || o.expiresAt > new Date(),
+      );
+      if (!hasActiveOverrides) return 'SUBSCRIPTION_EXPIRED';
     }
   }
 
@@ -118,14 +124,19 @@ export function requireActiveSubscription() {
     const accountSession = session as AccountSessionData;
 
     const userRepo = getUserRepository();
-    const user = await userRepo.findById(accountSession.userId);
+    let user = await userRepo.findById(accountSession.userId);
     if (!user) {
       return next();
     }
 
     // Account-level ban/suspension enforcement
     if (user.isBanned) {
-      return error('ACCOUNT_BANNED', 'This account has been permanently banned.', 403);
+      const lifted = await tryLiftOfacSanctionedBanIfExpired(user);
+      if (lifted) {
+        user = lifted;
+      } else {
+        return error('ACCOUNT_BANNED', 'This account has been banned.', 403);
+      }
     }
     if (user.suspendedUntil && user.suspendedUntil > new Date()) {
       return error('ACCOUNT_SUSPENDED', 'This account is currently suspended.', 403);
@@ -144,7 +155,7 @@ export function requireActiveSubscription() {
     ctx.accountUser = user;
     ctx.resolvedAccess = resolved;
 
-    const denial = evaluateBillingAccess(resolved, user.billing);
+    const denial = evaluateBillingAccess(resolved, user.billing, user.subscriptionOverrides);
     if (denial) {
       elog.info('Subscription guard denied access', {
         userId: accountSession.userId,

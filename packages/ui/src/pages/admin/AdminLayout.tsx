@@ -24,13 +24,16 @@ export function AdminLayout() {
             {t('admin.nav.authAllowlist')}
           </NavLink>
           <NavLink to="/admin/age-verification" className={navClass}>
-            {t('admin.nav.ageVerification', 'Age Verification')}
+            {t('admin.nav.ageVerification', 'Age/Geofencing')}
           </NavLink>
           <NavLink to="/admin/users" className={navClass}>
             {t('admin.nav.userManagement')}
           </NavLink>
           <NavLink to="/admin/identities" className={navClass}>
             {t('admin.nav.identityManagement')}
+          </NavLink>
+          <NavLink to="/admin/promo-codes" className={navClass}>
+            {t('admin.nav.promoCodes')}
           </NavLink>
         </nav>
       </aside>

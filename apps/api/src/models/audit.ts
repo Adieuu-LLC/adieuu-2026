@@ -43,6 +43,9 @@ export type AuditAction =
   | 'admin_revoke_platform_role'
   | 'admin_grant_platform_attribute'
   | 'admin_revoke_platform_attribute'
+  | 'admin_create_promo_code'
+  | 'admin_update_promo_code'
+  | 'admin_delete_promo_code'
   | 'compliance_ofac_ban'
   | 'compliance_abusive_ip_blocked';
 

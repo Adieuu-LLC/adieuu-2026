@@ -50,6 +50,7 @@ import {
   evaluateComplianceOnAccess,
   listSanctionedCountriesForClient,
   buildVpnAttestationSessionPayload,
+  tryLiftOfacSanctionedBanIfExpired,
 } from '../../services/compliance/compliance-enforcement.service';
 import { getEmailTemplate, getSmsMessage, type Locale, DEFAULT_LOCALE } from '../../i18n';
 import { getRedis, isRedisConnected } from '../../db';
@@ -84,6 +85,25 @@ async function buildAccountBannedResult(user: UserDocument): Promise<{
     moderationCategory: user.moderationCategory,
     bannedPeerCount: Math.max(0, total - 1),
   };
+}
+
+async function resolveAccountBanStatus(
+  user: UserDocument,
+): Promise<
+  | { blocked: true; banned: Awaited<ReturnType<typeof buildAccountBannedResult>> }
+  | { blocked: false; user: UserDocument }
+> {
+  if (!user.isBanned) {
+    return { blocked: false, user };
+  }
+
+  const lifted = await tryLiftOfacSanctionedBanIfExpired(user);
+  if (lifted) {
+    return { blocked: false, user: lifted };
+  }
+
+  const banned = await buildAccountBannedResult(user);
+  return { blocked: true, banned };
 }
 
 type PostLoginComplianceFailure =
@@ -554,6 +574,13 @@ function detectIdentifierType(identifier: string): 'email' | 'phone' {
  * @param identifierType - Whether it's email or phone
  * @returns The user document
  */
+/**
+ * Finds an existing user by identifier or creates a new one.
+ *
+ * IMPORTANT: `identifier` must already be sanitized via `sanitizeString()`
+ * before calling this function. The caller (verifyOtpHandler) is responsible
+ * for sanitization at the request boundary.
+ */
 async function findOrCreateUser(
   identifier: string,
   identifierType: 'email' | 'phone'
@@ -561,25 +588,36 @@ async function findOrCreateUser(
   const userRepo = getUserRepository();
   const existingUser = await userRepo.findByIdentifier(identifier);
 
+  let user: UserDocument;
+
   if (existingUser) {
-    // Record successful login
     await userRepo.recordLogin(existingUser._id);
-    return existingUser;
+    user = existingUser;
+  } else {
+    user = await userRepo.create({
+      ...(identifierType === 'email'
+        ? { email: identifier, emailVerified: true }
+        : { phone: identifier, phoneVerified: true }),
+    });
+
+    elog.info('New user created', {
+      userId: user._id.toHexString(),
+      identifierType,
+    });
   }
 
-  // Create new user
-  const newUser = await userRepo.create({
-    ...(identifierType === 'email'
-      ? { email: identifier, emailVerified: true }
-      : { phone: identifier, phoneVerified: true }),
-  });
+  if (config.stripe?.enabled && !user.stripeCustomerId) {
+    import('../../services/billing/billing.service')
+      .then(({ getOrCreateStripeCustomer }) => getOrCreateStripeCustomer(user))
+      .catch((err) =>
+        elog.warn('Failed to ensure Stripe customer', {
+          userId: user._id.toHexString(),
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+  }
 
-  elog.info('New user created', {
-    userId: newUser._id.toHexString(),
-    identifierType,
-  });
-
-  return newUser;
+  return user;
 }
 
 /**
@@ -715,10 +753,11 @@ export async function verifyOtpHandler(
   const userId = user._id.toHexString();
 
   // Account-level moderation enforcement
-  if (user.isBanned) {
-    const banned = await buildAccountBannedResult(user);
-    return { success: false, error: 'account_banned', ...banned };
+  const banStatus = await resolveAccountBanStatus(user);
+  if (banStatus.blocked) {
+    return { success: false, error: 'account_banned', ...banStatus.banned };
   }
+  user = banStatus.user;
   if (user.suspendedUntil && user.suspendedUntil > new Date()) {
     return {
       success: false,
@@ -947,6 +986,20 @@ export async function getSessionHandler(
     user = await userRepo.findById(session.userId);
   }
   if (!user) return null;
+
+  const banStatus = await resolveAccountBanStatus(user);
+  if (banStatus.blocked) {
+    return {
+      blocked: {
+        code: 'ACCOUNT_BANNED',
+        message: banStatus.banned.moderationReason ?? 'This account has been banned.',
+        moderationReason: banStatus.banned.moderationReason,
+        moderationCategory: banStatus.banned.moderationCategory,
+        bannedPeerCount: banStatus.banned.bannedPeerCount,
+      },
+    };
+  }
+  user = banStatus.user;
 
   const clientIp = getClientIp(request);
   const complianceOutcome = await evaluateComplianceOnAccess(user, clientIp);
@@ -1392,10 +1445,12 @@ export async function verifyMfaTotpHandler(
   // Re-check moderation status (admin may have banned/suspended during MFA window)
   const userRepo = getUserRepository();
   const mfaCheckUser = await userRepo.findById(pendingLogin.userId);
-  if (mfaCheckUser?.isBanned) {
-    await clearPendingLogin(mfaToken);
-    const banned = await buildAccountBannedResult(mfaCheckUser);
-    return { success: false, error: 'account_banned', ...banned };
+  if (mfaCheckUser) {
+    const banStatus = await resolveAccountBanStatus(mfaCheckUser);
+    if (banStatus.blocked) {
+      await clearPendingLogin(mfaToken);
+      return { success: false, error: 'account_banned', ...banStatus.banned };
+    }
   }
   if (mfaCheckUser?.suspendedUntil && mfaCheckUser.suspendedUntil > new Date()) {
     await clearPendingLogin(mfaToken);
@@ -1440,10 +1495,12 @@ export async function verifyMfaWebAuthnHandler(
   // Re-check moderation status (admin may have banned/suspended during MFA window)
   const userRepo = getUserRepository();
   const mfaCheckUser = await userRepo.findById(pendingLogin.userId);
-  if (mfaCheckUser?.isBanned) {
-    await clearPendingLogin(mfaToken);
-    const banned = await buildAccountBannedResult(mfaCheckUser);
-    return { success: false, error: 'account_banned', ...banned };
+  if (mfaCheckUser) {
+    const banStatus = await resolveAccountBanStatus(mfaCheckUser);
+    if (banStatus.blocked) {
+      await clearPendingLogin(mfaToken);
+      return { success: false, error: 'account_banned', ...banStatus.banned };
+    }
   }
   if (mfaCheckUser?.suspendedUntil && mfaCheckUser.suspendedUntil > new Date()) {
     await clearPendingLogin(mfaToken);

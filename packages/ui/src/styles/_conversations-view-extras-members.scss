@@ -620,7 +620,7 @@
   &-device-id {
     font-size: var(--font-size-xs);
     color: var(--color-text-secondary);
-    font-family: ui-monospace, monospace;
+    font-family: var(--font-mono, monospace);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

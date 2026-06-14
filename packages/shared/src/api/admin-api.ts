@@ -51,6 +51,28 @@ export interface PutPlatformSettingBody {
   description?: string;
 }
 
+export interface AdminSanctionedCountry {
+  countryCode: string;
+  countryName: string;
+  program?: string;
+  active: boolean;
+  updatedAt: string;
+  createdAt: string;
+}
+
+export interface UpsertSanctionedCountryBody {
+  countryName: string;
+  program?: string;
+  active: boolean;
+}
+
+export type SanctionedCountrySeedMode = 'additive' | 'clobber';
+
+export interface RunSanctionedCountrySeedResult {
+  upserted: number;
+  deactivated: number;
+}
+
 export interface PlatformAdminRow {
   identityId: string;
   displayName?: string;
@@ -323,6 +345,28 @@ export class AdminApi {
     body: PutPlatformSettingBody
   ): Promise<ApiResponse<PublicPlatformSetting>> {
     return this.client.put(`/api/admin/platform-settings/${encodeURIComponent(key)}`, body);
+  }
+
+  async getSanctionedCountries(): Promise<ApiResponse<{ countries: AdminSanctionedCountry[] }>> {
+    return this.client.get('/api/admin/sanctioned-countries');
+  }
+
+  async upsertSanctionedCountry(
+    countryCode: string,
+    body: UpsertSanctionedCountryBody,
+  ): Promise<ApiResponse<{ country: AdminSanctionedCountry }>> {
+    return this.client.put(
+      `/api/admin/sanctioned-countries/${encodeURIComponent(countryCode)}`,
+      body,
+    );
+  }
+
+  async runSanctionedCountriesSeed(
+    mode: SanctionedCountrySeedMode,
+  ): Promise<
+    ApiResponse<{ result: RunSanctionedCountrySeedResult; countries: AdminSanctionedCountry[] }>
+  > {
+    return this.client.post('/api/admin/sanctioned-countries/seed', { mode });
   }
 
   async listPlatformAdmins(): Promise<ApiResponse<{ admins: PlatformAdminRow[] }>> {

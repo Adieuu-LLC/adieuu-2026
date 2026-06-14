@@ -77,6 +77,8 @@ export interface UserDocument extends BaseDocument {
   moderationReason?: string;
   /** Category preset for the latest account moderation action. */
   moderationCategory?: AccountModerationCategory;
+  /** ISO country code that triggered an OFAC sanctions ban (for re-evaluation on login). */
+  moderationCountryCode?: string;
   /** Admin identity ID that performed the latest moderation action. */
   moderatedBy?: string;
   /** When the moderation action was applied. */

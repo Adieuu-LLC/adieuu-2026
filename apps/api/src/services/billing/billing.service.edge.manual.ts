@@ -60,12 +60,14 @@ mock.module('../../config', () => ({
 
 const mockFindById: any = mock((): any => Promise.resolve(null));
 const mockUpdateStripeCustomerId: any = mock((): any => Promise.resolve());
+const mockSetStripeCustomerIdIfAbsent: any = mock((): any => Promise.resolve(true));
 const mockUpdateBilling: any = mock((): any => Promise.resolve());
 
 mock.module('../../repositories/user.repository', () => ({
   getUserRepository: () => ({
     findById: mockFindById,
     updateStripeCustomerId: mockUpdateStripeCustomerId,
+    setStripeCustomerIdIfAbsent: mockSetStripeCustomerIdIfAbsent,
     updateBilling: mockUpdateBilling,
   }),
 }));
@@ -122,6 +124,8 @@ beforeEach(() => {
   mockFindById.mockReset();
   mockUpdateBilling.mockReset();
   mockUpdateStripeCustomerId.mockReset();
+  mockSetStripeCustomerIdIfAbsent.mockReset();
+  mockSetStripeCustomerIdIfAbsent.mockImplementation(() => Promise.resolve(true));
   mockSubscriptionRetrieve.mockClear();
   mockCheckoutSessionRetrieve.mockClear();
   mockCheckoutSessionCreate.mockClear();
@@ -246,7 +250,7 @@ describe('getOrCreateStripeCustomer', () => {
     const result = await getOrCreateStripeCustomer(user);
     expect(result).toBe('cus_new_123');
     expect(mockCustomerCreate).toHaveBeenCalled();
-    expect(mockUpdateStripeCustomerId).toHaveBeenCalledWith(user._id, 'cus_new_123');
+    expect(mockSetStripeCustomerIdIfAbsent).toHaveBeenCalledWith(user._id, 'cus_new_123');
   });
 });
 
