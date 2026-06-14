@@ -202,8 +202,12 @@ export function AccountSubscription() {
     if (identityMode || authStatus !== 'authenticated') return;
 
     return onSubscriptionUpgraded(() => {
-      void refreshSession();
-      void loadStatus({ silent: true });
+      void refreshSession().catch(() => {
+        // Best-effort session refresh after upgrade notification.
+      });
+      void loadStatus({ silent: true }).catch(() => {
+        // Best-effort subscription status refresh after upgrade notification.
+      });
     });
   }, [identityMode, authStatus, refreshSession, loadStatus]);
 

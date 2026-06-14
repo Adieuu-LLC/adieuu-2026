@@ -22,7 +22,7 @@ export function useAccountEventPolling(
   const { status } = useAuth();
   const { apiBaseUrl } = useAppConfig();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const dismiss = useCallback(
     async (eventId: string) => {
@@ -36,14 +36,18 @@ export function useAccountEventPolling(
   );
 
   useEffect(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
 
     if (!enabled || status !== 'authenticated') return;
 
+    let cancelled = false;
+
     const tick = async () => {
+      if (cancelled) return;
+
       try {
         const res = await api.accountEvents.getPending();
         if (!res.success || !res.data) return;
@@ -55,16 +59,20 @@ export function useAccountEventPolling(
         }
       } catch {
         // Transient errors — keep polling.
+      } finally {
+        if (!cancelled) {
+          timeoutRef.current = setTimeout(() => void tick(), intervalMs);
+        }
       }
     };
 
     void tick();
-    intervalRef.current = setInterval(() => void tick(), intervalMs);
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      cancelled = true;
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
     };
   }, [api, enabled, intervalMs, status]);

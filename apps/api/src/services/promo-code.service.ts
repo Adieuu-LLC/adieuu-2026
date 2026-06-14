@@ -613,11 +613,19 @@ export async function redeemPromoCode(
   let pendingEvent: PublicPendingAccountEvent | undefined;
   if (code.subscription && finalStripeAction !== 'credit') {
     const tier = code.subscription.tier as SubscriptionTierId;
-    pendingEvent = await emitSubscriptionUpgradedEvent(userId, {
-      tier,
-      source: 'promo_code',
-      isLifetime: false,
-    });
+    try {
+      pendingEvent = await emitSubscriptionUpgradedEvent(userId, {
+        tier,
+        source: 'promo_code',
+        isLifetime: false,
+      });
+    } catch (err) {
+      elog.warn('Failed to emit promo subscription upgrade event', {
+        userId,
+        shortcode,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 
   return {

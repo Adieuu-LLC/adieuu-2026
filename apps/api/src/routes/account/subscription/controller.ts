@@ -474,11 +474,18 @@ function buildRenewalInfo(user: UserDocument): BillingRenewalInfo {
 
 async function fetchStripeInvoices(customerId: string): Promise<BillingInvoiceEntry[]> {
   const stripe = getStripe();
-  const invoices = await stripe.invoices.list({
-    customer: customerId,
-    limit: 24,
-  });
-  return invoices.data.map(mapStripeInvoice);
+  try {
+    const invoices = await stripe.invoices.list({
+      customer: customerId,
+      limit: 24,
+    });
+    return invoices.data.map(mapStripeInvoice);
+  } catch (err) {
+    if (err instanceof Stripe.errors.StripeInvalidRequestError) {
+      return [];
+    }
+    throw err;
+  }
 }
 
 async function fetchStripePaymentMethod(customerId: string): Promise<BillingPaymentMethod | null> {
@@ -496,10 +503,19 @@ async function fetchStripePaymentMethod(customerId: string): Promise<BillingPaym
     return null;
   }
 
-  const paymentMethod =
-    typeof defaultPm === 'string'
-      ? await stripe.paymentMethods.retrieve(defaultPm)
-      : defaultPm;
+  let paymentMethod: Stripe.PaymentMethod;
+  if (typeof defaultPm === 'string') {
+    try {
+      paymentMethod = await stripe.paymentMethods.retrieve(defaultPm);
+    } catch (err) {
+      if (err instanceof Stripe.errors.StripeInvalidRequestError) {
+        return null;
+      }
+      throw err;
+    }
+  } else {
+    paymentMethod = defaultPm;
+  }
 
   return mapStripePaymentMethod(paymentMethod);
 }

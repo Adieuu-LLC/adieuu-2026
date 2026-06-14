@@ -268,7 +268,7 @@ export function BillingTab({
                         )}
                       </span>
                       <span className="subscription-billing-history-amount">
-                        {formatCurrency(invoice.amountPaid || invoice.amountDue, invoice.currency)}
+                        {formatCurrency(invoice.amountPaid ?? invoice.amountDue, invoice.currency)}
                       </span>
                       <span className="subscription-billing-history-status">{statusLabel}</span>
                     </li>

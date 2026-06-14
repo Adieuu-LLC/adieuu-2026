@@ -269,7 +269,17 @@ describe('subscription controller', () => {
     });
 
     test('returns summary when user exists', async () => {
-      const user = baseUser();
+      const user = baseUser({
+        billing: {
+          status: 'active',
+          activeSubscriptions: [],
+          entitlements: [],
+          isLifetime: true,
+          currentPeriodEnd: new Date('2026-06-01T00:00:00Z'),
+          cancelAtPeriodEnd: false,
+          updatedAt: new Date(),
+        },
+      });
       mockFindById.mockImplementation(() => Promise.resolve(user));
 
       const result = await getSubscriptionSummary(user._id.toHexString());
@@ -279,6 +289,8 @@ describe('subscription controller', () => {
       expect(result.data.activeSubscriptions).toEqual(['access']);
       expect(result.data.entitlements).toEqual(['ent_a']);
       expect(result.data.isLifetime).toBe(true);
+      expect(result.data.planBadge).toBe('lifetime');
+      expect(result.data.planExpiresAt).toBe(null);
       expect(result.data.status).toBe('active');
       expect(result.data.currentPeriodEnd).toBe(user.billing?.currentPeriodEnd?.toISOString() ?? null);
       expect(result.data.cancelAtPeriodEnd).toBe(false);
