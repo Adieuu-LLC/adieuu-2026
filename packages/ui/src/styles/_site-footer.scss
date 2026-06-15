@@ -181,6 +181,15 @@
       margin-bottom: 0;
     }
   }
+
+  strong {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+  }
+
+  .highlight {
+    color: var(--color-accent-primary);
+  }
 }
 
 .legal-agreement-notice {

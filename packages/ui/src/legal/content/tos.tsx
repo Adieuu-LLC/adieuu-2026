@@ -2,18 +2,28 @@ import { LegalPolicyDocument, type LegalPolicySection } from '../LegalPolicyDocu
 
 const TERMS_OF_SERVICE_SECTIONS: LegalPolicySection[] = [
   {
-    id: 'acceptance',
-    title: 'Acceptance of Terms',
+    id: 'intro',
+    title: 'Intro',
     content: (
       <>
         <p>
-          This Terms of Service document is a placeholder. The full terms will be published here
-          before launch.
+          <strong>Effective:</strong> 15 June 2026<br />
+          <strong>Last Updated:</strong> 15 June 2026<br />
         </p>
         <p>
-          By accessing or using Adieuu, you agree to be bound by these Terms. If you do not agree,
-          you may not use the service.
+          <strong>Welcome!</strong>&nbsp;
+          Adieuu is a privacy-focused social platform that aims to make online conversation more human, accountable, and transparent without compromising on individual privacy. Please read these Terms of Service ("Terms") carefully, as they are a legally binding contract between you and us. They apply to your use of our services.
         </p>
+        <p>
+          As part of these Terms, you agree to comply with the most recent versions of our Privacy Policy, Acceptable Use Policy, Paid Services Terms, and other policies (as listed <a href='/legal-policies' rel='noreferrer'>here</a> or as otherwise made available to you), which are incorporated by reference into these Terms. If you use our services, or continue accessing or using the Services after being notified of a change to our Terms or any incorporated policies, you confirm that you have read, understand, and agree to be bound by these Terms and all incoporated policies.
+        </p>
+        <p>For Developers: If you use our APIs, SDKs, or our other developer services or software, additional policies may likely apply to that use.</p>
+        <p>We've tried to make our policies as simple and clear as possible. If you have any questions or concerns, please don't hesitate to reach out to us at <a href='mailto:say@adieuu.com'>say@adieuu.com</a>.</p>
+        <p>When we say "Adieuu", "we", "us", and "our" in these terms, we mean Adieuu, LLC, its subsidiaries, and its related companies.</p>
+        <p>When we say "services" in these terms, we mean Adieuu's services, apps, websites, and other products.</p>
+        <p>When we say "you" or "your" in these terms, we mean you. If you're accessing our services on behalf of a legal entity, you agree that you have the authority to bind that entity to these terms, and "you" and "your" will refer to that entity.</p>
+        <h4>Modifications</h4>
+        <p>We may make changes to these Terms as we grow for legal or regulatory reasons, to prevent abuse of our services, better protect or serve users of our services, or to better reflect changes to our service or business. If we make a material change to the Terms, we will do our best to provide you with reasonable advance notice either by emailing the email address associated with your account or by messaging you through our services (we may not be able to include advance notice for urgent changes).</p>
       </>
     ),
   },
