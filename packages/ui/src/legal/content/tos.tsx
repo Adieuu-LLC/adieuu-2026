@@ -20,7 +20,7 @@ const TERMS_OF_SERVICE_SECTIONS: LegalPolicySection[] = [
         </p>
         <p><strong>For Developers:</strong> If you use our APIs, SDKs, or our other developer services or software, additional policies may likely apply to that use.</p>
         <blockquote>
-          <p>We've tried to make our policies as simple and clear as possible. If you have any questions or concerns, please don't hesitate to reach out to us at <a href='mailto:say@adieuu.com' rel='noopener noreferrer' target='_blank'>say@adieuu.com</a>.</p>
+          <p>We've tried to make our policies as simple and clear as possible. If you have any questions or concerns, please don't hesitate to reach out to us at <a href='mailto:say@adieuu.com' rel='noopener noreferrer' target='_blank'>say@adieuu.com</a>. If you see behavior or content that is illegal, inappropriate, or otherwise violates our Terms, please report it by opening a support ticket through our services, or by emailing us directly at <a href='mailto:abuse@adieuu.com' rel='noopener noreferrer' target='_blank'>abuse@adieuu.com</a></p>
         </blockquote>
         <p>When we say "Adieuu", "we", "us", and "our" in these terms, we mean Adieuu, LLC, its subsidiaries, and its related companies.</p>
         <p>When we say "services" in these terms, we mean Adieuu's services, apps, websites, and other products.</p>
@@ -35,22 +35,20 @@ const TERMS_OF_SERVICE_SECTIONS: LegalPolicySection[] = [
     title: 'About Adieuu, LLC',
     content: (
       <p>
-        Adieuu, LLC is located at 1617 Park Place Ave Suite 110-AD, Fort Worth, TX 76110, USA. You can learn more about our company, our team, and our values at <a href='https://www.adieuu.org' target='_blank' rel='noopener noreferrer'>https://www.adieuu.org</a>. We do receive mail at the listed address
+        Adieuu, LLC is located at 1617 Park Place Ave Suite 110-AD, Fort Worth, TX 76110, USA. You can learn more about our company, our team, and our values at <a href='https://www.adieuu.org' target='_blank' rel='noopener noreferrer'>https://www.adieuu.org</a>.
       </p>
     ),
   },
   {
-    id: 'user-accounts',
-    title: 'User Accounts',
+    id: 'age-requirements',
+    title: 'Age Requirements',
     content: (
       <>
         <p>
-          You are responsible for maintaining the security of your account and for all activity
-          that occurs under it.
+          By accessing our services, you confirm that you're at least 18 years old and meet the minimum age required by the laws in your country and local jurisdiction. Adieuu's services are not designed for nor directed towards users under the age of 18. We may take additional steps, including the use of third-party services, to determine whether you are old enough to create an Adieuu account or access certain features or content.
         </p>
         <p>
-          This section will outline account creation requirements, alias management, and your
-          obligations regarding accurate account information.
+          By creating an Adieuu account or using our services, you accept and agree to be bound by these terms and represent that you have reached the age of 18 or the age of majority (whichever is greater) where you live. We do not presently allow a parent or guardian to act on behalf of any individual under the age of 18. If we later offer our services to individuals under that age, it will be after we ensure we can provide reasonable protections for minors and with the consent of parents and/or guardians. We have concerns that many of the controls necessary to apropriately moderate content and manage safety for minors at scale may at times conflict with the privacy-focused protections we have in place for users today: we don't want to compromise on those protections, so we'll wait to support individuals under 18 until when we can find an appropriate solution. 
         </p>
       </>
     ),
