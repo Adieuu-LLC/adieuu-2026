@@ -8,6 +8,7 @@ const mockIncrementSubscriptionCount = mock((): any => Promise.resolve(undefined
 const mockFindById = mock((): any => Promise.resolve(null));
 
 mock.module('../repositories/referral.repository', () => ({
+  MAX_ACTIVE_CODES_PER_USER: 3,
   getReferralAttributionRepository: () => ({
     findPendingCreditByReferredUserId: mockFindPendingCreditByReferredUserId,
     markCreditGranted: mockMarkCreditGranted,
@@ -25,6 +26,8 @@ mock.module('../repositories/user.repository', () => ({
 
 mock.module('../db/mongo', () => ({
   withTransaction: async (fn: any) => fn(undefined),
+  Collections: { REFERRAL_CODES: 'referral_codes', REFERRAL_ATTRIBUTIONS: 'referral_attributions', USERS: 'users' },
+  getCollection: () => ({}),
 }));
 
 mock.module('../config', () => ({

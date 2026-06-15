@@ -14,8 +14,6 @@ import type { PurchasableProductId } from '@adieuu/shared';
 import { sendEmail, sendSms } from './messaging';
 import elog from '../utils/adieuuLogger';
 
-const APP_NAME = config.email.fromName;
-
 const PLAN_DISPLAY_NAMES: Record<PurchasableProductId, string> = {
   access: 'Access',
   insider: 'Insider',
@@ -57,7 +55,7 @@ export async function sendSponsorshipFulfilledNotification(
   try {
     if (beneficiary.email && beneficiary.emailVerified) {
       const template = getEmailTemplate('sponsorshipFulfilled', DEFAULT_LOCALE, {
-        appName: APP_NAME,
+        appName: config.email.fromName,
         planName,
         durationLine,
         sponsorLine,
@@ -73,7 +71,7 @@ export async function sendSponsorshipFulfilledNotification(
 
     if (beneficiary.phone && beneficiary.phoneVerified) {
       const message = getSmsMessage('sponsorshipFulfilled', DEFAULT_LOCALE, {
-        appName: APP_NAME,
+        appName: config.email.fromName,
         planName,
       });
       await sendSms({ to: beneficiary.phone, message });
