@@ -230,6 +230,30 @@ describe('requireActiveSubscription middleware', () => {
     expect(mockGetSessionFromRequest).not.toHaveBeenCalled();
   });
 
+  test('non-exempt sibling /api/referral -> does not bypass subscription check', async () => {
+    mockGetSessionFromRequest.mockResolvedValue(null);
+    const ctx = makeCtx('/api/referral');
+    const res = await middleware(ctx, nextOk);
+    expect(res.status).toBe(200);
+    expect(mockGetSessionFromRequest).toHaveBeenCalled();
+  });
+
+  test('non-exempt sibling /api/authorize -> does not bypass subscription check', async () => {
+    mockGetSessionFromRequest.mockResolvedValue(null);
+    const ctx = makeCtx('/api/authorize');
+    const res = await middleware(ctx, nextOk);
+    expect(res.status).toBe(200);
+    expect(mockGetSessionFromRequest).toHaveBeenCalled();
+  });
+
+  test('non-exempt sibling /api/users/media -> does not bypass subscription check', async () => {
+    mockGetSessionFromRequest.mockResolvedValue(null);
+    const ctx = makeCtx('/api/users/media');
+    const res = await middleware(ctx, nextOk);
+    expect(res.status).toBe(200);
+    expect(mockGetSessionFromRequest).toHaveBeenCalled();
+  });
+
   test('no session -> passes through (identity or unauthenticated)', async () => {
     mockGetSessionFromRequest.mockResolvedValue(null);
     const ctx = makeCtx('/api/themes');

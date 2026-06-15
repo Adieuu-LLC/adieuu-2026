@@ -759,6 +759,22 @@ async function handleSponsorshipCheckoutCompleted(
     });
   });
 
+  void (async () => {
+    const { sendSponsorshipFulfilledNotification } = await import('../sponsorship-notification');
+    await sendSponsorshipFulfilledNotification(beneficiary, {
+      productId,
+      isLifetime: productMeta.isLifetime,
+      sponsorRevealed: revealIdentity,
+      sponsorFirstName: revealIdentity ? (meta.sponsorFirstName || undefined) : undefined,
+      sponsorLastInitial: revealIdentity ? (meta.sponsorLastInitial || undefined) : undefined,
+    });
+  })().catch((err) => {
+    elog.warn('Failed to send sponsorship fulfilled notification', {
+      beneficiaryUserId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  });
+
   elog.info('Sponsorship fulfilled', {
     beneficiaryUserId,
     sponsorUserId,
@@ -857,6 +873,27 @@ export async function applySubscriptionChange(event: Stripe.Event): Promise<void
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const invoice = event.data.object as any;
       const invoiceSub = invoice.subscription;
+      if (event.type === 'invoice.payment_succeeded') {
+        const amountPaid = typeof invoice.amount_paid === 'number' ? invoice.amount_paid : 0;
+        const customerId =
+          typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id;
+        if (amountPaid > 0 && customerId) {
+          const userRepo = getUserRepository();
+          const referredUser = await userRepo.findByStripeCustomerId(customerId);
+          if (referredUser) {
+            try {
+              const { grantReferralCreditForPayment } = await import('../../services/referral.service');
+              await grantReferralCreditForPayment(referredUser._id.toHexString(), amountPaid);
+            } catch (err) {
+              elog.warn('Referral credit grant failed during invoice webhook', {
+                eventId: event.id,
+                referredUserId: referredUser._id.toHexString(),
+                error: err instanceof Error ? err.message : String(err),
+              });
+            }
+          }
+        }
+      }
       if (invoiceSub) {
         const subscriptionId = typeof invoiceSub === 'string' ? invoiceSub : invoiceSub.id;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

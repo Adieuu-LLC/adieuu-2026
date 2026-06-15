@@ -125,6 +125,8 @@ export function ManageTab({
     statusLabel,
     onCheckout,
     onManage,
+    catalogPrices,
+    catalogPricesLoading,
   };
 
   const summaryCardClassName = useMemo(
@@ -379,7 +381,23 @@ export function ManageTab({
         </div>
 
         {plansLayout === 'cards' ? (
-          <AnnualPlansCards {...plansProps} />
+          <>
+            <AnnualPlansCards {...plansProps} />
+            {!hasPaidPlan && !identityMode && (
+              <p className="subscription-lifetime-cta">
+                <button
+                  type="button"
+                  className="subscription-lifetime-cta-link"
+                  onClick={() => {
+                    const base = location.pathname.replace(/\/manage$/, '');
+                    routerNavigate(`${base}/lifetime`);
+                  }}
+                >
+                  {t('account.subscription.manage.lifetimeCta')}
+                </button>
+              </p>
+            )}
+          </>
         ) : (
           <PlansComparisonTable
             {...plansProps}

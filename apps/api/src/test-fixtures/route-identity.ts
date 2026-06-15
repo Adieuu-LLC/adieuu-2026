@@ -41,7 +41,7 @@ export function testIdentityEnrichment(
 ): Middleware {
   return async (ctx: RouteContext, next: () => Promise<Response>) => {
     const cookie = ctx.request.headers.get('Cookie') ?? '';
-    if (cookie.includes('adieuu_session=')) {
+    if (cookie.includes('adieuu_session=') && !cookie.includes('adieuu_session=test-account-session')) {
       ctx.identitySession = {
         identity: { _id: identityId, username: overrides.username ?? 'testuser' } as never,
         sessionId: 'test-session',

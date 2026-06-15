@@ -40,7 +40,8 @@ export type EmailTemplateKey =
   | 'failedLoginAttempts'
   | 'abusiveIpAccess'
   | 'welcome'
-  | 'passwordChanged';
+  | 'passwordChanged'
+  | 'sponsorshipFulfilled';
 
 /**
  * All SMS template keys.
@@ -50,7 +51,8 @@ export type SmsTemplateKey =
   | 'otpAccountAdd'
   | 'accountLocked'
   | 'failedLoginAttempts'
-  | 'abusiveIpAccess';
+  | 'abusiveIpAccess'
+  | 'sponsorshipFulfilled';
 
 /**
  * All error message keys.

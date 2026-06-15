@@ -18,6 +18,7 @@ import {
 import {
   getSessionIdFromRequest,
   appendAuthClearCookies,
+  requireAccountSession,
 } from '../../services/session.service';
 import { verifySignedToken } from '../../services/account-token.service';
 import { getSessionRepository } from '../../repositories/session.repository';
@@ -33,6 +34,10 @@ import {
   changePassphrase,
   MIN_PASSPHRASE_LENGTH,
 } from '../../services/identity.service';
+import {
+  generateIdentityHash,
+  CURRENT_HASH_VERSION,
+} from '../../utils/identity-hash';
 import {
   blockIdentity,
   unblockIdentity,
@@ -1064,10 +1069,17 @@ const ChangePassphraseSchema = z.object({
 /**
  * Change the passphrase for the current identity.
  * POST /identity/change-passphrase
+ *
+ * Accepts either an identity session (alias mode) or an account session.
+ * In account mode, ownership is proven by signedToken + currentPassphrase derivation.
  */
 export async function changePassphraseCtrl(ctx: RouteContext): Promise<Response> {
-  if (!ctx.identitySession) return ctx.errors.unauthorized();
-  const { identity } = ctx.identitySession;
+  const callerIdentityId = ctx.identitySession?.identity._id.toHexString();
+
+  if (!ctx.identitySession) {
+    const accountSession = await requireAccountSession(ctx.request);
+    if (!accountSession) return ctx.errors.unauthorized();
+  }
 
   const parseResult = ChangePassphraseSchema.safeParse(ctx.body);
   if (!parseResult.success) {
@@ -1093,7 +1105,7 @@ export async function changePassphraseCtrl(ctx: RouteContext): Promise<Response>
     currentPassphrase,
     newPassphrase,
     { encryptedBundle: newEncryptedBundle, salt: newBundleSalt, nonce: newBundleNonce },
-    identity._id.toHexString(),
+    callerIdentityId,
   );
 
   if (!result.success) {
@@ -1107,4 +1119,65 @@ export async function changePassphraseCtrl(ctx: RouteContext): Promise<Response>
   }
 
   return success(undefined, 'Passphrase changed successfully.');
+}
+
+// ============================================================================
+// Bundle Retrieval by Passphrase (Account Session)
+// ============================================================================
+
+const BundleByPassphraseSchema = z.object({
+  signedToken: z.string().min(1),
+  passphrase: z.string().min(MIN_PASSPHRASE_LENGTH),
+});
+
+/**
+ * Fetch an encrypted key bundle using account session + passphrase proof.
+ * POST /identity/bundle-by-passphrase
+ *
+ * Allows account-session users to retrieve their alias's encrypted bundle
+ * for client-side decryption during passphrase change flows.
+ */
+export async function getBundleByPassphraseCtrl(ctx: RouteContext): Promise<Response> {
+  const accountSession = await requireAccountSession(ctx.request);
+  if (!accountSession) return ctx.errors.unauthorized();
+
+  const parseResult = BundleByPassphraseSchema.safeParse(ctx.body);
+  if (!parseResult.success) {
+    return ctx.errors.validationFailed();
+  }
+
+  const { signedToken, passphrase } = parseResult.data;
+
+  const tokenPayload = verifySignedToken(signedToken);
+  if (!tokenPayload) {
+    return ctx.errors.unauthorized();
+  }
+
+  let ident: string;
+  try {
+    const result = await generateIdentityHash(
+      passphrase,
+      tokenPayload.sub,
+      CURRENT_HASH_VERSION,
+    );
+    ident = result.hash;
+  } catch {
+    return errors.badRequest('Invalid passphrase format.');
+  }
+
+  const keyBundleRepo = getKeyBundleRepository();
+  const bundleId = deriveBundleId(ident);
+  const bundle = await keyBundleRepo.findByBundleId(bundleId);
+
+  if (!bundle) {
+    return errors.notFound('Key bundle not found.');
+  }
+
+  return success({
+    encryptedBundle: bundle.encryptedBundle,
+    salt: bundle.salt,
+    nonce: bundle.nonce,
+    useSeparatePassphrase: bundle.useSeparatePassphrase ?? false,
+    schemeVersion: bundle.schemeVersion ?? 1,
+  });
 }

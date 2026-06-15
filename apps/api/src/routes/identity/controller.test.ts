@@ -72,10 +72,25 @@ mock.module('../../services/session.service', () => ({
     }
     return Promise.resolve(null);
   }),
+  requireAccountSession: mock((request: Request) => {
+    const cookie = request.headers.get('Cookie') ?? '';
+    if (cookie.includes('adieuu_session=test-account-session')) {
+      return Promise.resolve({
+        type: 'account' as const,
+        userId: 'test-user-id',
+        identifier: 'test@example.com',
+        identifierType: 'email' as const,
+      });
+    }
+    return Promise.resolve(null);
+  }),
   getSessionIdFromRequest: mock((request: Request) => {
     const cookie = request.headers.get('Cookie') ?? '';
     const match = cookie.match(/adieuu_session=([^;]+)/);
     return match?.[1] ?? null;
+  }),
+  appendAuthClearCookies: mock((headers: Headers) => {
+    headers.append('Set-Cookie', 'adieuu_session=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax');
   }),
   buildLogoutCookie: mock(() => 'adieuu_session=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax'),
 }));
@@ -145,14 +160,35 @@ mock.module('../../services/messaging', () => ({
 }));
 
 // Mock key-bundle repository
+const mockFindByBundleId = mock(() => Promise.resolve({
+  bundleId: 'test-bundle-id',
+  encryptedBundle: 'encrypted-bundle-data-test',
+  salt: 'salt-value-base64',
+  nonce: 'nonce-value-base64',
+  useSeparatePassphrase: false,
+  schemeVersion: 2,
+} as { bundleId: string; encryptedBundle: string; salt: string; nonce: string; useSeparatePassphrase: boolean; schemeVersion: number } | null));
 mock.module('../../repositories/key-bundle.repository', () => ({
   getKeyBundleRepository: () => ({
-    findByBundleId: mock(() => Promise.resolve(null)),
+    findByBundleId: mockFindByBundleId,
     create: mock(() => Promise.resolve({ bundleId: 'test-bundle' })),
     updateBundle: mock(() => Promise.resolve(null)),
     deleteByBundleId: mock(() => Promise.resolve(true)),
     exists: mock(() => Promise.resolve(false)),
   }),
+}));
+
+// Mock identity-hash (needed by getBundleByPassphraseCtrl)
+mock.module('../../utils/identity-hash', () => ({
+  generateIdentityHash: mock(() => Promise.resolve({ hash: 'derived-ident-hash', version: 2 })),
+  CURRENT_HASH_VERSION: 2,
+  MIN_PASSPHRASE_LENGTH: 8,
+  validatePassphrase: mock(() => ({ valid: true })),
+}));
+
+// Mock crypto (deriveBundleId)
+mock.module('../../utils/crypto', () => ({
+  deriveBundleId: mock(() => 'derived-bundle-id'),
 }));
 
 // Mock block service
@@ -198,11 +234,13 @@ mock.module('../../repositories/session.repository', () => ({
 }));
 
 // Mock identity service
+const mockChangePassphrase = mock(() => Promise.resolve({ success: true }));
 mock.module('../../services/identity.service', () => ({
   createIdentity: mock(() => Promise.resolve({ success: true, identity: mockIdentity })),
   loginToIdentity: mock(() => Promise.resolve({ success: false, errorCode: 'INVALID_PASSPHRASE' })),
   logoutFromIdentity: mock(() => Promise.resolve(true)),
   deleteIdentity: mock(() => Promise.resolve({ success: true })),
+  changePassphrase: mockChangePassphrase,
   getIdentityFromSession: mock((sessionId: string) => {
     if (!sessionId || sessionId === 'test-session') {
       return Promise.resolve(null);
@@ -746,6 +784,185 @@ describe('identity routes', () => {
 
       expect(response.status).toBe(400);
       expect(mockSessionRevoke).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /identity/change-passphrase (account mode)', () => {
+    const validBody = {
+      signedToken: 'valid-token',
+      currentPassphrase: 'current-password-123',
+      newPassphrase: 'new-password-456',
+      newEncryptedBundle: 'a'.repeat(64),
+      newBundleSalt: 'a'.repeat(24),
+      newBundleNonce: 'a'.repeat(24),
+    };
+
+    test('succeeds with account session (no identity session)', async () => {
+      mockChangePassphrase.mockImplementation(() => Promise.resolve({ success: true }));
+
+      const response = await makeRequest('/identity/change-passphrase', {
+        method: 'POST',
+        body: validBody,
+        cookies: 'adieuu_session=test-account-session',
+      });
+
+      expect(response.status).toBe(200);
+      const data = await response.json() as { success: boolean };
+      expect(data.success).toBe(true);
+    });
+
+    test('succeeds with identity session', async () => {
+      mockChangePassphrase.mockImplementation(() => Promise.resolve({ success: true }));
+
+      const response = await makeRequest('/identity/change-passphrase', {
+        method: 'POST',
+        body: validBody,
+        cookies: 'adieuu_session=session',
+      });
+
+      expect(response.status).toBe(200);
+      const data = await response.json() as { success: boolean };
+      expect(data.success).toBe(true);
+    });
+
+    test('returns 401 without any valid session', async () => {
+      const response = await makeRequest('/identity/change-passphrase', {
+        method: 'POST',
+        body: validBody,
+      });
+
+      expect(response.status).toBe(401);
+    });
+
+    test('returns 401 for invalid signed token', async () => {
+      const response = await makeRequest('/identity/change-passphrase', {
+        method: 'POST',
+        body: { ...validBody, signedToken: 'invalid-token' },
+        cookies: 'adieuu_session=test-account-session',
+      });
+
+      expect(response.status).toBe(401);
+    });
+
+    test('returns 400 for invalid body', async () => {
+      const response = await makeRequest('/identity/change-passphrase', {
+        method: 'POST',
+        body: { signedToken: 'valid-token' },
+        cookies: 'adieuu_session=test-account-session',
+      });
+
+      expect(response.status).toBe(400);
+    });
+
+    test('returns 401 for INVALID_PASSPHRASE error from service', async () => {
+      mockChangePassphrase.mockImplementation(() =>
+        Promise.resolve({ success: false, error: 'Invalid passphrase', errorCode: 'INVALID_PASSPHRASE' }),
+      );
+
+      const response = await makeRequest('/identity/change-passphrase', {
+        method: 'POST',
+        body: validBody,
+        cookies: 'adieuu_session=test-account-session',
+      });
+
+      expect(response.status).toBe(401);
+    });
+
+    test('passes undefined callerIdentityId in account mode', async () => {
+      mockChangePassphrase.mockImplementation(() => Promise.resolve({ success: true }));
+
+      await makeRequest('/identity/change-passphrase', {
+        method: 'POST',
+        body: validBody,
+        cookies: 'adieuu_session=test-account-session',
+      });
+
+      const calls = mockChangePassphrase.mock.calls;
+      const lastCall = calls[calls.length - 1] as unknown[];
+      expect(lastCall[4]).toBeUndefined();
+    });
+
+    test('passes identity ID as callerIdentityId in identity mode', async () => {
+      mockChangePassphrase.mockImplementation(() => Promise.resolve({ success: true }));
+
+      await makeRequest('/identity/change-passphrase', {
+        method: 'POST',
+        body: validBody,
+        cookies: 'adieuu_session=session',
+      });
+
+      const calls = mockChangePassphrase.mock.calls;
+      const lastCall = calls[calls.length - 1] as unknown[];
+      expect(lastCall[4]).toBe(mockIdentityId.toHexString());
+    });
+  });
+
+  describe('POST /identity/bundle-by-passphrase', () => {
+    test('returns bundle data with valid account session', async () => {
+      const response = await makeRequest('/identity/bundle-by-passphrase', {
+        method: 'POST',
+        body: { signedToken: 'valid-token', passphrase: 'test-passphrase-123' },
+        cookies: 'adieuu_session=test-account-session',
+      });
+
+      expect(response.status).toBe(200);
+      const data = await response.json() as { success: boolean; data: Record<string, unknown> };
+      expect(data.success).toBe(true);
+      expect(data.data.encryptedBundle).toBeDefined();
+      expect(data.data.salt).toBeDefined();
+      expect(data.data.nonce).toBeDefined();
+      expect(data.data.schemeVersion).toBeDefined();
+    });
+
+    test('returns 401 without account session', async () => {
+      const response = await makeRequest('/identity/bundle-by-passphrase', {
+        method: 'POST',
+        body: { signedToken: 'valid-token', passphrase: 'test-passphrase-123' },
+      });
+
+      expect(response.status).toBe(401);
+    });
+
+    test('returns 401 with identity session (not account)', async () => {
+      const response = await makeRequest('/identity/bundle-by-passphrase', {
+        method: 'POST',
+        body: { signedToken: 'valid-token', passphrase: 'test-passphrase-123' },
+        cookies: 'adieuu_session=session',
+      });
+
+      expect(response.status).toBe(401);
+    });
+
+    test('returns 401 for invalid signed token', async () => {
+      const response = await makeRequest('/identity/bundle-by-passphrase', {
+        method: 'POST',
+        body: { signedToken: 'invalid-token', passphrase: 'test-passphrase-123' },
+        cookies: 'adieuu_session=test-account-session',
+      });
+
+      expect(response.status).toBe(401);
+    });
+
+    test('returns 400 for missing passphrase', async () => {
+      const response = await makeRequest('/identity/bundle-by-passphrase', {
+        method: 'POST',
+        body: { signedToken: 'valid-token' },
+        cookies: 'adieuu_session=test-account-session',
+      });
+
+      expect(response.status).toBe(400);
+    });
+
+    test('returns 404 when bundle not found', async () => {
+      mockFindByBundleId.mockImplementationOnce(() => Promise.resolve(null));
+
+      const response = await makeRequest('/identity/bundle-by-passphrase', {
+        method: 'POST',
+        body: { signedToken: 'valid-token', passphrase: 'test-passphrase-123' },
+        cookies: 'adieuu_session=test-account-session',
+      });
+
+      expect(response.status).toBe(404);
     });
   });
 });

@@ -9,6 +9,7 @@ import {
   type SessionInfo,
   type SubscriptionTierId,
   type PublicKeyCredentialRequestOptionsJSON,
+  type AccountModerationCategory,
 } from '@adieuu/shared';
 import { useAppConfig, usePlatformCapabilities } from '../config';
 import {
@@ -17,7 +18,7 @@ import {
   type AccountRestrictionInfo,
 } from '../services/authRestrictionFlow';
 import { ComplianceModals } from '../components/ComplianceModals';
-import type { AccountModerationCategory } from '@adieuu/shared';
+import { tryRedeemPendingReferral } from '../services/referralRedemption';
 
 /** Delay (ms) before retrying the initial session check on cold start. */
 const MOUNT_RETRY_DELAY_MS = 750;
@@ -267,6 +268,7 @@ function useAuthState(): AuthContextValue {
     // Session cookie is set by the server automatically
     // Refresh session to get the session info
     await refreshSession();
+    await tryRedeemPendingReferral(api);
 
     return { success: true };
   }, [api, refreshSession, handleVerifyError]);
@@ -284,6 +286,7 @@ function useAuthState(): AuthContextValue {
 
     // Session cookie is set by the server
     await refreshSession();
+    await tryRedeemPendingReferral(api);
     return { success: true };
   }, [api, refreshSession, handleVerifyError]);
 
@@ -309,6 +312,7 @@ function useAuthState(): AuthContextValue {
       }
 
       await refreshSession();
+      await tryRedeemPendingReferral(api);
       return { success: true };
     } catch (err) {
       if (err instanceof Error && err.name === 'NotAllowedError') {

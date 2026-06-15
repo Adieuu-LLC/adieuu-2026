@@ -44,6 +44,7 @@ import {
   revokeIdentitySessionCtrl,
   revokeAllOtherIdentitySessionsCtrl,
   changePassphraseCtrl,
+  getBundleByPassphraseCtrl,
 } from './controller';
 import {
   uploadPreKeysCtrl,
@@ -234,6 +235,27 @@ router.post('/identity', async (ctx) => {
  */
 router.post('/identity/change-passphrase', async (ctx) => {
   return await changePassphraseCtrl(ctx);
+});
+
+/**
+ * POST /identity/bundle-by-passphrase - Fetch encrypted key bundle via account session
+ *
+ * Allows account-session users to retrieve their alias's encrypted key bundle
+ * by proving passphrase knowledge. Used during passphrase change flows when
+ * the user is signed into their account (not their alias).
+ *
+ * @route POST /api/identity/bundle-by-passphrase
+ *
+ * @requestBody
+ * - `signedToken` (string, required): Bridging token for accountHash
+ * - `passphrase` (string, required): Current alias passphrase
+ *
+ * @returns 200 OK with encrypted bundle data
+ * @returns 401 Unauthorized if not authenticated or token invalid
+ * @returns 404 Not Found if bundle does not exist
+ */
+router.post('/identity/bundle-by-passphrase', async (ctx) => {
+  return await getBundleByPassphraseCtrl(ctx);
 });
 
 /**

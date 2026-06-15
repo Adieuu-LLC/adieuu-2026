@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect, type FormEvent } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AuthLayout } from '../../components/AuthLayout';
 import { Input } from '../../components/Input';
@@ -9,14 +9,20 @@ import { Card } from '../../components/Card';
 import { Spinner } from '../../components/Spinner';
 import { useAuth } from '../../hooks/useAuth';
 import { useAppConfig } from '../../config';
+import { captureReferralCodeFromSearch } from '../../services/referralRedemption';
 
 type DeliveryType = 'email' | 'sms';
 
 export function Login() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { requestOtp } = useAuth();
   const { externalLinkBase, platform } = useAppConfig();
+
+  useEffect(() => {
+    captureReferralCodeFromSearch(searchParams.toString());
+  }, [searchParams]);
 
   const [identifier, setIdentifier] = useState('');
   const [deliveryType, setDeliveryType] = useState<DeliveryType>('email');

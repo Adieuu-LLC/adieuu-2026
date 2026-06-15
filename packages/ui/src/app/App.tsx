@@ -16,6 +16,7 @@ import {
   AccountSecurity,
   AccountSubscription,
   ThemeBrowser,
+  ReferralPage,
 } from '../pages/account';
 import { CheckoutComplete } from '../pages/checkout/CheckoutComplete';
 import { RequestSponsorshipPage, SponsorshipDirectoryPage } from '../pages/sponsorship';
@@ -30,6 +31,7 @@ import {
   IdentityProfileView,
 } from '../pages/identity';
 import { ServiceStatus } from '../pages/ServiceStatus';
+import { ReferralLanding } from '../pages/public/ReferralLanding';
 import { ConversationView, NewConversation } from '../pages/conversations';
 import { useAuth } from '../hooks/useAuth';
 import { isAccountSidebarHidden } from './sidebar/identity';
@@ -304,6 +306,7 @@ export function App() {
           <Route path="/account/security/:tab" element={<AccountSecurity />} />
           <Route path="/account/subscription" element={<Navigate to="/account/subscription/manage" replace />} />
           <Route path="/account/subscription/:tab" element={<AccountSubscription />} />
+          <Route path="/account/referrals" element={<ReferralPage />} />
           <Route path="/account/settings" element={<Navigate to="/identity/notifications" replace />} />
           <Route path="/account/appearance" element={<Navigate to="/identity/appearance" replace />} />
           <Route path="/account/appearance/community" element={<ThemeBrowser />} />
@@ -363,6 +366,7 @@ export function App() {
       </Route>
 
       {/* Utility Routes (no auth required) */}
+      <Route path="/refer/:code" element={<ReferralLanding />} />
       <Route path="/service-status" element={<ServiceStatus />} />
       <Route path="/checkout/complete" element={<CheckoutComplete />} />
 

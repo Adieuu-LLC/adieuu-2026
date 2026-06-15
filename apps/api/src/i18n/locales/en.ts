@@ -207,6 +207,33 @@ If you didn't make this change, please contact our support team immediately.`,
   </p>
 </div>`,
     },
+
+    sponsorshipFulfilled: {
+      subject: '{{appName}}: Someone sponsored your subscription!',
+      text: `Great news! Someone has sponsored a {{planName}} plan for your {{appName}} account.
+
+{{durationLine}}
+
+{{sponsorLine}}
+
+Sign in to enjoy your new plan. Thank you for being part of the community!`,
+      html: `
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+  <h2 style="color: #22c55e; margin-bottom: 24px;">You've been sponsored!</h2>
+  <p style="color: #1a1a1a; line-height: 1.6;">
+    Great news! Someone has sponsored a <strong>{{planName}}</strong> plan for your {{appName}} account.
+  </p>
+  <p style="color: #666; line-height: 1.6; margin-top: 16px;">
+    {{durationLine}}
+  </p>
+  <p style="color: #666; line-height: 1.6; margin-top: 16px;">
+    {{sponsorLine}}
+  </p>
+  <p style="color: #1a1a1a; line-height: 1.6; margin-top: 24px;">
+    Sign in to enjoy your new plan. Thank you for being part of the community!
+  </p>
+</div>`,
+    },
   },
 
   sms: {
@@ -215,6 +242,7 @@ If you didn't make this change, please contact our support team immediately.`,
     accountLocked: '{{appName}}: Account locked due to failed login attempts. Try again in {{lockoutMinutes}} min.',
     failedLoginAttempts: '{{appName}}: {{attemptCount}} failed login attempts detected on your account.',
     abusiveIpAccess: '{{appName}} security alert: your account was accessed from a known abusive IP. Sign in from a different network.',
+    sponsorshipFulfilled: '{{appName}}: Someone sponsored a {{planName}} plan for you! Sign in to enjoy your new subscription.',
   },
 
   errors: {

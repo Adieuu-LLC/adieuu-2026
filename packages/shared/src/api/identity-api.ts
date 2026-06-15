@@ -429,4 +429,17 @@ export class IdentityApi {
   ): Promise<ApiResponse<void>> {
     return this.client.post('/api/identity/change-passphrase', params);
   }
+
+  /**
+   * Fetch encrypted key bundle using account session + passphrase proof.
+   *
+   * Used during passphrase change flows when signed into the account
+   * (not the alias). The signedToken proves account ownership and the
+   * passphrase is used server-side to derive the bundle lookup key.
+   */
+  async bundleByPassphrase(
+    params: { signedToken: string; passphrase: string },
+  ): Promise<ApiResponse<EncryptedKeyBundle>> {
+    return this.client.post('/api/identity/bundle-by-passphrase', params);
+  }
 }

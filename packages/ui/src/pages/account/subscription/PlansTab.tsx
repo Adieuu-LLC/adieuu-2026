@@ -18,9 +18,25 @@ export function AnnualPlansCards({
   statusLabel,
   onCheckout,
   onManage,
+  catalogPrices,
+  catalogPricesLoading,
 }: PlansTabProps) {
   const { t } = useTranslation();
   const { hasAccess, hasInsider, isLifetime } = derived;
+
+  const usdFormatter = useMemo(
+    () => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }),
+    [],
+  );
+
+  const formatCtaLabel = (productId: 'access' | 'insider') => {
+    const priceEntry = catalogPrices?.[productId];
+    if (catalogPricesLoading || !priceEntry) {
+      return t('account.subscription.subscribe');
+    }
+    const amount = usdFormatter.format(priceEntry.unitAmountUsdCents / 100);
+    return t('account.subscription.subscribeForPrice', { price: amount });
+  };
 
   const featureVariables = useMemo(
     () =>
@@ -106,7 +122,7 @@ export function AnnualPlansCards({
               variant="secondary"
               className="subscription-subscribe-btn"
             >
-              {actionLoading ? <Spinner size="sm" /> : t('account.subscription.subscribe')}
+              {actionLoading ? <Spinner size="sm" /> : formatCtaLabel('access')}
             </Button>
           )
         )}
@@ -163,7 +179,7 @@ export function AnnualPlansCards({
               variant="primary"
               className="subscription-subscribe-btn"
             >
-              {actionLoading ? <Spinner size="sm" /> : t('account.subscription.subscribe')}
+              {actionLoading ? <Spinner size="sm" /> : formatCtaLabel('insider')}
             </Button>
           )
         )}

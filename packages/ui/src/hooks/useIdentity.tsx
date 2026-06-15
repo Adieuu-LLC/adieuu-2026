@@ -20,6 +20,7 @@ import {
   hasDeviceKeys,
   getOrCreateWrappingSalt,
   hasSecureStorageBackend,
+  deleteAllDeviceKeysForIdentity,
 } from '../services/deviceKeyStorage';
 import { generateAndUploadPreKeys } from '../services/preKeyService';
 import type {
@@ -419,20 +420,19 @@ function useIdentityState(): IdentityContextValue {
             clearBytes(decryptedKeys.ecdhPrivateKey);
             clearBytes(decryptedKeys.kemPrivateKey);
           } catch (err) {
-            console.error('[Identity] loginToIdentity: failed to load device keys:', err);
-            clearBytes(wrappingKey);
+            // Device key decryption failed - likely due to passphrase change from
+            // another session/device. Clear stale keys and fall through to the
+            // "no device keys" path which will generate fresh ones.
+            console.warn('[Identity] loginToIdentity: device keys incompatible (passphrase changed?), regenerating:', err);
             try {
-              await api.identity.logout();
-            } catch {
-              // Ignore
+              await deleteAllDeviceKeysForIdentity(loggedInIdentity.id);
+            } catch (clearErr) {
+              console.warn('[Identity] loginToIdentity: failed to clear stale device keys:', clearErr);
             }
-            return {
-              success: false,
-              error: 'Failed to load device encryption keys. Try logging in again.',
-              errorCode: 'E2E_SETUP_FAILED',
-            };
           }
-        } else {
+        }
+
+        if (!deviceId) {
           // No cached device keys — behaviour depends on platform.
           //
           // Desktop (SecureStorage backend): generate a fresh per-device keypair
@@ -732,18 +732,19 @@ function useIdentityState(): IdentityContextValue {
           clearBytes(decryptedKeys.ecdhPrivateKey);
           clearBytes(decryptedKeys.kemPrivateKey);
         } catch (err) {
-          // On web, device keys may have been wiped by a cache clear.
-          // Try to recover from the bundle if a shared web device was enrolled.
+          // Device key decryption failed - could be passphrase change from another
+          // session, or cache corruption. On web, device keys may have been wiped.
+          // In all cases, continue to bundle decryption which is the authoritative
+          // passphrase check - if bundle decrypts, the passphrase is correct.
           if (!hasSecureStorageBackend()) {
             console.debug('[Identity] unlockIdentity: device keys missing on web, will try bundle recovery');
           } else {
-            console.error('[Identity] unlockIdentity: failed to decrypt device keys (wrong passphrase?):', err);
-            clearBytes(wrappingKey);
-            return {
-              success: false,
-              error: 'Invalid passphrase',
-              errorCode: 'INVALID_PASSPHRASE',
-            };
+            console.warn('[Identity] unlockIdentity: device keys incompatible (passphrase changed?), will verify via bundle');
+            try {
+              await deleteAllDeviceKeysForIdentity(identityId);
+            } catch (clearErr) {
+              console.warn('[Identity] unlockIdentity: failed to clear stale device keys:', clearErr);
+            }
           }
         }
 
@@ -795,14 +796,40 @@ function useIdentityState(): IdentityContextValue {
             }
           }
 
+          // If device keys still not loaded, generate fresh ones.
+          // This handles the case where passphrase was changed from another
+          // session/device, making the old device keys un-decryptable.
           if (!deviceKeysLoaded) {
-            clearBytes(signingPrivateKey);
-            clearBytes(wrappingKey);
-            return {
-              success: false,
-              error: 'Invalid passphrase',
-              errorCode: 'INVALID_PASSPHRASE',
-            };
+            console.debug('[Identity] unlockIdentity: generating fresh device keys after passphrase change...');
+            const newDeviceKeys = generateDeviceKeys(getDefaultDeviceName(), 'default');
+            const regResponse = await api.identity.registerDevice(identityId, {
+              deviceId: newDeviceKeys.deviceId,
+              name: newDeviceKeys.name,
+              ecdhPublicKey: newDeviceKeys.ecdhPublicKey,
+              kemPublicKey: newDeviceKeys.kemPublicKey,
+            });
+            if (!regResponse.success) {
+              clearBytes(newDeviceKeys.privateKeys.ecdh);
+              clearBytes(newDeviceKeys.privateKeys.kem);
+              clearBytes(signingPrivateKey);
+              clearBytes(wrappingKey);
+              return {
+                success: false,
+                error: 'Failed to register new device keys after passphrase change.',
+                errorCode: 'DEVICE_REGISTRATION_FAILED',
+              };
+            }
+            await storeDeviceKeys(
+              newDeviceKeys.deviceId,
+              identityId,
+              newDeviceKeys.privateKeys.ecdh,
+              newDeviceKeys.privateKeys.kem,
+              wrappingKey,
+              newDeviceKeys.routingTag
+            );
+            deviceId = newDeviceKeys.deviceId;
+            deviceKeysLoaded = true;
+            console.debug('[Identity] unlockIdentity: fresh device keys generated and registered');
           }
         } catch (err) {
           console.error('[Identity] unlockIdentity: failed to decrypt bundle:', err);

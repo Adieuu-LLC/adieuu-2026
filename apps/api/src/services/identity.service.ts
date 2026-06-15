@@ -515,7 +515,7 @@ export async function changePassphrase(
   currentPassphrase: string,
   newPassphrase: string,
   newBundle: { encryptedBundle: string; salt: string; nonce: string },
-  callerIdentityId: string,
+  callerIdentityId?: string,
 ): Promise<ChangePassphraseResult> {
   const identityRepo = getIdentityRepository();
 
@@ -544,7 +544,7 @@ export async function changePassphrase(
     return { success: false, error: 'Invalid passphrase', errorCode: 'INVALID_PASSPHRASE' };
   }
 
-  if (identity._id.toHexString() !== callerIdentityId) {
+  if (callerIdentityId && identity._id.toHexString() !== callerIdentityId) {
     return { success: false, error: 'Invalid passphrase', errorCode: 'INVALID_PASSPHRASE' };
   }
 

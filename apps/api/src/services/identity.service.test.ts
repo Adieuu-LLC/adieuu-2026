@@ -794,6 +794,123 @@ describe('identity.service', () => {
       expect(mockIdentityRepo.changeIdent).toHaveBeenCalled();
       expect(mockKeyBundleRepo.migrateBundleId).toHaveBeenCalled();
     });
+
+    test('succeeds without callerIdentityId (account mode)', async () => {
+      const identity = makeMockIdentity();
+      mockIdentityRepo.findActiveByIdent.mockImplementation(() => Promise.resolve(identity));
+      mockIdentityRepo.findByIdent.mockImplementation(() => Promise.resolve(null));
+      mockKeyBundleRepo.findByBundleId.mockImplementation(() =>
+        Promise.resolve({ bundleId: 'old-bundle' }),
+      );
+
+      const result = await changePassphrase(
+        testAccountHash,
+        currentPassphrase,
+        newPassphrase,
+        newBundle,
+        undefined,
+      );
+
+      expect(result.success).toBe(true);
+      expect(mockIdentityRepo.changeIdent).toHaveBeenCalled();
+      expect(mockKeyBundleRepo.migrateBundleId).toHaveBeenCalled();
+    });
+
+    test('skips ownership check when callerIdentityId is undefined', async () => {
+      const identity = makeMockIdentity();
+      mockIdentityRepo.findActiveByIdent.mockImplementation(() => Promise.resolve(identity));
+      mockIdentityRepo.findByIdent.mockImplementation(() => Promise.resolve(null));
+      mockKeyBundleRepo.findByBundleId.mockImplementation(() =>
+        Promise.resolve({ bundleId: 'old-bundle' }),
+      );
+
+      const result = await changePassphrase(
+        testAccountHash,
+        currentPassphrase,
+        newPassphrase,
+        newBundle,
+        undefined,
+      );
+
+      expect(result.success).toBe(true);
+    });
+
+    test('still rejects mismatched callerIdentityId when provided', async () => {
+      const identity = makeMockIdentity();
+      mockIdentityRepo.findActiveByIdent.mockImplementation(() => Promise.resolve(identity));
+
+      const result = await changePassphrase(
+        testAccountHash,
+        currentPassphrase,
+        newPassphrase,
+        newBundle,
+        new ObjectId().toHexString(),
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.errorCode).toBe('INVALID_PASSPHRASE');
+      }
+    });
+
+    test('account mode still validates current passphrase', async () => {
+      mockIdentityRepo.findActiveByIdent.mockImplementation(() => Promise.resolve(null));
+
+      const result = await changePassphrase(
+        testAccountHash,
+        currentPassphrase,
+        newPassphrase,
+        newBundle,
+        undefined,
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.errorCode).toBe('INVALID_PASSPHRASE');
+      }
+    });
+
+    test('account mode detects bundle not found', async () => {
+      const identity = makeMockIdentity();
+      mockIdentityRepo.findActiveByIdent.mockImplementation(() => Promise.resolve(identity));
+      mockKeyBundleRepo.findByBundleId.mockImplementation(() => Promise.resolve(null));
+
+      const result = await changePassphrase(
+        testAccountHash,
+        currentPassphrase,
+        newPassphrase,
+        newBundle,
+        undefined,
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.errorCode).toBe('BUNDLE_NOT_FOUND');
+      }
+    });
+
+    test('account mode detects collision', async () => {
+      const identity = makeMockIdentity();
+      const collision = makeMockIdentity();
+      mockIdentityRepo.findActiveByIdent.mockImplementation(() => Promise.resolve(identity));
+      mockIdentityRepo.findByIdent.mockImplementation(() => Promise.resolve(collision));
+      mockKeyBundleRepo.findByBundleId.mockImplementation(() =>
+        Promise.resolve({ bundleId: 'old-bundle' }),
+      );
+
+      const result = await changePassphrase(
+        testAccountHash,
+        currentPassphrase,
+        newPassphrase,
+        newBundle,
+        undefined,
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.errorCode).toBe('COLLISION');
+      }
+    });
   });
 
   describe('MIN_PASSPHRASE_LENGTH', () => {

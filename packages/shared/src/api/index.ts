@@ -330,6 +330,24 @@ export {
 } from './promo-code-api';
 
 export {
+  ReferralApi,
+  PENDING_REFERRAL_CODE_STORAGE_KEY,
+  REFERRAL_QUERY_PARAM,
+  readPendingReferralCode,
+  storePendingReferralCode,
+  clearPendingReferralCode,
+  resolveReferralCodeFromLocation,
+  type ReferralCodePayload,
+  type ReferralStatsPayload,
+  type ReferralLandingPayload,
+  type ReferralRedeemErrorCode,
+  type CreateReferralCodeParams,
+  type UpdateReferralCodeParams,
+  type RedeemReferralCodeParams,
+  type RedeemReferralCodeResponse,
+} from './referral-api';
+
+export {
   AccountEventsApi,
   type PendingAccountEventType,
   type SubscriptionUpgradeSource,

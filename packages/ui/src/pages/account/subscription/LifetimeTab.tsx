@@ -70,9 +70,25 @@ export function LifetimeTab({
   identityMode,
   actionLoading,
   onCheckout,
+  catalogPrices,
+  catalogPricesLoading,
 }: LifetimeTabProps) {
   const { t } = useTranslation();
   const { hasVanguard, hasFounder } = derived;
+
+  const usdFormatter = useMemo(
+    () => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }),
+    [],
+  );
+
+  const formatLifetimeCtaLabel = (productId: 'vanguard' | 'founder') => {
+    const priceEntry = catalogPrices?.[productId];
+    if (catalogPricesLoading || !priceEntry) {
+      return t('account.subscription.buyOnce');
+    }
+    const amount = usdFormatter.format(priceEntry.unitAmountUsdCents / 100);
+    return t('account.subscription.buyOnceForPrice', { price: amount });
+  };
 
   return (
     <div className="subscription-lifetime">
@@ -106,7 +122,7 @@ export function LifetimeTab({
                 variant="secondary"
                 className="subscription-subscribe-btn"
               >
-                {actionLoading ? <Spinner size="sm" /> : t('account.subscription.buyOnce')}
+                {actionLoading ? <Spinner size="sm" /> : formatLifetimeCtaLabel('vanguard')}
               </Button>
             )
           )}
@@ -134,7 +150,7 @@ export function LifetimeTab({
                 variant="primary"
                 className="subscription-subscribe-btn"
               >
-                {actionLoading ? <Spinner size="sm" /> : t('account.subscription.buyOnce')}
+                {actionLoading ? <Spinner size="sm" /> : formatLifetimeCtaLabel('founder')}
               </Button>
             )
           )}
