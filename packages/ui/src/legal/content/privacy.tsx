@@ -1,4 +1,5 @@
-import { LegalPolicyDocument, type LegalPolicySection } from '../LegalPolicyDocument';
+import type { LegalPolicySection } from '../LegalPolicyDocument';
+import { LegalPolicyDocument } from '../LegalPolicyDocument';
 
 const PRIVACY_POLICY_SECTIONS: LegalPolicySection[] = [
   {
@@ -99,6 +100,17 @@ const PRIVACY_POLICY_SECTIONS: LegalPolicySection[] = [
   },
 ];
 
-export function PrivacyPolicyContent() {
-  return <LegalPolicyDocument sections={PRIVACY_POLICY_SECTIONS} />;
+interface ContentProps {
+  highContrast?: boolean;
+  onToggleHighContrast?: () => void;
+}
+
+export function PrivacyPolicyContent({ highContrast, onToggleHighContrast }: ContentProps) {
+  return (
+    <LegalPolicyDocument
+      sections={PRIVACY_POLICY_SECTIONS}
+      highContrast={highContrast}
+      onToggleHighContrast={onToggleHighContrast}
+    />
+  );
 }

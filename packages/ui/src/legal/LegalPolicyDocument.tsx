@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SectionNav, type NavSection } from '../components/SectionNav';
+import { Icon } from '../icons/Icon';
 
 export interface LegalPolicySection {
   id: string;
@@ -10,9 +11,15 @@ export interface LegalPolicySection {
 
 interface LegalPolicyDocumentProps {
   sections: LegalPolicySection[];
+  highContrast?: boolean;
+  onToggleHighContrast?: () => void;
 }
 
-export function LegalPolicyDocument({ sections }: LegalPolicyDocumentProps) {
+export function LegalPolicyDocument({
+  sections,
+  highContrast = false,
+  onToggleHighContrast,
+}: LegalPolicyDocumentProps) {
   const { t } = useTranslation();
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
 
@@ -44,8 +51,17 @@ export function LegalPolicyDocument({ sections }: LegalPolicyDocumentProps) {
   }, [sections]);
 
   return (
-    <div className="legal-policy-layout">
+    <div className={`legal-policy-layout${highContrast ? ' legal-policy-high-contrast' : ''}`}>
       <div className="legal-policy-toc">
+        <button
+          type="button"
+          className={`legal-policy-contrast-toggle${highContrast ? ' legal-policy-contrast-toggle--active' : ''}`}
+          onClick={onToggleHighContrast}
+          aria-pressed={highContrast}
+        >
+          <Icon name="eye" size="sm" />
+          <span>{t('legal.highContrast')}</span>
+        </button>
         <SectionNav
           sections={navSections}
           sectionRefs={sectionRefs}

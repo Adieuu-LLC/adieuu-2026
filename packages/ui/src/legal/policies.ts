@@ -2,12 +2,17 @@ import type { ComponentType } from 'react';
 import { TermsOfServiceContent } from './content/tos';
 import { PrivacyPolicyContent } from './content/privacy';
 
+export interface LegalPolicyContentProps {
+  highContrast?: boolean;
+  onToggleHighContrast?: () => void;
+}
+
 export interface LegalPolicyDefinition {
   slug: string;
   title: string;
   description?: string;
   showInFooter?: boolean;
-  Content: ComponentType;
+  Content: ComponentType<LegalPolicyContentProps>;
 }
 
 export const LEGAL_POLICIES: LegalPolicyDefinition[] = [
