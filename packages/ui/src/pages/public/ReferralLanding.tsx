@@ -25,18 +25,27 @@ export function ReferralLanding() {
 
     async function load() {
       setLoading(true);
-      const response = await api.referral.getLanding(rawCode);
-      if (cancelled) return;
-      setLoading(false);
+      try {
+        const response = await api.referral.getLanding(rawCode);
+        if (cancelled) return;
 
-      if (!response.success || !response.data?.valid) {
+        if (!response.success || !response.data?.valid) {
+          setValid(false);
+          setCustomMessage(undefined);
+          return;
+        }
+
+        setValid(true);
+        setCustomMessage(response.data.customMessage);
+      } catch {
+        if (cancelled) return;
         setValid(false);
         setCustomMessage(undefined);
-        return;
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-
-      setValid(true);
-      setCustomMessage(response.data.customMessage);
     }
 
     void load();

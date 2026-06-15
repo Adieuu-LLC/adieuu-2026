@@ -35,12 +35,17 @@ export async function tryRedeemPendingReferral(
   const code = fromUrl ?? readPendingReferralCode();
   if (!code) return { redeemed: false };
 
-  const response = await api.referral.redeem({ code });
-  clearPendingReferralCode();
+  try {
+    const response = await api.referral.redeem({ code });
+    clearPendingReferralCode();
 
-  if (response.success && response.data) {
-    return { redeemed: true, code: response.data.code };
+    if (response.success && response.data) {
+      return { redeemed: true, code: response.data.code };
+    }
+
+    return { redeemed: false };
+  } catch {
+    clearPendingReferralCode();
+    return { redeemed: false };
   }
-
-  return { redeemed: false };
 }

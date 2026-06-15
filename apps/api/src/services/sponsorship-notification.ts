@@ -52,8 +52,8 @@ export async function sendSponsorshipFulfilledNotification(
 
   const userId = beneficiary._id.toHexString();
 
-  try {
-    if (beneficiary.email && beneficiary.emailVerified) {
+  if (beneficiary.email && beneficiary.emailVerified) {
+    try {
       const template = getEmailTemplate('sponsorshipFulfilled', DEFAULT_LOCALE, {
         appName: config.email.fromName,
         planName,
@@ -67,20 +67,27 @@ export async function sendSponsorshipFulfilledNotification(
         html: template.html,
       });
       elog.info('Sponsorship fulfilled email sent', { userId });
+    } catch (err) {
+      elog.warn('Failed to send sponsorship fulfilled email', {
+        userId,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
+  }
 
-    if (beneficiary.phone && beneficiary.phoneVerified) {
+  if (beneficiary.phone && beneficiary.phoneVerified) {
+    try {
       const message = getSmsMessage('sponsorshipFulfilled', DEFAULT_LOCALE, {
         appName: config.email.fromName,
         planName,
       });
       await sendSms({ to: beneficiary.phone, message });
       elog.info('Sponsorship fulfilled SMS sent', { userId });
+    } catch (err) {
+      elog.warn('Failed to send sponsorship fulfilled SMS', {
+        userId,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
-  } catch (err) {
-    elog.warn('Failed to send sponsorship fulfilled notification', {
-      userId,
-      error: err instanceof Error ? err.message : String(err),
-    });
   }
 }

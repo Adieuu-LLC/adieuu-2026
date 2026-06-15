@@ -460,16 +460,21 @@ export async function grantReferralCreditForPayment(
       const price = priceId ? await stripe.prices.retrieve(priceId) : null;
       const currency = price?.currency ?? 'usd';
 
-      await stripe.customers.createBalanceTransaction(customerId, {
-        amount: -creditAmountCents,
-        currency,
-        description: `Referral credit (${attribution.code})`,
-        metadata: {
-          referredUserId: referredUser._id.toHexString(),
-          referralCode: attribution.code,
-          source: 'referral',
+      const idempotencyKey = `referral_credit_${attribution._id.toHexString()}`;
+      await stripe.customers.createBalanceTransaction(
+        customerId,
+        {
+          amount: -creditAmountCents,
+          currency,
+          description: `Referral credit (${attribution.code})`,
+          metadata: {
+            referredUserId: referredUser._id.toHexString(),
+            referralCode: attribution.code,
+            source: 'referral',
+          },
         },
-      });
+        { idempotencyKey },
+      );
     } catch (err) {
       elog.error('Failed to apply referral balance credit', {
         referredUserId,

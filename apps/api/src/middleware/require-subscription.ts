@@ -35,9 +35,9 @@ const DENIED_STATUSES: ReadonlySet<string> = new Set([
 
 /**
  * Route path prefixes that do NOT require an active subscription.
- * Matched against the pathname portion of the URL.
+ * Matched against the pathname portion of the URL (segment-aware).
  */
-const EXEMPT_PREFIXES: readonly string[] = [
+const EXEMPT_PATH_PREFIXES: readonly string[] = [
   '/api/auth',
   '/api/health',
   '/api/webhooks',
@@ -55,7 +55,10 @@ const EXEMPT_PREFIXES: readonly string[] = [
 ];
 
 function isExemptPath(pathname: string): boolean {
-  return EXEMPT_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+  return EXEMPT_PATH_PREFIXES.some((prefix) => {
+    if (pathname === prefix) return true;
+    return pathname.startsWith(`${prefix}/`);
+  });
 }
 
 /**

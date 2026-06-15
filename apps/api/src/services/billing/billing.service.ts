@@ -881,8 +881,16 @@ export async function applySubscriptionChange(event: Stripe.Event): Promise<void
           const userRepo = getUserRepository();
           const referredUser = await userRepo.findByStripeCustomerId(customerId);
           if (referredUser) {
-            const { grantReferralCreditForPayment } = await import('../../services/referral.service');
-            await grantReferralCreditForPayment(referredUser._id.toHexString(), amountPaid);
+            try {
+              const { grantReferralCreditForPayment } = await import('../../services/referral.service');
+              await grantReferralCreditForPayment(referredUser._id.toHexString(), amountPaid);
+            } catch (err) {
+              elog.warn('Referral credit grant failed during invoice webhook', {
+                eventId: event.id,
+                referredUserId: referredUser._id.toHexString(),
+                error: err instanceof Error ? err.message : String(err),
+              });
+            }
           }
         }
       }

@@ -52,13 +52,18 @@ export function ReferralPage() {
   const loadStats = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const response = await api.referral.getStats();
-    setLoading(false);
-    if (!response.success || !response.data) {
+    try {
+      const response = await api.referral.getStats();
+      if (!response.success || !response.data) {
+        setError(t('account.referral.errors.loadFailed'));
+        return;
+      }
+      setStats(response.data);
+    } catch {
       setError(t('account.referral.errors.loadFailed'));
-      return;
+    } finally {
+      setLoading(false);
     }
-    setStats(response.data);
   }, [api, t]);
 
   useEffect(() => {
@@ -147,20 +152,28 @@ export function ReferralPage() {
 
     setRedeeming(true);
     setRedeemFeedback(null);
-    const response = await api.referral.redeem({ code: trimmed });
-    setRedeeming(false);
+    try {
+      const response = await api.referral.redeem({ code: trimmed });
 
-    if (response.success) {
-      setRedeemCode('');
-      setRedeemFeedback({ type: 'success', message: t('account.referral.redeem.success') });
-      await loadStats();
-      return;
+      if (response.success) {
+        setRedeemCode('');
+        setRedeemFeedback({ type: 'success', message: t('account.referral.redeem.success') });
+        await loadStats();
+        return;
+      }
+
+      setRedeemFeedback({
+        type: 'error',
+        message: response.error?.message ?? t('account.referral.redeem.errors.generic'),
+      });
+    } catch {
+      setRedeemFeedback({
+        type: 'error',
+        message: t('account.referral.redeem.errors.generic'),
+      });
+    } finally {
+      setRedeeming(false);
     }
-
-    setRedeemFeedback({
-      type: 'error',
-      message: response.error?.message ?? t('account.referral.redeem.errors.generic'),
-    });
   };
 
   const canCreateMore = (stats?.codes.length ?? 0) < 3;
