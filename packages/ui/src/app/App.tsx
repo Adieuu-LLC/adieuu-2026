@@ -80,6 +80,7 @@ import {
   TicketDetail as ModerationTicketDetail,
 } from '../pages/moderation';
 import { MyTickets, SubmitTicket, TicketDetail } from '../pages/support';
+import { LegalPoliciesPage, LegalPolicyPage } from '../legal';
 
 /**
  * Protected route wrapper - redirects to login if not authenticated.
@@ -293,6 +294,8 @@ export function App() {
         <Route path="/search" element={<Search />} />
         <Route path="/spaces" element={<PublicSpaces />} />
         <Route path="/identity/:id" element={<IdentityProfileView />} />
+        <Route path="/legal-policies" element={<LegalPoliciesPage />} />
+        <Route path="/legal-policies/:slug" element={<LegalPolicyPage />} />
       </Route>
 
       {/* Protected Routes with Sidebar Layout */}

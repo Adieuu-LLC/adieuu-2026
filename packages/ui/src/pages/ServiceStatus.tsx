@@ -4,6 +4,7 @@ import { useAppConfig } from '../config';
 import { useAuth } from '../hooks/useAuth';
 import { useIdentity } from '../hooks/useIdentity';
 import { ChatClient } from '@adieuu/shared';
+import { SiteFooter } from '../components/SiteFooter';
 import './ServiceStatus.scss';
 
 interface ServiceHealth {
@@ -447,6 +448,7 @@ export function ServiceStatus() {
           Refresh Now
         </button>
       </div>
+      <SiteFooter />
     </div>
   );
 }

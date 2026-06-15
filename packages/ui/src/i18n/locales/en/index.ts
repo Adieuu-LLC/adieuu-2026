@@ -18,9 +18,12 @@ import { staticPages } from './staticPages';
 import { compliance } from './compliance';
 import { sponsorship } from './sponsorship';
 import { support } from './support';
+import { legal, footer } from './legal';
 
 export const en = {
   ...core,
+  legal,
+  footer,
   identity,
   account,
   ...staticPages,

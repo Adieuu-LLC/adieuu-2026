@@ -27,6 +27,8 @@ export const core = {
   nav: {
     home: 'Home',
     about: 'About',
+    more: 'More',
+    legalPolicies: 'Legal Policies',
     getDesktopApp: 'Get Desktop App',
     loginPrompt: 'Login or Create Account',
     backToHome: 'Back to Home',

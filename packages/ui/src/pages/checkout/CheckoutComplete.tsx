@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Card } from '../../components/Card';
 import { Alert } from '../../components/Alert';
 import { Spinner } from '../../components/Spinner';
+import { SiteFooter } from '../../components/SiteFooter';
 import { useAppConfig } from '../../config';
 import '../../styles/_checkout-complete.scss';
 
@@ -56,27 +57,30 @@ export function CheckoutComplete() {
 
   return (
     <div className="checkout-complete-page">
-      <Card className="checkout-complete-card">
-        {confirming ? (
-          <div className="checkout-complete-confirming">
-            <Spinner size="md" />
-            <p>{t('account.checkout.complete.confirming')}</p>
-          </div>
-        ) : (
-          <>
-            <h1 className="checkout-complete-title">{title}</h1>
-            <p className="checkout-complete-body">{body}</p>
-            <div className="checkout-complete-actions">
-              <a className="btn btn-primary btn-md" href={DESKTOP_DEEP_LINK_PRODUCTION}>
-                {t('account.checkout.complete.openApp')}
-              </a>
+      <div className="checkout-complete-main">
+        <Card className="checkout-complete-card">
+          {confirming ? (
+            <div className="checkout-complete-confirming">
+              <Spinner size="md" />
+              <p>{t('account.checkout.complete.confirming')}</p>
             </div>
-            <Alert variant="info" className="checkout-complete-dev-hint">
-              {t('account.checkout.complete.devHint', { devLink: DESKTOP_DEEP_LINK_DEV })}
-            </Alert>
-          </>
-        )}
-      </Card>
+          ) : (
+            <>
+              <h1 className="checkout-complete-title">{title}</h1>
+              <p className="checkout-complete-body">{body}</p>
+              <div className="checkout-complete-actions">
+                <a className="btn btn-primary btn-md" href={DESKTOP_DEEP_LINK_PRODUCTION}>
+                  {t('account.checkout.complete.openApp')}
+                </a>
+              </div>
+              <Alert variant="info" className="checkout-complete-dev-hint">
+                {t('account.checkout.complete.devHint', { devLink: DESKTOP_DEEP_LINK_DEV })}
+              </Alert>
+            </>
+          )}
+        </Card>
+      </div>
+      <SiteFooter />
     </div>
   );
 }

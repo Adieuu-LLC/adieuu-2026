@@ -8,6 +8,7 @@ import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Alert } from '../../components/Alert';
 import { Spinner } from '../../components/Spinner';
+import { LegalAgreementNotice } from '../../components/LegalAgreementNotice';
 import { Icon } from '../../icons/Icon';
 import { useAppConfig } from '../../config';
 
@@ -212,6 +213,8 @@ export function ReferralLanding() {
                       {t('account.referral.landing.decline')}
                     </Button>
                   </div>
+
+                  <LegalAgreementNotice variant="compact" className="referral-landing-legal-notice" />
 
                   <ul className="text-muted referral-landing-privacy-notes">
                     <li>{t('account.referral.landing.privacyNote.optional')}</li>

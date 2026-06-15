@@ -8,6 +8,7 @@ import { Button } from '../../components/Button';
 import { Icon } from '../../icons/Icon';
 import { useAppConfig } from '../../config';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { SidebarFlyoutSubmenu } from './SidebarFlyoutSubmenu';
 
 export function AboutFlyout() {
   const { t } = useTranslation();
@@ -18,13 +19,26 @@ export function AboutFlyout() {
   const [isDrawerOpen, setDrawerOpen] = useState(false);
 
   const isActive = (path: string) => location.pathname === path;
+  const isLegalPoliciesActive = location.pathname.startsWith('/legal-policies');
   const isSectionActive =
-    location.pathname === '/about' || location.pathname.startsWith('/about/');
+    location.pathname === '/about'
+    || location.pathname.startsWith('/about/')
+    || isLegalPoliciesActive;
 
   const handleNavClick = () => {
     setDrawerOpen(false);
     closeMobile();
   };
+
+  const moreSubmenuItems = (
+    <Link
+      to="/legal-policies"
+      onClick={handleNavClick}
+      className={`sidebar-flyout-item ${isLegalPoliciesActive ? 'sidebar-flyout-item-active' : ''}`}
+    >
+      {t('nav.legalPolicies')}
+    </Link>
+  );
 
   const menuItems = (
     <>
@@ -58,6 +72,26 @@ export function AboutFlyout() {
         >
           {t('about.updates.title')}
         </Link>
+      )}
+      {isMobile ? (
+        <SidebarFlyoutSubmenu
+          label={t('nav.more')}
+          isActive={isLegalPoliciesActive}
+          variant="drawer"
+          onNavClick={handleNavClick}
+        >
+          <Link
+            to="/legal-policies"
+            onClick={handleNavClick}
+            className={`sidebar-subitem ${isLegalPoliciesActive ? 'sidebar-subitem-active' : ''}`}
+          >
+            {t('nav.legalPolicies')}
+          </Link>
+        </SidebarFlyoutSubmenu>
+      ) : (
+        <SidebarFlyoutSubmenu label={t('nav.more')} isActive={isLegalPoliciesActive}>
+          {moreSubmenuItems}
+        </SidebarFlyoutSubmenu>
       )}
     </>
   );

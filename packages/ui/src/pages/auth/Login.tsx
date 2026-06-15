@@ -7,8 +7,8 @@ import { Button } from '../../components/Button';
 import { Alert } from '../../components/Alert';
 import { Card } from '../../components/Card';
 import { Spinner } from '../../components/Spinner';
+import { LegalAgreementNotice } from '../../components/LegalAgreementNotice';
 import { useAuth } from '../../hooks/useAuth';
-import { useAppConfig } from '../../config';
 import { captureReferralCodeFromSearch } from '../../services/referralRedemption';
 
 type DeliveryType = 'email' | 'sms';
@@ -18,7 +18,6 @@ export function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { requestOtp } = useAuth();
-  const { externalLinkBase, platform } = useAppConfig();
 
   useEffect(() => {
     captureReferralCodeFromSearch(searchParams.toString());
@@ -53,13 +52,6 @@ export function Login() {
   const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
   const isValidPhone = /^[+\d][\d\s\-().]{7,}$/.test(identifier);
   const isValid = deliveryType === 'email' ? isValidEmail : isValidPhone;
-
-  // For desktop/mobile, links open externally; for web, they're relative
-  const termsUrl = `${externalLinkBase}/terms`;
-  const privacyUrl = `${externalLinkBase}/privacy`;
-  const linkProps = platform !== 'web'
-    ? { target: '_blank' as const, rel: 'noopener noreferrer' }
-    : {};
 
   return (
     <AuthLayout
@@ -138,16 +130,7 @@ export function Login() {
       </Card>
 
       <footer className="auth-footer slide-up stagger-3">
-        <p>
-          By continuing, you agree to Adieuu's{' '}
-          <a href={termsUrl} className="auth-link" {...linkProps}>
-            Terms of Service
-          </a>{' '}
-          and{' '}
-          <a href={privacyUrl} className="auth-link" {...linkProps}>
-            Privacy Policy
-          </a>
-        </p>
+        <LegalAgreementNotice variant="auth" />
         <p style={{ marginTop: 'var(--spacing-sm)' }}>
           <Link to="/" className="auth-link">
             {t('nav.backToHome')}

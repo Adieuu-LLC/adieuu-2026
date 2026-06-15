@@ -1,5 +1,6 @@
 import { useState, useCallback, cloneElement, isValidElement, type ReactNode } from 'react';
 import type { SidebarOrientation } from './Sidebar';
+import { SiteFooter } from './SiteFooter';
 
 export interface AppLayoutProps {
   sidebar: ReactNode;
@@ -46,7 +47,12 @@ export function AppLayout({
   return (
     <div className={classNames}>
       {sidebarWithCallback}
-      <main className="app-content">{children}</main>
+      <main className="app-content">
+        <div className="app-content-inner">
+          {children}
+          <SiteFooter />
+        </div>
+      </main>
     </div>
   );
 }

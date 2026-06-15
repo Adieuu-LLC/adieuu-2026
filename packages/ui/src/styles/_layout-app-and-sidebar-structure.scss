@@ -29,6 +29,12 @@
   }
 }
 
+.app-content-inner {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
 // App layout orientation
 .app-layout-sidebar-left {
   // Default - no changes needed
