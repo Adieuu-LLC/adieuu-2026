@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import { TermsOfServiceContent } from './content/tos';
 import { PrivacyPolicyContent } from './content/privacy';
+import { IdeaSubmissionTermsContent } from './content/idea-submission-terms';
 
 export interface LegalPolicyContentProps {
   highContrast?: boolean;
@@ -29,6 +30,13 @@ export const LEGAL_POLICIES: LegalPolicyDefinition[] = [
     description: 'How we collect, use, and protect your information.',
     showInFooter: true,
     Content: PrivacyPolicyContent,
+  },
+  {
+    slug: 'idea-submission-terms',
+    title: 'Idea Submission Terms',
+    description: 'Terms governing feature requests and feedback submissions.',
+    showInFooter: false,
+    Content: IdeaSubmissionTermsContent,
   },
 ];
 

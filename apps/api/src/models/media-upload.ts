@@ -37,7 +37,7 @@ export function isVisualMediaType(contentType: string): boolean {
  * Upload purpose determines allowed content types, size limits,
  * and which processing flags are applied.
  */
-export type UploadPurpose = 'avatar' | 'banner' | 'dm_attachment' | 'space_media' | 'conv_media' | 'conv_scan' | 'custom_emoji' | 'ticket_attachment';
+export type UploadPurpose = 'avatar' | 'banner' | 'dm_attachment' | 'space_media' | 'conv_media' | 'conv_scan' | 'custom_emoji' | 'ticket_attachment' | 'feedback_attachment';
 
 /**
  * Processing status of a media upload.
@@ -208,6 +208,15 @@ export const UPLOAD_PURPOSE_CONFIG: Record<UploadPurpose, UploadPurposeConfig> =
       'image/gif',
       'video/mp4',
     ],
+    processingFlags: {
+      stripExif: true,
+      resize: { maxWidth: 1920, maxHeight: 1080 },
+      contentModeration: true,
+    },
+  },
+  feedback_attachment: {
+    maxBytes: 10 * 1024 * 1024, // 10 MB
+    allowedContentTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
     processingFlags: {
       stripExif: true,
       resize: { maxWidth: 1920, maxHeight: 1080 },

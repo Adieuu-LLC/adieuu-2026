@@ -43,6 +43,7 @@ import { adminPromoCodesRoutes } from './admin/promo-codes';
 import { supportRoutes } from './support';
 import { unfurlRoutes } from './unfurl';
 import { complianceRoutes } from './compliance';
+import { feedbackRoutes } from './feedback';
 
 /**
  * Registers all application routes with the main router.
@@ -169,4 +170,7 @@ export function registerRoutes(app: Router): void {
 
   // URL unfurl (link embed metadata)
   app.merge(unfurlRoutes, '/api');
+
+  // Community feedback board
+  app.merge(feedbackRoutes, '/api');
 }

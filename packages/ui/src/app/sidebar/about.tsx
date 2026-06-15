@@ -23,6 +23,7 @@ export function AboutFlyout() {
   const isSectionActive =
     location.pathname === '/about'
     || location.pathname.startsWith('/about/')
+    || location.pathname.startsWith('/feedback')
     || isLegalPoliciesActive;
 
   const handleNavClick = () => {
@@ -55,6 +56,13 @@ export function AboutFlyout() {
         className={`sidebar-flyout-item ${isActive('/about/learn') ? 'sidebar-flyout-item-active' : ''}`}
       >
         {t('home.learn.navLabel')}
+      </Link>
+      <Link
+        to="/feedback"
+        onClick={handleNavClick}
+        className={`sidebar-flyout-item ${location.pathname.startsWith('/feedback') ? 'sidebar-flyout-item-active' : ''}`}
+      >
+        {t('feedback.title')}
       </Link>
       {platform === 'web' ? (
         <Link
@@ -156,7 +164,7 @@ export function AboutFlyout() {
   return (
     <div className="sidebar-account-flyout-wrapper" data-tour="about-menu">
       {triggerButton}
-      <div className={`sidebar-account-flyout ${!isExpanded ? 'sidebar-account-flyout-collapsed' : ''}`}>
+      <div className={`sidebar-account-flyout sidebar-account-flyout-below ${!isExpanded ? 'sidebar-account-flyout-collapsed' : ''}`}>
         <div className="sidebar-account-flyout-content">
           {menuItems}
         </div>

@@ -71,3 +71,8 @@ export function useIdentityModal(): IdentityModalContextValue {
   }
   return ctx;
 }
+
+/** Returns null when rendered outside IdentityModalProvider (e.g. unauthenticated public shell). */
+export function useOptionalIdentityModal(): IdentityModalContextValue | null {
+  return useContext(IdentityModalContext);
+}

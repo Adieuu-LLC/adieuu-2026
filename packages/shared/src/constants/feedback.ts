@@ -1,0 +1,51 @@
+/**
+ * Community feedback board constants.
+ * Shared between API validation and UI localization keys.
+ */
+
+export const FEEDBACK_CATEGORIES = [
+  'feature',
+  'improvement',
+  'bug',
+  'other',
+] as const;
+
+export type FeedbackCategory = (typeof FEEDBACK_CATEGORIES)[number];
+
+export const FEEDBACK_STATUSES = [
+  'submitted',
+  'planned',
+  'roadmapped',
+  'in_progress',
+  'internal_testing',
+  'public_testing',
+  'released',
+] as const;
+
+export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number];
+
+export const FEEDBACK_SORT_OPTIONS = ['newest', 'oldest', 'upvotes'] as const;
+
+export type FeedbackSortOption = (typeof FEEDBACK_SORT_OPTIONS)[number];
+
+export const FEEDBACK_RESPONSE_LABELS = ['dev_response', 'staff_response'] as const;
+
+export type FeedbackResponseLabel = (typeof FEEDBACK_RESPONSE_LABELS)[number];
+
+export const MAX_FEEDBACK_TITLE_LENGTH = 200;
+export const MAX_FEEDBACK_BODY_LENGTH = 5000;
+export const MAX_FEEDBACK_ATTACHMENTS = 3;
+export const MAX_FEEDBACK_POSTS_PER_DAY = 10;
+export const MAX_FEEDBACK_COMMENT_LENGTH = 2000;
+
+export function isFeedbackCategory(value: string): value is FeedbackCategory {
+  return (FEEDBACK_CATEGORIES as readonly string[]).includes(value);
+}
+
+export function isFeedbackStatus(value: string): value is FeedbackStatus {
+  return (FEEDBACK_STATUSES as readonly string[]).includes(value);
+}
+
+export function isFeedbackSortOption(value: string): value is FeedbackSortOption {
+  return (FEEDBACK_SORT_OPTIONS as readonly string[]).includes(value);
+}

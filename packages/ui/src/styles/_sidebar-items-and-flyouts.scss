@@ -326,6 +326,12 @@
     transform var(--transition-fast);
   z-index: var(--z-dropdown);
 
+  // Top-of-sidebar flyouts (e.g. About) should grow downward, not upward
+  &-below {
+    top: 0;
+    bottom: auto;
+  }
+
   .sidebar-account-flyout-wrapper:hover & {
     opacity: 1;
     visibility: visible;

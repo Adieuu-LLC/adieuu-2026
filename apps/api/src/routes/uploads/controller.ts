@@ -18,7 +18,7 @@ import {
 } from '../../services/upload.service';
 
 export const RequestUploadSchema = z.object({
-  purpose: z.enum(['avatar', 'banner', 'dm_attachment', 'space_media', 'custom_emoji', 'ticket_attachment']),
+  purpose: z.enum(['avatar', 'banner', 'dm_attachment', 'space_media', 'custom_emoji', 'ticket_attachment', 'feedback_attachment']),
   contentType: z.string().min(1).max(100),
   contentLength: z.number().int().positive(),
 });

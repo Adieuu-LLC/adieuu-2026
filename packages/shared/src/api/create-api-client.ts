@@ -26,6 +26,7 @@ import { ComplianceApi } from './compliance-api';
 import { PromoCodeApi } from './promo-code-api';
 import { ReferralApi } from './referral-api';
 import { AccountEventsApi } from './account-events-api';
+import { FeedbackApi } from './feedback-api';
 
 /**
  * Creates an API client instance with all API modules.
@@ -62,6 +63,7 @@ export function createApiClient(config: ApiClientConfig) {
     accountEvents: new AccountEventsApi(client),
     geo: new GeoApi(client),
     compliance: new ComplianceApi(client),
+    feedback: new FeedbackApi(client),
   };
 }
 
