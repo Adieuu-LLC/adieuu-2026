@@ -16,8 +16,9 @@ export interface FeedbackPostListOptions {
   limit: number;
   sort: FeedbackSortOption;
   category?: FeedbackCategory;
-  status?: FeedbackStatus;
+  statuses?: FeedbackStatus[];
   hasStaffResponse?: boolean;
+  isOfficial?: boolean;
   search?: string;
 }
 
@@ -44,6 +45,7 @@ export class FeedbackPostRepository extends BaseRepository<FeedbackPostDocument>
       upvoteCount: 0,
       commentCount: 0,
       hasStaffResponse: false,
+      isOfficial: input.isOfficial ?? false,
     };
 
     return await super.create(doc);
@@ -59,11 +61,17 @@ export class FeedbackPostRepository extends BaseRepository<FeedbackPostDocument>
     if (options.category) {
       filter.category = options.category;
     }
-    if (options.status) {
-      filter.status = options.status;
+    if (options.statuses !== undefined) {
+      if (options.statuses.length === 0) {
+        return { posts: [], total: 0 };
+      }
+      filter.status = { $in: options.statuses };
     }
     if (options.hasStaffResponse !== undefined) {
       filter.hasStaffResponse = options.hasStaffResponse;
+    }
+    if (options.isOfficial !== undefined) {
+      filter.isOfficial = options.isOfficial;
     }
     if (options.search) {
       filter.$text = { $search: options.search };

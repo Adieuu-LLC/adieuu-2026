@@ -790,6 +790,7 @@ export async function createIndexes(): Promise<void> {
   await feedbackPosts.createIndex({ status: 1 });
   await feedbackPosts.createIndex({ category: 1 });
   await feedbackPosts.createIndex({ hasStaffResponse: 1 });
+  await feedbackPosts.createIndex({ isOfficial: 1 });
   await feedbackPosts.createIndex(
     { title: 'text', description: 'text' },
     { default_language: 'english' },

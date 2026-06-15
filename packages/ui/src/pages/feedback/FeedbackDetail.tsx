@@ -5,6 +5,7 @@ import {
   FEEDBACK_STATUSES,
   MAX_FEEDBACK_COMMENT_LENGTH,
   createApiClient,
+  excerptFeedbackComment,
   type FeedbackStatus,
   type PublicFeedbackComment,
   type PublicFeedbackPost,
@@ -18,7 +19,23 @@ import { Alert } from '../../components/Alert';
 import { Avatar } from '../../components/Avatar';
 import { Icon } from '../../icons/Icon';
 import { useFeedbackParticipation } from '../../hooks/useFeedbackParticipation';
+import { useIdentity } from '../../hooks/useIdentity';
 import { useToast } from '../../components/Toast';
+
+function CommentParentQuote({
+  authorDisplayName,
+  bodyExcerpt,
+}: {
+  authorDisplayName: string;
+  bodyExcerpt: string;
+}) {
+  return (
+    <blockquote className="feedback-comment-quote">
+      <cite className="feedback-comment-quote-author">{authorDisplayName}</cite>
+      <p className="feedback-comment-quote-body">{bodyExcerpt}</p>
+    </blockquote>
+  );
+}
 
 export function FeedbackDetail() {
   const { postId } = useParams<{ postId: string }>();
@@ -26,7 +43,9 @@ export function FeedbackDetail() {
   const toast = useToast();
   const { apiBaseUrl } = useAppConfig();
   const { canParticipate, requireIdentitySession } = useFeedbackParticipation();
+  const { status: identityStatus, identity } = useIdentity();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
+  const currentIdentityId = identityStatus === 'logged_in' ? identity?.id ?? null : null;
 
   const [post, setPost] = useState<PublicFeedbackPost | null>(null);
   const [comments, setComments] = useState<PublicFeedbackComment[]>([]);
@@ -36,9 +55,14 @@ export function FeedbackDetail() {
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
+  const [replyingToId, setReplyingToId] = useState<string | null>(null);
+  const [replyBody, setReplyBody] = useState('');
+  const [replySubmitting, setReplySubmitting] = useState(false);
+  const [replyError, setReplyError] = useState<string | null>(null);
   const [statusUpdating, setStatusUpdating] = useState(false);
 
   const commentRemaining = MAX_FEEDBACK_COMMENT_LENGTH - comment.length;
+  const replyRemaining = MAX_FEEDBACK_COMMENT_LENGTH - replyBody.length;
 
   const statusCollection = useMemo(
     () =>
@@ -72,6 +96,7 @@ export function FeedbackDetail() {
 
   const handleUpvote = useCallback(async () => {
     if (!post) return;
+    if (currentIdentityId && post.author.identityId === currentIdentityId) return;
     if (!requireIdentitySession()) {
       toast.info(t('feedback.loginToVote'));
       return;
@@ -93,7 +118,7 @@ export function FeedbackDetail() {
     } catch {
       toast.error(t('feedback.upvoteError'));
     }
-  }, [api, post, requireIdentitySession, t, toast]);
+  }, [api, currentIdentityId, post, requireIdentitySession, t, toast]);
 
   const handleComment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,6 +143,35 @@ export function FeedbackDetail() {
     }
 
     setCommentError(t('feedback.commentError'));
+  };
+
+  const handleReply = async (e: React.FormEvent, parentComment: PublicFeedbackComment) => {
+    e.preventDefault();
+    if (!postId || !replyBody.trim()) return;
+    if (!requireIdentitySession()) {
+      toast.info(t('feedback.loginToComment'));
+      return;
+    }
+
+    setReplySubmitting(true);
+    setReplyError(null);
+    const res = await api.feedback.addComment(postId, {
+      body: replyBody.trim(),
+      parentCommentId: parentComment.id,
+    });
+    setReplySubmitting(false);
+
+    if (res.success && res.data) {
+      setReplyBody('');
+      setReplyingToId(null);
+      setComments((prev) => [...prev, res.data!]);
+      setPost((prev) =>
+        prev ? { ...prev, commentCount: prev.commentCount + 1 } : prev,
+      );
+      return;
+    }
+
+    setReplyError(t('feedback.commentError'));
   };
 
   const handleStatusChange = async (newStatus: FeedbackStatus) => {
@@ -165,6 +219,9 @@ export function FeedbackDetail() {
         <Card variant="elevated" className="feedback-detail-card">
           <div className="feedback-detail-header">
             <div className="feedback-detail-badges">
+              {post.isOfficial && (
+                <span className="feedback-wanted-badge">{t('feedback.feedbackWanted')}</span>
+              )}
               <span className={`feedback-category-badge feedback-category-${post.category}`}>
                 {t(`feedback.categories.${post.category}`)}
               </span>
@@ -173,15 +230,25 @@ export function FeedbackDetail() {
               </span>
             </div>
 
-            <button
-              type="button"
-              className={`feedback-upvote-btn feedback-upvote-btn--large ${post.hasUpvoted ? 'feedback-upvote-btn--active' : ''}`}
-              onClick={() => void handleUpvote()}
-              aria-label={t('feedback.upvoteButton')}
-            >
-              <Icon name="thumbsUp" />
-              <span>{post.upvoteCount}</span>
-            </button>
+            {currentIdentityId === post.author.identityId ? (
+              <div
+                className="feedback-upvote-btn feedback-upvote-btn--large feedback-upvote-btn--readonly"
+                aria-label={t('feedback.upvoteCount', { count: post.upvoteCount })}
+              >
+                <Icon name="plus" />
+                <span className="feedback-upvote-count">{post.upvoteCount}</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className={`feedback-upvote-btn feedback-upvote-btn--large ${post.hasUpvoted ? 'feedback-upvote-btn--active' : ''}`}
+                onClick={() => void handleUpvote()}
+                aria-label={t('feedback.upvoteButton')}
+              >
+                <Icon name="plus" />
+                <span className="feedback-upvote-count">{post.upvoteCount}</span>
+              </button>
+            )}
           </div>
 
           <h1 className="feedback-detail-title">{post.title}</h1>
@@ -256,8 +323,10 @@ export function FeedbackDetail() {
               {comments.map((c) => (
                 <div key={c.id} className="feedback-comment">
                   <div className="feedback-comment-header">
-                    <Avatar src={c.author.avatarUrl} name={c.author.displayName} size="sm" />
-                    <span className="feedback-comment-author">{c.author.displayName}</span>
+                    <div className="feedback-comment-identity">
+                      <Avatar src={c.author.avatarUrl} name={c.author.displayName} size="sm" />
+                      <span className="feedback-comment-author">{c.author.displayName}</span>
+                    </div>
                     {c.responseLabel === 'dev_response' && (
                       <span className="feedback-response-badge feedback-response-badge--dev">
                         {t('feedback.devResponse')}
@@ -272,14 +341,91 @@ export function FeedbackDetail() {
                       {new Date(c.createdAt).toLocaleString()}
                     </time>
                   </div>
+
+                  {c.parentPreview && (
+                    <CommentParentQuote
+                      authorDisplayName={c.parentPreview.authorDisplayName}
+                      bodyExcerpt={c.parentPreview.bodyExcerpt}
+                    />
+                  )}
+
                   <p className="feedback-comment-body">{c.body}</p>
+
+                  {canParticipate && replyingToId !== c.id && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="feedback-comment-reply-btn"
+                      onClick={() => {
+                        setReplyingToId(c.id);
+                        setReplyBody('');
+                        setReplyError(null);
+                      }}
+                    >
+                      <Icon name="reply" />
+                      {t('feedback.reply')}
+                    </Button>
+                  )}
+
+                  {replyingToId === c.id && (
+                    <form
+                      onSubmit={(e) => void handleReply(e, c)}
+                      className="feedback-comment-reply-form"
+                    >
+                      {replyError && <Alert variant="error">{replyError}</Alert>}
+                      <CommentParentQuote
+                        authorDisplayName={c.author.displayName}
+                        bodyExcerpt={excerptFeedbackComment(c.body)}
+                      />
+                      <textarea
+                        className="input textarea"
+                        value={replyBody}
+                        onChange={(e) =>
+                          setReplyBody(e.target.value.slice(0, MAX_FEEDBACK_COMMENT_LENGTH))
+                        }
+                        placeholder={t('feedback.replyPlaceholder')}
+                        rows={3}
+                        autoFocus
+                      />
+                      <p className="input-hint">
+                        {t('feedback.form.charsRemaining', { count: replyRemaining })}
+                      </p>
+                      <div className="feedback-comment-reply-actions">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          disabled={replySubmitting}
+                          onClick={() => {
+                            setReplyingToId(null);
+                            setReplyBody('');
+                            setReplyError(null);
+                          }}
+                        >
+                          {t('feedback.cancelReply')}
+                        </Button>
+                        <Button type="submit" disabled={!replyBody.trim() || replySubmitting}>
+                          {replySubmitting ? t('common.loading') : t('feedback.postReply')}
+                        </Button>
+                      </div>
+                    </form>
+                  )}
                 </div>
               ))}
             </div>
           )}
 
           {canParticipate ? (
-            <form onSubmit={(e) => void handleComment(e)} className="feedback-comment-form">
+            <form
+              onSubmit={(e) => {
+                if (replyingToId) {
+                  e.preventDefault();
+                  return;
+                }
+                void handleComment(e);
+              }}
+              className="feedback-comment-form"
+            >
               {commentError && <Alert variant="error">{commentError}</Alert>}
               <textarea
                 className="input textarea"

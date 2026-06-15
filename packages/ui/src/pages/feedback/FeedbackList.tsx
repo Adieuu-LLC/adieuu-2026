@@ -3,8 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   FEEDBACK_CATEGORIES,
-  FEEDBACK_STATUSES,
   createApiClient,
+  FEEDBACK_LIST_DEFAULT_SORT,
+  FEEDBACK_LIST_PAGE_SIZE,
+  getFeedbackListDefaultStatuses,
   type FeedbackCategory,
   type FeedbackSortOption,
   type FeedbackStatus,
@@ -17,7 +19,9 @@ import { Card } from '../../components/Card';
 import { Spinner } from '../../components/Spinner';
 import { Icon } from '../../icons/Icon';
 import { Avatar } from '../../components/Avatar';
+import { FeedbackStatusFilter } from '../../components/FeedbackStatusFilter';
 import { useFeedbackParticipation } from '../../hooks/useFeedbackParticipation';
+import { useIdentity } from '../../hooks/useIdentity';
 import { useToast } from '../../components/Toast';
 
 const SEARCH_DEBOUNCE_MS = 400;
@@ -28,50 +32,63 @@ function truncate(text: string, max: number): string {
   return text.slice(0, max).trimEnd() + '\u2026';
 }
 
+type FeedbackStaffFilter = 'all' | 'yes' | 'no' | 'feedback_wanted';
+
 export function FeedbackList() {
   const { t } = useTranslation();
   const toast = useToast();
   const navigate = useNavigate();
   const { apiBaseUrl } = useAppConfig();
   const { requireIdentitySession } = useFeedbackParticipation();
+  const { status: identityStatus, identity } = useIdentity();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
+  const currentIdentityId = identityStatus === 'logged_in' ? identity?.id ?? null : null;
 
   const [items, setItems] = useState<PublicFeedbackPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [sort, setSort] = useState<FeedbackSortOption>('newest');
+  const [sort, setSort] = useState<FeedbackSortOption>(FEEDBACK_LIST_DEFAULT_SORT);
   const [categoryFilter, setCategoryFilter] = useState<FeedbackCategory | ''>('');
-  const [statusFilter, setStatusFilter] = useState<FeedbackStatus | ''>('');
-  const [staffResponseFilter, setStaffResponseFilter] = useState<'all' | 'yes' | 'no'>('all');
+  const [statusFilters, setStatusFilters] = useState<FeedbackStatus[]>(() =>
+    getFeedbackListDefaultStatuses(),
+  );
+  const [staffResponseFilter, setStaffResponseFilter] = useState<FeedbackStaffFilter>('all');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const limit = 20;
+  const limit = FEEDBACK_LIST_PAGE_SIZE;
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const categoryCollection = useMemo(
+  const sortCollection = useMemo(
     () =>
       createListCollection({
         items: [
-          { value: '', label: t('feedback.filterAll') },
-          ...FEEDBACK_CATEGORIES.map((c) => ({
-            value: c,
-            label: t(`feedback.categories.${c}`),
-          })),
+          { value: 'upvotes', label: t('feedback.sortUpvotes') },
+          { value: 'newest', label: t('feedback.sortNewest') },
+          { value: 'oldest', label: t('feedback.sortOldest') },
         ],
       }),
     [t],
   );
 
-  const statusCollection = useMemo(
+  const sortDisplayLabel = useMemo(() => {
+    const labels: Record<FeedbackSortOption, string> = {
+      newest: t('feedback.sortNewest'),
+      oldest: t('feedback.sortOldest'),
+      upvotes: t('feedback.sortUpvotes'),
+    };
+    return t('feedback.sortWithValue', { value: labels[sort] });
+  }, [sort, t]);
+
+  const categoryCollection = useMemo(
     () =>
       createListCollection({
         items: [
-          { value: '', label: t('feedback.filterAll') },
-          ...FEEDBACK_STATUSES.map((s) => ({
-            value: s,
-            label: t(`feedback.statuses.${s}`),
+          { value: '', label: t('feedback.filterCategoryAll') },
+          ...FEEDBACK_CATEGORIES.map((c) => ({
+            value: c,
+            label: t(`feedback.categories.${c}`),
           })),
         ],
       }),
@@ -85,6 +102,7 @@ export function FeedbackList() {
           { value: 'all', label: t('feedback.filterStaffResponseAll') },
           { value: 'yes', label: t('feedback.filterStaffResponseYes') },
           { value: 'no', label: t('feedback.filterStaffResponseNo') },
+          { value: 'feedback_wanted', label: t('feedback.filterFeedbackWanted') },
         ],
       }),
     [t],
@@ -114,9 +132,10 @@ export function FeedbackList() {
         sort,
         search: debouncedSearch || undefined,
         category: categoryFilter || undefined,
-        status: statusFilter || undefined,
+        statuses: statusFilters,
         hasStaffResponse:
           staffResponseFilter === 'yes' ? true : staffResponseFilter === 'no' ? false : undefined,
+        isOfficial: staffResponseFilter === 'feedback_wanted' ? true : undefined,
       });
 
       if (res.success && res.data) {
@@ -126,7 +145,7 @@ export function FeedbackList() {
     } finally {
       setLoading(false);
     }
-  }, [api, page, limit, sort, debouncedSearch, categoryFilter, statusFilter, staffResponseFilter]);
+  }, [api, page, limit, sort, debouncedSearch, categoryFilter, statusFilters, staffResponseFilter]);
 
   useEffect(() => {
     void fetchPosts();
@@ -200,19 +219,35 @@ export function FeedbackList() {
               onChange={(e) => handleSearchInput(e.target.value)}
             />
 
-            <select
-              className="feedback-filter-select"
-              value={sort}
-              onChange={(e) => {
-                setSort(e.target.value as FeedbackSortOption);
-                setPage(1);
+            <Select.Root
+              collection={sortCollection}
+              value={[sort]}
+              onValueChange={(d) => {
+                const next = d.value[0] as FeedbackSortOption | undefined;
+                if (next) {
+                  setSort(next);
+                  setPage(1);
+                }
               }}
-              aria-label={t('feedback.sortLabel')}
             >
-              <option value="newest">{t('feedback.sortNewest')}</option>
-              <option value="oldest">{t('feedback.sortOldest')}</option>
-              <option value="upvotes">{t('feedback.sortUpvotes')}</option>
-            </select>
+              <Select.Control className="report-select-control">
+                <Select.Trigger className="report-select-trigger feedback-filter-trigger">
+                  <span className="feedback-sort-label">{sortDisplayLabel}</span>
+                  <Icon name="chevronDown" size="xs" />
+                </Select.Trigger>
+              </Select.Control>
+              <Portal>
+                <Select.Positioner>
+                  <Select.Content className="report-select-content">
+                    {sortCollection.items.map((item) => (
+                      <Select.Item key={item.value} item={item} className="report-select-item">
+                        <Select.ItemText>{item.label}</Select.ItemText>
+                      </Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select.Positioner>
+              </Portal>
+            </Select.Root>
 
             <Select.Root
               collection={categoryCollection}
@@ -224,7 +259,7 @@ export function FeedbackList() {
             >
               <Select.Control className="report-select-control">
                 <Select.Trigger className="report-select-trigger feedback-filter-trigger">
-                  <Select.ValueText placeholder={t('feedback.filterCategory')} />
+                  <Select.ValueText placeholder={t('feedback.filterCategoryAll')} />
                 </Select.Trigger>
               </Select.Control>
               <Portal>
@@ -240,57 +275,41 @@ export function FeedbackList() {
               </Portal>
             </Select.Root>
 
-            <Select.Root
-              collection={statusCollection}
-              value={[statusFilter]}
-              onValueChange={(d) => {
-                setStatusFilter((d.value[0] as FeedbackStatus | '') ?? '');
-                setPage(1);
-              }}
-            >
-              <Select.Control className="report-select-control">
-                <Select.Trigger className="report-select-trigger feedback-filter-trigger">
-                  <Select.ValueText placeholder={t('feedback.filterStatus')} />
-                </Select.Trigger>
-              </Select.Control>
-              <Portal>
-                <Select.Positioner>
-                  <Select.Content className="report-select-content">
-                    {statusCollection.items.map((item) => (
-                      <Select.Item key={item.value} item={item} className="report-select-item">
-                        <Select.ItemText>{item.label}</Select.ItemText>
-                      </Select.Item>
-                    ))}
-                  </Select.Content>
-                </Select.Positioner>
-              </Portal>
-            </Select.Root>
+            <div className="feedback-filter-status-row">
+              <FeedbackStatusFilter
+                value={statusFilters}
+                onChange={(statuses) => {
+                  setStatusFilters(statuses);
+                  setPage(1);
+                }}
+              />
 
-            <Select.Root
-              collection={staffResponseCollection}
-              value={[staffResponseFilter]}
-              onValueChange={(d) => {
-                setStaffResponseFilter((d.value[0] as 'all' | 'yes' | 'no') ?? 'all');
-                setPage(1);
-              }}
-            >
-              <Select.Control className="report-select-control">
-                <Select.Trigger className="report-select-trigger feedback-filter-trigger">
-                  <Select.ValueText placeholder={t('feedback.filterStaffResponse')} />
-                </Select.Trigger>
-              </Select.Control>
-              <Portal>
-                <Select.Positioner>
-                  <Select.Content className="report-select-content">
-                    {staffResponseCollection.items.map((item) => (
-                      <Select.Item key={item.value} item={item} className="report-select-item">
-                        <Select.ItemText>{item.label}</Select.ItemText>
-                      </Select.Item>
-                    ))}
-                  </Select.Content>
-                </Select.Positioner>
-              </Portal>
-            </Select.Root>
+              <Select.Root
+                collection={staffResponseCollection}
+                value={[staffResponseFilter]}
+                onValueChange={(d) => {
+                  setStaffResponseFilter((d.value[0] as FeedbackStaffFilter) ?? 'all');
+                  setPage(1);
+                }}
+              >
+                <Select.Control className="report-select-control">
+                  <Select.Trigger className="report-select-trigger feedback-filter-trigger">
+                    <Select.ValueText placeholder={t('feedback.filterStaffResponse')} />
+                  </Select.Trigger>
+                </Select.Control>
+                <Portal>
+                  <Select.Positioner>
+                    <Select.Content className="report-select-content">
+                      {staffResponseCollection.items.map((item) => (
+                        <Select.Item key={item.value} item={item} className="report-select-item">
+                          <Select.ItemText>{item.label}</Select.ItemText>
+                        </Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select.Positioner>
+                </Portal>
+              </Select.Root>
+            </div>
           </div>
         </Card>
 
@@ -306,15 +325,24 @@ export function FeedbackList() {
           <>
             <div className="feedback-list">
               {items.map((post) => (
-                <Link key={post.postId} to={`/feedback/${post.postId}`} className="feedback-card">
+                <Link
+                  key={post.postId}
+                  to={`/feedback/${post.postId}`}
+                  className={`feedback-card feedback-card--status-${post.status}${post.isOfficial ? ' feedback-card--official' : ''}`}
+                >
                   <div className="feedback-card-main">
                     <div className="feedback-card-header">
+                      {post.isOfficial && (
+                        <span className="feedback-wanted-badge">{t('feedback.feedbackWanted')}</span>
+                      )}
                       <span className={`feedback-category-badge feedback-category-${post.category}`}>
                         {t(`feedback.categories.${post.category}`)}
                       </span>
-                      <span className={`feedback-status-badge feedback-status-${post.status}`}>
-                        {t(`feedback.statuses.${post.status}`)}
-                      </span>
+                      {post.status !== 'submitted' && (
+                        <span className={`feedback-status-badge feedback-status-${post.status}`}>
+                          {t(`feedback.statuses.${post.status}`)}
+                        </span>
+                      )}
                       {post.hasStaffResponse && (
                         <span className="feedback-staff-response-badge">
                           {t('feedback.staffResponse')}
@@ -339,15 +367,25 @@ export function FeedbackList() {
                       </span>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    className={`feedback-upvote-btn ${post.hasUpvoted ? 'feedback-upvote-btn--active' : ''}`}
-                    onClick={(e) => void handleUpvote(e, post)}
-                    aria-label={t('feedback.upvoteButton')}
-                  >
-                    <Icon name="thumbsUp" />
-                    <span>{post.upvoteCount}</span>
-                  </button>
+                  {currentIdentityId === post.author.identityId ? (
+                    <div
+                      className="feedback-upvote-btn feedback-upvote-btn--list feedback-upvote-btn--readonly"
+                      aria-label={t('feedback.upvoteCount', { count: post.upvoteCount })}
+                    >
+                      <Icon name="plus" />
+                      <span className="feedback-upvote-count">{post.upvoteCount}</span>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className={`feedback-upvote-btn feedback-upvote-btn--list ${post.hasUpvoted ? 'feedback-upvote-btn--active' : ''}`}
+                      onClick={(e) => void handleUpvote(e, post)}
+                      aria-label={t('feedback.upvoteButton')}
+                    >
+                      <Icon name="plus" />
+                      <span className="feedback-upvote-count">{post.upvoteCount}</span>
+                    </button>
+                  )}
                 </Link>
               ))}
             </div>

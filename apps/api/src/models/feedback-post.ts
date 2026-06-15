@@ -20,6 +20,7 @@ export interface FeedbackPostDocument extends BaseDocument {
   upvoteCount: number;
   commentCount: number;
   hasStaffResponse: boolean;
+  isOfficial: boolean;
   statusChangedAt?: Date;
   statusChangedBy?: string;
 }
@@ -32,4 +33,5 @@ export interface CreateFeedbackPostInput {
   category: FeedbackCategory;
   attachmentMediaIds: string[];
   attachmentUrls: string[];
+  isOfficial?: boolean;
 }

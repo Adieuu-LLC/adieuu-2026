@@ -54,7 +54,8 @@ export type FeedbackErrorCode =
   | 'NOT_FOUND'
   | 'FORBIDDEN'
   | 'ALREADY_UPVOTED'
-  | 'NOT_UPVOTED';
+  | 'NOT_UPVOTED'
+  | 'INVALID_PARENT';
 
 export type ServiceResult<T = undefined> =
   | { success: true; data: T }
@@ -152,12 +153,19 @@ export interface CreateFeedbackPostInput {
   description: string;
   category: string;
   attachmentMediaIds?: string[];
+  isOfficial?: boolean;
+}
+
+export async function canMarkFeedbackOfficial(identity: IdentityDocument): Promise<boolean> {
+  const caps = await getPlatformCapabilities(identity._id);
+  return caps.isPlatformAdmin || caps.isPlatformModerator;
 }
 
 export async function createFeedbackPost(
-  identityId: string,
+  identity: IdentityDocument,
   input: CreateFeedbackPostInput,
 ): Promise<ServiceResult<{ postId: string }>> {
+  const identityId = identity._id.toHexString();
   const rl = await checkRateLimit('feedback:create', identityId, FEEDBACK_CREATE_RATE_LIMIT);
   if (!rl.allowed) {
     return { success: false, error: 'Rate limit exceeded', errorCode: 'RATE_LIMITED' };
@@ -184,15 +192,21 @@ export async function createFeedbackPost(
     return attachmentResult;
   }
 
+  const wantsOfficial = input.isOfficial === true;
+  if (wantsOfficial && !(await canMarkFeedbackOfficial(identity))) {
+    return { success: false, error: 'Forbidden', errorCode: 'FORBIDDEN' };
+  }
+
   const postRepo = getFeedbackPostRepository();
   const post = await postRepo.createPost({
     postId: generatePostId(),
-    identityId: new ObjectId(identityId),
+    identityId: identity._id,
     title,
     description,
     category: input.category as FeedbackCategory,
     attachmentMediaIds: attachmentResult.data.mediaIds,
     attachmentUrls: attachmentResult.data.urls,
+    isOfficial: wantsOfficial,
   });
 
   return { success: true, data: { postId: post.postId } };
@@ -203,8 +217,9 @@ export interface FeedbackListQuery {
   limit: number;
   sort: FeedbackSortOption;
   category?: FeedbackCategory;
-  status?: FeedbackStatus;
+  statuses?: FeedbackStatus[];
   hasStaffResponse?: boolean;
+  isOfficial?: boolean;
   search?: string;
 }
 
@@ -285,6 +300,10 @@ export async function upvoteFeedbackPost(
     return { success: false, error: 'Post not found', errorCode: 'NOT_FOUND' };
   }
 
+  if (post.identityId.toHexString() === identityId) {
+    return { success: false, error: 'Cannot upvote own post', errorCode: 'FORBIDDEN' };
+  }
+
   const voteRepo = getFeedbackVoteRepository();
   const existing = await voteRepo.findByPostAndIdentity(postId, new ObjectId(identityId));
   if (existing) {
@@ -337,6 +356,7 @@ export async function addFeedbackComment(
   identity: IdentityDocument,
   body: string,
   sessionEntitlements: string[] = [],
+  parentCommentId?: string,
 ): Promise<ServiceResult<FeedbackCommentDocument>> {
   const rl = await checkRateLimit(
     'feedback:comment',
@@ -361,11 +381,22 @@ export async function addFeedbackComment(
   const responseLabel = await resolveResponseLabel(identity, sessionEntitlements);
 
   const commentRepo = getFeedbackCommentRepository();
+  let resolvedParentCommentId: string | null = null;
+
+  if (parentCommentId) {
+    const parent = await commentRepo.findByCommentId(parentCommentId);
+    if (!parent || parent.postId !== postId) {
+      return { success: false, error: 'Invalid parent comment', errorCode: 'INVALID_PARENT' };
+    }
+    resolvedParentCommentId = parentCommentId;
+  }
+
   const comment = await commentRepo.createComment({
     postId,
     identityId: identity._id,
     body: sanitizedBody,
     responseLabel,
+    parentCommentId: resolvedParentCommentId,
   });
 
   await postRepo.incrementComments(postId);

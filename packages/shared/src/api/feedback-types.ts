@@ -31,10 +31,17 @@ export interface PublicFeedbackPost {
   upvoteCount: number;
   commentCount: number;
   hasStaffResponse: boolean;
+  isOfficial: boolean;
   hasUpvoted: boolean;
   statusChangedAt?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface FeedbackCommentParentPreview {
+  commentId: string;
+  authorDisplayName: string;
+  bodyExcerpt: string;
 }
 
 export interface PublicFeedbackComment {
@@ -43,6 +50,8 @@ export interface PublicFeedbackComment {
   author: FeedbackAuthor;
   body: string;
   responseLabel: FeedbackResponseLabel | null;
+  parentCommentId: string | null;
+  parentPreview: FeedbackCommentParentPreview | null;
   createdAt: string;
 }
 
@@ -51,10 +60,12 @@ export interface CreateFeedbackPostParams {
   description: string;
   category: FeedbackCategory;
   attachmentMediaIds?: string[];
+  isOfficial?: boolean;
 }
 
 export interface CreateFeedbackCommentParams {
   body: string;
+  parentCommentId?: string;
 }
 
 export interface FeedbackListParams {
@@ -62,8 +73,9 @@ export interface FeedbackListParams {
   limit?: number;
   sort?: FeedbackSortOption;
   category?: FeedbackCategory;
-  status?: FeedbackStatus;
+  statuses?: FeedbackStatus[];
   hasStaffResponse?: boolean;
+  isOfficial?: boolean;
   search?: string;
 }
 

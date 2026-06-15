@@ -13,6 +13,9 @@ import {
   MAX_FEEDBACK_BODY_LENGTH,
   MAX_FEEDBACK_COMMENT_LENGTH,
   MAX_FEEDBACK_TITLE_LENGTH,
+  FEEDBACK_LIST_PAGE_SIZE,
+  FEEDBACK_LIST_PAGE_SIZE_MAX,
+  excerptFeedbackComment,
   isFeedbackCategory,
   isFeedbackSortOption,
   isFeedbackStatus,
@@ -23,6 +26,7 @@ import {
 import type { FeedbackPostDocument } from '../../models/feedback-post';
 import type { FeedbackCommentDocument } from '../../models/feedback-comment';
 import type { IdentityContext } from '../../middleware/identity-session';
+import { getFeedbackCommentRepository } from '../../repositories/feedback-comment.repository';
 import {
   addFeedbackComment,
   buildAttachmentList,
@@ -53,10 +57,12 @@ export const CreateFeedbackPostSchema = z.object({
   description: z.string().min(1).max(MAX_FEEDBACK_BODY_LENGTH),
   category: z.enum(FEEDBACK_CATEGORIES as unknown as [string, ...string[]]),
   attachmentMediaIds: z.array(z.string().min(1).max(200)).max(MAX_FEEDBACK_ATTACHMENTS).optional(),
+  isOfficial: z.boolean().optional(),
 });
 
 export const CreateFeedbackCommentSchema = z.object({
   body: z.string().min(1).max(MAX_FEEDBACK_COMMENT_LENGTH),
+  parentCommentId: z.string().min(1).max(200).optional(),
 });
 
 export const UpdateFeedbackStatusSchema = z.object({
@@ -68,22 +74,34 @@ export type FeedbackListQuery = {
   limit: number;
   sort: FeedbackSortOption;
   category?: FeedbackCategory;
-  status?: FeedbackStatus;
+  statuses?: FeedbackStatus[];
   hasStaffResponse?: boolean;
+  isOfficial?: boolean;
   search?: string;
 };
 
+function parseStatusesParam(raw: string | null): FeedbackStatus[] | undefined {
+  if (!raw) return undefined;
+  const statuses = raw
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value): value is FeedbackStatus => isFeedbackStatus(value));
+  return statuses.length > 0 ? statuses : [];
+}
+
 export function parseFeedbackListQuery(searchParams: URLSearchParams): FeedbackListQuery {
   const page = Math.max(1, Number(searchParams.get('page')) || 1);
-  const limit = Math.min(50, Math.max(1, Number(searchParams.get('limit')) || 20));
-  const sortParam = searchParams.get('sort') ?? 'newest';
-  const sort: FeedbackSortOption = isFeedbackSortOption(sortParam) ? sortParam : 'newest';
+  const limit = Math.min(
+    FEEDBACK_LIST_PAGE_SIZE_MAX,
+    Math.max(1, Number(searchParams.get('limit')) || FEEDBACK_LIST_PAGE_SIZE),
+  );
+  const sortParam = searchParams.get('sort') ?? 'upvotes';
+  const sort: FeedbackSortOption = isFeedbackSortOption(sortParam) ? sortParam : 'upvotes';
 
   const categoryParam = searchParams.get('category');
   const category = categoryParam && isFeedbackCategory(categoryParam) ? categoryParam : undefined;
 
-  const statusParam = searchParams.get('status');
-  const status = statusParam && isFeedbackStatus(statusParam) ? statusParam : undefined;
+  const statuses = parseStatusesParam(searchParams.get('statuses'));
 
   const hasStaffResponseParam = searchParams.get('hasStaffResponse');
   const hasStaffResponse =
@@ -93,10 +111,14 @@ export function parseFeedbackListQuery(searchParams: URLSearchParams): FeedbackL
         ? false
         : undefined;
 
+  const isOfficialParam = searchParams.get('isOfficial');
+  const isOfficial =
+    isOfficialParam === 'true' ? true : isOfficialParam === 'false' ? false : undefined;
+
   const rawSearch = searchParams.get('search');
   const search = rawSearch && rawSearch.length <= 200 ? rawSearch.trim() : undefined;
 
-  return { page, limit, sort, category, status, hasStaffResponse, search };
+  return { page, limit, sort, category, statuses, hasStaffResponse, isOfficial, search };
 }
 
 function mapServiceError(errorCode: string, error: string): FeedbackResult<never> {
@@ -110,6 +132,8 @@ function mapServiceError(errorCode: string, error: string): FeedbackResult<never
     case 'ALREADY_UPVOTED':
     case 'NOT_UPVOTED':
       return { ok: false, kind: 'conflict', message: error };
+    case 'INVALID_PARENT':
+      return { ok: false, kind: 'bad_request', message: error };
     default:
       return { ok: false, kind: 'bad_request', message: error };
   }
@@ -142,6 +166,7 @@ async function toPublicPost(
     upvoteCount: post.upvoteCount,
     commentCount: post.commentCount,
     hasStaffResponse: post.hasStaffResponse,
+    isOfficial: post.isOfficial ?? false,
     hasUpvoted,
     statusChangedAt: post.statusChangedAt?.toISOString(),
     createdAt: post.createdAt.toISOString(),
@@ -149,12 +174,49 @@ async function toPublicPost(
   };
 }
 
+function buildCommentParentMap(
+  comments: FeedbackCommentDocument[],
+): Map<string, FeedbackCommentDocument> {
+  return new Map(comments.map((comment) => [comment._id.toHexString(), comment]));
+}
+
+function collectCommentAuthorIds(
+  postAuthorId: string,
+  comments: FeedbackCommentDocument[],
+  parentById: Map<string, FeedbackCommentDocument>,
+): string[] {
+  const authorIds = new Set<string>([postAuthorId]);
+  for (const comment of comments) {
+    authorIds.add(comment.identityId.toHexString());
+    if (comment.parentCommentId) {
+      const parent = parentById.get(comment.parentCommentId);
+      if (parent) {
+        authorIds.add(parent.identityId.toHexString());
+      }
+    }
+  }
+  return [...authorIds];
+}
+
 function toPublicComment(
   comment: FeedbackCommentDocument,
   authorMap: Map<string, { displayName: string; username: string; avatarUrl?: string }>,
+  parent?: FeedbackCommentDocument | null,
 ) {
   const authorId = comment.identityId.toHexString();
   const authorProfile = authorMap.get(authorId);
+  const parentCommentId = comment.parentCommentId ?? null;
+
+  let parentPreview = null;
+  if (parentCommentId && parent) {
+    const parentAuthorId = parent.identityId.toHexString();
+    const parentAuthor = authorMap.get(parentAuthorId);
+    parentPreview = {
+      commentId: parent._id.toHexString(),
+      authorDisplayName: parentAuthor?.displayName ?? 'Unknown',
+      bodyExcerpt: excerptFeedbackComment(parent.body),
+    };
+  }
 
   return {
     id: comment._id.toHexString(),
@@ -167,6 +229,8 @@ function toPublicComment(
     },
     body: comment.body,
     responseLabel: comment.responseLabel,
+    parentCommentId,
+    parentPreview,
     createdAt: comment.createdAt.toISOString(),
   };
 }
@@ -180,7 +244,7 @@ export async function createPostResult(
     return { ok: false, kind: 'validation_failed' };
   }
 
-  const result = await createFeedbackPost(ctx.identity._id.toHexString(), parsed.data);
+  const result = await createFeedbackPost(ctx.identity, parsed.data);
   if (!result.success) {
     return mapServiceError(result.errorCode, result.error);
   }
@@ -246,14 +310,22 @@ export async function getPostResult(
     return mapServiceError(result.errorCode, result.error);
   }
 
-  const authorIds = [
-    result.data.post.identityId.toHexString(),
-    ...result.data.comments.map((c) => c.identityId.toHexString()),
-  ];
-  const authorMap = await resolveFeedbackAuthors(authorIds);
+  const parentById = buildCommentParentMap(result.data.comments);
+  const authorMap = await resolveFeedbackAuthors(
+    collectCommentAuthorIds(
+      result.data.post.identityId.toHexString(),
+      result.data.comments,
+      parentById,
+    ),
+  );
 
   const post = await toPublicPost(result.data.post, result.data.hasUpvoted, authorMap);
-  const comments = result.data.comments.map((c) => toPublicComment(c, authorMap));
+  const comments = result.data.comments.map((comment) => {
+    const parent = comment.parentCommentId
+      ? parentById.get(comment.parentCommentId) ?? null
+      : null;
+    return toPublicComment(comment, authorMap, parent);
+  });
 
   return {
     ok: true,
@@ -302,13 +374,23 @@ export async function addCommentResult(
     ctx.identity,
     parsed.data.body,
     ctx.entitlements,
+    parsed.data.parentCommentId,
   );
   if (!result.success) {
     return mapServiceError(result.errorCode, result.error);
   }
 
-  const authorMap = await resolveFeedbackAuthors([ctx.identity._id.toHexString()]);
-  return { ok: true, data: toPublicComment(result.data, authorMap) };
+  const commentRepo = getFeedbackCommentRepository();
+  const parent = result.data.parentCommentId
+    ? await commentRepo.findByCommentId(result.data.parentCommentId)
+    : null;
+
+  const authorIds = [ctx.identity._id.toHexString()];
+  if (parent) {
+    authorIds.push(parent.identityId.toHexString());
+  }
+  const authorMap = await resolveFeedbackAuthors(authorIds);
+  return { ok: true, data: toPublicComment(result.data, authorMap, parent) };
 }
 
 export async function updateStatusResult(

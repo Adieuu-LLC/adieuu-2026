@@ -26,9 +26,12 @@ export class FeedbackApi {
     if (params?.limit) qs.set('limit', String(params.limit));
     if (params?.sort) qs.set('sort', params.sort);
     if (params?.category) qs.set('category', params.category);
-    if (params?.status) qs.set('status', params.status);
+    if (params?.statuses?.length) qs.set('statuses', params.statuses.join(','));
     if (params?.hasStaffResponse !== undefined) {
       qs.set('hasStaffResponse', String(params.hasStaffResponse));
+    }
+    if (params?.isOfficial !== undefined) {
+      qs.set('isOfficial', String(params.isOfficial));
     }
     if (params?.search) qs.set('search', params.search);
     const query = qs.toString();

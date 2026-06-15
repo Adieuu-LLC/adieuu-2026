@@ -37,6 +37,22 @@ export const MAX_FEEDBACK_BODY_LENGTH = 5000;
 export const MAX_FEEDBACK_ATTACHMENTS = 3;
 export const MAX_FEEDBACK_POSTS_PER_DAY = 10;
 export const MAX_FEEDBACK_COMMENT_LENGTH = 2000;
+export const MAX_FEEDBACK_COMMENT_REPLY_PREVIEW_LENGTH = 200;
+export const FEEDBACK_LIST_PAGE_SIZE = 15;
+export const FEEDBACK_LIST_PAGE_SIZE_MAX = 50;
+export const FEEDBACK_LIST_DEFAULT_SORT: FeedbackSortOption = 'upvotes';
+
+export function getFeedbackListDefaultStatuses(): FeedbackStatus[] {
+  return FEEDBACK_STATUSES.filter((status) => status !== 'released');
+}
+
+export function excerptFeedbackComment(
+  body: string,
+  maxLength = MAX_FEEDBACK_COMMENT_REPLY_PREVIEW_LENGTH,
+): string {
+  if (body.length <= maxLength) return body;
+  return `${body.slice(0, maxLength)}…`;
+}
 
 export function isFeedbackCategory(value: string): value is FeedbackCategory {
   return (FEEDBACK_CATEGORIES as readonly string[]).includes(value);

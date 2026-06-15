@@ -11,6 +11,7 @@ export interface FeedbackCommentDocument extends BaseDocument {
   identityId: ObjectId;
   body: string;
   responseLabel: FeedbackResponseLabel | null;
+  parentCommentId: string | null;
 }
 
 export interface CreateFeedbackCommentInput {
@@ -18,4 +19,5 @@ export interface CreateFeedbackCommentInput {
   identityId: ObjectId;
   body: string;
   responseLabel: FeedbackResponseLabel | null;
+  parentCommentId: string | null;
 }

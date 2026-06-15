@@ -9,12 +9,13 @@ import {
   createApiClient,
   type FeedbackCategory,
 } from '@adieuu/shared';
-import { Select, Portal, createListCollection } from '@ark-ui/react';
+import { Select, Portal, Checkbox, createListCollection } from '@ark-ui/react';
 import { useAppConfig } from '../../config';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { Input } from '../../components/Input';
 import { Alert } from '../../components/Alert';
+import { useAuth } from '../../hooks/useAuth';
 import {
   FeedbackAttachmentUploader,
   type FeedbackAttachmentItem,
@@ -30,12 +31,15 @@ export function SubmitFeedback() {
   const { apiBaseUrl } = useAppConfig();
   const { status: identityStatus } = useIdentity();
   const { canParticipate, requireIdentitySession } = useFeedbackParticipation();
+  const { session } = useAuth();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
+  const isStaff = session?.isPlatformAdmin === true || session?.isPlatformModerator === true;
 
   const [category, setCategory] = useState<FeedbackCategory | ''>('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [attachments, setAttachments] = useState<FeedbackAttachmentItem[]>([]);
+  const [isOfficial, setIsOfficial] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -82,6 +86,7 @@ export function SubmitFeedback() {
       title: title.trim(),
       description: description.trim(),
       attachmentMediaIds: attachments.map((a) => a.mediaId),
+      ...(isOfficial ? { isOfficial: true } : {}),
     });
 
     setSubmitting(false);
@@ -97,7 +102,7 @@ export function SubmitFeedback() {
     } else {
       setError(t('feedback.submitError'));
     }
-  }, [api, attachments, canSubmit, category, description, navigate, t, title]);
+  }, [api, attachments, canSubmit, category, description, isOfficial, navigate, t, title]);
 
   if (identityStatus === 'locked') {
     return <SessionLockedPage titleI18nKey="feedback.newPost" />;
@@ -194,6 +199,21 @@ export function SubmitFeedback() {
               onChange={setAttachments}
               disabled={submitting}
             />
+
+            {isStaff && (
+              <Checkbox.Root
+                checked={isOfficial}
+                onCheckedChange={(e) => setIsOfficial(e.checked === true)}
+                className="feedback-official-checkbox"
+              >
+                <Checkbox.Control className="fs-checkbox-control" />
+                <Checkbox.Label className="fs-checkbox-label">
+                  <span className="fs-checkbox-title">{t('feedback.form.markOfficial')}</span>
+                  <span className="fs-checkbox-hint">{t('feedback.form.markOfficialHint')}</span>
+                </Checkbox.Label>
+                <Checkbox.HiddenInput />
+              </Checkbox.Root>
+            )}
 
             <div className="admin-action-bar">
               <Button type="button" variant="secondary" onClick={() => navigate('/feedback')}>
