@@ -90,15 +90,25 @@ export class ReferralCodeRepository extends BaseRepository<ReferralCodeDocument>
     userId: ObjectId,
     codeId: ObjectId,
     update: Partial<
-      Pick<ReferralCodeDocument, 'code' | 'customMessage' | 'previousVersions' | 'isDeleted' | 'deletedAt'>
-    >,
+      Pick<ReferralCodeDocument, 'code' | 'previousVersions' | 'isDeleted' | 'deletedAt'>
+    > & { customMessage?: string | null },
     session?: ClientSession,
   ): Promise<ReferralCodeDocument | null> {
+    const { customMessage, ...rest } = update;
+    const $set: Record<string, unknown> = { ...rest, updatedAt: new Date() };
+    const updateDoc: Record<string, unknown> = { $set };
+
+    if (customMessage !== undefined) {
+      if (customMessage === null) {
+        updateDoc.$unset = { customMessage: '' as const };
+      } else {
+        $set.customMessage = customMessage;
+      }
+    }
+
     const result = await this.collection.findOneAndUpdate(
       { _id: codeId, userId, isDeleted: false } as Filter<ReferralCodeDocument>,
-      {
-        $set: { ...update, updatedAt: new Date() },
-      },
+      updateDoc,
       { returnDocument: 'after', session },
     );
     return result as ReferralCodeDocument | null;

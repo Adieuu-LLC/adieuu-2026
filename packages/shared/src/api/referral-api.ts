@@ -50,7 +50,7 @@ export interface CreateReferralCodeParams {
 
 export interface UpdateReferralCodeParams {
   code?: string;
-  customMessage?: string;
+  customMessage?: string | null;
 }
 
 export interface RedeemReferralCodeParams {

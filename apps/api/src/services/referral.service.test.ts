@@ -105,6 +105,7 @@ const {
   normalizeReferralCode,
   sanitizeReferralCustomMessage,
   createReferralCode,
+  updateReferralCode,
   redeemReferralCode,
   getReferralLandingData,
   grantReferralCreditForPayment,
@@ -200,6 +201,76 @@ describe('referral.service', () => {
     expect(result.ok).toBe(true);
     expect(mockCreateAttribution).toHaveBeenCalled();
     expect(mockIncrementSignupCount).toHaveBeenCalled();
+  });
+
+  test('updateReferralCode clears customMessage when null is passed', async () => {
+    const userId = new ObjectId();
+    const codeId = new ObjectId();
+    const existing = {
+      _id: codeId,
+      userId,
+      code: 'my-code',
+      previousVersions: [],
+      customMessage: 'Old message',
+      useCount: 5,
+      signupCount: 2,
+      subscriptionCount: 1,
+      isDeleted: false,
+      createdAt: new Date(),
+    };
+
+    mockFindById.mockResolvedValueOnce({ _id: userId });
+    mockFindOwnedCode.mockResolvedValueOnce(existing);
+    mockUpdateOwnedCode.mockResolvedValueOnce({
+      ...existing,
+      customMessage: undefined,
+    });
+
+    const result = await updateReferralCode(userId.toHexString(), codeId.toHexString(), {
+      customMessage: null,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(mockUpdateOwnedCode).toHaveBeenCalledWith(
+      userId,
+      codeId,
+      expect.objectContaining({ customMessage: null }),
+    );
+  });
+
+  test('updateReferralCode clears customMessage when empty string is passed', async () => {
+    const userId = new ObjectId();
+    const codeId = new ObjectId();
+    const existing = {
+      _id: codeId,
+      userId,
+      code: 'my-code',
+      previousVersions: [],
+      customMessage: 'Old message',
+      useCount: 5,
+      signupCount: 2,
+      subscriptionCount: 1,
+      isDeleted: false,
+      createdAt: new Date(),
+    };
+
+    mockFindById.mockResolvedValueOnce({ _id: userId });
+    mockFindOwnedCode.mockResolvedValueOnce(existing);
+    mockUpdateOwnedCode.mockResolvedValueOnce({
+      ...existing,
+      customMessage: undefined,
+    });
+
+    const result = await updateReferralCode(userId.toHexString(), codeId.toHexString(), {
+      customMessage: '',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(mockUpdateOwnedCode).toHaveBeenCalledWith(
+      userId,
+      codeId,
+      expect.objectContaining({ customMessage: null }),
+    );
   });
 
   test('getReferralLandingData returns invalid for deleted codes', async () => {

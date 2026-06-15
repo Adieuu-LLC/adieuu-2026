@@ -238,16 +238,16 @@ export async function updateReferralCode(
   const existing = await codeRepo.findOwnedCode(user._id, new ObjectId(codeId));
   if (!existing) return { ok: false, reason: 'not_found' };
 
-  const patch: Partial<
-    Pick<ReferralCodeDocument, 'code' | 'customMessage' | 'previousVersions'>
-  > = {};
+  const patch: Partial<Pick<ReferralCodeDocument, 'code' | 'previousVersions'>> & {
+    customMessage?: string | null;
+  } = {};
 
   if (updates.customMessage !== undefined) {
     const customMessage = sanitizeReferralCustomMessage(updates.customMessage);
     if (updates.customMessage !== null && updates.customMessage !== '' && customMessage === undefined) {
       return { ok: false, reason: 'invalid_message' };
     }
-    patch.customMessage = customMessage;
+    patch.customMessage = customMessage ?? null;
   }
 
   if (updates.code !== undefined) {

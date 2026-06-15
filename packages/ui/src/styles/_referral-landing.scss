@@ -1,0 +1,87 @@
+@use 'variables' as *;
+
+.referral-landing-glow {
+  width: 100%;
+
+  .border-glow-inner {
+    overflow: visible;
+  }
+
+  .referral-landing-card.card.card-elevated {
+    border: none;
+    box-shadow: none;
+  }
+}
+
+.referral-landing-content-shell {
+  overflow: hidden;
+  transition: height var(--transition-normal) ease-out;
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+
+.referral-landing-loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-lg);
+}
+
+.referral-landing-invalid-actions {
+  margin-top: var(--spacing-md);
+}
+
+.referral-landing-custom-message {
+  margin-bottom: var(--spacing-md);
+}
+
+.referral-landing-custom-message-label {
+  margin-bottom: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+}
+
+.referral-landing-custom-message-quote {
+  margin: 0;
+  padding: var(--spacing-md);
+  border-left: 3px solid var(--color-border-strong);
+  white-space: pre-wrap;
+}
+
+.referral-landing-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.referral-landing-privacy-notes {
+  margin-top: var(--spacing-md);
+  padding-left: 1.25em;
+  list-style-type: disc;
+  font-size: var(--font-size-sm);
+
+  li + li {
+    margin-top: var(--spacing-xs);
+  }
+}
+
+.referral-landing-back {
+  margin-top: var(--spacing-lg);
+  text-align: center;
+  font-size: var(--font-size-sm);
+}
+
+.referral-landing-back-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  color: var(--color-accent-primary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+
+  &:hover {
+    color: var(--color-accent-secondary);
+    text-decoration: underline;
+  }
+}

@@ -96,7 +96,7 @@ export function ReferralPage() {
     setSaving(true);
     const payload = {
       code: editor.code.trim() || undefined,
-      customMessage: editor.customMessage.trim() || undefined,
+      customMessage: editor.customMessage.trim() || null,
     };
 
     const response =
