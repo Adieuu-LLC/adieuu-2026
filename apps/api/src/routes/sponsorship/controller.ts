@@ -277,14 +277,14 @@ export async function createSponsorshipCheckout(
     // Stripe and pass an inline price_data so we can keep mode: 'payment'.
     const isRecurringProduct = productMeta.checkoutMode === 'subscription';
 
-    let lineItem: { price?: string; price_data?: Record<string, unknown>; quantity: number };
+    let lineItems;
     if (isRecurringProduct) {
       const stripePrice = await stripe.prices.retrieve(priceId);
       if (!stripePrice.unit_amount || !stripePrice.currency) {
         elog.error('Sponsorship checkout: could not resolve price details', { priceId, product });
         return { ok: false, reason: 'billing_config' };
       }
-      lineItem = {
+      lineItems = [{
         price_data: {
           currency: stripePrice.currency,
           product: typeof stripePrice.product === 'string'
@@ -293,16 +293,16 @@ export async function createSponsorshipCheckout(
           unit_amount: stripePrice.unit_amount,
         },
         quantity: 1,
-      };
+      }];
     } else {
-      lineItem = { price: priceId, quantity: 1 };
+      lineItems = [{ price: priceId, quantity: 1 }];
     }
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       customer: customerId,
       client_reference_id: userId,
-      line_items: [lineItem],
+      line_items: lineItems,
       ...(isRecurringProduct ? {} : { allow_promotion_codes: true }),
       success_url: config.stripe.successUrl,
       cancel_url: config.stripe.cancelUrl,
