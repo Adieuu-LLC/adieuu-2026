@@ -32,6 +32,14 @@ export const FEEDBACK_RESPONSE_LABELS = ['dev_response', 'staff_response'] as co
 
 export type FeedbackResponseLabel = (typeof FEEDBACK_RESPONSE_LABELS)[number];
 
+export const FEEDBACK_LINK_TYPES = ['duplicate', 'related', 'complementary'] as const;
+
+export type FeedbackLinkType = (typeof FEEDBACK_LINK_TYPES)[number];
+
+export const FEEDBACK_LINK_DIRECTIONS = ['outbound', 'inbound'] as const;
+
+export type FeedbackLinkDirection = (typeof FEEDBACK_LINK_DIRECTIONS)[number];
+
 export const MAX_FEEDBACK_TITLE_LENGTH = 200;
 export const MAX_FEEDBACK_BODY_LENGTH = 5000;
 export const MAX_FEEDBACK_ATTACHMENTS = 3;
@@ -64,4 +72,34 @@ export function isFeedbackStatus(value: string): value is FeedbackStatus {
 
 export function isFeedbackSortOption(value: string): value is FeedbackSortOption {
   return (FEEDBACK_SORT_OPTIONS as readonly string[]).includes(value);
+}
+
+export function isFeedbackLinkType(value: string): value is FeedbackLinkType {
+  return (FEEDBACK_LINK_TYPES as readonly string[]).includes(value);
+}
+
+const FEEDBACK_LINK_BODY_PHRASES: Record<FeedbackLinkType, string> = {
+  duplicate: 'is a duplicate of',
+  related: 'seems related to',
+  complementary: 'would go well with',
+};
+
+export function buildFeedbackLinkCommentBody(
+  linkType: FeedbackLinkType,
+  linkedPostTitle: string,
+): string {
+  return `suggested this post ${FEEDBACK_LINK_BODY_PHRASES[linkType]} ${linkedPostTitle}`;
+}
+
+const FEEDBACK_RECIPROCAL_LINK_BODY_PHRASES: Record<FeedbackLinkType, string> = {
+  duplicate: 'is a duplicate of this post',
+  related: 'seems related to this post',
+  complementary: 'would go well with this post',
+};
+
+export function buildFeedbackReciprocalLinkCommentBody(
+  linkType: FeedbackLinkType,
+  sourcePostTitle: string,
+): string {
+  return `suggested ${sourcePostTitle} ${FEEDBACK_RECIPROCAL_LINK_BODY_PHRASES[linkType]}`;
 }

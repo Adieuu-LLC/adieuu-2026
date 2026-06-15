@@ -211,6 +211,7 @@ export type {
   FeedbackAttachment,
   PublicFeedbackPost,
   PublicFeedbackComment,
+  RelatedFeedbackPost,
   CreateFeedbackPostParams,
   CreateFeedbackCommentParams,
   FeedbackListParams,

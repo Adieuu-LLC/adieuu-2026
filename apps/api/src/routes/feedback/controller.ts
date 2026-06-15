@@ -7,6 +7,7 @@
 import { z } from '@adieuu/shared/schemas';
 import {
   FEEDBACK_CATEGORIES,
+  FEEDBACK_LINK_TYPES,
   FEEDBACK_STATUSES,
   FEEDBACK_SORT_OPTIONS,
   MAX_FEEDBACK_ATTACHMENTS,
@@ -20,6 +21,7 @@ import {
   isFeedbackSortOption,
   isFeedbackStatus,
   type FeedbackCategory,
+  type FeedbackLinkType,
   type FeedbackSortOption,
   type FeedbackStatus,
 } from '@adieuu/shared';
@@ -27,6 +29,7 @@ import type { FeedbackPostDocument } from '../../models/feedback-post';
 import type { FeedbackCommentDocument } from '../../models/feedback-comment';
 import type { IdentityContext } from '../../middleware/identity-session';
 import { getFeedbackCommentRepository } from '../../repositories/feedback-comment.repository';
+import { getFeedbackPostRepository } from '../../repositories/feedback-post.repository';
 import {
   addFeedbackComment,
   buildAttachmentList,
@@ -60,10 +63,34 @@ export const CreateFeedbackPostSchema = z.object({
   isOfficial: z.boolean().optional(),
 });
 
-export const CreateFeedbackCommentSchema = z.object({
-  body: z.string().min(1).max(MAX_FEEDBACK_COMMENT_LENGTH),
-  parentCommentId: z.string().min(1).max(200).optional(),
-});
+export const CreateFeedbackCommentSchema = z
+  .object({
+    body: z.string().max(MAX_FEEDBACK_COMMENT_LENGTH).optional().default(''),
+    parentCommentId: z.string().min(1).max(200).optional(),
+    linkedPostId: z.string().min(1).max(200).optional(),
+    linkType: z.enum(FEEDBACK_LINK_TYPES as unknown as [string, ...string[]]).optional(),
+  })
+  .superRefine((data, ctx) => {
+    const isLinkComment = Boolean(data.linkedPostId || data.linkType);
+    if (isLinkComment) {
+      if (!data.linkedPostId || !data.linkType) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Both linkedPostId and linkType are required for link comments',
+          path: ['linkedPostId'],
+        });
+      }
+      return;
+    }
+
+    if (!data.body || data.body.trim().length === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Comment body is required',
+        path: ['body'],
+      });
+    }
+  });
 
 export const UpdateFeedbackStatusSchema = z.object({
   status: z.enum(FEEDBACK_STATUSES as unknown as [string, ...string[]]),
@@ -133,6 +160,7 @@ function mapServiceError(errorCode: string, error: string): FeedbackResult<never
     case 'NOT_UPVOTED':
       return { ok: false, kind: 'conflict', message: error };
     case 'INVALID_PARENT':
+    case 'INVALID_LINK':
       return { ok: false, kind: 'bad_request', message: error };
     default:
       return { ok: false, kind: 'bad_request', message: error };
@@ -202,10 +230,14 @@ function toPublicComment(
   comment: FeedbackCommentDocument,
   authorMap: Map<string, { displayName: string; username: string; avatarUrl?: string }>,
   parent?: FeedbackCommentDocument | null,
+  linkedPostTitleById?: Map<string, string>,
 ) {
   const authorId = comment.identityId.toHexString();
   const authorProfile = authorMap.get(authorId);
   const parentCommentId = comment.parentCommentId ?? null;
+  const linkedPostId = comment.linkedPostId ?? null;
+  const linkType = comment.linkType ?? null;
+  const linkDirection = comment.linkDirection ?? (linkedPostId ? 'outbound' : null);
 
   let parentPreview = null;
   if (parentCommentId && parent) {
@@ -217,6 +249,9 @@ function toPublicComment(
       bodyExcerpt: excerptFeedbackComment(parent.body),
     };
   }
+
+  const linkedPostTitle =
+    linkedPostId && linkedPostTitleById ? linkedPostTitleById.get(linkedPostId) ?? null : null;
 
   return {
     id: comment._id.toHexString(),
@@ -231,8 +266,25 @@ function toPublicComment(
     responseLabel: comment.responseLabel,
     parentCommentId,
     parentPreview,
+    linkedPostId,
+    linkType,
+    linkDirection,
+    linkedPostTitle,
     createdAt: comment.createdAt.toISOString(),
   };
+}
+
+function buildLinkedPostTitleMap(
+  comments: FeedbackCommentDocument[],
+  relatedPosts: Array<{ postId: string; title: string }>,
+): Map<string, string> {
+  const titleByPostId = new Map(relatedPosts.map((relatedPost) => [relatedPost.postId, relatedPost.title]));
+  for (const comment of comments) {
+    if (comment.linkedPostId && !titleByPostId.has(comment.linkedPostId)) {
+      titleByPostId.set(comment.linkedPostId, comment.linkedPostId);
+    }
+  }
+  return titleByPostId;
 }
 
 export async function createPostResult(
@@ -297,6 +349,17 @@ export async function getPostResult(
   FeedbackResult<{
     post: Awaited<ReturnType<typeof toPublicPost>>;
     comments: ReturnType<typeof toPublicComment>[];
+    relatedPosts: Array<{
+      postId: string;
+      title: string;
+      linkType: FeedbackLinkType;
+      suggestedBy: {
+        identityId: string;
+        displayName: string;
+        username: string;
+        avatarUrl?: string;
+      };
+    }>;
     canManageStatus: boolean;
   }>
 > {
@@ -311,12 +374,17 @@ export async function getPostResult(
   }
 
   const parentById = buildCommentParentMap(result.data.comments);
+  const relatedAuthorIds = result.data.relatedPosts.map((relatedPost) => relatedPost.suggestedByIdentityId);
   const authorMap = await resolveFeedbackAuthors(
     collectCommentAuthorIds(
       result.data.post.identityId.toHexString(),
       result.data.comments,
       parentById,
-    ),
+    ).concat(relatedAuthorIds),
+  );
+  const linkedPostTitleById = buildLinkedPostTitleMap(
+    result.data.comments,
+    result.data.relatedPosts,
   );
 
   const post = await toPublicPost(result.data.post, result.data.hasUpvoted, authorMap);
@@ -324,7 +392,21 @@ export async function getPostResult(
     const parent = comment.parentCommentId
       ? parentById.get(comment.parentCommentId) ?? null
       : null;
-    return toPublicComment(comment, authorMap, parent);
+    return toPublicComment(comment, authorMap, parent, linkedPostTitleById);
+  });
+  const relatedPosts = result.data.relatedPosts.map((relatedPost) => {
+    const authorProfile = authorMap.get(relatedPost.suggestedByIdentityId);
+    return {
+      postId: relatedPost.postId,
+      title: relatedPost.title,
+      linkType: relatedPost.linkType,
+      suggestedBy: {
+        identityId: relatedPost.suggestedByIdentityId,
+        displayName: authorProfile?.displayName ?? 'Unknown',
+        username: authorProfile?.username ?? '',
+        avatarUrl: authorProfile?.avatarUrl,
+      },
+    };
   });
 
   return {
@@ -332,6 +414,7 @@ export async function getPostResult(
     data: {
       post,
       comments,
+      relatedPosts,
       canManageStatus: result.data.canManageStatus,
     },
   };
@@ -372,9 +455,11 @@ export async function addCommentResult(
   const result = await addFeedbackComment(
     postId,
     ctx.identity,
-    parsed.data.body,
+    parsed.data.body ?? '',
     ctx.entitlements,
     parsed.data.parentCommentId,
+    parsed.data.linkedPostId,
+    parsed.data.linkType,
   );
   if (!result.success) {
     return mapServiceError(result.errorCode, result.error);
@@ -390,7 +475,15 @@ export async function addCommentResult(
     authorIds.push(parent.identityId.toHexString());
   }
   const authorMap = await resolveFeedbackAuthors(authorIds);
-  return { ok: true, data: toPublicComment(result.data, authorMap, parent) };
+  const linkedPostTitleById = new Map<string, string>();
+  if (result.data.linkedPostId) {
+    const postRepo = getFeedbackPostRepository();
+    const linkedPost = await postRepo.findByPostId(result.data.linkedPostId);
+    if (linkedPost) {
+      linkedPostTitleById.set(linkedPost.postId, linkedPost.title);
+    }
+  }
+  return { ok: true, data: toPublicComment(result.data, authorMap, parent, linkedPostTitleById) };
 }
 
 export async function updateStatusResult(

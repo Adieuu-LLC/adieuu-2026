@@ -18,7 +18,7 @@ import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { Spinner } from '../../components/Spinner';
 import { Icon } from '../../icons/Icon';
-import { Avatar } from '../../components/Avatar';
+import { FeedbackAuthorLink } from '../../components/FeedbackAuthorLink';
 import { FeedbackStatusFilter } from '../../components/FeedbackStatusFilter';
 import { useFeedbackParticipation } from '../../hooks/useFeedbackParticipation';
 import { useIdentity } from '../../hooks/useIdentity';
@@ -354,14 +354,11 @@ export function FeedbackList() {
                       {truncate(post.description, DESC_MAX_LENGTH)}
                     </p>
                     <div className="feedback-card-meta">
-                      <Avatar
-                        src={post.author.avatarUrl}
-                        name={post.author.displayName}
-                        size="sm"
+                      <FeedbackAuthorLink
+                        author={post.author}
+                        layout="post-list"
+                        onClick={(event) => event.stopPropagation()}
                       />
-                      <span className="feedback-card-author">
-                        {t('feedback.authorLabel', { username: post.author.username })}
-                      </span>
                       <span className="feedback-card-stats">
                         {t('feedback.commentCount', { count: post.commentCount })}
                       </span>

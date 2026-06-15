@@ -27,6 +27,10 @@ export interface FeedbackPostListResult {
   total: number;
 }
 
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export class FeedbackPostRepository extends BaseRepository<FeedbackPostDocument> {
   constructor() {
     super(Collections.FEEDBACK_POSTS);
@@ -74,7 +78,8 @@ export class FeedbackPostRepository extends BaseRepository<FeedbackPostDocument>
       filter.isOfficial = options.isOfficial;
     }
     if (options.search) {
-      filter.$text = { $search: options.search };
+      const regex = new RegExp(escapeRegex(options.search), 'i');
+      filter.$or = [{ title: regex }, { description: regex }];
     }
 
     const sortSpec: Sort =

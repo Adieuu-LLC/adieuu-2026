@@ -6,9 +6,11 @@ import {
   MAX_FEEDBACK_COMMENT_LENGTH,
   createApiClient,
   excerptFeedbackComment,
+  type FeedbackLinkType,
   type FeedbackStatus,
   type PublicFeedbackComment,
   type PublicFeedbackPost,
+  type RelatedFeedbackPost,
 } from '@adieuu/shared';
 import { Select, Portal, createListCollection } from '@ark-ui/react';
 import { useAppConfig } from '../../config';
@@ -16,8 +18,9 @@ import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { Spinner } from '../../components/Spinner';
 import { Alert } from '../../components/Alert';
-import { Avatar } from '../../components/Avatar';
 import { Icon } from '../../icons/Icon';
+import { LinkPostModal } from '../../components/LinkPostModal';
+import { FeedbackAuthorLink } from '../../components/FeedbackAuthorLink';
 import { useFeedbackParticipation } from '../../hooks/useFeedbackParticipation';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useToast } from '../../components/Toast';
@@ -37,6 +40,52 @@ function CommentParentQuote({
   );
 }
 
+function LinkCommentBody({
+  comment,
+}: {
+  comment: PublicFeedbackComment;
+}) {
+  const { t } = useTranslation();
+
+  if (!comment.linkType || !comment.linkedPostId || !comment.linkedPostTitle) {
+    return <p className="feedback-comment-body">{comment.body}</p>;
+  }
+
+  const isReciprocal = comment.linkDirection === 'inbound';
+  const linkDescription = t(
+    isReciprocal
+      ? `feedback.reciprocalByLabel.${comment.linkType}`
+      : `feedback.relatedByLabel.${comment.linkType}`,
+  );
+
+  return (
+    <p className="feedback-comment-body feedback-comment-body--link">
+      <Icon name="link" />
+      <span>
+        {isReciprocal ? (
+          <>
+            <FeedbackAuthorLink author={comment.author} layout="inline" />
+            {' suggested '}
+            <Link to={`/feedback/${comment.linkedPostId}`} className="feedback-comment-link">
+              {comment.linkedPostTitle}
+            </Link>{' '}
+            {linkDescription}
+          </>
+        ) : (
+          <>
+            <FeedbackAuthorLink author={comment.author} layout="inline" />
+            {' '}
+            {t('feedback.linkCommentBodySuffix', { linkDescription })}{' '}
+            <Link to={`/feedback/${comment.linkedPostId}`} className="feedback-comment-link">
+              {comment.linkedPostTitle}
+            </Link>
+          </>
+        )}
+      </span>
+    </p>
+  );
+}
+
 export function FeedbackDetail() {
   const { postId } = useParams<{ postId: string }>();
   const { t } = useTranslation();
@@ -49,6 +98,7 @@ export function FeedbackDetail() {
 
   const [post, setPost] = useState<PublicFeedbackPost | null>(null);
   const [comments, setComments] = useState<PublicFeedbackComment[]>([]);
+  const [relatedPosts, setRelatedPosts] = useState<RelatedFeedbackPost[]>([]);
   const [canManageStatus, setCanManageStatus] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,9 +110,58 @@ export function FeedbackDetail() {
   const [replySubmitting, setReplySubmitting] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [linkSubmitting, setLinkSubmitting] = useState(false);
+  const [relatedPostsExpanded, setRelatedPostsExpanded] = useState(false);
+  const [commentFilter, setCommentFilter] = useState<'all' | 'op' | 'staff'>('all');
+  const [commentSort, setCommentSort] = useState<'oldest' | 'newest'>('oldest');
 
   const commentRemaining = MAX_FEEDBACK_COMMENT_LENGTH - comment.length;
   const replyRemaining = MAX_FEEDBACK_COMMENT_LENGTH - replyBody.length;
+
+  const commentFilterCollection = useMemo(
+    () =>
+      createListCollection({
+        items: [
+          { value: 'all', label: t('feedback.commentFilterAll') },
+          { value: 'op', label: t('feedback.commentFilterOp') },
+          { value: 'staff', label: t('feedback.commentFilterStaff') },
+        ],
+      }),
+    [t],
+  );
+
+  const commentSortCollection = useMemo(
+    () =>
+      createListCollection({
+        items: [
+          { value: 'oldest', label: t('feedback.commentSortOldest') },
+          { value: 'newest', label: t('feedback.commentSortNewest') },
+        ],
+      }),
+    [t],
+  );
+
+  const displayedComments = useMemo(() => {
+    let filtered = comments;
+    if (commentFilter === 'op' && post) {
+      filtered = comments.filter(
+        (commentItem) => commentItem.author.identityId === post.author.identityId,
+      );
+    } else if (commentFilter === 'staff') {
+      filtered = comments.filter(
+        (commentItem) =>
+          commentItem.responseLabel === 'dev_response' ||
+          commentItem.responseLabel === 'staff_response',
+      );
+    }
+
+    return [...filtered].sort((a, b) => {
+      const aTime = new Date(a.createdAt).getTime();
+      const bTime = new Date(b.createdAt).getTime();
+      return commentSort === 'oldest' ? aTime - bTime : bTime - aTime;
+    });
+  }, [comments, commentFilter, commentSort, post]);
 
   const statusCollection = useMemo(
     () =>
@@ -82,8 +181,9 @@ export function FeedbackDetail() {
     const res = await api.feedback.getPost(postId);
     if (res.success && res.data) {
       setPost(res.data.post);
-      setComments(res.data.comments);
-      setCanManageStatus(res.data.canManageStatus);
+      setComments(res.data.comments ?? []);
+      setRelatedPosts(res.data.relatedPosts ?? []);
+      setCanManageStatus(res.data.canManageStatus ?? false);
     } else {
       setError(t('feedback.notFound'));
     }
@@ -188,6 +288,47 @@ export function FeedbackDetail() {
     toast.error(t('feedback.statusUpdateError'));
   };
 
+  const handleLinkPost = async (linkedPostId: string, linkType: FeedbackLinkType) => {
+    if (!postId) return;
+    if (!requireIdentitySession()) {
+      toast.info(t('feedback.loginToComment'));
+      return;
+    }
+
+    setLinkSubmitting(true);
+    const res = await api.feedback.addComment(postId, { linkedPostId, linkType });
+    setLinkSubmitting(false);
+
+    if (res.success && res.data) {
+      setLinkModalOpen(false);
+      setComments((prev) => [...prev, res.data!]);
+      setPost((prev) =>
+        prev ? { ...prev, commentCount: prev.commentCount + 1 } : prev,
+      );
+
+      const linkedTitle = res.data.linkedPostTitle;
+      if (linkedTitle) {
+        setRelatedPosts((prev) => {
+          if (prev.some((entry) => entry.postId === linkedPostId)) {
+            return prev;
+          }
+          return [
+            ...prev,
+            {
+              postId: linkedPostId,
+              title: linkedTitle,
+              linkType,
+              suggestedBy: res.data!.author,
+            },
+          ];
+        });
+      }
+      return;
+    }
+
+    toast.error(t('feedback.linkPostError'));
+  };
+
   if (loading) {
     return (
       <div className="page-content feedback-page feedback-loading-page">
@@ -254,8 +395,7 @@ export function FeedbackDetail() {
           <h1 className="feedback-detail-title">{post.title}</h1>
 
           <div className="feedback-detail-author">
-            <Avatar src={post.author.avatarUrl} name={post.author.displayName} size="sm" />
-            <span>{t('feedback.authorLabel', { username: post.author.username })}</span>
+            <FeedbackAuthorLink author={post.author} layout="post-detail" />
           </div>
 
           <div className="feedback-detail-body">
@@ -276,6 +416,17 @@ export function FeedbackDetail() {
                 </a>
               ))}
             </div>
+          )}
+
+          {canParticipate && (
+            <button
+              type="button"
+              className="feedback-link-post-trigger"
+              onClick={() => setLinkModalOpen(true)}
+            >
+              <Icon name="link" />
+              {t('feedback.linkPost')}
+            </button>
           )}
 
           {canManageStatus && (
@@ -313,19 +464,120 @@ export function FeedbackDetail() {
           )}
         </Card>
 
+        {relatedPosts.length > 0 && (
+          <Card variant="elevated" className="feedback-related-posts-card">
+            <button
+              type="button"
+              className="feedback-related-posts-header"
+              onClick={() => setRelatedPostsExpanded((expanded) => !expanded)}
+              aria-expanded={relatedPostsExpanded}
+            >
+              <span>{t('feedback.relatedPostsHeader', { count: relatedPosts.length })}</span>
+              <Icon name={relatedPostsExpanded ? 'chevronUp' : 'chevronDown'} size="xs" />
+            </button>
+
+            {relatedPostsExpanded && (
+              <ul className="feedback-related-posts-list">
+                {relatedPosts.map((relatedPost) => (
+                  <li key={relatedPost.postId} className="feedback-related-posts-item">
+                    <Link to={`/feedback/${relatedPost.postId}`} className="feedback-related-posts-title">
+                      {relatedPost.title}
+                    </Link>
+                    <span className={`feedback-link-type-badge feedback-link-type-badge--${relatedPost.linkType}`}>
+                      {t(`feedback.relatedByLabel.${relatedPost.linkType}`)}
+                    </span>
+                    <span className="feedback-related-posts-meta">
+                      {t('feedback.relatedSuggestedBy', {
+                        username: relatedPost.suggestedBy.username,
+                      })}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        )}
+
         <Card variant="elevated" className="feedback-comments-card">
-          <h2 className="feedback-comments-title">{t('feedback.comments')}</h2>
+          <div className="feedback-comments-header">
+            <h2 className="feedback-comments-title">{t('feedback.comments')}</h2>
+            {comments.length > 0 && (
+              <div className="feedback-comment-controls">
+                <Select.Root
+                  collection={commentFilterCollection}
+                  value={[commentFilter]}
+                  onValueChange={(details) => {
+                    const next = details.value[0] as 'all' | 'op' | 'staff' | undefined;
+                    if (next) setCommentFilter(next);
+                  }}
+                >
+                  <Select.Control className="report-select-control">
+                    <Select.Trigger className="report-select-trigger feedback-filter-trigger">
+                      <Select.ValueText />
+                      <Select.Indicator className="report-select-indicator">
+                        <Icon name="chevronDown" size="xs" />
+                      </Select.Indicator>
+                    </Select.Trigger>
+                  </Select.Control>
+                  <Portal>
+                    <Select.Positioner>
+                      <Select.Content className="report-select-content">
+                        {commentFilterCollection.items.map((item) => (
+                          <Select.Item key={item.value} item={item} className="report-select-item">
+                            <Select.ItemText>{item.label}</Select.ItemText>
+                          </Select.Item>
+                        ))}
+                      </Select.Content>
+                    </Select.Positioner>
+                  </Portal>
+                </Select.Root>
+
+                <Select.Root
+                  collection={commentSortCollection}
+                  value={[commentSort]}
+                  onValueChange={(details) => {
+                    const next = details.value[0] as 'oldest' | 'newest' | undefined;
+                    if (next) setCommentSort(next);
+                  }}
+                >
+                  <Select.Control className="report-select-control">
+                    <Select.Trigger className="report-select-trigger feedback-filter-trigger">
+                      <Select.ValueText />
+                      <Select.Indicator className="report-select-indicator">
+                        <Icon name="chevronDown" size="xs" />
+                      </Select.Indicator>
+                    </Select.Trigger>
+                  </Select.Control>
+                  <Portal>
+                    <Select.Positioner>
+                      <Select.Content className="report-select-content">
+                        {commentSortCollection.items.map((item) => (
+                          <Select.Item key={item.value} item={item} className="report-select-item">
+                            <Select.ItemText>{item.label}</Select.ItemText>
+                          </Select.Item>
+                        ))}
+                      </Select.Content>
+                    </Select.Positioner>
+                  </Portal>
+                </Select.Root>
+              </div>
+            )}
+          </div>
 
           {comments.length === 0 ? (
             <p className="feedback-no-comments">{t('feedback.noComments')}</p>
+          ) : displayedComments.length === 0 ? (
+            <p className="feedback-no-comments">{t('feedback.noFilteredComments')}</p>
           ) : (
             <div className="feedback-comment-list">
-              {comments.map((c) => (
-                <div key={c.id} className="feedback-comment">
+              {displayedComments.map((c) => (
+                <div
+                  key={c.id}
+                  className={`feedback-comment${c.linkedPostId ? ' feedback-comment--link' : ''}`}
+                >
                   <div className="feedback-comment-header">
                     <div className="feedback-comment-identity">
-                      <Avatar src={c.author.avatarUrl} name={c.author.displayName} size="sm" />
-                      <span className="feedback-comment-author">{c.author.displayName}</span>
+                      <FeedbackAuthorLink author={c.author} layout="comment" />
                     </div>
                     {c.responseLabel === 'dev_response' && (
                       <span className="feedback-response-badge feedback-response-badge--dev">
@@ -335,6 +587,11 @@ export function FeedbackDetail() {
                     {c.responseLabel === 'staff_response' && (
                       <span className="feedback-response-badge feedback-response-badge--staff">
                         {t('feedback.staffResponse')}
+                      </span>
+                    )}
+                    {c.author.identityId === post.author.identityId && (
+                      <span className="feedback-response-badge feedback-response-badge--op">
+                        {t('feedback.opResponse')}
                       </span>
                     )}
                     <time className="feedback-comment-time">
@@ -349,9 +606,9 @@ export function FeedbackDetail() {
                     />
                   )}
 
-                  <p className="feedback-comment-body">{c.body}</p>
+                  <LinkCommentBody comment={c} />
 
-                  {canParticipate && replyingToId !== c.id && (
+                  {canParticipate && !c.linkedPostId && replyingToId !== c.id && (
                     <Button
                       type="button"
                       variant="ghost"
@@ -443,13 +700,20 @@ export function FeedbackDetail() {
             </form>
           ) : (
             <div className="feedback-participation-prompt">
-              <p className="input-hint">{t('feedback.loginToComment')}</p>
               <Button type="button" variant="secondary" size="sm" onClick={requireIdentitySession}>
-                {t('identity.loginButton')}
+                {t('feedback.loginToVoteOrComment')}
               </Button>
             </div>
           )}
         </Card>
+
+        <LinkPostModal
+          open={linkModalOpen}
+          onOpenChange={setLinkModalOpen}
+          currentPostId={post.postId}
+          onConfirm={(linkedPostId, linkType) => void handleLinkPost(linkedPostId, linkType)}
+          loading={linkSubmitting}
+        />
       </div>
     </div>
   );

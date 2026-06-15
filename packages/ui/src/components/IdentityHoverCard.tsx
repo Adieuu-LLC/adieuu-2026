@@ -203,7 +203,7 @@ export function IdentityHoverCardContent({
         )}
       </div>
 
-      {!isSelf && (
+      {!isSelf && reportOpen && (
         <ReportModal
           open={reportOpen}
           onOpenChange={setReportOpen}
@@ -252,6 +252,8 @@ export function IdentityHoverCard({
   openDelay = 300,
   closeDelay = 200,
 }: IdentityHoverCardProps) {
+  const [contentMounted, setContentMounted] = useState(false);
+
   return (
     <HoverCard
       trigger={children}
@@ -259,13 +261,16 @@ export function IdentityHoverCard({
       className="identity-hover-card"
       openDelay={openDelay}
       closeDelay={closeDelay}
+      onOpenChange={(details) => setContentMounted(details.open)}
     >
-      <IdentityHoverCardContent
-        identity={identity}
-        friendsSince={friendsSince}
-        extraMenuItems={extraMenuItems}
-        extraFooter={extraFooter}
-      />
+      {contentMounted ? (
+        <IdentityHoverCardContent
+          identity={identity}
+          friendsSince={friendsSince}
+          extraMenuItems={extraMenuItems}
+          extraFooter={extraFooter}
+        />
+      ) : null}
     </HoverCard>
   );
 }

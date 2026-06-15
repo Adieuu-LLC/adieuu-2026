@@ -3,7 +3,7 @@
  */
 
 import type { ObjectId } from 'mongodb';
-import type { FeedbackResponseLabel } from '@adieuu/shared';
+import type { FeedbackLinkDirection, FeedbackLinkType, FeedbackResponseLabel } from '@adieuu/shared';
 import type { BaseDocument } from './base';
 
 export interface FeedbackCommentDocument extends BaseDocument {
@@ -12,6 +12,9 @@ export interface FeedbackCommentDocument extends BaseDocument {
   body: string;
   responseLabel: FeedbackResponseLabel | null;
   parentCommentId: string | null;
+  linkedPostId: string | null;
+  linkType: FeedbackLinkType | null;
+  linkDirection: FeedbackLinkDirection | null;
 }
 
 export interface CreateFeedbackCommentInput {
@@ -20,4 +23,7 @@ export interface CreateFeedbackCommentInput {
   body: string;
   responseLabel: FeedbackResponseLabel | null;
   parentCommentId: string | null;
+  linkedPostId: string | null;
+  linkType: FeedbackLinkType | null;
+  linkDirection: FeedbackLinkDirection | null;
 }

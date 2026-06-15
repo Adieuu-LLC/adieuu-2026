@@ -1,5 +1,7 @@
 import type {
   FeedbackCategory,
+  FeedbackLinkDirection,
+  FeedbackLinkType,
   FeedbackResponseLabel,
   FeedbackSortOption,
   FeedbackStatus,
@@ -52,7 +54,18 @@ export interface PublicFeedbackComment {
   responseLabel: FeedbackResponseLabel | null;
   parentCommentId: string | null;
   parentPreview: FeedbackCommentParentPreview | null;
+  linkedPostId: string | null;
+  linkType: FeedbackLinkType | null;
+  linkDirection: FeedbackLinkDirection | null;
+  linkedPostTitle: string | null;
   createdAt: string;
+}
+
+export interface RelatedFeedbackPost {
+  postId: string;
+  title: string;
+  linkType: FeedbackLinkType;
+  suggestedBy: FeedbackAuthor;
 }
 
 export interface CreateFeedbackPostParams {
@@ -64,8 +77,10 @@ export interface CreateFeedbackPostParams {
 }
 
 export interface CreateFeedbackCommentParams {
-  body: string;
+  body?: string;
   parentCommentId?: string;
+  linkedPostId?: string;
+  linkType?: FeedbackLinkType;
 }
 
 export interface FeedbackListParams {
@@ -89,6 +104,7 @@ export interface FeedbackListResponse {
 export interface FeedbackDetailResponse {
   post: PublicFeedbackPost;
   comments: PublicFeedbackComment[];
+  relatedPosts: RelatedFeedbackPost[];
   canManageStatus: boolean;
 }
 

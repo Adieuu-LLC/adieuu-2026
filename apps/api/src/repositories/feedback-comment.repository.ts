@@ -49,6 +49,13 @@ export class FeedbackCommentRepository extends BaseRepository<FeedbackCommentDoc
     return await this.findMany({ postId } as Filter<FeedbackCommentDocument>, 500);
   }
 
+  async listLinksToPost(postId: string): Promise<FeedbackCommentDocument[]> {
+    return await this.findMany(
+      { linkedPostId: postId } as Filter<FeedbackCommentDocument>,
+      500,
+    );
+  }
+
   async findByCommentId(commentId: string): Promise<FeedbackCommentDocument | null> {
     if (!ObjectId.isValid(commentId)) return null;
     return await this.findById(commentId);

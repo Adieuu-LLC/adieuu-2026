@@ -11,7 +11,11 @@ import {
   MAX_FEEDBACK_COMMENT_LENGTH,
   MAX_FEEDBACK_POSTS_PER_DAY,
   MAX_FEEDBACK_TITLE_LENGTH,
+  buildFeedbackLinkCommentBody,
+  buildFeedbackReciprocalLinkCommentBody,
+  isFeedbackLinkType,
   type FeedbackCategory,
+  type FeedbackLinkType,
   type FeedbackResponseLabel,
   type FeedbackSortOption,
   type FeedbackStatus,
@@ -55,7 +59,8 @@ export type FeedbackErrorCode =
   | 'FORBIDDEN'
   | 'ALREADY_UPVOTED'
   | 'NOT_UPVOTED'
-  | 'INVALID_PARENT';
+  | 'INVALID_PARENT'
+  | 'INVALID_LINK';
 
 export type ServiceResult<T = undefined> =
   | { success: true; data: T }
@@ -249,6 +254,13 @@ export async function listFeedbackPosts(
   };
 }
 
+export interface RelatedFeedbackPostData {
+  postId: string;
+  title: string;
+  linkType: FeedbackLinkType;
+  suggestedByIdentityId: string;
+}
+
 export async function getFeedbackPostDetail(
   postId: string,
   viewerIdentityId?: string,
@@ -257,6 +269,7 @@ export async function getFeedbackPostDetail(
   ServiceResult<{
     post: FeedbackPostDocument;
     comments: FeedbackCommentDocument[];
+    relatedPosts: RelatedFeedbackPostData[];
     hasUpvoted: boolean;
     canManageStatus: boolean;
   }>
@@ -269,6 +282,7 @@ export async function getFeedbackPostDetail(
 
   const commentRepo = getFeedbackCommentRepository();
   const comments = await commentRepo.listAllByPost(postId);
+  const relatedPosts = await buildRelatedPostsForPost(postId, comments, postRepo, commentRepo);
 
   let hasUpvoted = false;
   let canManageStatus = false;
@@ -286,8 +300,55 @@ export async function getFeedbackPostDetail(
 
   return {
     success: true,
-    data: { post, comments, hasUpvoted, canManageStatus },
+    data: { post, comments, relatedPosts, hasUpvoted, canManageStatus },
   };
+}
+
+async function buildRelatedPostsForPost(
+  postId: string,
+  comments: FeedbackCommentDocument[],
+  postRepo: ReturnType<typeof getFeedbackPostRepository>,
+  commentRepo: ReturnType<typeof getFeedbackCommentRepository>,
+): Promise<RelatedFeedbackPostData[]> {
+  const inboundComments = await commentRepo.listLinksToPost(postId);
+  const allLinkComments = [...comments, ...inboundComments]
+    .filter((comment) => comment.linkedPostId && comment.linkType)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+  if (allLinkComments.length === 0) {
+    return [];
+  }
+
+  const seenPostIds = new Set<string>();
+  const uniqueLinkComments: FeedbackCommentDocument[] = [];
+  for (const comment of allLinkComments) {
+    const relatedPostId =
+      comment.postId === postId ? comment.linkedPostId! : comment.postId;
+    if (seenPostIds.has(relatedPostId)) continue;
+    seenPostIds.add(relatedPostId);
+    uniqueLinkComments.push(comment);
+  }
+
+  const relatedPostIds = uniqueLinkComments.map((comment) =>
+    comment.postId === postId ? comment.linkedPostId! : comment.postId,
+  );
+  const linkedPosts = await postRepo.findByPostIds(relatedPostIds);
+  const titleByPostId = new Map(linkedPosts.map((linkedPost) => [linkedPost.postId, linkedPost.title]));
+
+  return uniqueLinkComments
+    .map((comment) => {
+      const relatedPostId =
+        comment.postId === postId ? comment.linkedPostId! : comment.postId;
+      const title = titleByPostId.get(relatedPostId);
+      if (!title) return null;
+      return {
+        postId: relatedPostId,
+        title,
+        linkType: comment.linkType!,
+        suggestedByIdentityId: comment.identityId.toHexString(),
+      };
+    })
+    .filter((entry): entry is RelatedFeedbackPostData => entry !== null);
 }
 
 export async function upvoteFeedbackPost(
@@ -357,6 +418,8 @@ export async function addFeedbackComment(
   body: string,
   sessionEntitlements: string[] = [],
   parentCommentId?: string,
+  linkedPostId?: string,
+  linkType?: string,
 ): Promise<ServiceResult<FeedbackCommentDocument>> {
   const rl = await checkRateLimit(
     'feedback:comment',
@@ -373,8 +436,33 @@ export async function addFeedbackComment(
     return { success: false, error: 'Post not found', errorCode: 'NOT_FOUND' };
   }
 
-  const sanitizedBody = sanitizeString(body.trim(), 'general').value;
-  if (sanitizedBody.length === 0 || sanitizedBody.length > MAX_FEEDBACK_COMMENT_LENGTH) {
+  const isLinkComment = Boolean(linkedPostId || linkType);
+  let resolvedLinkedPostId: string | null = null;
+  let resolvedLinkType: FeedbackLinkType | null = null;
+  let commentBody = sanitizeString(body.trim(), 'general').value;
+
+  if (isLinkComment) {
+    if (!linkedPostId || !linkType || !isFeedbackLinkType(linkType)) {
+      return { success: false, error: 'Invalid post link', errorCode: 'INVALID_LINK' };
+    }
+
+    if (linkedPostId === postId) {
+      return { success: false, error: 'Cannot link a post to itself', errorCode: 'INVALID_LINK' };
+    }
+
+    const linkedPost = await postRepo.findByPostId(linkedPostId);
+    if (!linkedPost) {
+      return { success: false, error: 'Linked post not found', errorCode: 'NOT_FOUND' };
+    }
+
+    resolvedLinkedPostId = linkedPostId;
+    resolvedLinkType = linkType;
+    commentBody = buildFeedbackLinkCommentBody(linkType, linkedPost.title);
+  } else if (commentBody.length === 0 || commentBody.length > MAX_FEEDBACK_COMMENT_LENGTH) {
+    return { success: false, error: 'Invalid comment length', errorCode: 'COMMENT_TOO_LONG' };
+  }
+
+  if (commentBody.length > MAX_FEEDBACK_COMMENT_LENGTH) {
     return { success: false, error: 'Invalid comment length', errorCode: 'COMMENT_TOO_LONG' };
   }
 
@@ -383,7 +471,7 @@ export async function addFeedbackComment(
   const commentRepo = getFeedbackCommentRepository();
   let resolvedParentCommentId: string | null = null;
 
-  if (parentCommentId) {
+  if (parentCommentId && !isLinkComment) {
     const parent = await commentRepo.findByCommentId(parentCommentId);
     if (!parent || parent.postId !== postId) {
       return { success: false, error: 'Invalid parent comment', errorCode: 'INVALID_PARENT' };
@@ -394,14 +482,32 @@ export async function addFeedbackComment(
   const comment = await commentRepo.createComment({
     postId,
     identityId: identity._id,
-    body: sanitizedBody,
+    body: commentBody,
     responseLabel,
     parentCommentId: resolvedParentCommentId,
+    linkedPostId: resolvedLinkedPostId,
+    linkType: resolvedLinkType,
+    linkDirection: isLinkComment ? 'outbound' : null,
   });
 
   await postRepo.incrementComments(postId);
   if (responseLabel !== null) {
     await postRepo.setHasStaffResponse(postId);
+  }
+
+  if (isLinkComment && resolvedLinkedPostId && resolvedLinkType) {
+    const reciprocalBody = buildFeedbackReciprocalLinkCommentBody(resolvedLinkType, post.title);
+    await commentRepo.createComment({
+      postId: resolvedLinkedPostId,
+      identityId: identity._id,
+      body: reciprocalBody,
+      responseLabel: null,
+      parentCommentId: null,
+      linkedPostId: postId,
+      linkType: resolvedLinkType,
+      linkDirection: 'inbound',
+    });
+    await postRepo.incrementComments(resolvedLinkedPostId);
   }
 
   return { success: true, data: comment };
