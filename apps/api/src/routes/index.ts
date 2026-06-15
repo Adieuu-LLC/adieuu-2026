@@ -36,6 +36,8 @@ import { ageVerificationRoutes } from './age-verification';
 import { customEmojiRoutes } from './custom-emojis';
 import { sponsorshipRoutes } from './sponsorship';
 import { promoCodeRoutes } from './account/promo-code';
+import { referralRoutes } from './account/referral';
+import { publicReferRoutes } from './refer';
 import { accountEventsRoutes } from './account/events';
 import { adminPromoCodesRoutes } from './admin/promo-codes';
 import { supportRoutes } from './support';
@@ -136,6 +138,10 @@ export function registerRoutes(app: Router): void {
 
   // Promotional code redemption
   app.merge(promoCodeRoutes, '/api');
+
+  // Referral program (account management + public landing)
+  app.merge(referralRoutes, '/api');
+  app.merge(publicReferRoutes, '/api');
 
   // Account pending events (subscription upgrade notifications)
   app.merge(accountEventsRoutes, '/api');

@@ -271,12 +271,39 @@ export async function createSponsorshipCheckout(
     const stripe = getStripe();
     const customerId = await getOrCreateStripeCustomer(sponsor);
 
+    // Annual products use recurring Stripe prices, but sponsorship is always
+    // a one-time payment (the beneficiary gets an internal override, not a
+    // Stripe subscription). For recurring prices we retrieve the price from
+    // Stripe and pass an inline price_data so we can keep mode: 'payment'.
+    const isRecurringProduct = productMeta.checkoutMode === 'subscription';
+
+    let lineItem: { price?: string; price_data?: Record<string, unknown>; quantity: number };
+    if (isRecurringProduct) {
+      const stripePrice = await stripe.prices.retrieve(priceId);
+      if (!stripePrice.unit_amount || !stripePrice.currency) {
+        elog.error('Sponsorship checkout: could not resolve price details', { priceId, product });
+        return { ok: false, reason: 'billing_config' };
+      }
+      lineItem = {
+        price_data: {
+          currency: stripePrice.currency,
+          product: typeof stripePrice.product === 'string'
+            ? stripePrice.product
+            : stripePrice.product.id,
+          unit_amount: stripePrice.unit_amount,
+        },
+        quantity: 1,
+      };
+    } else {
+      lineItem = { price: priceId, quantity: 1 };
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       customer: customerId,
       client_reference_id: userId,
-      line_items: [{ price: priceId, quantity: 1 }],
-      allow_promotion_codes: true,
+      line_items: [lineItem],
+      ...(isRecurringProduct ? {} : { allow_promotion_codes: true }),
       success_url: config.stripe.successUrl,
       cancel_url: config.stripe.cancelUrl,
       metadata: {

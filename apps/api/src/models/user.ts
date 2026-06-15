@@ -69,6 +69,9 @@ export interface UserDocument extends BaseDocument {
   /** Denormalised count of sponsorships received (for future directory display). */
   sponsorshipCount?: number;
 
+  /** Referrer account id when this user redeemed someone else's referral code. */
+  referredBy?: ObjectId;
+
   /** Pending account-scoped events surfaced to the client (e.g. subscription upgrades). */
   pendingAccountEvents?: PendingAccountEvent[];
 

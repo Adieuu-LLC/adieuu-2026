@@ -43,6 +43,8 @@ const EXEMPT_PREFIXES: readonly string[] = [
   '/api/webhooks',
   '/api/account/subscription',
   '/api/account/promo-code',
+  '/api/account/referral',
+  '/api/refer',
   '/api/account/events',
   '/api/sponsorship',
   '/api/v1/releases',

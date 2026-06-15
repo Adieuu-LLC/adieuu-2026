@@ -212,7 +212,8 @@ export function AccountSubscription() {
   }, [identityMode, authStatus, refreshSession, loadStatus]);
 
   useEffect(() => {
-    if (activeTab !== 'manage') return;
+    if (activeTab !== 'manage' && activeTab !== 'lifetime') return;
+    if (catalogPrices) return;
     let cancelled = false;
     setCatalogPricesLoading(true);
     void (async () => {
@@ -234,7 +235,7 @@ export function AccountSubscription() {
       cancelled = true;
       setCatalogPricesLoading(false);
     };
-  }, [activeTab, api]);
+  }, [activeTab, api, catalogPrices]);
 
   useEffect(() => {
     if (activeTab !== 'billing' || identityMode) return;
@@ -473,6 +474,8 @@ export function AccountSubscription() {
             identityMode={identityMode}
             actionLoading={actionLoading}
             onCheckout={handleCheckout}
+            catalogPrices={catalogPrices}
+            catalogPricesLoading={catalogPricesLoading}
           />
         </TabContent>
 

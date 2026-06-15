@@ -60,8 +60,8 @@ export const sponsorship = {
       revealLabel: 'Reveal your identity to them?',
       revealHint:
         'If enabled, the recipient will see your first name and last initial after checkout.',
-      revealFirstNameLabel: 'Your first name',
-      revealLastInitialLabel: 'Your last initial',
+      revealFirstNameLabel: 'First name',
+      revealLastInitialLabel: 'Last initial',
       annualNote: 'This grants 12 months of access (no recurring billing for the recipient).',
       lifetimeNote: 'This grants permanent lifetime access.',
       checkoutButton: 'Continue to payment',

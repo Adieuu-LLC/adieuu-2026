@@ -55,6 +55,7 @@
   display: flex;
   gap: var(--spacing-md);
   flex-wrap: wrap;
+  align-items: flex-end;
 }
 
 .sponsorship-form-label {
@@ -67,8 +68,8 @@
   flex: 1;
 
   &--short {
-    flex: 0 0 80px;
-    max-width: 80px;
+    flex: 0 0 100px;
+    max-width: 100px;
   }
 }
 
@@ -485,6 +486,10 @@
   .sponsorship-form-label--short {
     flex: 1;
     max-width: none;
+  }
+
+  .sponsorship-form-row {
+    align-items: stretch;
   }
 
   .sponsorship-directory-grid {

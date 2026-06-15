@@ -27,11 +27,15 @@ export interface PlansTabProps extends SubscriptionTabProps {
   statusLabel: string | null;
   onCheckout: (product: PurchasableProductId) => void;
   onManage: () => void;
+  catalogPrices: SubscriptionCatalogPricesMap | null;
+  catalogPricesLoading: boolean;
 }
 
 export interface LifetimeTabProps extends SubscriptionTabProps {
   actionLoading: boolean;
   onCheckout: (product: PurchasableProductId) => void;
+  catalogPrices: SubscriptionCatalogPricesMap | null;
+  catalogPricesLoading: boolean;
 }
 
 export interface BillingTabProps {

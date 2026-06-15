@@ -103,6 +103,9 @@ export function AccountFlyout({ supportUnreadCount = 0 }: { supportUnreadCount?:
       <Link to="/account/subscription" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/account/subscription') ? 'sidebar-flyout-item-active' : ''}`}>
         {t('account.subscription.title')}
       </Link>
+      <Link to="/account/referrals" onClick={handleNavClick} className={`sidebar-flyout-item ${location.pathname.startsWith('/account/referrals') ? 'sidebar-flyout-item-active' : ''}`}>
+        {t('account.referral.title')}
+      </Link>
       <SupportNavLink
         unreadCount={supportUnreadCount}
         isActive={location.pathname.startsWith('/support')}

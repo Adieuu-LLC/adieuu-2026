@@ -403,6 +403,10 @@ export const Collections = {
   PROMO_CODES: 'promo_codes',
   /** Promotional code redemption records */
   PROMO_REDEMPTIONS: 'promo_redemptions',
+  /** Account referral codes */
+  REFERRAL_CODES: 'referral_codes',
+  /** Referral attribution records (referred user → referrer) */
+  REFERRAL_ATTRIBUTIONS: 'referral_attributions',
 } as const;
 
 /**
@@ -736,6 +740,17 @@ export async function createIndexes(): Promise<void> {
   const promoRedemptions = database.collection(Collections.PROMO_REDEMPTIONS);
   await promoRedemptions.createIndex({ userId: 1, shortcode: 1 }, { unique: true });
   await promoRedemptions.createIndex({ shortcode: 1, redeemedAt: -1 });
+
+  const referralCodes = database.collection(Collections.REFERRAL_CODES);
+  await referralCodes.createIndex({ code: 1 }, { unique: true });
+  await referralCodes.createIndex({ userId: 1, isDeleted: 1 });
+  await referralCodes.createIndex({ previousVersions: 1 });
+
+  const referralAttributions = database.collection(Collections.REFERRAL_ATTRIBUTIONS);
+  await referralAttributions.createIndex({ referredUserId: 1 }, { unique: true });
+  await referralAttributions.createIndex({ referrerId: 1, creditGranted: 1 });
+  await referralAttributions.createIndex({ referredUserId: 1, creditGranted: 1 });
+  await referralAttributions.createIndex({ referralCodeId: 1 });
 
   const supportTickets = database.collection(Collections.SUPPORT_TICKETS);
   await supportTickets.createIndex({ ticketId: 1 }, { unique: true });

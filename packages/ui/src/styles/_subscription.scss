@@ -945,6 +945,27 @@
   }
 }
 
+.subscription-lifetime-cta {
+  text-align: center;
+  margin: var(--spacing-lg) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.subscription-lifetime-cta-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-accent-primary);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-accent-secondary);
+  }
+}
+
 .subscription-promo-card {
   margin-top: var(--spacing-lg);
 }
