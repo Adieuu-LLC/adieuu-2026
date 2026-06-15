@@ -60,7 +60,7 @@ export function ChangePassphrasePanel({ api }: ChangePassphrasePanelProps) {
     }
 
     const signedToken = session?.signedToken;
-    if (!signedToken || !identity) {
+    if (!signedToken) {
       setError(t('identity.privacy.changePassword.errorSession'));
       return;
     }
@@ -68,7 +68,15 @@ export function ChangePassphrasePanel({ api }: ChangePassphrasePanelProps) {
     setStep('processing');
 
     try {
-      const bundleResp = await api.identity.getKeyBundle(identity.id);
+      let bundleResp;
+      if (identity) {
+        bundleResp = await api.identity.getKeyBundle(identity.id);
+      } else {
+        bundleResp = await api.identity.bundleByPassphrase({
+          signedToken,
+          passphrase: currentPassphrase,
+        });
+      }
       if (!bundleResp.success || !bundleResp.data) {
         throw new Error('Failed to fetch key bundle');
       }
@@ -99,14 +107,16 @@ export function ChangePassphrasePanel({ api }: ChangePassphrasePanelProps) {
         return;
       }
 
-      const oldWrappingKey = getWrappingKey();
-      if (oldWrappingKey) {
-        try {
-          const wrappingSalt = await getOrCreateWrappingSalt(identity.id);
-          const newWrappingKey = await deriveEntropyWrappingKey(newPassphrase, wrappingSalt);
-          await reWrapDeviceKeys(identity.id, oldWrappingKey, newWrappingKey);
-        } catch (err) {
-          console.warn('[ChangePassphrase] Failed to re-wrap local device keys:', err);
+      if (identity) {
+        const oldWrappingKey = getWrappingKey();
+        if (oldWrappingKey) {
+          try {
+            const wrappingSalt = await getOrCreateWrappingSalt(identity.id);
+            const newWrappingKey = await deriveEntropyWrappingKey(newPassphrase, wrappingSalt);
+            await reWrapDeviceKeys(identity.id, oldWrappingKey, newWrappingKey);
+          } catch (err) {
+            console.warn('[ChangePassphrase] Failed to re-wrap local device keys:', err);
+          }
         }
       }
 

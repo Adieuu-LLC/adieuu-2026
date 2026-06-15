@@ -4,6 +4,7 @@ import {
   generateE2EKeys,
   generateDeviceKeys,
   decryptKeyBundle,
+  encryptKeyBundle,
   getDefaultDeviceName,
   E2EKeyError,
   type E2EInitInput,
@@ -552,6 +553,145 @@ describe('services/e2eKeyService', () => {
       await expect(decryptKeyBundle(bundle, passphrase)).rejects.toMatchObject({
         code: 'INVALID_KEY_SIZE',
       });
+    });
+  });
+
+  describe('encryptKeyBundle (passphrase change flow)', () => {
+    const originalPassphrase = 'original-passphrase-secure';
+    const newPassphrase = 'new-passphrase-also-secure';
+
+    test('re-encrypted bundle decrypts with new passphrase', async () => {
+      const input: E2EInitInput = {
+        identityId: 'test-reencrypt',
+        passphrase: originalPassphrase,
+        deviceName: 'Test',
+      };
+
+      const generated = await generateE2EKeys(input);
+      const decrypted = await decryptKeyBundle(generated.encryptedBundle, originalPassphrase);
+      const reEncrypted = await encryptKeyBundle(decrypted, newPassphrase);
+      const decryptedAgain = await decryptKeyBundle(reEncrypted, newPassphrase);
+
+      expect(constantTimeEqual(decryptedAgain.signingPrivateKey, generated.signingPrivateKey)).toBe(true);
+    });
+
+    test('re-encrypted bundle does NOT decrypt with old passphrase', async () => {
+      const input: E2EInitInput = {
+        identityId: 'test-reencrypt-fail',
+        passphrase: originalPassphrase,
+        deviceName: 'Test',
+      };
+
+      const generated = await generateE2EKeys(input);
+      const decrypted = await decryptKeyBundle(generated.encryptedBundle, originalPassphrase);
+      const reEncrypted = await encryptKeyBundle(decrypted, newPassphrase);
+
+      await expect(
+        decryptKeyBundle(reEncrypted, originalPassphrase)
+      ).rejects.toThrow(E2EKeyError);
+    });
+
+    test('v2 web device keys survive re-encryption round-trip', async () => {
+      const input: E2EInitInput = {
+        identityId: 'test-reencrypt-v2',
+        passphrase: originalPassphrase,
+        deviceName: 'Test',
+      };
+
+      const generated = await generateE2EKeys(input);
+      const decrypted = await decryptKeyBundle(generated.encryptedBundle, originalPassphrase);
+
+      expect(decrypted.webDevice).toBeDefined();
+
+      const reEncrypted = await encryptKeyBundle(decrypted, newPassphrase);
+      const decryptedAgain = await decryptKeyBundle(reEncrypted, newPassphrase);
+
+      expect(decryptedAgain.webDevice).toBeDefined();
+      expect(decryptedAgain.webDevice!.deviceId).toBe(decrypted.webDevice!.deviceId);
+      expect(constantTimeEqual(
+        decryptedAgain.webDevice!.ecdhPrivateKey,
+        decrypted.webDevice!.ecdhPrivateKey
+      )).toBe(true);
+      expect(constantTimeEqual(
+        decryptedAgain.webDevice!.kemPrivateKey,
+        decrypted.webDevice!.kemPrivateKey
+      )).toBe(true);
+    });
+
+    test('multiple sequential passphrase changes preserve data', async () => {
+      const input: E2EInitInput = {
+        identityId: 'test-multi-change',
+        passphrase: 'passphrase-one-initial',
+        deviceName: 'Test',
+      };
+
+      const generated = await generateE2EKeys(input);
+      const originalKey = new Uint8Array(generated.signingPrivateKey);
+
+      let currentBundle = generated.encryptedBundle;
+      let currentPass = input.passphrase;
+      const passphrases = [
+        'passphrase-two-changed',
+        'passphrase-three-changed',
+        'passphrase-four-final',
+      ];
+
+      for (const nextPass of passphrases) {
+        const decrypted = await decryptKeyBundle(currentBundle, currentPass);
+        const reEncrypted = await encryptKeyBundle(decrypted, nextPass);
+        currentBundle = reEncrypted;
+        currentPass = nextPass;
+      }
+
+      const finalDecrypted = await decryptKeyBundle(currentBundle, currentPass);
+      expect(constantTimeEqual(finalDecrypted.signingPrivateKey, originalKey)).toBe(true);
+    });
+
+    test('re-encrypted bundle has fresh salt and nonce', async () => {
+      const input: E2EInitInput = {
+        identityId: 'test-fresh-salt',
+        passphrase: originalPassphrase,
+        deviceName: 'Test',
+      };
+
+      const generated = await generateE2EKeys(input);
+      const decrypted = await decryptKeyBundle(generated.encryptedBundle, originalPassphrase);
+      const reEncrypted = await encryptKeyBundle(decrypted, newPassphrase);
+
+      expect(reEncrypted.salt).not.toBe(generated.encryptedBundle.salt);
+      expect(reEncrypted.nonce).not.toBe(generated.encryptedBundle.nonce);
+    });
+
+    test('v1 bundle re-encryption preserves signing key', async () => {
+      const passphrase = 'v1-reencrypt-test-pass';
+      const signingKey = randomBytes(32);
+      const salt = randomBytes(16);
+
+      const derivedKey = await deriveKeyFromPassword({
+        password: passphrase,
+        salt,
+        memoryCost: ARGON2_DEFAULTS.memoryCost,
+        timeCost: ARGON2_DEFAULTS.timeCost,
+        parallelism: ARGON2_DEFAULTS.parallelism,
+        outputLength: 32,
+      });
+
+      const { ciphertext, nonce } = encryptChaCha20Poly1305(derivedKey, signingKey);
+
+      const v1Bundle = {
+        encryptedBundle: toBase64(ciphertext),
+        salt: toBase64(salt),
+        nonce: toBase64(nonce),
+      };
+
+      const decrypted = await decryptKeyBundle(v1Bundle, passphrase);
+      expect(decrypted.webDevice).toBeUndefined();
+
+      const reEncrypted = await encryptKeyBundle(decrypted, newPassphrase);
+      const decryptedAgain = await decryptKeyBundle(reEncrypted, newPassphrase);
+
+      expect(constantTimeEqual(decryptedAgain.signingPrivateKey, signingKey)).toBe(true);
+      expect(decryptedAgain.webDevice).toBeUndefined();
     });
   });
 

@@ -45,7 +45,7 @@ export interface IdentityState {
 export interface UnlockIdentityResult {
   success: boolean;
   error?: string;
-  errorCode?: 'INVALID_PASSPHRASE' | 'NO_SESSION';
+  errorCode?: 'INVALID_PASSPHRASE' | 'NO_SESSION' | 'DEVICE_REGISTRATION_FAILED';
 }
 
 export interface CreateIdentityResult {

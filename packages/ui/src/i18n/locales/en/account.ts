@@ -328,7 +328,7 @@ export const account = {
       // Tabs
       tabs: {
         authentication: 'Authentication',
-        passphrase: 'Change Password',
+        passphrase: 'Alias Password',
         sessions: 'Sessions',
       },
       // Authentication tab
