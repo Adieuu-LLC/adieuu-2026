@@ -136,4 +136,12 @@ export const feedback = {
       'I agree to the <tosLink>Terms of Service</tosLink> and <ideaTermsLink>Idea Submission Terms</ideaTermsLink>.',
     submit: 'Submit feedback',
   },
+  notifications: {
+    notifyPostReplies: 'Notify me of replies to my posts',
+    notifyCommentReplies: 'Notify me of responses to my comments',
+    notifyOfficialPosts: 'Notify me when new official feedback requests are posted',
+    postReply: 'New reply on your feedback post',
+    commentReply: 'New reply to your comment',
+    replyBody: '{{username}} replied on "{{title}}"',
+  },
 } as const;

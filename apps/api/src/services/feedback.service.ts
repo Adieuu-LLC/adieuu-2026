@@ -13,6 +13,7 @@ import {
   MAX_FEEDBACK_TITLE_LENGTH,
   buildFeedbackLinkCommentBody,
   buildFeedbackReciprocalLinkCommentBody,
+  excerptFeedbackComment,
   isFeedbackLinkType,
   type FeedbackCategory,
   type FeedbackLinkType,
@@ -31,6 +32,10 @@ import { getIdentityRepository } from '../repositories/identity.repository';
 import { getPlatformCapabilities } from './platform-capabilities.service';
 import { checkRateLimit, type RateLimitConfig } from './rate-limit.service';
 import { sanitizeString } from '../utils/sanitize';
+import { createNotification } from './notification.service';
+import { getFeedbackNotificationPrefsRepository } from '../repositories/feedback-notification-prefs.repository';
+import { FEEDBACK_NOTIFICATION_PREFS_DEFAULTS } from '../models/feedback-notification-prefs';
+import elog from '../utils/adieuuLogger';
 
 const FEEDBACK_CREATE_RATE_LIMIT: RateLimitConfig = {
   limit: MAX_FEEDBACK_POSTS_PER_DAY,
@@ -510,7 +515,72 @@ export async function addFeedbackComment(
     await postRepo.incrementComments(resolvedLinkedPostId);
   }
 
+  void emitFeedbackCommentNotifications(
+    post,
+    comment,
+    identity,
+    resolvedParentCommentId ?? undefined,
+  );
+
   return { success: true, data: comment };
+}
+
+/**
+ * Fire-and-forget: notify post author of replies and parent comment author of replies.
+ * At most 2 notifications per comment (O(1)), both preference lookups run concurrently.
+ */
+async function emitFeedbackCommentNotifications(
+  post: FeedbackPostDocument,
+  comment: FeedbackCommentDocument,
+  commenter: IdentityDocument,
+  parentCommentId?: string,
+): Promise<void> {
+  try {
+    const prefsRepo = getFeedbackNotificationPrefsRepository();
+    const commenterId = commenter._id.toHexString();
+    const postAuthorId = post.identityId.toHexString();
+    const commenterUsername = commenter.username ?? 'someone';
+
+    const postAuthorNotify = postAuthorId !== commenterId
+      ? (async () => {
+          const prefs = await prefsRepo.findByIdentityId(post.identityId);
+          const shouldNotify = prefs?.notifyPostReplies ?? FEEDBACK_NOTIFICATION_PREFS_DEFAULTS.notifyPostReplies;
+          if (shouldNotify) {
+            await createNotification(post.identityId, 'feedback_post_reply', {
+              postId: post.postId,
+              postTitle: post.title,
+              commenterUsername,
+            });
+          }
+        })()
+      : Promise.resolve();
+
+    const parentAuthorNotify = parentCommentId
+      ? (async () => {
+          const commentRepo = getFeedbackCommentRepository();
+          const parent = await commentRepo.findByCommentId(parentCommentId);
+          if (!parent) return;
+
+          const parentAuthorId = parent.identityId.toHexString();
+          if (parentAuthorId === commenterId || parentAuthorId === postAuthorId) return;
+
+          const prefs = await prefsRepo.findByIdentityId(parent.identityId);
+          const shouldNotify = prefs?.notifyCommentReplies ?? FEEDBACK_NOTIFICATION_PREFS_DEFAULTS.notifyCommentReplies;
+          if (shouldNotify) {
+            await createNotification(parent.identityId, 'feedback_comment_reply', {
+              postId: post.postId,
+              postTitle: post.title,
+              parentCommentExcerpt: excerptFeedbackComment(parent.body),
+              commenterUsername,
+            });
+          }
+        })()
+      : Promise.resolve();
+
+    await Promise.all([postAuthorNotify, parentAuthorNotify]);
+  } catch (err) {
+    elog.warn('Failed to emit feedback comment notifications', { error: err });
+  }
 }
 
 export async function updateFeedbackStatus(

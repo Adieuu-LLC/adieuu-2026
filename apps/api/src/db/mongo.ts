@@ -413,6 +413,8 @@ export const Collections = {
   FEEDBACK_VOTES: 'feedback_votes',
   /** Comments on feedback posts */
   FEEDBACK_COMMENTS: 'feedback_comments',
+  /** Per-identity feedback notification preferences */
+  FEEDBACK_NOTIFICATION_PREFS: 'feedback_notification_prefs',
 } as const;
 
 /**
@@ -796,12 +798,17 @@ export async function createIndexes(): Promise<void> {
     { default_language: 'english' },
   );
 
+  await feedbackPosts.createIndex({ isOfficial: 1, createdAt: -1 });
+
   const feedbackVotes = database.collection(Collections.FEEDBACK_VOTES);
   await feedbackVotes.createIndex({ postId: 1, identityId: 1 }, { unique: true });
   await feedbackVotes.createIndex({ identityId: 1 });
 
   const feedbackComments = database.collection(Collections.FEEDBACK_COMMENTS);
   await feedbackComments.createIndex({ postId: 1, createdAt: 1 });
+
+  const feedbackNotifPrefs = database.collection(Collections.FEEDBACK_NOTIFICATION_PREFS);
+  await feedbackNotifPrefs.createIndex({ identityId: 1 }, { unique: true });
 
   elog.debug('MongoDB indexes created/verified');
 }

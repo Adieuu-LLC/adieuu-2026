@@ -28,8 +28,11 @@ import {
 import type { FeedbackPostDocument } from '../../models/feedback-post';
 import type { FeedbackCommentDocument } from '../../models/feedback-comment';
 import type { IdentityContext } from '../../middleware/identity-session';
+import { FEEDBACK_NOTIFICATION_PREFS_DEFAULTS } from '../../models/feedback-notification-prefs';
 import { getFeedbackCommentRepository } from '../../repositories/feedback-comment.repository';
 import { getFeedbackPostRepository } from '../../repositories/feedback-post.repository';
+import { getFeedbackNotificationPrefsRepository } from '../../repositories/feedback-notification-prefs.repository';
+import { getNotificationRepository } from '../../repositories/notification.repository';
 import {
   addFeedbackComment,
   buildAttachmentList,
@@ -506,5 +509,117 @@ export async function updateStatusResult(
     return mapServiceError(result.errorCode, result.error);
   }
 
+  return { ok: true, data: undefined };
+}
+
+// ============================================================================
+// Notification preferences
+// ============================================================================
+
+const UpdateNotificationPrefsSchema = z.object({
+  notifyPostReplies: z.boolean().optional(),
+  notifyCommentReplies: z.boolean().optional(),
+  notifyOfficialPosts: z.boolean().optional(),
+});
+
+export async function getNotificationPrefsResult(
+  ctx: IdentityContext,
+): Promise<FeedbackResult<{
+  notifyPostReplies: boolean;
+  notifyCommentReplies: boolean;
+  notifyOfficialPosts: boolean;
+}>> {
+  const prefsRepo = getFeedbackNotificationPrefsRepository();
+  const doc = await prefsRepo.findByIdentityId(ctx.identity._id);
+
+  return {
+    ok: true,
+    data: {
+      notifyPostReplies: doc?.notifyPostReplies ?? FEEDBACK_NOTIFICATION_PREFS_DEFAULTS.notifyPostReplies,
+      notifyCommentReplies: doc?.notifyCommentReplies ?? FEEDBACK_NOTIFICATION_PREFS_DEFAULTS.notifyCommentReplies,
+      notifyOfficialPosts: doc?.notifyOfficialPosts ?? FEEDBACK_NOTIFICATION_PREFS_DEFAULTS.notifyOfficialPosts,
+    },
+  };
+}
+
+export async function updateNotificationPrefsResult(
+  ctx: IdentityContext,
+  body: unknown,
+): Promise<FeedbackResult<{
+  notifyPostReplies: boolean;
+  notifyCommentReplies: boolean;
+  notifyOfficialPosts: boolean;
+}>> {
+  const parsed = UpdateNotificationPrefsSchema.safeParse(body);
+  if (!parsed.success) {
+    return { ok: false, kind: 'validation_failed' };
+  }
+
+  if (
+    parsed.data.notifyPostReplies === undefined &&
+    parsed.data.notifyCommentReplies === undefined &&
+    parsed.data.notifyOfficialPosts === undefined
+  ) {
+    return { ok: false, kind: 'bad_request', message: 'No fields to update' };
+  }
+
+  const prefsRepo = getFeedbackNotificationPrefsRepository();
+  const doc = await prefsRepo.upsert(ctx.identity._id, parsed.data);
+
+  return {
+    ok: true,
+    data: {
+      notifyPostReplies: doc.notifyPostReplies,
+      notifyCommentReplies: doc.notifyCommentReplies,
+      notifyOfficialPosts: doc.notifyOfficialPosts,
+    },
+  };
+}
+
+// ============================================================================
+// Unread summary
+// ============================================================================
+
+export async function getUnreadSummaryResult(
+  ctx: IdentityContext,
+): Promise<FeedbackResult<{
+  postReplies: number;
+  commentReplies: number;
+  officialPosts: number;
+}>> {
+  const prefsRepo = getFeedbackNotificationPrefsRepository();
+  const notifRepo = getNotificationRepository();
+  const postRepo = getFeedbackPostRepository();
+
+  const prefs = await prefsRepo.findByIdentityId(ctx.identity._id);
+
+  const notifyPostReplies = prefs?.notifyPostReplies ?? FEEDBACK_NOTIFICATION_PREFS_DEFAULTS.notifyPostReplies;
+  const notifyCommentReplies = prefs?.notifyCommentReplies ?? FEEDBACK_NOTIFICATION_PREFS_DEFAULTS.notifyCommentReplies;
+  const notifyOfficialPosts = prefs?.notifyOfficialPosts ?? FEEDBACK_NOTIFICATION_PREFS_DEFAULTS.notifyOfficialPosts;
+
+  const [byType, officialPosts] = await Promise.all([
+    (notifyPostReplies || notifyCommentReplies)
+      ? notifRepo.countUnreadByType(ctx.identity._id)
+      : Promise.resolve({} as Record<string, number>),
+    notifyOfficialPosts
+      ? postRepo.countOfficialSince(prefs?.lastOfficialPostSeenAt ?? null)
+      : Promise.resolve(0),
+  ]);
+
+  return {
+    ok: true,
+    data: {
+      postReplies: notifyPostReplies ? (byType['feedback_post_reply'] ?? 0) : 0,
+      commentReplies: notifyCommentReplies ? (byType['feedback_comment_reply'] ?? 0) : 0,
+      officialPosts,
+    },
+  };
+}
+
+export async function markOfficialSeenResult(
+  ctx: IdentityContext,
+): Promise<FeedbackResult<void>> {
+  const prefsRepo = getFeedbackNotificationPrefsRepository();
+  await prefsRepo.setLastOfficialPostSeenAt(ctx.identity._id, new Date());
   return { ok: true, data: undefined };
 }

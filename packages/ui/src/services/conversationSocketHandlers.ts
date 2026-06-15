@@ -4,6 +4,7 @@ import type {
   PublicIdentity,
 } from '@adieuu/shared';
 import { emitAchievementUnlocked } from './achievementEvents';
+import { emitFeedbackUnreadChanged } from './feedbackEvents';
 import {
   emitSupportTicketUpdated,
   emitSupportUnreadChanged,
@@ -737,6 +738,43 @@ export function handleConversationSocketMessage(
           : title;
         ctx.fireNotification(title, body, {
           onClick: () => ctx.navigate(ticketData.ticketId ? `/support/${ticketData.ticketId}` : '/support'),
+        });
+        break;
+      }
+
+      if (
+        notification.type === 'feedback_post_reply' ||
+        notification.type === 'feedback_comment_reply'
+      ) {
+        emitFeedbackUnreadChanged();
+        const feedbackData = notification.data as {
+          postId?: string;
+          postTitle?: string;
+          commenterUsername?: string;
+        };
+
+        const feedbackTitle =
+          notification.type === 'feedback_post_reply'
+            ? ctx.t('feedback.notifications.postReply', {
+                defaultValue: 'New reply on your feedback post',
+              })
+            : ctx.t('feedback.notifications.commentReply', {
+                defaultValue: 'New reply to your comment',
+              });
+
+        const feedbackBody = feedbackData.postTitle
+          ? ctx.t('feedback.notifications.replyBody', {
+              title: feedbackData.postTitle,
+              username: feedbackData.commenterUsername ?? 'Someone',
+              defaultValue: `${feedbackData.commenterUsername ?? 'Someone'} replied on "${feedbackData.postTitle}"`,
+            })
+          : feedbackTitle;
+
+        ctx.fireNotification(feedbackTitle, feedbackBody, {
+          onClick: () =>
+            ctx.navigate(
+              feedbackData.postId ? `/feedback/${feedbackData.postId}` : '/feedback',
+            ),
         });
         break;
       }

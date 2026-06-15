@@ -115,3 +115,21 @@ export interface UpdateFeedbackStatusParams {
 export interface CreateFeedbackPostResponse {
   postId: string;
 }
+
+export interface FeedbackNotificationPrefs {
+  notifyPostReplies: boolean;
+  notifyCommentReplies: boolean;
+  notifyOfficialPosts: boolean;
+}
+
+export interface UpdateFeedbackNotificationPrefsParams {
+  notifyPostReplies?: boolean;
+  notifyCommentReplies?: boolean;
+  notifyOfficialPosts?: boolean;
+}
+
+export interface FeedbackUnreadSummary {
+  postReplies: number;
+  commentReplies: number;
+  officialPosts: number;
+}

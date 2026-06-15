@@ -97,6 +97,18 @@ const FEEDBACK_RECIPROCAL_LINK_BODY_PHRASES: Record<FeedbackLinkType, string> = 
   complementary: 'would go well with this post',
 };
 
+export const FEEDBACK_NOTIFICATION_TYPES = [
+  'feedback_post_reply',
+  'feedback_comment_reply',
+  'feedback_official_posted',
+] as const;
+
+export type FeedbackNotificationType = (typeof FEEDBACK_NOTIFICATION_TYPES)[number];
+
+export function isFeedbackNotificationType(value: string): value is FeedbackNotificationType {
+  return (FEEDBACK_NOTIFICATION_TYPES as readonly string[]).includes(value);
+}
+
 export function buildFeedbackReciprocalLinkCommentBody(
   linkType: FeedbackLinkType,
   sourcePostTitle: string,

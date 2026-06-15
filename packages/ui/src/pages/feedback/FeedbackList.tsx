@@ -12,7 +12,7 @@ import {
   type FeedbackStatus,
   type PublicFeedbackPost,
 } from '@adieuu/shared';
-import { Select, Portal, createListCollection } from '@ark-ui/react';
+import { Select, Switch, Portal, createListCollection } from '@ark-ui/react';
 import { useAppConfig } from '../../config';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
@@ -21,6 +21,7 @@ import { Icon } from '../../icons/Icon';
 import { FeedbackAuthorLink } from '../../components/FeedbackAuthorLink';
 import { FeedbackStatusFilter } from '../../components/FeedbackStatusFilter';
 import { useFeedbackParticipation } from '../../hooks/useFeedbackParticipation';
+import { useFeedbackNotificationPrefs } from '../../hooks/useFeedbackNotificationPrefs';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useToast } from '../../components/Toast';
 
@@ -41,8 +42,10 @@ export function FeedbackList() {
   const { apiBaseUrl } = useAppConfig();
   const { requireIdentitySession } = useFeedbackParticipation();
   const { status: identityStatus, identity } = useIdentity();
+  const isLoggedIn = identityStatus === 'logged_in';
+  const notifPrefs = useFeedbackNotificationPrefs(isLoggedIn);
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
-  const currentIdentityId = identityStatus === 'logged_in' ? identity?.id ?? null : null;
+  const currentIdentityId = isLoggedIn ? identity?.id ?? null : null;
 
   const [items, setItems] = useState<PublicFeedbackPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -208,6 +211,52 @@ export function FeedbackList() {
             </Button>
           </div>
         </div>
+
+        {isLoggedIn && (
+          <Card variant="elevated" className="feedback-notification-prefs-card">
+            <div className="feedback-notification-prefs">
+              <Switch.Root
+                checked={notifPrefs.notifyPostReplies}
+                onCheckedChange={notifPrefs.togglePostReplies}
+                className="sidebar-filter-switch feedback-notif-switch"
+              >
+                <Switch.Label className="sidebar-filter-switch-label">
+                  {t('feedback.notifications.notifyPostReplies')}
+                </Switch.Label>
+                <Switch.Control className="sidebar-filter-switch-control">
+                  <Switch.Thumb className="sidebar-filter-switch-thumb" />
+                </Switch.Control>
+                <Switch.HiddenInput />
+              </Switch.Root>
+              <Switch.Root
+                checked={notifPrefs.notifyCommentReplies}
+                onCheckedChange={notifPrefs.toggleCommentReplies}
+                className="sidebar-filter-switch feedback-notif-switch"
+              >
+                <Switch.Label className="sidebar-filter-switch-label">
+                  {t('feedback.notifications.notifyCommentReplies')}
+                </Switch.Label>
+                <Switch.Control className="sidebar-filter-switch-control">
+                  <Switch.Thumb className="sidebar-filter-switch-thumb" />
+                </Switch.Control>
+                <Switch.HiddenInput />
+              </Switch.Root>
+              <Switch.Root
+                checked={notifPrefs.notifyOfficialPosts}
+                onCheckedChange={notifPrefs.toggleOfficialPosts}
+                className="sidebar-filter-switch feedback-notif-switch"
+              >
+                <Switch.Label className="sidebar-filter-switch-label">
+                  {t('feedback.notifications.notifyOfficialPosts')}
+                </Switch.Label>
+                <Switch.Control className="sidebar-filter-switch-control">
+                  <Switch.Thumb className="sidebar-filter-switch-thumb" />
+                </Switch.Control>
+                <Switch.HiddenInput />
+              </Switch.Root>
+            </div>
+          </Card>
+        )}
 
         <Card variant="elevated" className="feedback-controls-card">
           <div className="feedback-controls">

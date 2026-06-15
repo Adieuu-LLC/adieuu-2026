@@ -219,6 +219,9 @@ export type {
   FeedbackDetailResponse,
   UpdateFeedbackStatusParams,
   CreateFeedbackPostResponse,
+  FeedbackNotificationPrefs,
+  UpdateFeedbackNotificationPrefsParams,
+  FeedbackUnreadSummary,
 } from './feedback-types';
 
 export type {

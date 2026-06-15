@@ -140,6 +140,14 @@ export class FeedbackPostRepository extends BaseRepository<FeedbackPostDocument>
     return result as FeedbackPostDocument | null;
   }
 
+  async countOfficialSince(since: Date | null): Promise<number> {
+    const filter: Filter<FeedbackPostDocument> = { isOfficial: true };
+    if (since) {
+      filter.createdAt = { $gt: since };
+    }
+    return await this.count(filter);
+  }
+
   async findByPostIds(postIds: string[]): Promise<FeedbackPostDocument[]> {
     if (postIds.length === 0) return [];
     return await this.findMany({ postId: { $in: postIds } } as Filter<FeedbackPostDocument>);

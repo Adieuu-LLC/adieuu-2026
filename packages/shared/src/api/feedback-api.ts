@@ -7,7 +7,10 @@ import type {
   FeedbackDetailResponse,
   FeedbackListParams,
   FeedbackListResponse,
+  FeedbackNotificationPrefs,
+  FeedbackUnreadSummary,
   PublicFeedbackComment,
+  UpdateFeedbackNotificationPrefsParams,
   UpdateFeedbackStatusParams,
 } from './feedback-types';
 
@@ -68,5 +71,23 @@ export class FeedbackApi {
       `/api/feedback/${encodeURIComponent(postId)}/status`,
       params,
     );
+  }
+
+  async getNotificationPrefs(): Promise<ApiResponse<FeedbackNotificationPrefs>> {
+    return this.client.get('/api/feedback/notification-prefs');
+  }
+
+  async updateNotificationPrefs(
+    params: UpdateFeedbackNotificationPrefsParams,
+  ): Promise<ApiResponse<FeedbackNotificationPrefs>> {
+    return this.client.put('/api/feedback/notification-prefs', params);
+  }
+
+  async getUnreadSummary(): Promise<ApiResponse<FeedbackUnreadSummary>> {
+    return this.client.get('/api/feedback/unread-summary');
+  }
+
+  async markOfficialSeen(): Promise<ApiResponse<void>> {
+    return this.client.post('/api/feedback/official-mark-seen', {});
   }
 }
