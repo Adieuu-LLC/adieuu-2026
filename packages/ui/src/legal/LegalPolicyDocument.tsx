@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SectionNav, type NavSection } from '../components/SectionNav';
 import { Icon } from '../icons/Icon';
+import { enhanceLegalExternalLinks } from './LegalExternalLink';
 
 export interface LegalPolicySection {
   id: string;
@@ -81,7 +82,9 @@ export function LegalPolicyDocument({
           >
             {index > 0 ? <hr className="legal-policy-section-divider" /> : null}
             <h2 className="legal-policy-section-title">{section.title}</h2>
-            <div className="legal-policy-section-body">{section.content}</div>
+            <div className="legal-policy-section-body">
+              {enhanceLegalExternalLinks(section.content)}
+            </div>
           </section>
         ))}
       </div>

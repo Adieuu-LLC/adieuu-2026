@@ -18,6 +18,7 @@
  * individual mock objects to customise or inspect them.
  */
 import { mock } from 'bun:test';
+import { createElement, type ReactNode } from 'react';
 
 // ---------------------------------------------------------------------------
 // Mutable state for test inspection / configuration
@@ -27,16 +28,23 @@ import { mock } from 'bun:test';
 export const mockNavigate = mock((_to: string | number, _options?: unknown) => {});
 
 let _searchParams = new URLSearchParams();
+let _pathname = '/';
 
 /** Replace the URLSearchParams returned by useSearchParams(). */
 export function setMockSearchParams(params: URLSearchParams | string): void {
   _searchParams = typeof params === 'string' ? new URLSearchParams(params) : params;
 }
 
+/** Replace the pathname returned by useLocation(). */
+export function setMockPathname(pathname: string): void {
+  _pathname = pathname;
+}
+
 /** Reset state between tests (call from beforeEach). */
 export function resetReactRouterDomMock(): void {
   mockNavigate.mockClear();
   _searchParams = new URLSearchParams();
+  _pathname = '/';
 }
 
 // ---------------------------------------------------------------------------
@@ -51,4 +59,21 @@ mock.module('react-router-dom', () => ({
       _searchParams = next;
     },
   ],
+  useLocation: () => ({
+    pathname: _pathname,
+    search: '',
+    hash: '',
+    state: null,
+    key: 'default',
+  }),
+  Link: ({
+    to,
+    children,
+    className,
+    ...rest
+  }: {
+    to: string;
+    children?: ReactNode;
+    className?: string;
+  }) => createElement('a', { href: to, className, ...rest }, children),
 }));

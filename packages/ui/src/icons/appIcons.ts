@@ -19,6 +19,7 @@ export const APP_ICON_NAMES = {
   /** Text field “select all” (e.g. composer context menu). */
   selectAll: 'border-all',
   link: 'link',
+  externalLink: 'arrow-up-right-from-square',
   /** Upload / attach (image, video, files). */
   upload: 'arrow-up-from-bracket',
   film: 'film',

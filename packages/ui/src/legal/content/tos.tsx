@@ -16,10 +16,12 @@ const TERMS_OF_SERVICE_SECTIONS: LegalPolicySection[] = [
           Adieuu is a privacy-focused social platform that aims to make online conversation more human, accountable, and transparent without compromising on individual privacy. Please read these Terms of Service ("Terms") carefully, as they are a legally binding contract between you and us. They apply to your use of our services.
         </p>
         <p>
-          As part of these Terms, you agree to comply with the most recent versions of our Privacy Policy, Acceptable Use Policy, Paid Services Terms, and other policies (as listed <a href='/legal-policies' target='_blank' rel='noopener noreferrer'>here</a> or as otherwise made available to you), which are incorporated by reference into these Terms. If you use our services, or continue accessing or using the Services after being notified of a change to our Terms or any incorporated policies, you confirm that you have read, understand, and agree to be bound by these Terms and all incoporated policies.
+          As part of these Terms, you agree to comply with the most recent versions of our <a href='/legal-policies/privacy' target='_blank' rel='noopener noreferrer'>Privacy Policy</a>, <a href='/legal-policies/acceptable-use' target='_blank' rel='noopener noreferrer'>Acceptable Use Policy</a>, <a href='/legal-policies/paid-services' target='_blank' rel='noopener noreferrer'>Paid Services Terms</a>, and other policies (as listed <a href='/legal-policies' target='_blank' rel='noopener noreferrer'>here</a> or as otherwise made available to you), which are incorporated by reference into these Terms. If you use our services, or continue accessing or using the Services after being notified of a change to our Terms or any incorporated policies, you confirm that you have read, understand, and agree to be bound by these Terms and all incoporated policies.
         </p>
-        <p>For Developers: If you use our APIs, SDKs, or our other developer services or software, additional policies may likely apply to that use.</p>
-        <p>We've tried to make our policies as simple and clear as possible. If you have any questions or concerns, please don't hesitate to reach out to us at <a href='mailto:say@adieuu.com' rel='noopener noreferrer' target='_blank'>say@adieuu.com</a>.</p>
+        <p><strong>For Developers:</strong> If you use our APIs, SDKs, or our other developer services or software, additional policies may likely apply to that use.</p>
+        <blockquote>
+          <p>We've tried to make our policies as simple and clear as possible. If you have any questions or concerns, please don't hesitate to reach out to us at <a href='mailto:say@adieuu.com' rel='noopener noreferrer' target='_blank'>say@adieuu.com</a>.</p>
+        </blockquote>
         <p>When we say "Adieuu", "we", "us", and "our" in these terms, we mean Adieuu, LLC, its subsidiaries, and its related companies.</p>
         <p>When we say "services" in these terms, we mean Adieuu's services, apps, websites, and other products.</p>
         <p>When we say "you" or "your" in these terms, we mean you. If you're accessing our services on behalf of a legal entity, you agree that you have the authority to bind that entity to these terms, and "you" and "your" will refer to that entity.</p>
@@ -29,13 +31,11 @@ const TERMS_OF_SERVICE_SECTIONS: LegalPolicySection[] = [
     ),
   },
   {
-    id: 'description-of-service',
-    title: 'Description of Service',
+    id: 'about-adieuu-llc',
+    title: 'About Adieuu, LLC',
     content: (
       <p>
-        Adieuu provides end-to-end encrypted messaging and related communication features. This
-        section will describe the scope of the service, supported platforms, and any limitations on
-        availability or functionality.
+        Adieuu, LLC is located at 1617 Park Place Ave Suite 110-AD, Fort Worth, TX 76110, USA. You can learn more about our company, our team, and our values at <a href='https://www.adieuu.org' target='_blank' rel='noopener noreferrer'>https://www.adieuu.org</a>. We do receive mail at the listed address
       </p>
     ),
   },

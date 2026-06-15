@@ -94,15 +94,19 @@ export function ReferralPage() {
     if (!editor) return;
 
     setSaving(true);
-    const payload = {
-      code: editor.code.trim() || undefined,
-      customMessage: editor.customMessage.trim() || null,
-    };
+    const trimmedCode = editor.code.trim() || undefined;
+    const trimmedMessage = editor.customMessage.trim();
 
     const response =
       editor.mode === 'create'
-        ? await api.referral.createCode(payload)
-        : await api.referral.updateCode(editor.codeId!, payload);
+        ? await api.referral.createCode({
+            code: trimmedCode,
+            customMessage: trimmedMessage || undefined,
+          })
+        : await api.referral.updateCode(editor.codeId!, {
+            code: trimmedCode,
+            customMessage: trimmedMessage || null,
+          });
 
     setSaving(false);
 
