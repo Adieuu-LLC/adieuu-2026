@@ -281,6 +281,62 @@ describe('IdentityRepository', () => {
     });
   });
 
+  describe('changeIdent', () => {
+    test('sets ident, hashVersion, passphraseChangedAt and updatedAt', async () => {
+      mockCollection.updateOne.mockImplementation(() =>
+        Promise.resolve({ modifiedCount: 1 })
+      );
+
+      const result = await repo.changeIdent(mockIdentity._id, 'new-ident-hash', 3);
+
+      expect(result).toBe(true);
+      expect(mockCollection.updateOne).toHaveBeenCalledWith(
+        { _id: expect.any(ObjectId) },
+        {
+          $set: expect.objectContaining({
+            ident: 'new-ident-hash',
+            hashVersion: 3,
+            passphraseChangedAt: expect.any(Date),
+            updatedAt: expect.any(Date),
+          }),
+        },
+        { session: undefined }
+      );
+    });
+
+    test('stamps passphraseChangedAt and updatedAt with the same instant', async () => {
+      mockCollection.updateOne.mockImplementation(() =>
+        Promise.resolve({ modifiedCount: 1 })
+      );
+
+      await repo.changeIdent(mockIdentity._id, 'another-hash', 2);
+
+      const setArg = (mockCollection.updateOne.mock.calls[0]![1] as { $set: Record<string, Date> }).$set;
+      expect(setArg.passphraseChangedAt!.getTime()).toBe(setArg.updatedAt!.getTime());
+    });
+
+    test('passes the transaction session through to updateOne', async () => {
+      mockCollection.updateOne.mockImplementation(() =>
+        Promise.resolve({ modifiedCount: 1 })
+      );
+      const fakeSession = { id: 'txn' } as never;
+
+      await repo.changeIdent(mockIdentity._id, 'hash-x', 2, { session: fakeSession });
+
+      expect(mockCollection.updateOne.mock.calls[0]![2]).toEqual({ session: fakeSession });
+    });
+
+    test('returns false when no document was modified', async () => {
+      mockCollection.updateOne.mockImplementation(() =>
+        Promise.resolve({ modifiedCount: 0 })
+      );
+
+      const result = await repo.changeIdent(new ObjectId(), 'hash-y', 2);
+
+      expect(result).toBe(false);
+    });
+  });
+
   describe('getIdentityRepository', () => {
     test('returns singleton instance', () => {
       const repo1 = getIdentityRepository();

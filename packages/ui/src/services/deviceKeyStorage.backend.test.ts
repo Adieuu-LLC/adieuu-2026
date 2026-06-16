@@ -12,6 +12,9 @@ import {
   setDeviceKeyStorageBackend,
   migrateIndexedDbToBackend,
   getOrCreateWrappingSalt,
+  setLastIdentityUnlockAt,
+  getLastIdentityUnlockAt,
+  needsPassphraseMigration,
   DeviceKeyStorageError,
 } from './deviceKeyStorage';
 import type { SecureStorage } from '../config/types';
@@ -54,6 +57,20 @@ function createMockSecureStorage(): SecureStorage & { _store: Map<string, Uint8A
 }
 
 const generateWrappingKey = (): Uint8Array => randomBytes(32);
+
+/** Deletes a (fake-)IndexedDB database so cross-file state cannot leak in. */
+function deleteIndexedDb(name: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') {
+      resolve();
+      return;
+    }
+    const req = indexedDB.deleteDatabase(name);
+    req.onsuccess = () => resolve();
+    req.onerror = () => resolve();
+    req.onblocked = () => reject(new Error(`IndexedDB delete blocked: ${name}`));
+  });
+}
 
 describe('deviceKeyStorage with SecureStorage backend', () => {
   let mockStorage: ReturnType<typeof createMockSecureStorage>;
@@ -482,6 +499,43 @@ describe('deviceKeyStorage with SecureStorage backend', () => {
   });
 
   // ==========================================================================
+  // lastIdentityUnlockAt (desktop SecureStorage backend)
+  // ==========================================================================
+
+  describe('lastIdentityUnlockAt', () => {
+    test('returns null before anything is recorded', async () => {
+      expect(await getLastIdentityUnlockAt('id-none')).toBeNull();
+    });
+
+    test('round-trips an ISO timestamp through the backend', async () => {
+      const when = new Date('2026-05-06T07:08:09.000Z');
+      await setLastIdentityUnlockAt('id-ts', when);
+      expect(await getLastIdentityUnlockAt('id-ts')).toBe(when.toISOString());
+    });
+
+    test('PRIVACY: stores under a hashed key that does not reveal the identity', async () => {
+      const identityId = 'my-secret-identity-unlock';
+      await setLastIdentityUnlockAt(identityId);
+
+      const keys = await mockStorage.listKeys!('iunlock-');
+      expect(keys.length).toBe(1);
+      expect(keys[0]!.startsWith('iunlock-')).toBe(true);
+      expect(keys[0]!).not.toContain(identityId);
+    });
+
+    test('needsPassphraseMigration gates on the timestamp', async () => {
+      expect(await needsPassphraseMigration('id-gate', null)).toBe(false);
+      // Never unlocked locally but server changed -> needs migration.
+      expect(await needsPassphraseMigration('id-gate', '2026-01-01T00:00:00.000Z')).toBe(true);
+      // Unlocked after the change -> already migrated.
+      await setLastIdentityUnlockAt('id-gate', new Date('2026-02-01T00:00:00.000Z'));
+      expect(await needsPassphraseMigration('id-gate', '2026-01-01T00:00:00.000Z')).toBe(false);
+      // A later server change -> needs migration again.
+      expect(await needsPassphraseMigration('id-gate', '2026-03-01T00:00:00.000Z')).toBe(true);
+    });
+  });
+
+  // ==========================================================================
   // Backend isolation: switching backend does not leak state
   // ==========================================================================
 
@@ -531,7 +585,11 @@ describe('deviceKeyStorage with SecureStorage backend', () => {
 describe('migrateIndexedDbToBackend', () => {
   let mockStorage: ReturnType<typeof createMockSecureStorage>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    // The migrator's step 2 reads the global (fake-)IndexedDB device-keys store.
+    // Other test files in the same run leave records there, so clear it first to
+    // keep the single-blob migration count deterministic regardless of ordering.
+    await deleteIndexedDb('adieuu-device-keys');
     mockStorage = createMockSecureStorage();
   });
 

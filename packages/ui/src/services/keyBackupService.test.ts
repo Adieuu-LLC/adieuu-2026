@@ -5,6 +5,7 @@ import {
   parseKeyBackupHeader,
   decryptKeyBackup,
   applyKeyBackupImport,
+  backupPayloadDecryptsWith,
   getExportFilename,
   KeyBackupError,
   type KeyBackupPayload,
@@ -28,11 +29,14 @@ import {
   fromBase64,
   constantTimeEqual,
   deriveKeyFromPassword,
+  deriveEntropyWrappingKey,
+  wrapEntropy,
   hkdfSha3_256,
   KDF_INFO,
   ARGON2_HIGH_SECURITY,
   AES_GCM_NONCE_SIZE,
   encryptAES256GCM,
+  type EntropyPiece,
 } from '@adieuu/crypto';
 
 /**
@@ -938,5 +942,93 @@ describe('keyBackupService', () => {
       expect(err.message).toBe('test message');
       expect(err instanceof Error).toBe(true);
     });
+  });
+});
+
+// ============================================================================
+// backupPayloadDecryptsWith — same-salt / different-key detection
+//
+// A passphrase change keeps the wrapping salt but changes the derived key. The
+// import flow uses this probe to detect that a same-salt backup was wrapped with
+// a now-stale key and must be re-wrapped instead of imported undecryptable.
+// ============================================================================
+
+describe('backupPayloadDecryptsWith', () => {
+  let mockStorage: ReturnType<typeof createMockSecureStorage>;
+  const IDENTITY = 'probe-identity';
+  const ENTROPY: EntropyPiece[] = [{ type: 'text', value: 'shared-entropy' }];
+
+  beforeEach(() => {
+    mockStorage = createMockSecureStorage();
+    setDeviceKeyStorageBackend(mockStorage);
+  });
+
+  afterEach(async () => {
+    await clearAllDeviceKeys();
+    setDeviceKeyStorageBackend(null);
+  });
+
+  async function buildDevicePayload(wrappingKey: Uint8Array): Promise<KeyBackupPayload> {
+    await seedDeviceKeys(IDENTITY, 1, wrappingKey);
+    const devices = await getDeviceKeysForIdentity(IDENTITY);
+    return {
+      payloadVersion: 1,
+      identityId: IDENTITY,
+      wrappingSalt: toBase64(generateWrappingSalt()),
+      devices,
+    };
+  }
+
+  test('returns true when the device record decrypts with the key', async () => {
+    const key = generateWrappingKey();
+    const payload = await buildDevicePayload(key);
+    expect(await backupPayloadDecryptsWith(payload, key)).toBe(true);
+  });
+
+  test('returns false when the device record does not decrypt (wrong key)', async () => {
+    const key = generateWrappingKey();
+    const payload = await buildDevicePayload(key);
+    // Simulates a same-salt backup wrapped with a pre-passphrase-change key.
+    const otherKey = generateWrappingKey();
+    expect(await backupPayloadDecryptsWith(payload, otherKey)).toBe(false);
+  });
+
+  test('returns true when a cipher decrypts with the key', async () => {
+    const salt = generateWrappingSalt();
+    const key = await deriveEntropyWrappingKey('passphrase-old', salt);
+    const encryptedEntropy = await wrapEntropy(ENTROPY, key, salt);
+    const payload: KeyBackupPayload = {
+      payloadVersion: 1,
+      identityId: IDENTITY,
+      wrappingSalt: toBase64(salt),
+      devices: [],
+      ciphers: [
+        {
+          id: 'c1',
+          name: 'c',
+          identityId: IDENTITY,
+          encryptedEntropy,
+          cipherId: 'cid-1',
+          shortId: 'short1',
+          profile: 'default',
+          createdAt: new Date().toISOString(),
+          lastUsedAt: new Date().toISOString(),
+        },
+      ],
+    };
+    expect(await backupPayloadDecryptsWith(payload, key)).toBe(true);
+
+    const wrongKey = await deriveEntropyWrappingKey('passphrase-new', salt);
+    expect(await backupPayloadDecryptsWith(payload, wrongKey)).toBe(false);
+  });
+
+  test('returns null when payload has no wrapped material to probe', async () => {
+    const payload: KeyBackupPayload = {
+      payloadVersion: 1,
+      identityId: IDENTITY,
+      wrappingSalt: toBase64(generateWrappingSalt()),
+      devices: [],
+    };
+    expect(await backupPayloadDecryptsWith(payload, generateWrappingKey())).toBeNull();
   });
 });

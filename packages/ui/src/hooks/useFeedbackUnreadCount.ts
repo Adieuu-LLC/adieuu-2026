@@ -14,7 +14,7 @@ export function useFeedbackUnreadCount(enabled: boolean): number {
   const fetchCount = useCallback(async () => {
     if (!enabled) return;
 
-    const requestId = requestIdRef.current;
+    const requestId = ++requestIdRef.current;
     try {
       const res = await api.feedback.getUnreadSummary();
       if (requestId !== requestIdRef.current) return;

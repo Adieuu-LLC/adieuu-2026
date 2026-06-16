@@ -467,7 +467,8 @@ body.tour-account-flyout-open .sidebar-account-flyout-wrapper .sidebar-account-c
     transform var(--transition-fast);
   z-index: calc(var(--z-dropdown) + 1);
 
-  .sidebar-flyout-submenu-wrapper:hover & {
+  .sidebar-flyout-submenu-wrapper:hover &,
+  .sidebar-flyout-submenu-wrapper:focus-within & {
     opacity: 1;
     visibility: visible;
     transform: translateX(0);

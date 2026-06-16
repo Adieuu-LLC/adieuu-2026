@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { createApiClient } from '@adieuu/shared';
-import { deriveEntropyWrappingKey } from '@adieuu/crypto';
+import { clearBytes } from '@adieuu/crypto';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Spinner } from '../../components/Spinner';
@@ -10,7 +10,8 @@ import { useIdentity } from '../../hooks/useIdentity';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../components/Toast';
 import { decryptKeyBundle, encryptKeyBundle } from '../../services/e2eKeyService';
-import { getOrCreateWrappingSalt, reWrapDeviceKeys } from '../../services/deviceKeyStorage';
+import { reWrapPassphraseProtectedStores } from '../../services/passphraseLocalMigration';
+import { setLastIdentityUnlockAt } from '../../services/deviceKeyStorage';
 
 type ChangePassphraseStep = 'form' | 'processing';
 
@@ -24,7 +25,7 @@ type ChangePassphrasePanelProps = {
  */
 export function ChangePassphrasePanel({ api }: ChangePassphrasePanelProps) {
   const { t } = useTranslation();
-  const { identity, getWrappingKey } = useIdentity();
+  const { identity, getWrappingKey, updateWrappingKey } = useIdentity();
   const { session } = useAuth();
   const toast = useToast();
 
@@ -107,17 +108,56 @@ export function ChangePassphrasePanel({ api }: ChangePassphrasePanelProps) {
         return;
       }
 
-      if (identity) {
-        const oldWrappingKey = getWrappingKey();
-        if (oldWrappingKey) {
-          try {
-            const wrappingSalt = await getOrCreateWrappingSalt(identity.id);
-            const newWrappingKey = await deriveEntropyWrappingKey(newPassphrase, wrappingSalt);
-            await reWrapDeviceKeys(identity.id, oldWrappingKey, newWrappingKey);
-          } catch (err) {
-            console.warn('[ChangePassphrase] Failed to re-wrap local device keys:', err);
+      // Re-wrap all passphrase-protected local material so message history
+      // stays readable. This must run for BOTH alias mode (active identity) and
+      // account mode (identity === null). In alias mode we already hold the
+      // active wrapping key and can re-wrap deterministically; in account mode
+      // the migrator discovers the matching local identity via the current
+      // passphrase.
+      try {
+        const activeWrappingKey = identity ? getWrappingKey() : null;
+        const migration = identity && activeWrappingKey
+          ? await reWrapPassphraseProtectedStores({
+              newPassphrase,
+              identityId: identity.id,
+              oldWrappingKey: activeWrappingKey,
+            })
+          : await reWrapPassphraseProtectedStores({
+              newPassphrase,
+              currentPassphrase,
+              identityId: identity?.id,
+            });
+
+        if (migration.status === 'migrated' && migration.newWrappingKey) {
+          // Record that this device is now in sync with the new passphrase so
+          // the remote-change migration prompt does not re-fire here on a later
+          // login (it would, since passphraseChangedAt would otherwise be newer
+          // than a stale last-unlock timestamp).
+          if (migration.identityId) {
+            try {
+              await setLastIdentityUnlockAt(migration.identityId);
+            } catch (tsErr) {
+              console.warn('[ChangePassphrase] Failed to record unlock timestamp (non-fatal):', tsErr);
+            }
           }
+          if (identity && migration.identityId === identity.id) {
+            // Keep the live session working with the new wrapping key.
+            updateWrappingKey(migration.newWrappingKey);
+          } else {
+            clearBytes(migration.newWrappingKey);
+          }
+        } else if (migration.status === 'ambiguous') {
+          // Multiple local identities share this passphrase; we cannot safely
+          // pick one. The server passphrase is already changed, so surface a
+          // clear warning rather than silently risking the wrong identity.
+          console.warn('[ChangePassphrase] Ambiguous local identity match; skipped local re-wrap');
+          toast.error(t('identity.privacy.changePassword.localRewrapAmbiguous'));
+        } else if (migration.status === 'no-match') {
+          console.warn('[ChangePassphrase] No local store matched the current passphrase; skipped local re-wrap');
         }
+      } catch (err) {
+        console.error('[ChangePassphrase] Failed to re-wrap local key material:', err);
+        toast.error(t('identity.privacy.changePassword.localRewrapFailed'));
       }
 
       toast.success(t('identity.privacy.changePassword.success'));

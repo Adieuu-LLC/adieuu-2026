@@ -17,6 +17,7 @@ export function useFeedbackNotificationPrefs(enabled: boolean) {
 
   useEffect(() => {
     if (!enabled) {
+      requestIdRef.current += 1;
       setPrefs(DEFAULTS);
       return;
     }

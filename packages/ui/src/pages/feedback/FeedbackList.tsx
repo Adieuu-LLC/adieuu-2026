@@ -57,11 +57,13 @@ export function FeedbackList() {
     getFeedbackListDefaultStatuses(),
   );
   const [staffResponseFilter, setStaffResponseFilter] = useState<FeedbackStaffFilter>('all');
+  const [notifPrefsOpen, setNotifPrefsOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const limit = FEEDBACK_LIST_PAGE_SIZE;
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fetchAbortRef = useRef<AbortController | null>(null);
 
   const sortCollection = useMemo(
     () =>
@@ -127,37 +129,52 @@ export function FeedbackList() {
   }, []);
 
   const fetchPosts = useCallback(async () => {
+    fetchAbortRef.current?.abort();
+    const controller = new AbortController();
+    fetchAbortRef.current = controller;
+
     setLoading(true);
     try {
-      const res = await api.feedback.listPosts({
-        page,
-        limit,
-        sort,
-        search: debouncedSearch || undefined,
-        category: categoryFilter || undefined,
-        statuses: statusFilters,
-        hasStaffResponse:
-          staffResponseFilter === 'yes' ? true : staffResponseFilter === 'no' ? false : undefined,
-        isOfficial: staffResponseFilter === 'feedback_wanted' ? true : undefined,
-      });
+      const res = await api.feedback.listPosts(
+        {
+          page,
+          limit,
+          sort,
+          search: debouncedSearch || undefined,
+          category: categoryFilter || undefined,
+          statuses: statusFilters,
+          hasStaffResponse:
+            staffResponseFilter === 'yes' ? true : staffResponseFilter === 'no' ? false : undefined,
+          isOfficial: staffResponseFilter === 'feedback_wanted' ? true : undefined,
+        },
+        { signal: controller.signal },
+      );
+
+      if (controller.signal.aborted) return;
 
       if (res.success && res.data) {
         setItems(res.data.items);
         setTotal(res.data.total);
       }
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      console.error('[FeedbackList] fetchPosts failed', err);
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
   }, [api, page, limit, sort, debouncedSearch, categoryFilter, statusFilters, staffResponseFilter]);
 
   useEffect(() => {
     void fetchPosts();
+    return () => {
+      fetchAbortRef.current?.abort();
+    };
   }, [fetchPosts]);
 
   const handleUpvote = useCallback(
-    async (e: React.MouseEvent, post: PublicFeedbackPost) => {
-      e.preventDefault();
-      e.stopPropagation();
+    async (post: PublicFeedbackPost) => {
       if (!requireIdentitySession()) {
         toast.info(t('feedback.loginToVote'));
         return;
@@ -214,47 +231,63 @@ export function FeedbackList() {
 
         {isLoggedIn && (
           <Card variant="elevated" className="feedback-notification-prefs-card">
-            <div className="feedback-notification-prefs">
-              <Switch.Root
-                checked={notifPrefs.notifyPostReplies}
-                onCheckedChange={notifPrefs.togglePostReplies}
-                className="sidebar-filter-switch feedback-notif-switch"
-              >
-                <Switch.Label className="sidebar-filter-switch-label">
-                  {t('feedback.notifications.notifyPostReplies')}
-                </Switch.Label>
-                <Switch.Control className="sidebar-filter-switch-control">
-                  <Switch.Thumb className="sidebar-filter-switch-thumb" />
-                </Switch.Control>
-                <Switch.HiddenInput />
-              </Switch.Root>
-              <Switch.Root
-                checked={notifPrefs.notifyCommentReplies}
-                onCheckedChange={notifPrefs.toggleCommentReplies}
-                className="sidebar-filter-switch feedback-notif-switch"
-              >
-                <Switch.Label className="sidebar-filter-switch-label">
-                  {t('feedback.notifications.notifyCommentReplies')}
-                </Switch.Label>
-                <Switch.Control className="sidebar-filter-switch-control">
-                  <Switch.Thumb className="sidebar-filter-switch-thumb" />
-                </Switch.Control>
-                <Switch.HiddenInput />
-              </Switch.Root>
-              <Switch.Root
-                checked={notifPrefs.notifyOfficialPosts}
-                onCheckedChange={notifPrefs.toggleOfficialPosts}
-                className="sidebar-filter-switch feedback-notif-switch"
-              >
-                <Switch.Label className="sidebar-filter-switch-label">
-                  {t('feedback.notifications.notifyOfficialPosts')}
-                </Switch.Label>
-                <Switch.Control className="sidebar-filter-switch-control">
-                  <Switch.Thumb className="sidebar-filter-switch-thumb" />
-                </Switch.Control>
-                <Switch.HiddenInput />
-              </Switch.Root>
-            </div>
+            <button
+              type="button"
+              className="feedback-notif-prefs-toggle"
+              onClick={() => setNotifPrefsOpen((prev) => !prev)}
+              aria-expanded={notifPrefsOpen}
+            >
+              <Icon name="bell" size="sm" />
+              <span>{t('feedback.notifications.prefsTitle')}</span>
+              <Icon
+                name={notifPrefsOpen ? 'chevronUp' : 'chevronDown'}
+                size="xs"
+                className="feedback-notif-prefs-chevron"
+              />
+            </button>
+            {notifPrefsOpen && (
+              <div className="feedback-notification-prefs">
+                <Switch.Root
+                  checked={notifPrefs.notifyPostReplies}
+                  onCheckedChange={notifPrefs.togglePostReplies}
+                  className="sidebar-filter-switch feedback-notif-switch"
+                >
+                  <Switch.Label className="sidebar-filter-switch-label">
+                    {t('feedback.notifications.notifyPostReplies')}
+                  </Switch.Label>
+                  <Switch.Control className="sidebar-filter-switch-control">
+                    <Switch.Thumb className="sidebar-filter-switch-thumb" />
+                  </Switch.Control>
+                  <Switch.HiddenInput />
+                </Switch.Root>
+                <Switch.Root
+                  checked={notifPrefs.notifyCommentReplies}
+                  onCheckedChange={notifPrefs.toggleCommentReplies}
+                  className="sidebar-filter-switch feedback-notif-switch"
+                >
+                  <Switch.Label className="sidebar-filter-switch-label">
+                    {t('feedback.notifications.notifyCommentReplies')}
+                  </Switch.Label>
+                  <Switch.Control className="sidebar-filter-switch-control">
+                    <Switch.Thumb className="sidebar-filter-switch-thumb" />
+                  </Switch.Control>
+                  <Switch.HiddenInput />
+                </Switch.Root>
+                <Switch.Root
+                  checked={notifPrefs.notifyOfficialPosts}
+                  onCheckedChange={notifPrefs.toggleOfficialPosts}
+                  className="sidebar-filter-switch feedback-notif-switch"
+                >
+                  <Switch.Label className="sidebar-filter-switch-label">
+                    {t('feedback.notifications.notifyOfficialPosts')}
+                  </Switch.Label>
+                  <Switch.Control className="sidebar-filter-switch-control">
+                    <Switch.Thumb className="sidebar-filter-switch-thumb" />
+                  </Switch.Control>
+                  <Switch.HiddenInput />
+                </Switch.Root>
+              </div>
+            )}
           </Card>
         )}
 
@@ -374,40 +407,37 @@ export function FeedbackList() {
           <>
             <div className="feedback-list">
               {items.map((post) => (
-                <Link
+                <div
                   key={post.postId}
-                  to={`/feedback/${post.postId}`}
                   className={`feedback-card feedback-card--status-${post.status}${post.isOfficial ? ' feedback-card--official' : ''}`}
                 >
                   <div className="feedback-card-main">
-                    <div className="feedback-card-header">
-                      {post.isOfficial && (
-                        <span className="feedback-wanted-badge">{t('feedback.feedbackWanted')}</span>
-                      )}
-                      <span className={`feedback-category-badge feedback-category-${post.category}`}>
-                        {t(`feedback.categories.${post.category}`)}
-                      </span>
-                      {post.status !== 'submitted' && (
-                        <span className={`feedback-status-badge feedback-status-${post.status}`}>
-                          {t(`feedback.statuses.${post.status}`)}
+                    <Link to={`/feedback/${post.postId}`} className="feedback-card-link">
+                      <div className="feedback-card-header">
+                        {post.isOfficial && (
+                          <span className="feedback-wanted-badge">{t('feedback.feedbackWanted')}</span>
+                        )}
+                        <span className={`feedback-category-badge feedback-category-${post.category}`}>
+                          {t(`feedback.categories.${post.category}`)}
                         </span>
-                      )}
-                      {post.hasStaffResponse && (
-                        <span className="feedback-staff-response-badge">
-                          {t('feedback.staffResponse')}
-                        </span>
-                      )}
-                    </div>
-                    <h2 className="feedback-card-title">{post.title}</h2>
-                    <p className="feedback-card-description">
-                      {truncate(post.description, DESC_MAX_LENGTH)}
-                    </p>
+                        {post.status !== 'submitted' && (
+                          <span className={`feedback-status-badge feedback-status-${post.status}`}>
+                            {t(`feedback.statuses.${post.status}`)}
+                          </span>
+                        )}
+                        {post.hasStaffResponse && (
+                          <span className="feedback-staff-response-badge">
+                            {t('feedback.staffResponse')}
+                          </span>
+                        )}
+                      </div>
+                      <h2 className="feedback-card-title">{post.title}</h2>
+                      <p className="feedback-card-description">
+                        {truncate(post.description, DESC_MAX_LENGTH)}
+                      </p>
+                    </Link>
                     <div className="feedback-card-meta">
-                      <FeedbackAuthorLink
-                        author={post.author}
-                        layout="post-list"
-                        onClick={(event) => event.stopPropagation()}
-                      />
+                      <FeedbackAuthorLink author={post.author} layout="post-list" />
                       <span className="feedback-card-stats">
                         {t('feedback.commentCount', { count: post.commentCount })}
                       </span>
@@ -425,14 +455,14 @@ export function FeedbackList() {
                     <button
                       type="button"
                       className={`feedback-upvote-btn feedback-upvote-btn--list ${post.hasUpvoted ? 'feedback-upvote-btn--active' : ''}`}
-                      onClick={(e) => void handleUpvote(e, post)}
+                      onClick={() => void handleUpvote(post)}
                       aria-label={t('feedback.upvoteButton')}
                     >
                       <Icon name="plus" />
                       <span className="feedback-upvote-count">{post.upvoteCount}</span>
                     </button>
                   )}
-                </Link>
+                </div>
               ))}
             </div>
 

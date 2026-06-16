@@ -96,6 +96,7 @@ export const feedback = {
     related: 'seems related to this post',
     complementary: 'would go well with this post',
   },
+  linkCommentReciprocalSuggested: ' suggested ',
   linkCommentBodySuffix: 'suggested this post {{linkDescription}}',
   categories: {
     feature: 'New feature',
@@ -137,6 +138,7 @@ export const feedback = {
     submit: 'Submit feedback',
   },
   notifications: {
+    prefsTitle: 'Notification preferences',
     notifyPostReplies: 'Notify me of replies to my posts',
     notifyCommentReplies: 'Notify me of responses to my comments',
     notifyOfficialPosts: 'Notify me when new official feedback requests are posted',

@@ -1,15 +1,16 @@
 import { Link, useLocation } from 'react-router-dom';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getFooterLegalLinks, getLegalPolicyPath } from '../legal/policies';
 
 function isConversationRoute(pathname: string): boolean {
-  return pathname === '/conversations/new' || pathname.startsWith('/conversations/');
+  return pathname === '/conversations' || pathname.startsWith('/conversations/');
 }
 
 export function SiteFooter() {
   const { t } = useTranslation();
   const { pathname } = useLocation();
-  const year = new Date().getFullYear();
+  const year = useMemo(() => new Date().getFullYear(), []);
   const footerLinks = getFooterLegalLinks();
 
   if (isConversationRoute(pathname)) {

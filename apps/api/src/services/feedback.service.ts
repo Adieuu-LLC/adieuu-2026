@@ -35,6 +35,7 @@ import { sanitizeString } from '../utils/sanitize';
 import { createNotification } from './notification.service';
 import { getFeedbackNotificationPrefsRepository } from '../repositories/feedback-notification-prefs.repository';
 import { FEEDBACK_NOTIFICATION_PREFS_DEFAULTS } from '../models/feedback-notification-prefs';
+import { withTransaction } from '../db';
 import elog from '../utils/adieuuLogger';
 
 const FEEDBACK_CREATE_RATE_LIMIT: RateLimitConfig = {
@@ -376,8 +377,10 @@ export async function upvoteFeedbackPost(
     return { success: false, error: 'Already upvoted', errorCode: 'ALREADY_UPVOTED' };
   }
 
-  await voteRepo.createVote({ postId, identityId: new ObjectId(identityId) });
-  await postRepo.incrementUpvotes(postId, 1);
+  await withTransaction(async (session) => {
+    await voteRepo.createVote({ postId, identityId: new ObjectId(identityId) }, { session });
+    await postRepo.incrementUpvotes(postId, 1, { session });
+  });
 
   const updated = await postRepo.findByPostId(postId);
   return {
@@ -400,12 +403,24 @@ export async function removeFeedbackUpvote(
   }
 
   const voteRepo = getFeedbackVoteRepository();
-  const deleted = await voteRepo.deleteByPostAndIdentity(postId, new ObjectId(identityId));
-  if (!deleted) {
-    return { success: false, error: 'Not upvoted', errorCode: 'NOT_UPVOTED' };
+  try {
+    await withTransaction(async (session) => {
+      const deleted = await voteRepo.deleteByPostAndIdentity(
+        postId,
+        new ObjectId(identityId),
+        { session },
+      );
+      if (!deleted) {
+        throw new Error('NOT_UPVOTED');
+      }
+      await postRepo.incrementUpvotes(postId, -1, { session });
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'NOT_UPVOTED') {
+      return { success: false, error: 'Not upvoted', errorCode: 'NOT_UPVOTED' };
+    }
+    throw error;
   }
-
-  await postRepo.incrementUpvotes(postId, -1);
 
   const updated = await postRepo.findByPostId(postId);
   return {
@@ -484,36 +499,46 @@ export async function addFeedbackComment(
     resolvedParentCommentId = parentCommentId;
   }
 
-  const comment = await commentRepo.createComment({
-    postId,
-    identityId: identity._id,
-    body: commentBody,
-    responseLabel,
-    parentCommentId: resolvedParentCommentId,
-    linkedPostId: resolvedLinkedPostId,
-    linkType: resolvedLinkType,
-    linkDirection: isLinkComment ? 'outbound' : null,
+  const comment = await withTransaction(async (session) => {
+    const created = await commentRepo.createComment(
+      {
+        postId,
+        identityId: identity._id,
+        body: commentBody,
+        responseLabel,
+        parentCommentId: resolvedParentCommentId,
+        linkedPostId: resolvedLinkedPostId,
+        linkType: resolvedLinkType,
+        linkDirection: isLinkComment ? 'outbound' : null,
+      },
+      { session },
+    );
+
+    await postRepo.incrementComments(postId, { session });
+    if (responseLabel !== null) {
+      await postRepo.setHasStaffResponse(postId, { session });
+    }
+
+    if (isLinkComment && resolvedLinkedPostId && resolvedLinkType) {
+      const reciprocalBody = buildFeedbackReciprocalLinkCommentBody(resolvedLinkType, post.title);
+      await commentRepo.createComment(
+        {
+          postId: resolvedLinkedPostId,
+          identityId: identity._id,
+          body: reciprocalBody,
+          responseLabel: null,
+          parentCommentId: null,
+          linkedPostId: postId,
+          linkType: resolvedLinkType,
+          linkDirection: 'inbound',
+        },
+        { session },
+      );
+      await postRepo.incrementComments(resolvedLinkedPostId, { session });
+    }
+
+    return created;
   });
-
-  await postRepo.incrementComments(postId);
-  if (responseLabel !== null) {
-    await postRepo.setHasStaffResponse(postId);
-  }
-
-  if (isLinkComment && resolvedLinkedPostId && resolvedLinkType) {
-    const reciprocalBody = buildFeedbackReciprocalLinkCommentBody(resolvedLinkType, post.title);
-    await commentRepo.createComment({
-      postId: resolvedLinkedPostId,
-      identityId: identity._id,
-      body: reciprocalBody,
-      responseLabel: null,
-      parentCommentId: null,
-      linkedPostId: postId,
-      linkType: resolvedLinkType,
-      linkDirection: 'inbound',
-    });
-    await postRepo.incrementComments(resolvedLinkedPostId);
-  }
 
   void emitFeedbackCommentNotifications(
     post,

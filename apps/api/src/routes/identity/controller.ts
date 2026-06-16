@@ -1075,6 +1075,7 @@ const ChangePassphraseSchema = z.object({
  */
 export async function changePassphraseCtrl(ctx: RouteContext): Promise<Response> {
   const callerIdentityId = ctx.identitySession?.identity._id.toHexString();
+  const callerSessionId = ctx.identitySession?.sessionId;
 
   if (!ctx.identitySession) {
     const accountSession = await requireAccountSession(ctx.request);
@@ -1106,6 +1107,7 @@ export async function changePassphraseCtrl(ctx: RouteContext): Promise<Response>
     newPassphrase,
     { encryptedBundle: newEncryptedBundle, salt: newBundleSalt, nonce: newBundleNonce },
     callerIdentityId,
+    callerSessionId,
   );
 
   if (!result.success) {

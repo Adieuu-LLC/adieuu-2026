@@ -254,7 +254,12 @@ mock.module('../../services/identity.service', () => ({
 // Import after mocking
 import { identityRoutes } from './index';
 
-identityRoutes.use(testIdentityEnrichment(mockIdentityId));
+// Stamp a known passphrase-change time on the enriched session identity so we
+// can assert it surfaces (as an ISO string) through GET /identity/session.
+const SESSION_PASSPHRASE_CHANGED_AT = new Date('2026-04-05T06:07:08.000Z');
+identityRoutes.use(
+  testIdentityEnrichment(mockIdentityId, { passphraseChangedAt: SESSION_PASSPHRASE_CHANGED_AT }),
+);
 
 describe('identity routes', () => {
   afterAll(() => {
@@ -400,6 +405,18 @@ describe('identity routes', () => {
 
       const setCookie = response.headers.get('Set-Cookie');
       expect(setCookie).toBeNull();
+    });
+
+    test('exposes passphraseChangedAt as an ISO string for the authenticated identity', async () => {
+      const response = await makeRequest('/identity/session', {
+        method: 'GET',
+        cookies: 'adieuu_session=test-identity-session',
+      });
+
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as { success: boolean; data: { passphraseChangedAt?: string | null } };
+      expect(body.success).toBe(true);
+      expect(body.data.passphraseChangedAt).toBe(SESSION_PASSPHRASE_CHANGED_AT.toISOString());
     });
   });
 
@@ -894,6 +911,34 @@ describe('identity routes', () => {
       const calls = mockChangePassphrase.mock.calls;
       const lastCall = calls[calls.length - 1] as unknown[];
       expect(lastCall[4]).toBe(mockIdentityId.toHexString());
+    });
+
+    test('passes caller sessionId in identity mode (for selective revocation)', async () => {
+      mockChangePassphrase.mockImplementation(() => Promise.resolve({ success: true }));
+
+      await makeRequest('/identity/change-passphrase', {
+        method: 'POST',
+        body: validBody,
+        cookies: 'adieuu_session=session',
+      });
+
+      const calls = mockChangePassphrase.mock.calls;
+      const lastCall = calls[calls.length - 1] as unknown[];
+      expect(lastCall[5]).toBe('test-session');
+    });
+
+    test('passes undefined caller sessionId in account mode', async () => {
+      mockChangePassphrase.mockImplementation(() => Promise.resolve({ success: true }));
+
+      await makeRequest('/identity/change-passphrase', {
+        method: 'POST',
+        body: validBody,
+        cookies: 'adieuu_session=test-account-session',
+      });
+
+      const calls = mockChangePassphrase.mock.calls;
+      const lastCall = calls[calls.length - 1] as unknown[];
+      expect(lastCall[5]).toBeUndefined();
     });
   });
 

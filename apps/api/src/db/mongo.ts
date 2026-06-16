@@ -806,6 +806,7 @@ export async function createIndexes(): Promise<void> {
 
   const feedbackComments = database.collection(Collections.FEEDBACK_COMMENTS);
   await feedbackComments.createIndex({ postId: 1, createdAt: 1 });
+  await feedbackComments.createIndex({ linkedPostId: 1 });
 
   const feedbackNotifPrefs = database.collection(Collections.FEEDBACK_NOTIFICATION_PREFS);
   await feedbackNotifPrefs.createIndex({ identityId: 1 }, { unique: true });

@@ -76,12 +76,20 @@ export interface CreateFeedbackPostParams {
   isOfficial?: boolean;
 }
 
-export interface CreateFeedbackCommentParams {
-  body?: string;
+export type CreateFeedbackTextCommentParams = {
+  body: string;
   parentCommentId?: string;
-  linkedPostId?: string;
-  linkType?: FeedbackLinkType;
-}
+};
+
+export type CreateFeedbackLinkCommentParams = {
+  linkedPostId: string;
+  linkType: FeedbackLinkType;
+  parentCommentId?: string;
+};
+
+export type CreateFeedbackCommentParams =
+  | CreateFeedbackTextCommentParams
+  | CreateFeedbackLinkCommentParams;
 
 export interface FeedbackListParams {
   page?: number;

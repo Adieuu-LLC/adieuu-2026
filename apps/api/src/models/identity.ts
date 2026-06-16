@@ -134,6 +134,13 @@ export interface IdentityDocument extends BaseDocument {
   /** Last time this identity was active */
   lastActiveAt: Date;
 
+  /**
+   * When the alias passphrase was last changed. Used by clients to detect a
+   * remote passphrase change on other devices and prompt for local key
+   * re-wrapping. Omitted on legacy rows / identities that never changed it.
+   */
+  passphraseChangedAt?: Date | null;
+
   /** Preferred crypto profile for E2E encryption */
   preferredCryptoProfile?: CryptoProfile;
 
@@ -249,6 +256,12 @@ export interface PublicIdentity {
   deviceCount?: number;
   /** Whether adding this identity to a group requires their explicit approval */
   requireGroupApproval?: boolean;
+  /**
+   * ISO timestamp of the last alias passphrase change (null if never changed).
+   * Clients compare this against their local last-unlock time to decide whether
+   * locally-stored keys need re-wrapping after a remote passphrase change.
+   */
+  passphraseChangedAt?: string | null;
 }
 
 /**
@@ -296,6 +309,7 @@ export function toPublicIdentity(doc: IdentityDocument): PublicIdentity {
     hasE2EKeys: !!doc.signingPublicKey,
     deviceCount: doc.devices?.length ?? 0,
     requireGroupApproval: doc.requireGroupApproval ?? false,
+    passphraseChangedAt: doc.passphraseChangedAt ? doc.passphraseChangedAt.toISOString() : null,
   };
 }
 

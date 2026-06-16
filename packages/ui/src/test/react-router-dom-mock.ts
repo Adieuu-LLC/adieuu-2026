@@ -47,6 +47,22 @@ export function resetReactRouterDomMock(): void {
   _pathname = '/';
 }
 
+type LinkTo =
+  | string
+  | {
+      pathname?: string;
+      search?: string;
+      hash?: string;
+    };
+
+function linkToHref(to: LinkTo): string {
+  if (typeof to === 'string') return to;
+  const pathname = to.pathname ?? '';
+  const search = to.search ?? '';
+  const hash = to.hash ?? '';
+  return `${pathname}${search}${hash}`;
+}
+
 // ---------------------------------------------------------------------------
 // Register the mock — called exactly once when this module is first imported
 // ---------------------------------------------------------------------------
@@ -72,8 +88,8 @@ mock.module('react-router-dom', () => ({
     className,
     ...rest
   }: {
-    to: string;
+    to: LinkTo;
     children?: ReactNode;
     className?: string;
-  }) => createElement('a', { href: to, className, ...rest }, children),
+  }) => createElement('a', { href: linkToHref(to), className, ...rest }, children),
 }));

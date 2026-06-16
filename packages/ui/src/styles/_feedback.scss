@@ -170,6 +170,13 @@ $feedback-status-colors: (
   }
 }
 
+.feedback-card-link {
+  display: block;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+}
+
 .feedback-card-main {
   flex: 1;
   min-width: 0;
@@ -452,7 +459,7 @@ $feedback-status-colors: (
 .feedback-detail-body {
   line-height: 1.6;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .feedback-attachment-grid {
@@ -771,7 +778,7 @@ $feedback-status-colors: (
   margin: 0;
   line-height: 1.5;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 
   &--link {
     display: flex;
@@ -828,7 +835,7 @@ $feedback-status-colors: (
   line-height: 1.45;
   color: var(--color-text-secondary);
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .feedback-comment-reply-btn {
@@ -933,11 +940,37 @@ $feedback-status-colors: (
   margin-bottom: var(--spacing-md);
 }
 
+.feedback-notif-prefs-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: var(--font-weight-medium);
+  text-align: left;
+
+  &:hover {
+    color: var(--color-text);
+  }
+}
+
+.feedback-notif-prefs-chevron {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 .feedback-notification-prefs {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
-  padding: var(--spacing-sm) 0;
+  padding-top: var(--spacing-md);
 }
 
 .feedback-notif-switch {

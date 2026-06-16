@@ -2,6 +2,8 @@ import type { ComponentType } from 'react';
 import { TermsOfServiceContent } from './content/tos';
 import { PrivacyPolicyContent } from './content/privacy';
 import { IdeaSubmissionTermsContent } from './content/idea-submission-terms';
+import { AcceptableUsePolicyContent } from './content/acceptable-use';
+import { PaidServicesTermsContent } from './content/paid-services';
 
 export interface LegalPolicyContentProps {
   highContrast?: boolean;
@@ -37,6 +39,20 @@ export const LEGAL_POLICIES: LegalPolicyDefinition[] = [
     description: 'Terms governing feature requests and feedback submissions.',
     showInFooter: false,
     Content: IdeaSubmissionTermsContent,
+  },
+  {
+    slug: 'acceptable-use',
+    title: 'Acceptable Use Policy',
+    description: 'Rules for acceptable conduct on Adieuu.',
+    showInFooter: false,
+    Content: AcceptableUsePolicyContent,
+  },
+  {
+    slug: 'paid-services',
+    title: 'Paid Services Terms',
+    description: 'Terms for subscriptions and other paid features.',
+    showInFooter: false,
+    Content: PaidServicesTermsContent,
   },
 ];
 

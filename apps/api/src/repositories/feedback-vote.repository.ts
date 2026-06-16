@@ -2,7 +2,7 @@
  * Feedback vote repository.
  */
 
-import { ObjectId, type Filter } from 'mongodb';
+import { ObjectId, type ClientSession, type Filter } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
 import type { CreateFeedbackVoteInput, FeedbackVoteDocument } from '../models/feedback-vote';
@@ -27,15 +27,25 @@ export class FeedbackVoteRepository extends BaseRepository<FeedbackVoteDocument>
     return vote !== null;
   }
 
-  async createVote(input: CreateFeedbackVoteInput): Promise<FeedbackVoteDocument> {
-    return await super.create(input);
+  async createVote(
+    input: CreateFeedbackVoteInput,
+    options?: { session?: ClientSession },
+  ): Promise<FeedbackVoteDocument> {
+    return await super.create(input, options);
   }
 
-  async deleteByPostAndIdentity(postId: string, identityId: ObjectId): Promise<boolean> {
-    const result = await this.collection.deleteOne({
-      postId,
-      identityId,
-    } as Filter<FeedbackVoteDocument>);
+  async deleteByPostAndIdentity(
+    postId: string,
+    identityId: ObjectId,
+    options?: { session?: ClientSession },
+  ): Promise<boolean> {
+    const result = await this.collection.deleteOne(
+      {
+        postId,
+        identityId,
+      } as Filter<FeedbackVoteDocument>,
+      { session: options?.session },
+    );
     return result.deletedCount === 1;
   }
 

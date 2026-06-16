@@ -76,6 +76,7 @@ const mockSessionRepo = {
   getSession: mock(() => Promise.resolve(null)) as AnyMock,
   revoke: mock(() => Promise.resolve()) as AnyMock,
   revokeAllForIdentity: mock(() => Promise.resolve(0)) as AnyMock,
+  revokeAllForIdentityExcept: mock(() => Promise.resolve(0)) as AnyMock,
   updateLastActivity: mock(() => Promise.resolve()) as AnyMock,
 };
 
@@ -910,6 +911,91 @@ describe('identity.service', () => {
       if (!result.success) {
         expect(result.errorCode).toBe('COLLISION');
       }
+    });
+
+    test('alias mode revokes other sessions but keeps the caller session', async () => {
+      const identity = makeMockIdentity();
+      mockIdentityRepo.findActiveByIdent.mockImplementation(() => Promise.resolve(identity));
+      mockIdentityRepo.findByIdent.mockImplementation(() => Promise.resolve(null));
+      mockKeyBundleRepo.findByBundleId.mockImplementation(() =>
+        Promise.resolve({ bundleId: 'old-bundle' }),
+      );
+      mockSessionRepo.revokeAllForIdentityExcept.mockReset();
+      mockSessionRepo.revokeAllForIdentityExcept.mockImplementation(() => Promise.resolve(2));
+      mockDestroyAllIdentitySessions.mockReset();
+      mockDestroyAllIdentitySessions.mockImplementation(() => Promise.resolve(0));
+
+      const result = await changePassphrase(
+        testAccountHash,
+        currentPassphrase,
+        newPassphrase,
+        newBundle,
+        identity._id.toHexString(),
+        'caller-session-id',
+      );
+
+      expect(result.success).toBe(true);
+      expect(mockSessionRepo.revokeAllForIdentityExcept).toHaveBeenCalledTimes(1);
+      const call = mockSessionRepo.revokeAllForIdentityExcept.mock.calls[0] as unknown[];
+      expect(String(call[0])).toBe(identity._id.toHexString());
+      expect(call[1]).toBe('caller-session-id');
+      // Must NOT also revoke-all in alias mode.
+      expect(mockDestroyAllIdentitySessions).not.toHaveBeenCalled();
+    });
+
+    test('account mode revokes all identity sessions', async () => {
+      const identity = makeMockIdentity();
+      mockIdentityRepo.findActiveByIdent.mockImplementation(() => Promise.resolve(identity));
+      mockIdentityRepo.findByIdent.mockImplementation(() => Promise.resolve(null));
+      mockKeyBundleRepo.findByBundleId.mockImplementation(() =>
+        Promise.resolve({ bundleId: 'old-bundle' }),
+      );
+      mockSessionRepo.revokeAllForIdentityExcept.mockReset();
+      mockSessionRepo.revokeAllForIdentityExcept.mockImplementation(() => Promise.resolve(0));
+      mockDestroyAllIdentitySessions.mockReset();
+      mockDestroyAllIdentitySessions.mockImplementation(() => Promise.resolve(3));
+
+      const result = await changePassphrase(
+        testAccountHash,
+        currentPassphrase,
+        newPassphrase,
+        newBundle,
+        undefined,
+        undefined,
+      );
+
+      expect(result.success).toBe(true);
+      expect(mockDestroyAllIdentitySessions).toHaveBeenCalledTimes(1);
+      const destroyCall = mockDestroyAllIdentitySessions.mock.calls[0] as unknown[];
+      expect(String(destroyCall[0])).toBe(identity._id.toHexString());
+      expect(mockSessionRepo.revokeAllForIdentityExcept).not.toHaveBeenCalled();
+    });
+
+    test('revocation failure does not fail the committed password change', async () => {
+      const identity = makeMockIdentity();
+      mockIdentityRepo.findActiveByIdent.mockImplementation(() => Promise.resolve(identity));
+      mockIdentityRepo.findByIdent.mockImplementation(() => Promise.resolve(null));
+      mockKeyBundleRepo.findByBundleId.mockImplementation(() =>
+        Promise.resolve({ bundleId: 'old-bundle' }),
+      );
+      mockSessionRepo.revokeAllForIdentityExcept.mockReset();
+      mockSessionRepo.revokeAllForIdentityExcept.mockImplementation(() =>
+        Promise.reject(new Error('redis down')),
+      );
+
+      const result = await changePassphrase(
+        testAccountHash,
+        currentPassphrase,
+        newPassphrase,
+        newBundle,
+        identity._id.toHexString(),
+        'caller-session-id',
+      );
+
+      // Password change already committed; revocation failure is logged, not thrown.
+      expect(result.success).toBe(true);
+      expect(mockIdentityRepo.changeIdent).toHaveBeenCalled();
+      expect(mockKeyBundleRepo.migrateBundleId).toHaveBeenCalled();
     });
   });
 

@@ -258,6 +258,108 @@ export async function getOrCreateWrappingSalt(identityId: string): Promise<Uint8
 }
 
 // ============================================================================
+// Per-identity unlock timestamp (lastIdentityUnlockAt)
+//
+// Records the last time an identity was successfully unlocked / re-wrapped on
+// this device. Compared against the server's `passphraseChangedAt` to decide
+// whether a remote passphrase change requires re-wrapping local keys.
+//
+// PRIVACY: the storage key is the SAME opaque SHA-256 hash used for device-key
+// filenames so that disk/IndexedDB inspection cannot enumerate which identities
+// exist on the device. The stored value is a plaintext ISO timestamp (not
+// secret); only the key must be non-identifying.
+// ============================================================================
+
+const UNLOCK_META_KEY_PREFIX = 'iunlock-';
+const UNLOCK_META_IDB_NAME = 'adieuu-identity-meta';
+const UNLOCK_META_IDB_VERSION = 1;
+const UNLOCK_META_IDB_STORE = 'unlock';
+
+async function unlockMetaKeyId(identityId: string): Promise<string> {
+  const data = new TextEncoder().encode(identityId);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return `${UNLOCK_META_KEY_PREFIX}${toHex(new Uint8Array(hash)).slice(0, 32)}`;
+}
+
+function openUnlockMetaDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') {
+      reject(new DeviceKeyStorageError('IndexedDB is not available', 'INDEXEDDB_UNAVAILABLE'));
+      return;
+    }
+    const request = indexedDB.open(UNLOCK_META_IDB_NAME, UNLOCK_META_IDB_VERSION);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      if (!db.objectStoreNames.contains(UNLOCK_META_IDB_STORE)) {
+        db.createObjectStore(UNLOCK_META_IDB_STORE, { keyPath: 'keyId' });
+      }
+    };
+  });
+}
+
+/**
+ * Records that the identity was successfully unlocked / re-wrapped now (or at
+ * the given time). Stored under an opaque hashed key for enumeration
+ * resistance. Failures are swallowed: this is best-effort metadata.
+ */
+export async function setLastIdentityUnlockAt(identityId: string, when: Date = new Date()): Promise<void> {
+  const iso = when.toISOString();
+  const keyId = await unlockMetaKeyId(identityId);
+
+  if (getDkBackend()) {
+    await getDkBackend()!.setKey(keyId, new TextEncoder().encode(iso));
+    return;
+  }
+
+  const db = await openUnlockMetaDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(UNLOCK_META_IDB_STORE, 'readwrite');
+    const request = tx.objectStore(UNLOCK_META_IDB_STORE).put({ keyId, lastUnlockAt: iso });
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve();
+    tx.oncomplete = () => db.close();
+  });
+}
+
+/**
+ * Returns the ISO timestamp of the last successful unlock/re-wrap for an
+ * identity on this device, or null if never recorded.
+ */
+export async function getLastIdentityUnlockAt(identityId: string): Promise<string | null> {
+  const keyId = await unlockMetaKeyId(identityId);
+
+  if (getDkBackend()) {
+    const raw = await getDkBackend()!.getKey(keyId);
+    return raw ? new TextDecoder().decode(raw) : null;
+  }
+
+  const db = await openUnlockMetaDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(UNLOCK_META_IDB_STORE, 'readonly');
+    const request = tx.objectStore(UNLOCK_META_IDB_STORE).get(keyId);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve((request.result?.lastUnlockAt as string | undefined) ?? null);
+    tx.oncomplete = () => db.close();
+  });
+}
+
+/**
+ * Whether a remote passphrase change requires re-wrapping local keys: true when
+ * the server's passphraseChangedAt is newer than this device's last unlock.
+ */
+export async function needsPassphraseMigration(
+  identityId: string,
+  passphraseChangedAt: string | null | undefined,
+): Promise<boolean> {
+  if (!passphraseChangedAt) return false;
+  const lastUnlock = await getLastIdentityUnlockAt(identityId);
+  if (!lastUnlock) return true;
+  return new Date(passphraseChangedAt).getTime() > new Date(lastUnlock).getTime();
+}
+
+// ============================================================================
 // IndexedDB Helpers (Web)
 // ============================================================================
 
@@ -578,6 +680,44 @@ export async function decryptDeviceKeys(
   };
 }
 
+type EncryptedField = { ciphertext: string; nonce: string };
+
+type ReWrapFieldResult =
+  | { status: 'rewrapped'; field: EncryptedField }
+  | { status: 'already'; field: EncryptedField }
+  | { status: 'failed'; field: EncryptedField };
+
+/**
+ * Re-wraps a single encrypted field from the old wrapping key to the new one.
+ *
+ * Idempotent and tolerant: if the field cannot be decrypted with the old key
+ * but CAN be decrypted with the new key, it is treated as already migrated and
+ * left untouched. If it decrypts with neither key, it is reported as failed and
+ * left untouched (so a partially-corrupt store never blocks the rest).
+ */
+async function reWrapEncryptedField(
+  field: EncryptedField,
+  oldWrappingKey: Uint8Array,
+  newWrappingKey: Uint8Array,
+): Promise<ReWrapFieldResult> {
+  try {
+    const plain = await decryptWithWrappingKey(field, oldWrappingKey);
+    const reEncrypted = await encryptWithWrappingKey(plain, newWrappingKey);
+    clearBytes(plain);
+    return { status: 'rewrapped', field: reEncrypted };
+  } catch {
+    // Old key failed — check whether it is already wrapped with the new key.
+  }
+
+  try {
+    const plain = await decryptWithWrappingKey(field, newWrappingKey);
+    clearBytes(plain);
+    return { status: 'already', field };
+  } catch {
+    return { status: 'failed', field };
+  }
+}
+
 /**
  * Re-wraps all device keys for an identity with a new wrapping key.
  *
@@ -585,7 +725,11 @@ export async function decryptDeviceKeys(
  * with the new one. Used during passphrase change (the wrapping key is
  * derived from the passphrase).
  *
- * @returns Number of device keys re-wrapped
+ * Idempotent: records already wrapped with the new key are skipped, so the
+ * operation can be safely retried after a partial failure. Records that
+ * decrypt with neither key are left untouched and logged.
+ *
+ * @returns Number of device key records newly re-wrapped (old -> new)
  */
 export async function reWrapDeviceKeys(
   identityId: string,
@@ -596,27 +740,29 @@ export async function reWrapDeviceKeys(
   if (storedKeys.length === 0) return 0;
 
   let reWrapped = 0;
+  let changed = false;
 
   for (const stored of storedKeys) {
-    const ecdhPlain = await decryptWithWrappingKey(stored.ecdhPrivateKeyEncrypted, oldWrappingKey);
-    let kemPlain: Uint8Array;
-    try {
-      kemPlain = await decryptWithWrappingKey(stored.kemPrivateKeyEncrypted, oldWrappingKey);
-    } catch (err) {
-      clearBytes(ecdhPlain);
-      throw err;
+    const ecdh = await reWrapEncryptedField(stored.ecdhPrivateKeyEncrypted, oldWrappingKey, newWrappingKey);
+    const kem = await reWrapEncryptedField(stored.kemPrivateKeyEncrypted, oldWrappingKey, newWrappingKey);
+
+    if (ecdh.status === 'failed' || kem.status === 'failed') {
+      console.warn(
+        '[DeviceKeyStorage] Skipping device key that decrypts with neither old nor new key for device',
+        stored.deviceId.slice(0, 8)
+      );
+      continue;
     }
 
-    const ecdhEncrypted = await encryptWithWrappingKey(ecdhPlain, newWrappingKey);
-    const kemEncrypted = await encryptWithWrappingKey(kemPlain, newWrappingKey);
-
-    clearBytes(ecdhPlain);
-    clearBytes(kemPlain);
-
-    stored.ecdhPrivateKeyEncrypted = ecdhEncrypted;
-    stored.kemPrivateKeyEncrypted = kemEncrypted;
-    reWrapped++;
+    if (ecdh.status === 'rewrapped' || kem.status === 'rewrapped') {
+      stored.ecdhPrivateKeyEncrypted = ecdh.field;
+      stored.kemPrivateKeyEncrypted = kem.field;
+      reWrapped++;
+      changed = true;
+    }
   }
+
+  if (!changed) return 0;
 
   // Persist back
   if (getDkBackend()) {
@@ -635,6 +781,78 @@ export async function reWrapDeviceKeys(
   }
 
   return reWrapped;
+}
+
+/**
+ * Returns true if any of the identity's stored device keys can be decrypted
+ * with the given wrapping key. Returns null when no device keys are stored for
+ * the identity (so callers can fall back to other key categories).
+ *
+ * Used by passphrase-change local identity discovery to probe which local
+ * identity a candidate wrapping key belongs to.
+ */
+export async function deviceKeysDecryptWith(
+  identityId: string,
+  wrappingKey: Uint8Array,
+): Promise<boolean | null> {
+  const stored = await getDeviceKeysForIdentity(identityId);
+  if (stored.length === 0) return null;
+
+  for (const record of stored) {
+    try {
+      const plain = await decryptWithWrappingKey(record.ecdhPrivateKeyEncrypted, wrappingKey);
+      clearBytes(plain);
+      return true;
+    } catch {
+      // try next record
+    }
+  }
+  return false;
+}
+
+/**
+ * Enumerates the identity IDs that have device keys stored locally.
+ *
+ * The identity ID is read from the (plaintext) record metadata, never the
+ * private key material. On desktop the per-identity blob filenames are hashed,
+ * so the IDs are recovered from the blob contents instead.
+ */
+export async function getAllDeviceKeyIdentityIds(): Promise<string[]> {
+  const ids = new Set<string>();
+
+  if (getDkBackend()) {
+    const allKeyIds = await getAllIdentityKeyIds();
+    for (const keyId of allKeyIds) {
+      const raw = await getDkBackend()!.getKey(keyId);
+      if (!raw) continue;
+      try {
+        const keys = JSON.parse(new TextDecoder().decode(raw)) as StoredDeviceKeys[];
+        for (const k of keys) {
+          if (k.identityId) ids.add(k.identityId);
+        }
+      } catch {
+        // skip corrupt blob
+      }
+    }
+    return [...ids];
+  }
+
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const objectStore = tx.objectStore(STORE_NAME);
+    const request = objectStore.getAll();
+    request.onerror = () => {
+      reject(new DeviceKeyStorageError('Failed to enumerate device keys', 'RETRIEVAL_FAILED'));
+    };
+    request.onsuccess = () => {
+      for (const k of request.result as StoredDeviceKeys[]) {
+        if (k.identityId) ids.add(k.identityId);
+      }
+      resolve([...ids]);
+    };
+    tx.oncomplete = () => db.close();
+  });
 }
 
 /**

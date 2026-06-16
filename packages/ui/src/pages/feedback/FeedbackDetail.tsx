@@ -65,7 +65,7 @@ function LinkCommentBody({
         {isReciprocal ? (
           <>
             <FeedbackAuthorLink author={comment.author} layout="inline" />
-            {' suggested '}
+            {t('feedback.linkCommentReciprocalSuggested')}
             <Link to={`/feedback/${comment.linkedPostId}`} className="feedback-comment-link">
               {comment.linkedPostTitle}
             </Link>{' '}
@@ -88,6 +88,11 @@ function LinkCommentBody({
 
 export function FeedbackDetail() {
   const { postId } = useParams<{ postId: string }>();
+
+  useEffect(() => {
+    document.querySelector('.app-content')?.scrollTo(0, 0);
+  }, [postId]);
+
   const { t } = useTranslation();
   const toast = useToast();
   const { apiBaseUrl } = useAppConfig();
@@ -178,16 +183,22 @@ export function FeedbackDetail() {
     if (!postId) return;
     setLoading(true);
     setError(null);
-    const res = await api.feedback.getPost(postId);
-    if (res.success && res.data) {
-      setPost(res.data.post);
-      setComments(res.data.comments ?? []);
-      setRelatedPosts(res.data.relatedPosts ?? []);
-      setCanManageStatus(res.data.canManageStatus ?? false);
-    } else {
+    try {
+      const res = await api.feedback.getPost(postId);
+      if (res.success && res.data) {
+        setPost(res.data.post);
+        setComments(res.data.comments ?? []);
+        setRelatedPosts(res.data.relatedPosts ?? []);
+        setCanManageStatus(res.data.canManageStatus ?? false);
+      } else {
+        setError(t('feedback.notFound'));
+      }
+    } catch (err) {
+      console.error('[FeedbackDetail] load failed', err);
       setError(t('feedback.notFound'));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [api, postId, t]);
 
   useEffect(() => {
@@ -230,19 +241,25 @@ export function FeedbackDetail() {
 
     setSubmitting(true);
     setCommentError(null);
-    const res = await api.feedback.addComment(postId, { body: comment.trim() });
-    setSubmitting(false);
+    try {
+      const res = await api.feedback.addComment(postId, { body: comment.trim() });
 
-    if (res.success && res.data) {
-      setComment('');
-      setComments((prev) => [...prev, res.data!]);
-      setPost((prev) =>
-        prev ? { ...prev, commentCount: prev.commentCount + 1 } : prev,
-      );
-      return;
+      if (res.success && res.data) {
+        setComment('');
+        setComments((prev) => [...prev, res.data!]);
+        setPost((prev) =>
+          prev ? { ...prev, commentCount: prev.commentCount + 1 } : prev,
+        );
+        return;
+      }
+
+      setCommentError(t('feedback.commentError'));
+    } catch (err) {
+      console.error('[FeedbackDetail] addComment failed', err);
+      setCommentError(t('feedback.commentError'));
+    } finally {
+      setSubmitting(false);
     }
-
-    setCommentError(t('feedback.commentError'));
   };
 
   const handleReply = async (e: React.FormEvent, parentComment: PublicFeedbackComment) => {
@@ -255,37 +272,49 @@ export function FeedbackDetail() {
 
     setReplySubmitting(true);
     setReplyError(null);
-    const res = await api.feedback.addComment(postId, {
-      body: replyBody.trim(),
-      parentCommentId: parentComment.id,
-    });
-    setReplySubmitting(false);
+    try {
+      const res = await api.feedback.addComment(postId, {
+        body: replyBody.trim(),
+        parentCommentId: parentComment.id,
+      });
 
-    if (res.success && res.data) {
-      setReplyBody('');
-      setReplyingToId(null);
-      setComments((prev) => [...prev, res.data!]);
-      setPost((prev) =>
-        prev ? { ...prev, commentCount: prev.commentCount + 1 } : prev,
-      );
-      return;
+      if (res.success && res.data) {
+        setReplyBody('');
+        setReplyingToId(null);
+        setComments((prev) => [...prev, res.data!]);
+        setPost((prev) =>
+          prev ? { ...prev, commentCount: prev.commentCount + 1 } : prev,
+        );
+        return;
+      }
+
+      setReplyError(t('feedback.commentError'));
+    } catch (err) {
+      console.error('[FeedbackDetail] addReply failed', err);
+      setReplyError(t('feedback.commentError'));
+    } finally {
+      setReplySubmitting(false);
     }
-
-    setReplyError(t('feedback.commentError'));
   };
 
   const handleStatusChange = async (newStatus: FeedbackStatus) => {
     if (!postId || !post) return;
     setStatusUpdating(true);
-    const res = await api.feedback.updateStatus(postId, { status: newStatus });
-    setStatusUpdating(false);
+    try {
+      const res = await api.feedback.updateStatus(postId, { status: newStatus });
 
-    if (res.success) {
-      setPost({ ...post, status: newStatus });
-      return;
+      if (res.success) {
+        setPost({ ...post, status: newStatus });
+        return;
+      }
+
+      toast.error(t('feedback.statusUpdateError'));
+    } catch (err) {
+      console.error('[FeedbackDetail] updateStatus failed', err);
+      toast.error(t('feedback.statusUpdateError'));
+    } finally {
+      setStatusUpdating(false);
     }
-
-    toast.error(t('feedback.statusUpdateError'));
   };
 
   const handleLinkPost = async (linkedPostId: string, linkType: FeedbackLinkType) => {
@@ -296,37 +325,43 @@ export function FeedbackDetail() {
     }
 
     setLinkSubmitting(true);
-    const res = await api.feedback.addComment(postId, { linkedPostId, linkType });
-    setLinkSubmitting(false);
+    try {
+      const res = await api.feedback.addComment(postId, { linkedPostId, linkType });
 
-    if (res.success && res.data) {
-      setLinkModalOpen(false);
-      setComments((prev) => [...prev, res.data!]);
-      setPost((prev) =>
-        prev ? { ...prev, commentCount: prev.commentCount + 1 } : prev,
-      );
+      if (res.success && res.data) {
+        setLinkModalOpen(false);
+        setComments((prev) => [...prev, res.data!]);
+        setPost((prev) =>
+          prev ? { ...prev, commentCount: prev.commentCount + 1 } : prev,
+        );
 
-      const linkedTitle = res.data.linkedPostTitle;
-      if (linkedTitle) {
-        setRelatedPosts((prev) => {
-          if (prev.some((entry) => entry.postId === linkedPostId)) {
-            return prev;
-          }
-          return [
-            ...prev,
-            {
-              postId: linkedPostId,
-              title: linkedTitle,
-              linkType,
-              suggestedBy: res.data!.author,
-            },
-          ];
-        });
+        const linkedTitle = res.data.linkedPostTitle;
+        if (linkedTitle) {
+          setRelatedPosts((prev) => {
+            if (prev.some((entry) => entry.postId === linkedPostId)) {
+              return prev;
+            }
+            return [
+              ...prev,
+              {
+                postId: linkedPostId,
+                title: linkedTitle,
+                linkType,
+                suggestedBy: res.data!.author,
+              },
+            ];
+          });
+        }
+        return;
       }
-      return;
-    }
 
-    toast.error(t('feedback.linkPostError'));
+      toast.error(t('feedback.linkPostError'));
+    } catch (err) {
+      console.error('[FeedbackDetail] linkPost failed', err);
+      toast.error(t('feedback.linkPostError'));
+    } finally {
+      setLinkSubmitting(false);
+    }
   };
 
   if (loading) {

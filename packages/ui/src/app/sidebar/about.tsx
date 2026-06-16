@@ -108,7 +108,6 @@ export function AboutFlyout() {
           label={t('nav.more')}
           isActive={isLegalPoliciesActive}
           variant="drawer"
-          onNavClick={handleNavClick}
         >
           <Link
             to="/legal-policies"

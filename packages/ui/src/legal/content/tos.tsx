@@ -57,8 +57,8 @@ const TERMS_OF_SERVICE_SECTIONS: LegalPolicySection[] = [
     ),
   },
   {
-    id: 'limitation-of-liability',
-    title: 'Limitation of Liability',
+    id: 'enforcement-and-indemnification',
+    title: 'Enforcement and Indemnification',
     content: (
       <>
         <p>
