@@ -88,6 +88,11 @@ function LinkCommentBody({
 
 export function FeedbackDetail() {
   const { postId } = useParams<{ postId: string }>();
+
+  useEffect(() => {
+    document.querySelector('.app-content')?.scrollTo(0, 0);
+  }, [postId]);
+
   const { t } = useTranslation();
   const toast = useToast();
   const { apiBaseUrl } = useAppConfig();

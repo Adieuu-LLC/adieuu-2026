@@ -409,6 +409,21 @@ export const identity = {
         confirm: 'Continue',
       },
 
+      // Remote passphrase-change migration prompt (shown on other devices)
+      migrationPrompt: {
+        title: 'Restore your message history',
+        description:
+          'Your alias password was changed on another device. Enter your previous password to keep messages on this device readable. Your keys stay encrypted on this device the whole time.',
+        oldPasswordLabel: 'Previous alias password',
+        migrate: 'Restore history',
+        processing: 'Restoring...',
+        optOut: 'Set up with new keys instead',
+        optOutWarning:
+          'If you continue without your previous password, messages already encrypted for this device will no longer be readable here.',
+        errorWrongPassword: 'That password did not match. Please try again.',
+        errorFailed: 'Could not restore your keys. Please try again or set up with new keys.',
+      },
+
       // Shared web device revocation
       webDeviceRevocation: {
         label: 'Web (Shared Web Device)',
@@ -531,6 +546,10 @@ export const identity = {
         errorMinLength: 'Password must be at least 8 characters.',
         errorDecryptFailed: 'Failed to decrypt your key bundle. Is your current password correct?',
         errorFailed: 'Password change failed. Please try again.',
+        localRewrapFailed:
+          'Your password was changed, but updating locally stored keys failed. Some message history on this device may be unavailable until you sign in again.',
+        localRewrapAmbiguous:
+          'Your password was changed, but local keys could not be updated automatically because more than one alias on this device uses the same password. Sign in to each alias to restore its history.',
         securityNote: 'Choose a strong password and store it safely. Without it, encrypted data for this alias cannot be recovered.',
         errorSession:
           'Your account session is not available. Please sign in to your account and try again.',

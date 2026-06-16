@@ -1232,3 +1232,334 @@ export async function clearAllSessionKeys(identityId: string): Promise<void> {
     tx.oncomplete = () => db.close();
   });
 }
+
+// ============================================================================
+// Passphrase-change re-wrap support
+//
+// When the identity passphrase changes, the wrapping key (derived from the
+// passphrase) changes, but the per-identity wrapping salt does not. All
+// locally-stored private key material must be decrypted with the old wrapping
+// key and re-encrypted with the new one so historical messages remain
+// decryptable. These helpers are idempotent so they can be safely retried.
+// ============================================================================
+
+type EncryptedField = { ciphertext: string; nonce: string };
+
+type ReWrapFieldResult =
+  | { status: 'rewrapped'; field: EncryptedField }
+  | { status: 'already'; field: EncryptedField }
+  | { status: 'failed'; field: EncryptedField };
+
+/**
+ * Re-wraps a single encrypted field from the old wrapping key to the new one.
+ *
+ * Idempotent and tolerant: a field already wrapped with the new key is left
+ * untouched ('already'); a field that decrypts with neither key is reported as
+ * 'failed' and left untouched so it never blocks the rest of the migration.
+ */
+async function reWrapEncryptedField(
+  field: EncryptedField,
+  oldWrappingKey: Uint8Array,
+  newWrappingKey: Uint8Array,
+): Promise<ReWrapFieldResult> {
+  try {
+    const plain = await decryptWithWrappingKey(field, oldWrappingKey);
+    const reEncrypted = await encryptWithWrappingKey(plain, newWrappingKey);
+    clearBytes(plain);
+    return { status: 'rewrapped', field: reEncrypted };
+  } catch {
+    // Old key failed — fall through to the already-migrated check.
+  }
+
+  try {
+    const plain = await decryptWithWrappingKey(field, newWrappingKey);
+    clearBytes(plain);
+    return { status: 'already', field };
+  } catch {
+    return { status: 'failed', field };
+  }
+}
+
+async function getAllSignedPreKeysForIdentity(identityId: string): Promise<StoredSignedPreKey[]> {
+  if (getBackend()) {
+    return (await getPreKeyBlob(identityId)).signedPreKeys;
+  }
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(SPK_STORE, 'readonly');
+    const index = tx.objectStore(SPK_STORE).index('identityId');
+    const request = index.getAll(identityId);
+    request.onerror = () => reject(new PreKeyStorageError('Failed to query SPKs', 'RETRIEVAL_FAILED'));
+    request.onsuccess = () => resolve(request.result as StoredSignedPreKey[]);
+    tx.oncomplete = () => db.close();
+  });
+}
+
+async function getAllOneTimePreKeysForIdentity(identityId: string): Promise<StoredOneTimePreKey[]> {
+  if (getBackend()) {
+    return (await getPreKeyBlob(identityId)).oneTimePreKeys;
+  }
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(OTPK_STORE, 'readonly');
+    const index = tx.objectStore(OTPK_STORE).index('identityId');
+    const request = index.getAll(identityId);
+    request.onerror = () => reject(new PreKeyStorageError('Failed to query OTPKs', 'RETRIEVAL_FAILED'));
+    request.onsuccess = () => resolve(request.result as StoredOneTimePreKey[]);
+    tx.oncomplete = () => db.close();
+  });
+}
+
+async function getAllSessionKeysForIdentity(identityId: string): Promise<StoredSessionKey[]> {
+  if (getBackend()) {
+    return (await getSessionKeyBlob(identityId)).sessionKeys;
+  }
+  const db = await openSessionKeyDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(SK_STORE, 'readonly');
+    const index = tx.objectStore(SK_STORE).index('identityId');
+    const request = index.getAll(identityId);
+    request.onerror = () => reject(new PreKeyStorageError('Failed to query session keys', 'RETRIEVAL_FAILED'));
+    request.onsuccess = () => resolve(request.result as StoredSessionKey[]);
+    tx.oncomplete = () => db.close();
+  });
+}
+
+async function persistSignedPreKeys(identityId: string, records: StoredSignedPreKey[]): Promise<void> {
+  if (getBackend()) {
+    await withBlobLock(identityId, async () => {
+      const blob = await getPreKeyBlob(identityId);
+      const byId = new Map(records.map((r) => [r.keyId, r]));
+      blob.signedPreKeys = blob.signedPreKeys.map((s) => byId.get(s.keyId) ?? s);
+      await savePreKeyBlob(identityId, blob);
+    });
+    return;
+  }
+  const db = await openDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(SPK_STORE, 'readwrite');
+    const store = tx.objectStore(SPK_STORE);
+    for (const record of records) store.put(record);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => reject(new PreKeyStorageError('Failed to persist SPKs', 'STORAGE_FAILED'));
+  });
+}
+
+async function persistOneTimePreKeys(identityId: string, records: StoredOneTimePreKey[]): Promise<void> {
+  if (getBackend()) {
+    await withBlobLock(identityId, async () => {
+      const blob = await getPreKeyBlob(identityId);
+      const byId = new Map(records.map((r) => [r.keyId, r]));
+      blob.oneTimePreKeys = blob.oneTimePreKeys.map((o) => byId.get(o.keyId) ?? o);
+      await savePreKeyBlob(identityId, blob);
+    });
+    return;
+  }
+  const db = await openDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(OTPK_STORE, 'readwrite');
+    const store = tx.objectStore(OTPK_STORE);
+    for (const record of records) store.put(record);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => reject(new PreKeyStorageError('Failed to persist OTPKs', 'STORAGE_FAILED'));
+  });
+}
+
+async function persistSessionKeys(identityId: string, records: StoredSessionKey[]): Promise<void> {
+  if (getBackend()) {
+    await withBlobLock(identityId, async () => {
+      const blob = await getSessionKeyBlob(identityId);
+      const byId = new Map(records.map((r) => [r.messageId, r]));
+      blob.sessionKeys = blob.sessionKeys.map((s) => byId.get(s.messageId) ?? s);
+      await saveSessionKeyBlob(identityId, blob);
+    });
+    return;
+  }
+  const db = await openSessionKeyDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(SK_STORE, 'readwrite');
+    const store = tx.objectStore(SK_STORE);
+    for (const record of records) store.put(record);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => reject(new PreKeyStorageError('Failed to persist session keys', 'STORAGE_FAILED'));
+  });
+}
+
+/**
+ * Re-wraps all signed pre-keys for an identity. Idempotent.
+ * @returns Number of SPK records newly re-wrapped (old -> new)
+ */
+export async function reWrapSignedPreKeys(
+  identityId: string,
+  oldWrappingKey: Uint8Array,
+  newWrappingKey: Uint8Array,
+): Promise<number> {
+  const records = await getAllSignedPreKeysForIdentity(identityId);
+  if (records.length === 0) return 0;
+
+  let reWrapped = 0;
+  const changed: StoredSignedPreKey[] = [];
+
+  for (const record of records) {
+    const ecdh = await reWrapEncryptedField(record.ecdhPrivateKeyEncrypted, oldWrappingKey, newWrappingKey);
+    const kem = await reWrapEncryptedField(record.kemPrivateKeyEncrypted, oldWrappingKey, newWrappingKey);
+    if (ecdh.status === 'failed' || kem.status === 'failed') {
+      console.warn('[PreKeyStorage] Skipping SPK that decrypts with neither key:', record.keyId.slice(0, 8));
+      continue;
+    }
+    if (ecdh.status === 'rewrapped' || kem.status === 'rewrapped') {
+      record.ecdhPrivateKeyEncrypted = ecdh.field;
+      record.kemPrivateKeyEncrypted = kem.field;
+      changed.push(record);
+      reWrapped++;
+    }
+  }
+
+  if (changed.length > 0) await persistSignedPreKeys(identityId, changed);
+  return reWrapped;
+}
+
+/**
+ * Re-wraps all one-time pre-keys for an identity. Idempotent.
+ * @returns Number of OTPK records newly re-wrapped (old -> new)
+ */
+export async function reWrapOneTimePreKeys(
+  identityId: string,
+  oldWrappingKey: Uint8Array,
+  newWrappingKey: Uint8Array,
+): Promise<number> {
+  const records = await getAllOneTimePreKeysForIdentity(identityId);
+  if (records.length === 0) return 0;
+
+  let reWrapped = 0;
+  const changed: StoredOneTimePreKey[] = [];
+
+  for (const record of records) {
+    const ecdh = await reWrapEncryptedField(record.ecdhPrivateKeyEncrypted, oldWrappingKey, newWrappingKey);
+    const kem = await reWrapEncryptedField(record.kemPrivateKeyEncrypted, oldWrappingKey, newWrappingKey);
+    if (ecdh.status === 'failed' || kem.status === 'failed') {
+      console.warn('[PreKeyStorage] Skipping OTPK that decrypts with neither key:', record.keyId.slice(0, 8));
+      continue;
+    }
+    if (ecdh.status === 'rewrapped' || kem.status === 'rewrapped') {
+      record.ecdhPrivateKeyEncrypted = ecdh.field;
+      record.kemPrivateKeyEncrypted = kem.field;
+      changed.push(record);
+      reWrapped++;
+    }
+  }
+
+  if (changed.length > 0) await persistOneTimePreKeys(identityId, changed);
+  return reWrapped;
+}
+
+/**
+ * Re-wraps all persisted session keys for an identity. Idempotent.
+ *
+ * Critical for forward-secret (OTPK-encrypted) messages: the OTPK is deleted
+ * after first decrypt, so the persisted session key is the only remaining way
+ * to read those messages. It must survive a passphrase change.
+ *
+ * @returns Number of session key records newly re-wrapped (old -> new)
+ */
+export async function reWrapSessionKeys(
+  identityId: string,
+  oldWrappingKey: Uint8Array,
+  newWrappingKey: Uint8Array,
+): Promise<number> {
+  const records = await getAllSessionKeysForIdentity(identityId);
+  if (records.length === 0) return 0;
+
+  let reWrapped = 0;
+  const changed: StoredSessionKey[] = [];
+
+  for (const record of records) {
+    const result = await reWrapEncryptedField(record.encryptedKey, oldWrappingKey, newWrappingKey);
+    if (result.status === 'failed') {
+      console.warn('[PreKeyStorage] Skipping session key that decrypts with neither key:', record.messageId.slice(0, 8));
+      continue;
+    }
+    if (result.status === 'rewrapped') {
+      record.encryptedKey = result.field;
+      changed.push(record);
+      reWrapped++;
+    }
+  }
+
+  if (changed.length > 0) await persistSessionKeys(identityId, changed);
+  return reWrapped;
+}
+
+/**
+ * Returns true if any of the identity's stored pre-key material (SPK, OTPK, or
+ * persisted session key) can be decrypted with the given wrapping key. Returns
+ * null when the identity has no pre-key material stored locally.
+ */
+export async function preKeysDecryptWith(
+  identityId: string,
+  wrappingKey: Uint8Array,
+): Promise<boolean | null> {
+  const spks = await getAllSignedPreKeysForIdentity(identityId);
+  const otpks = await getAllOneTimePreKeysForIdentity(identityId);
+  const sessionKeys = await getAllSessionKeysForIdentity(identityId);
+
+  if (spks.length === 0 && otpks.length === 0 && sessionKeys.length === 0) return null;
+
+  for (const spk of spks) {
+    try { const p = await decryptWithWrappingKey(spk.ecdhPrivateKeyEncrypted, wrappingKey); clearBytes(p); return true; } catch { /* next */ }
+  }
+  for (const otpk of otpks) {
+    try { const p = await decryptWithWrappingKey(otpk.ecdhPrivateKeyEncrypted, wrappingKey); clearBytes(p); return true; } catch { /* next */ }
+  }
+  for (const sk of sessionKeys) {
+    try { const p = await decryptWithWrappingKey(sk.encryptedKey, wrappingKey); clearBytes(p); return true; } catch { /* next */ }
+  }
+  return false;
+}
+
+/**
+ * Enumerates identity IDs that have pre-key material stored locally. IDs are
+ * read from plaintext record metadata, never the encrypted key material.
+ */
+export async function getAllPreKeyIdentityIds(): Promise<string[]> {
+  const ids = new Set<string>();
+  const backend = getBackend();
+
+  if (backend) {
+    if (!backend.listKeys) return [];
+    const keyIds = await backend.listKeys(PREKEY_KEY_PREFIX);
+    for (const keyId of keyIds) {
+      const raw = await backend.getKey(keyId);
+      if (!raw) continue;
+      try {
+        const blob = JSON.parse(new TextDecoder().decode(raw)) as PreKeyStoreBlob;
+        for (const s of blob.signedPreKeys ?? []) if (s.identityId) ids.add(s.identityId);
+        for (const o of blob.oneTimePreKeys ?? []) if (o.identityId) ids.add(o.identityId);
+      } catch {
+        // skip corrupt blob
+      }
+    }
+    return [...ids];
+  }
+
+  const db = await openDatabase();
+  const collect = (storeName: string): Promise<void> =>
+    new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readonly');
+      const request = tx.objectStore(storeName).getAll();
+      request.onerror = () => reject(new PreKeyStorageError('Failed to enumerate pre-keys', 'RETRIEVAL_FAILED'));
+      request.onsuccess = () => {
+        for (const r of request.result as Array<{ identityId?: string }>) {
+          if (r.identityId) ids.add(r.identityId);
+        }
+        resolve();
+      };
+    });
+  try {
+    await collect(SPK_STORE);
+    await collect(OTPK_STORE);
+  } finally {
+    db.close();
+  }
+  return [...ids];
+}

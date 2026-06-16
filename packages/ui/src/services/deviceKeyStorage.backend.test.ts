@@ -12,6 +12,9 @@ import {
   setDeviceKeyStorageBackend,
   migrateIndexedDbToBackend,
   getOrCreateWrappingSalt,
+  setLastIdentityUnlockAt,
+  getLastIdentityUnlockAt,
+  needsPassphraseMigration,
   DeviceKeyStorageError,
 } from './deviceKeyStorage';
 import type { SecureStorage } from '../config/types';
@@ -478,6 +481,43 @@ describe('deviceKeyStorage with SecureStorage backend', () => {
 
       const saltAfterDelete = await getOrCreateWrappingSalt(identityId);
       expect(new Uint8Array(saltAfterDelete)).toEqual(new Uint8Array(salt));
+    });
+  });
+
+  // ==========================================================================
+  // lastIdentityUnlockAt (desktop SecureStorage backend)
+  // ==========================================================================
+
+  describe('lastIdentityUnlockAt', () => {
+    test('returns null before anything is recorded', async () => {
+      expect(await getLastIdentityUnlockAt('id-none')).toBeNull();
+    });
+
+    test('round-trips an ISO timestamp through the backend', async () => {
+      const when = new Date('2026-05-06T07:08:09.000Z');
+      await setLastIdentityUnlockAt('id-ts', when);
+      expect(await getLastIdentityUnlockAt('id-ts')).toBe(when.toISOString());
+    });
+
+    test('PRIVACY: stores under a hashed key that does not reveal the identity', async () => {
+      const identityId = 'my-secret-identity-unlock';
+      await setLastIdentityUnlockAt(identityId);
+
+      const keys = await mockStorage.listKeys!('iunlock-');
+      expect(keys.length).toBe(1);
+      expect(keys[0]!.startsWith('iunlock-')).toBe(true);
+      expect(keys[0]!).not.toContain(identityId);
+    });
+
+    test('needsPassphraseMigration gates on the timestamp', async () => {
+      expect(await needsPassphraseMigration('id-gate', null)).toBe(false);
+      // Never unlocked locally but server changed -> needs migration.
+      expect(await needsPassphraseMigration('id-gate', '2026-01-01T00:00:00.000Z')).toBe(true);
+      // Unlocked after the change -> already migrated.
+      await setLastIdentityUnlockAt('id-gate', new Date('2026-02-01T00:00:00.000Z'));
+      expect(await needsPassphraseMigration('id-gate', '2026-01-01T00:00:00.000Z')).toBe(false);
+      // A later server change -> needs migration again.
+      expect(await needsPassphraseMigration('id-gate', '2026-03-01T00:00:00.000Z')).toBe(true);
     });
   });
 

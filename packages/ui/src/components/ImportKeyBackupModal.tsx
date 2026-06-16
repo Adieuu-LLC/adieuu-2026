@@ -20,6 +20,7 @@ import { useIdentity } from '../hooks/useIdentity';
 import {
   decryptKeyBackup,
   applyKeyBackupImport,
+  backupPayloadDecryptsWith,
   KeyBackupError,
   type KeyBackupPayload,
   type KeyBackupImportResult,
@@ -202,7 +203,21 @@ export function ImportKeyBackupModal({
       const backupSalt = fromBase64(decrypted.wrappingSalt);
       const saltsMatch = localSalt && constantTimeEqual(localSalt, backupSalt);
 
+      // A differing salt always means the backup was wrapped with a different
+      // key, so prompt for the backup-era passphrase to re-wrap.
       if (!saltsMatch) {
+        setStep('passphrase');
+        setLoading(false);
+        return;
+      }
+
+      // Matching salt does NOT guarantee a matching key: a passphrase change
+      // keeps the wrapping salt but changes the derived key. Probe the backup
+      // with the current local key; if it can't decrypt, the backup predates a
+      // passphrase change and must be re-wrapped via the passphrase step.
+      const localWK = getWrappingKey();
+      const decryptable = localWK ? await backupPayloadDecryptsWith(decrypted, localWK) : false;
+      if (decryptable === false) {
         setStep('passphrase');
         setLoading(false);
         return;

@@ -933,11 +933,37 @@ $feedback-status-colors: (
   margin-bottom: var(--spacing-md);
 }
 
+.feedback-notif-prefs-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: var(--font-weight-medium);
+  text-align: left;
+
+  &:hover {
+    color: var(--color-text);
+  }
+}
+
+.feedback-notif-prefs-chevron {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 .feedback-notification-prefs {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
-  padding: var(--spacing-sm) 0;
+  padding-top: var(--spacing-md);
 }
 
 .feedback-notif-switch {

@@ -137,6 +137,7 @@ export const feedback = {
     submit: 'Submit feedback',
   },
   notifications: {
+    prefsTitle: 'Notification preferences',
     notifyPostReplies: 'Notify me of replies to my posts',
     notifyCommentReplies: 'Notify me of responses to my comments',
     notifyOfficialPosts: 'Notify me when new official feedback requests are posted',

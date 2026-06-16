@@ -84,3 +84,24 @@ export async function getStoredCipherById(id: string): Promise<StoredCipher | un
     tx.oncomplete = () => db.close();
   });
 }
+
+/**
+ * Enumerates identity IDs that have ciphers stored locally. Used by the
+ * passphrase-change local identity discovery.
+ */
+export async function getAllCipherIdentityIds(): Promise<string[]> {
+  const ids = new Set<string>();
+  const db = await openCipherDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const request = tx.objectStore(STORE_NAME).getAll();
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      for (const c of request.result as StoredCipher[]) {
+        if (c.identityId) ids.add(c.identityId);
+      }
+      resolve([...ids]);
+    };
+    tx.oncomplete = () => db.close();
+  });
+}

@@ -597,12 +597,14 @@ export async function getUnreadSummaryResult(
   const notifyCommentReplies = prefs?.notifyCommentReplies ?? FEEDBACK_NOTIFICATION_PREFS_DEFAULTS.notifyCommentReplies;
   const notifyOfficialPosts = prefs?.notifyOfficialPosts ?? FEEDBACK_NOTIFICATION_PREFS_DEFAULTS.notifyOfficialPosts;
 
+  const officialSince = prefs?.lastOfficialPostSeenAt ?? prefs?.createdAt ?? null;
+
   const [byType, officialPosts] = await Promise.all([
     (notifyPostReplies || notifyCommentReplies)
       ? notifRepo.countUnreadByType(ctx.identity._id)
       : Promise.resolve({} as Record<string, number>),
-    notifyOfficialPosts
-      ? postRepo.countOfficialSince(prefs?.lastOfficialPostSeenAt ?? null)
+    (notifyOfficialPosts && officialSince)
+      ? postRepo.countOfficialSince(officialSince)
       : Promise.resolve(0),
   ]);
 

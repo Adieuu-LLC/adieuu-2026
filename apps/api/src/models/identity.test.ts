@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
-import { DEFAULT_PRIVACY_SETTINGS, toIdentityPublicKeys } from './identity';
+import { DEFAULT_PRIVACY_SETTINGS, toIdentityPublicKeys, toPublicIdentity } from './identity';
+import type { IdentityDocument } from './identity';
 
 describe('DEFAULT_PRIVACY_SETTINGS', () => {
   test('matches expected per-field defaults (kept in sync with profile UI and achievements gating)', () => {
@@ -12,6 +13,30 @@ describe('DEFAULT_PRIVACY_SETTINGS', () => {
       profileColors: 'public',
       achievements: 'friends',
     });
+  });
+});
+
+describe('toPublicIdentity passphraseChangedAt', () => {
+  const baseDoc: IdentityDocument = {
+    _id: new ObjectId(),
+    ident: 'test-ident',
+    hashVersion: 2,
+    username: 'u',
+    displayName: 'D',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    lastActiveAt: new Date(),
+  };
+
+  test('exposes ISO passphraseChangedAt when set', () => {
+    const when = new Date('2026-01-02T03:04:05.000Z');
+    const result = toPublicIdentity({ ...baseDoc, passphraseChangedAt: when });
+    expect(result.passphraseChangedAt).toBe(when.toISOString());
+  });
+
+  test('returns null when passphraseChangedAt is absent (legacy rows)', () => {
+    const result = toPublicIdentity(baseDoc);
+    expect(result.passphraseChangedAt).toBeNull();
   });
 });
 

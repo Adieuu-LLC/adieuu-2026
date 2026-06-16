@@ -92,6 +92,34 @@ export interface LoginIdentityResult {
 
 export type WebDeviceChoice = 'shared' | 'individual';
 
+/**
+ * Context supplied to a migration prompt handler when a remote passphrase
+ * change is detected on another device and local keys must be re-wrapped.
+ */
+export interface MigrationPromptContext {
+  identityId: string;
+  /** ISO timestamp of the server-side passphrase change, if known. */
+  passphraseChangedAt?: string | null;
+  /** How many re-wrap attempts have already been made (0 on first prompt). */
+  attempt: number;
+  /** Why the previous attempt failed, if any. */
+  lastError?: 'wrong-passphrase' | 'failed';
+}
+
+/**
+ * Result returned by a migration prompt handler.
+ * - `migrate`: re-wrap local keys using the supplied old passphrase.
+ * - `skip`: opt out and fall back to deleting + regenerating device keys
+ *   (historical messages encrypted to the old device keys become unreadable).
+ */
+export type MigrationPromptResult =
+  | { action: 'migrate'; oldPassphrase: string }
+  | { action: 'skip' };
+
+export type MigrationPromptHandler = (
+  ctx: MigrationPromptContext
+) => Promise<MigrationPromptResult>;
+
 export type LoginStatus =
   | 'authenticating'
   | 'deriving_keys'
@@ -105,6 +133,17 @@ export type LoginStatus =
 export interface LoginIdentityOptions {
   onStatusChange?: (status: LoginStatus) => void;
   onWebDeviceChoice?: () => Promise<WebDeviceChoice>;
+  /**
+   * Invoked when a remote passphrase change is detected and local device keys
+   * can no longer be decrypted. Lets the user supply their old passphrase to
+   * re-wrap local material instead of losing message history.
+   */
+  onMigrationPrompt?: MigrationPromptHandler;
+}
+
+export interface UnlockIdentityOptions {
+  /** See {@link LoginIdentityOptions.onMigrationPrompt}. */
+  onMigrationPrompt?: MigrationPromptHandler;
 }
 
 export interface IdentityContextValue extends IdentityState {
@@ -119,7 +158,10 @@ export interface IdentityContextValue extends IdentityState {
     passphrase: string,
     options?: LoginIdentityOptions
   ) => Promise<LoginIdentityResult>;
-  unlockIdentity: (passphrase: string) => Promise<UnlockIdentityResult>;
+  unlockIdentity: (
+    passphrase: string,
+    options?: UnlockIdentityOptions
+  ) => Promise<UnlockIdentityResult>;
   logoutFromIdentity: () => Promise<void>;
   deleteIdentity: () => Promise<{ success: boolean; error?: string }>;
   refreshIdentitySession: () => Promise<void>;
@@ -128,4 +170,10 @@ export interface IdentityContextValue extends IdentityState {
   getWrappingSalt: () => Uint8Array | null;
   getSigningKey: () => Uint8Array | null;
   getCurrentDeviceId: () => string | null;
+  /**
+   * Replaces the in-memory wrapping key for the active identity. Used after a
+   * passphrase change re-wraps local material so the live session keeps using
+   * the correct key without requiring a re-login. The previous key is zeroed.
+   */
+  updateWrappingKey: (newWrappingKey: Uint8Array) => void;
 }

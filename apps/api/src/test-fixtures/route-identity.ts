@@ -37,13 +37,22 @@ export function parseAdieuuSessionCookie(request: Request): string | null {
  */
 export function testIdentityEnrichment(
   identityId: ObjectId,
-  overrides: { username?: string } = {},
+  overrides: { username?: string; passphraseChangedAt?: Date | null } = {},
 ): Middleware {
   return async (ctx: RouteContext, next: () => Promise<Response>) => {
     const cookie = ctx.request.headers.get('Cookie') ?? '';
     if (cookie.includes('adieuu_session=') && !cookie.includes('adieuu_session=test-account-session')) {
       ctx.identitySession = {
-        identity: { _id: identityId, username: overrides.username ?? 'testuser' } as never,
+        identity: {
+          _id: identityId,
+          ident: 'test-hash',
+          username: overrides.username ?? 'testuser',
+          displayName: 'Test User',
+          lastActiveAt: new Date('2026-01-01T00:00:00.000Z'),
+          ...(overrides.passphraseChangedAt !== undefined
+            ? { passphraseChangedAt: overrides.passphraseChangedAt }
+            : {}),
+        } as never,
         sessionId: 'test-session',
         maxVideoDurationSeconds: 300,
         subscriptions: [],

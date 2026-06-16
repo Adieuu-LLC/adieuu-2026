@@ -299,6 +299,7 @@ export class IdentityRepository
         $set: {
           ident: newIdent,
           hashVersion: newHashVersion,
+          passphraseChangedAt: now,
           updatedAt: now,
         },
       },

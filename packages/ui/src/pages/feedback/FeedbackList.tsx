@@ -57,6 +57,7 @@ export function FeedbackList() {
     getFeedbackListDefaultStatuses(),
   );
   const [staffResponseFilter, setStaffResponseFilter] = useState<FeedbackStaffFilter>('all');
+  const [notifPrefsOpen, setNotifPrefsOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const limit = FEEDBACK_LIST_PAGE_SIZE;
@@ -214,47 +215,63 @@ export function FeedbackList() {
 
         {isLoggedIn && (
           <Card variant="elevated" className="feedback-notification-prefs-card">
-            <div className="feedback-notification-prefs">
-              <Switch.Root
-                checked={notifPrefs.notifyPostReplies}
-                onCheckedChange={notifPrefs.togglePostReplies}
-                className="sidebar-filter-switch feedback-notif-switch"
-              >
-                <Switch.Label className="sidebar-filter-switch-label">
-                  {t('feedback.notifications.notifyPostReplies')}
-                </Switch.Label>
-                <Switch.Control className="sidebar-filter-switch-control">
-                  <Switch.Thumb className="sidebar-filter-switch-thumb" />
-                </Switch.Control>
-                <Switch.HiddenInput />
-              </Switch.Root>
-              <Switch.Root
-                checked={notifPrefs.notifyCommentReplies}
-                onCheckedChange={notifPrefs.toggleCommentReplies}
-                className="sidebar-filter-switch feedback-notif-switch"
-              >
-                <Switch.Label className="sidebar-filter-switch-label">
-                  {t('feedback.notifications.notifyCommentReplies')}
-                </Switch.Label>
-                <Switch.Control className="sidebar-filter-switch-control">
-                  <Switch.Thumb className="sidebar-filter-switch-thumb" />
-                </Switch.Control>
-                <Switch.HiddenInput />
-              </Switch.Root>
-              <Switch.Root
-                checked={notifPrefs.notifyOfficialPosts}
-                onCheckedChange={notifPrefs.toggleOfficialPosts}
-                className="sidebar-filter-switch feedback-notif-switch"
-              >
-                <Switch.Label className="sidebar-filter-switch-label">
-                  {t('feedback.notifications.notifyOfficialPosts')}
-                </Switch.Label>
-                <Switch.Control className="sidebar-filter-switch-control">
-                  <Switch.Thumb className="sidebar-filter-switch-thumb" />
-                </Switch.Control>
-                <Switch.HiddenInput />
-              </Switch.Root>
-            </div>
+            <button
+              type="button"
+              className="feedback-notif-prefs-toggle"
+              onClick={() => setNotifPrefsOpen((prev) => !prev)}
+              aria-expanded={notifPrefsOpen}
+            >
+              <Icon name="bell" size="sm" />
+              <span>{t('feedback.notifications.prefsTitle')}</span>
+              <Icon
+                name={notifPrefsOpen ? 'chevronUp' : 'chevronDown'}
+                size="xs"
+                className="feedback-notif-prefs-chevron"
+              />
+            </button>
+            {notifPrefsOpen && (
+              <div className="feedback-notification-prefs">
+                <Switch.Root
+                  checked={notifPrefs.notifyPostReplies}
+                  onCheckedChange={notifPrefs.togglePostReplies}
+                  className="sidebar-filter-switch feedback-notif-switch"
+                >
+                  <Switch.Label className="sidebar-filter-switch-label">
+                    {t('feedback.notifications.notifyPostReplies')}
+                  </Switch.Label>
+                  <Switch.Control className="sidebar-filter-switch-control">
+                    <Switch.Thumb className="sidebar-filter-switch-thumb" />
+                  </Switch.Control>
+                  <Switch.HiddenInput />
+                </Switch.Root>
+                <Switch.Root
+                  checked={notifPrefs.notifyCommentReplies}
+                  onCheckedChange={notifPrefs.toggleCommentReplies}
+                  className="sidebar-filter-switch feedback-notif-switch"
+                >
+                  <Switch.Label className="sidebar-filter-switch-label">
+                    {t('feedback.notifications.notifyCommentReplies')}
+                  </Switch.Label>
+                  <Switch.Control className="sidebar-filter-switch-control">
+                    <Switch.Thumb className="sidebar-filter-switch-thumb" />
+                  </Switch.Control>
+                  <Switch.HiddenInput />
+                </Switch.Root>
+                <Switch.Root
+                  checked={notifPrefs.notifyOfficialPosts}
+                  onCheckedChange={notifPrefs.toggleOfficialPosts}
+                  className="sidebar-filter-switch feedback-notif-switch"
+                >
+                  <Switch.Label className="sidebar-filter-switch-label">
+                    {t('feedback.notifications.notifyOfficialPosts')}
+                  </Switch.Label>
+                  <Switch.Control className="sidebar-filter-switch-control">
+                    <Switch.Thumb className="sidebar-filter-switch-thumb" />
+                  </Switch.Control>
+                  <Switch.HiddenInput />
+                </Switch.Root>
+              </div>
+            )}
           </Card>
         )}
 

@@ -516,6 +516,7 @@ export async function changePassphrase(
   newPassphrase: string,
   newBundle: { encryptedBundle: string; salt: string; nonce: string },
   callerIdentityId?: string,
+  callerSessionId?: string,
 ): Promise<ChangePassphraseResult> {
   const identityRepo = getIdentityRepository();
 
@@ -586,6 +587,26 @@ export async function changePassphrase(
   });
 
   elog.info('Passphrase changed', { identityId: callerIdentityId });
+
+  // Revoke other active identity sessions so stale sessions cannot keep using
+  // the rotated credential. Run AFTER the Mongo transaction commits: revocation
+  // touches Redis + a separate updateMany, and a revocation failure must never
+  // roll back the committed password change. Log-and-continue on failure.
+  try {
+    const sessionRepo = getSessionRepository();
+    if (callerSessionId) {
+      // Alias mode: keep the session that performed the change, revoke the rest.
+      await sessionRepo.revokeAllForIdentityExcept(identity._id, callerSessionId);
+    } else {
+      // Account-only mode: no current identity session to preserve.
+      await destroyAllIdentitySessions(identity._id);
+    }
+  } catch (err) {
+    elog.error('Failed to revoke identity sessions after passphrase change (continuing)', {
+      identityId: identity._id.toHexString(),
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 
   return { success: true };
 }

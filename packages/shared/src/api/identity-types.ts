@@ -67,6 +67,12 @@ export interface PublicIdentity {
   deviceCount?: number;
   /** Whether adding this identity to a group requires their explicit approval */
   requireGroupApproval?: boolean;
+  /**
+   * ISO timestamp of the last alias passphrase change (null if never changed).
+   * Clients compare this against their local last-unlock time to decide whether
+   * locally-stored keys need re-wrapping after a remote passphrase change.
+   */
+  passphraseChangedAt?: string | null;
 }
 
 /**

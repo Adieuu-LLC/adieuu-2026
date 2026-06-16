@@ -35,6 +35,7 @@ import {
   fromBase64,
   clearBytes,
   randomBytes,
+  unwrapEntropy,
   ARGON2_HIGH_SECURITY,
   AES_GCM_NONCE_SIZE,
 } from '@adieuu/crypto';
@@ -359,6 +360,66 @@ export async function decryptKeyBackup(
   }
 
   return payload;
+}
+
+function toArrayBuffer(arr: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(arr.length);
+  copy.set(arr);
+  return copy.buffer as ArrayBuffer;
+}
+
+/**
+ * Probes whether a backup payload's wrapped material can be decrypted with the
+ * given wrapping key.
+ *
+ * This is used by the import flow to detect a "same wrapping salt but different
+ * derived key" situation: a passphrase change keeps the per-identity wrapping
+ * salt but changes the derived wrapping key, so a backup exported before the
+ * change has the same salt yet is no longer decryptable with the current key.
+ * Salt comparison alone would miss this and import undecryptable records.
+ *
+ * @returns true if at least one record decrypts, false if a record exists but
+ * does not decrypt, and null if the payload has no wrapped material to test.
+ */
+export async function backupPayloadDecryptsWith(
+  payload: KeyBackupPayload,
+  wrappingKey: Uint8Array,
+): Promise<boolean | null> {
+  const device = payload.devices[0];
+  if (device) {
+    try {
+      const key = await crypto.subtle.importKey(
+        'raw',
+        toArrayBuffer(wrappingKey),
+        { name: 'AES-GCM' },
+        false,
+        ['decrypt'],
+      );
+      const ct = fromBase64(device.ecdhPrivateKeyEncrypted.ciphertext);
+      const iv = fromBase64(device.ecdhPrivateKeyEncrypted.nonce);
+      const plaintext = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: toArrayBuffer(iv) },
+        key,
+        toArrayBuffer(ct),
+      );
+      clearBytes(new Uint8Array(plaintext));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  const cipher = payload.ciphers?.[0];
+  if (cipher) {
+    try {
+      await unwrapEntropy(cipher.encryptedEntropy, wrappingKey);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  return null;
 }
 
 /**

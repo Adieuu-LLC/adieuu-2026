@@ -21,6 +21,7 @@ import {
   getOrCreateWrappingSalt,
   hasSecureStorageBackend,
   deleteAllDeviceKeysForIdentity,
+  setLastIdentityUnlockAt,
 } from '../services/deviceKeyStorage';
 import { generateAndUploadPreKeys } from '../services/preKeyService';
 import type {
@@ -30,12 +31,14 @@ import type {
   LoginIdentityOptions,
   LoginIdentityResult,
   LoginStatus,
+  UnlockIdentityOptions,
   UnlockIdentityResult,
   WebDeviceChoice,
 } from './useIdentity.types';
 import { runCreateIdentityFlow } from '../services/identityCreateFlow';
 import { resolveLoginFailure } from '../services/identityLoginFlow';
 import { deriveUnlockWrappingKey } from '../services/identityUnlockFlow';
+import { attemptPassphraseMigration as attemptPassphraseMigrationFlow } from '../services/passphraseMigrationPrompt';
 export type {
   CreateIdentityResult,
   IdentityContextValue,
@@ -111,6 +114,15 @@ function useIdentityState(): IdentityContextValue {
   // Getters for wrapping key (used by cipher store)
   const getWrappingKey = useCallback(() => wrappingKeyRef.current, []);
   const getWrappingSalt = useCallback(() => wrappingSaltRef.current, []);
+
+  // Swap the active in-memory wrapping key (e.g. after a passphrase change
+  // re-wraps local material). Zero the previous key before replacing it.
+  const updateWrappingKey = useCallback((newWrappingKey: Uint8Array) => {
+    if (wrappingKeyRef.current && wrappingKeyRef.current !== newWrappingKey) {
+      clearBytes(wrappingKeyRef.current);
+    }
+    wrappingKeyRef.current = newWrappingKey;
+  }, []);
   const getSigningKey = useCallback(() => signingKeyRef.current, []);
   const getCurrentDeviceId = useCallback(() => currentDeviceIdRef.current, []);
 
@@ -297,6 +309,13 @@ function useIdentityState(): IdentityContextValue {
       signingKeyRef.current = flow.signingPrivateKey;
       currentDeviceIdRef.current = flow.deviceId;
 
+      // Baseline unlock timestamp so a later passphrase change is detected.
+      try {
+        await setLastIdentityUnlockAt(flow.identity.id);
+      } catch (err) {
+        console.warn('[Identity] createIdentity: failed to record unlock timestamp (non-fatal):', err);
+      }
+
       setState((prev) => ({
         ...prev,
         status: 'no_identity',
@@ -313,6 +332,14 @@ function useIdentityState(): IdentityContextValue {
     },
     [api, platform, refreshSession]
   );
+
+  // Attempt to re-wrap local key material after a remote passphrase change,
+  // prompting the user for their OLD passphrase rather than destroying keys.
+  // Returns the recovered deviceId on success, or null if migration is not
+  // applicable / was declined / failed (caller falls back to delete+regenerate).
+  // The loop lives in `services/passphraseMigrationPrompt` so it can be
+  // unit-tested in isolation; this is a stable callback wrapper for it.
+  const attemptPassphraseMigration = useCallback(attemptPassphraseMigrationFlow, []);
 
   const loginToIdentity = useCallback(
     async (passphrase: string, options?: LoginIdentityOptions): Promise<LoginIdentityResult> => {
@@ -420,14 +447,29 @@ function useIdentityState(): IdentityContextValue {
             clearBytes(decryptedKeys.ecdhPrivateKey);
             clearBytes(decryptedKeys.kemPrivateKey);
           } catch (err) {
-            // Device key decryption failed - likely due to passphrase change from
-            // another session/device. Clear stale keys and fall through to the
-            // "no device keys" path which will generate fresh ones.
-            console.warn('[Identity] loginToIdentity: device keys incompatible (passphrase changed?), regenerating:', err);
-            try {
-              await deleteAllDeviceKeysForIdentity(loggedInIdentity.id);
-            } catch (clearErr) {
-              console.warn('[Identity] loginToIdentity: failed to clear stale device keys:', clearErr);
+            // Device key decryption failed - likely due to a passphrase change
+            // from another session/device. Before destroying the (still valid)
+            // keys, offer the user a chance to re-wrap them with their old
+            // passphrase so message history stays readable.
+            console.warn('[Identity] loginToIdentity: device keys incompatible (passphrase changed?):', err);
+            const migrated = await attemptPassphraseMigration(
+              loggedInIdentity.id,
+              passphrase,
+              wrappingKey,
+              loggedInIdentity.passphraseChangedAt,
+              options?.onMigrationPrompt,
+            );
+            if (migrated) {
+              deviceId = migrated.deviceId;
+              console.debug('[Identity] loginToIdentity: keys re-wrapped via migration, deviceId:', deviceId);
+            } else {
+              // Declined / not applicable / failed: fall through to the
+              // "no device keys" path which generates fresh keys.
+              try {
+                await deleteAllDeviceKeysForIdentity(loggedInIdentity.id);
+              } catch (clearErr) {
+                console.warn('[Identity] loginToIdentity: failed to clear stale device keys:', clearErr);
+              }
             }
           }
         }
@@ -536,6 +578,44 @@ function useIdentityState(): IdentityContextValue {
                 error: 'Failed to decrypt signing key. Check your passphrase.',
                 errorCode: 'BUNDLE_DECRYPT_FAILED',
               };
+            }
+          } else if (!deviceId) {
+            // Desktop recovery (defense in depth): before generating brand-new
+            // keys, try to restore a previously registered shared web device
+            // from the v2 bundle. Only restores a device the server still
+            // recognizes; otherwise falls through to fresh keygen.
+            try {
+              const bundleResponse = await api.identity.getKeyBundle(loggedInIdentity.id);
+              if (bundleResponse.success && bundleResponse.data) {
+                const decryptedBundle = await decryptKeyBundle(bundleResponse.data, passphrase);
+                signingPrivateKey = decryptedBundle.signingPrivateKey;
+                bundleAlreadyDecrypted = true;
+
+                if (decryptedBundle.webDevice) {
+                  const webDev = decryptedBundle.webDevice;
+                  const keysResponse = await api.identity.getPublicKeys(loggedInIdentity.id);
+                  const registeredDevices = keysResponse.success ? keysResponse.data?.devices ?? [] : [];
+                  const webDeviceRegistered = registeredDevices.some((d) => d.deviceId === webDev.deviceId);
+
+                  if (webDeviceRegistered) {
+                    deviceId = webDev.deviceId;
+                    await storeDeviceKeys(
+                      webDev.deviceId,
+                      loggedInIdentity.id,
+                      webDev.ecdhPrivateKey,
+                      webDev.kemPrivateKey,
+                      wrappingKey,
+                      computeRoutingTag(webDev.ecdhPublicKey, webDev.kemPublicKey)
+                    );
+                    console.debug('[Identity] loginToIdentity: desktop restored registered shared web device from bundle');
+                  } else {
+                    clearWebDeviceKeys(webDev);
+                  }
+                }
+              }
+            } catch (err) {
+              // Non-fatal: fall through to fresh keygen, which also decrypts the bundle.
+              console.warn('[Identity] loginToIdentity: desktop web-device restore failed, will generate fresh:', err);
             }
           }
 
@@ -670,6 +750,14 @@ function useIdentityState(): IdentityContextValue {
 
         onStatus?.('complete');
 
+        // Record this successful unlock so a future remote passphrase change can
+        // be detected (passphraseChangedAt > lastIdentityUnlockAt).
+        try {
+          await setLastIdentityUnlockAt(loggedInIdentity.id);
+        } catch (err) {
+          console.warn('[Identity] loginToIdentity: failed to record unlock timestamp (non-fatal):', err);
+        }
+
         setState((prev) => ({
           ...prev,
           status: 'logged_in',
@@ -690,11 +778,11 @@ function useIdentityState(): IdentityContextValue {
         error: 'Unexpected response',
       };
     },
-    [api, platform, refreshSession]
+    [api, platform, refreshSession, attemptPassphraseMigration]
   );
 
   const unlockIdentity = useCallback(
-    async (passphrase: string): Promise<UnlockIdentityResult> => {
+    async (passphrase: string, options?: UnlockIdentityOptions): Promise<UnlockIdentityResult> => {
       // Can only unlock if in locked state
       if (state.status !== 'locked' || !state.identity) {
         return {
@@ -705,6 +793,7 @@ function useIdentityState(): IdentityContextValue {
       }
 
       const identityId = state.identity.id;
+      const passphraseChangedAt = state.identity.passphraseChangedAt;
 
       try {
         const unlockSeed = await deriveUnlockWrappingKey(identityId, passphrase);
@@ -732,11 +821,24 @@ function useIdentityState(): IdentityContextValue {
           clearBytes(decryptedKeys.ecdhPrivateKey);
           clearBytes(decryptedKeys.kemPrivateKey);
         } catch (err) {
-          // Device key decryption failed - could be passphrase change from another
-          // session, or cache corruption. On web, device keys may have been wiped.
-          // In all cases, continue to bundle decryption which is the authoritative
-          // passphrase check - if bundle decrypts, the passphrase is correct.
-          if (!hasSecureStorageBackend()) {
+          // Device key decryption failed - could be a passphrase change from
+          // another session, or cache corruption. On web, device keys may have
+          // been wiped. First offer to re-wrap local keys with the old
+          // passphrase so message history survives.
+          const migrated = await attemptPassphraseMigration(
+            identityId,
+            passphrase,
+            wrappingKey,
+            passphraseChangedAt,
+            options?.onMigrationPrompt,
+          );
+          if (migrated) {
+            deviceId = migrated.deviceId;
+            deviceKeysLoaded = true;
+            console.debug('[Identity] unlockIdentity: keys re-wrapped via migration, deviceId:', deviceId);
+          } else if (!hasSecureStorageBackend()) {
+            // Web: keep stale records and continue to bundle recovery which is
+            // the authoritative passphrase check.
             console.debug('[Identity] unlockIdentity: device keys missing on web, will try bundle recovery');
           } else {
             console.warn('[Identity] unlockIdentity: device keys incompatible (passphrase changed?), will verify via bundle');
@@ -768,8 +870,11 @@ function useIdentityState(): IdentityContextValue {
           signingPrivateKey = decryptedBundle.signingPrivateKey;
           console.debug('[Identity] unlockIdentity: signing key decrypted');
 
-          // If device keys were not loaded (web cache cleared), recover from bundle
-          if (!deviceKeysLoaded && !hasSecureStorageBackend() && decryptedBundle.webDevice) {
+          // If device keys were not loaded, recover a previously registered
+          // shared web device from the bundle before generating fresh keys.
+          // Applies to BOTH web and desktop (defense in depth): only restores a
+          // device the server still recognizes.
+          if (!deviceKeysLoaded && decryptedBundle.webDevice) {
             const webDev = decryptedBundle.webDevice;
             console.debug('[Identity] unlockIdentity: recovering shared web device keys from bundle');
 
@@ -830,6 +935,22 @@ function useIdentityState(): IdentityContextValue {
             deviceId = newDeviceKeys.deviceId;
             deviceKeysLoaded = true;
             console.debug('[Identity] unlockIdentity: fresh device keys generated and registered');
+
+            // Upload pre-keys for the fresh device (forward secrecy parity with
+            // loginToIdentity). Without this, FS is degraded until usePreKeys
+            // hooks mount and lazily generate them.
+            try {
+              await generateAndUploadPreKeys({
+                identityId,
+                deviceId,
+                signingPrivateKey,
+                wrappingKey,
+                platform,
+              }, api.identity);
+              console.debug('[Identity] unlockIdentity: pre-keys generated and uploaded for fresh device');
+            } catch (err) {
+              console.warn('[Identity] unlockIdentity: pre-key upload failed (non-fatal):', err);
+            }
           }
         } catch (err) {
           console.error('[Identity] unlockIdentity: failed to decrypt bundle:', err);
@@ -848,6 +969,13 @@ function useIdentityState(): IdentityContextValue {
         currentDeviceIdRef.current = deviceId;
         console.debug('[Identity] unlockIdentity: all keys cached in memory');
 
+        // Record this successful unlock for remote passphrase-change detection.
+        try {
+          await setLastIdentityUnlockAt(identityId);
+        } catch (err) {
+          console.warn('[Identity] unlockIdentity: failed to record unlock timestamp (non-fatal):', err);
+        }
+
         setState((prev) => ({
           ...prev,
           status: 'logged_in',
@@ -863,7 +991,7 @@ function useIdentityState(): IdentityContextValue {
         };
       }
     },
-    [api, state.status, state.identity]
+    [api, platform, state.status, state.identity, attemptPassphraseMigration]
   );
 
   const logoutFromIdentity = useCallback(async () => {
@@ -918,6 +1046,7 @@ function useIdentityState(): IdentityContextValue {
     getWrappingSalt,
     getSigningKey,
     getCurrentDeviceId,
+    updateWrappingKey,
   }), [
     state,
     api,
@@ -932,6 +1061,7 @@ function useIdentityState(): IdentityContextValue {
     getWrappingSalt,
     getSigningKey,
     getCurrentDeviceId,
+    updateWrappingKey,
   ]);
 }
 

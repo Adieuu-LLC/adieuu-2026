@@ -9,8 +9,10 @@ import { Popover } from '../components/Popover';
 import { useToast } from '../components/Toast';
 import { Icon } from '../icons/Icon';
 import { useIdentity, type LoginStatus, type WebDeviceChoice } from '../hooks/useIdentity';
+import type { MigrationPromptContext, MigrationPromptResult } from '../hooks/useIdentity.types';
 import { useAuth } from '../hooks/useAuth';
 import { WebDeviceChoiceModal } from '../components/WebDeviceChoiceModal';
+import { MigrationPromptModal } from '../components/MigrationPromptModal';
 import { useAgeVerification } from '../hooks/useAgeVerification';
 import { stringArrayFromI18nReturn } from './identityModalUtils';
 import { createApiClient } from '@adieuu/shared';
@@ -161,6 +163,43 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
     webDeviceChoiceResolver.current = null;
   }, []);
 
+  // Remote passphrase-change migration prompt state
+  const [migrationPromptOpen, setMigrationPromptOpen] = useState(false);
+  const [migrationProcessing, setMigrationProcessing] = useState(false);
+  const [migrationError, setMigrationError] = useState<'wrong-passphrase' | 'failed' | undefined>(undefined);
+  const migrationResolver = useRef<((r: MigrationPromptResult) => void) | null>(null);
+
+  const handleMigrationPrompt = useCallback((ctx: MigrationPromptContext): Promise<MigrationPromptResult> => {
+    return new Promise<MigrationPromptResult>((resolve) => {
+      migrationResolver.current = resolve;
+      setMigrationError(ctx.lastError);
+      setMigrationProcessing(false);
+      setMigrationPromptOpen(true);
+    });
+  }, []);
+
+  const onMigrationMigrate = useCallback((oldPassphrase: string) => {
+    // Keep the modal open with a spinner; useIdentity will either complete the
+    // login/unlock (which closes the modal) or re-invoke the prompt on failure.
+    setMigrationProcessing(true);
+    migrationResolver.current?.({ action: 'migrate', oldPassphrase });
+    migrationResolver.current = null;
+  }, []);
+
+  const onMigrationOptOut = useCallback(() => {
+    setMigrationPromptOpen(false);
+    setMigrationProcessing(false);
+    migrationResolver.current?.({ action: 'skip' });
+    migrationResolver.current = null;
+  }, []);
+
+  const closeMigrationPrompt = useCallback(() => {
+    setMigrationPromptOpen(false);
+    setMigrationProcessing(false);
+    setMigrationError(undefined);
+    migrationResolver.current = null;
+  }, []);
+
   const resetForm = () => {
     setPassphrase('');
     setPassphraseConfirm('');
@@ -177,6 +216,8 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
     // Web device choice renders in a portal; clicks can still hit this overlay.
     // Never dismiss the identity shell until the user confirms that flow.
     if (webDeviceChoiceOpen) return;
+    // Likewise keep the shell while a passphrase-migration prompt is in flight.
+    if (migrationPromptOpen) return;
     if (view === 'unlock' && !allowUnlockDismissRef.current) return;
 
     av.cancel();
@@ -207,9 +248,11 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
     const result = await loginToIdentity(passphraseValue, {
       onStatusChange: (status) => setLoginStatus(status),
       onWebDeviceChoice: handleWebDeviceChoice,
+      onMigrationPrompt: handleMigrationPrompt,
     });
 
     setLoading(false);
+    closeMigrationPrompt();
 
     if (result.success) {
       setSuccess(t('identity.login.success'));
@@ -253,9 +296,12 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
     setError(null);
     setPassphrase('');
 
-    const result = await unlockIdentity(passphraseValue);
+    const result = await unlockIdentity(passphraseValue, {
+      onMigrationPrompt: handleMigrationPrompt,
+    });
 
     setLoading(false);
+    closeMigrationPrompt();
 
     if (result.success) {
       setSuccess(t('identity.unlock.success'));
@@ -1017,6 +1063,14 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
       <WebDeviceChoiceModal
         open={webDeviceChoiceOpen}
         onChoice={onWebDeviceChoiceSelected}
+      />
+
+      <MigrationPromptModal
+        open={migrationPromptOpen}
+        processing={migrationProcessing}
+        lastError={migrationError}
+        onMigrate={onMigrationMigrate}
+        onOptOut={onMigrationOptOut}
       />
 
       <ConfirmDialog
