@@ -69,6 +69,10 @@ export const call = {
   e2eeActive: 'End-to-end encrypted',
   e2eeNotSupported: 'Your browser does not support end-to-end encryption for calls.',
   e2eeFailed: 'End-to-end encryption could not be established for this call. Your call is still active but may not be fully private.',
+  e2eeStatusInfoLabel: 'Encryption status details',
+  e2eeStatusInfoActive: 'Audio and video are encrypted between participants. Only members of this call can decrypt the media.',
+  e2eeStatusInfoFailed: 'Encryption could not be established for this call. The call is still connected, but media may not be fully private.',
+  e2eeStatusInfoNotSupported: 'Your browser does not support call encryption. Media is relayed through the server without end-to-end protection.',
 
   // Session provider / errors
   alreadyInActiveCall: 'You are already in a call. Leave first to start or join another.',

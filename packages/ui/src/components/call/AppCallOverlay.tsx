@@ -1,13 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { createApiClient } from '@adieuu/shared';
 import { LiveKitRoom } from '@livekit/components-react';
 import { ExternalE2EEKeyProvider } from 'livekit-client';
 import '@livekit/components-styles';
+import { useAppConfig } from '../../config/PlatformContext';
 import { useCallSession } from '../../hooks/useCallSession';
 import { useConversations } from '../../hooks/useConversations';
+import { forceEndCall as apiForceEndCall } from '../../services/callService';
 import { useToast } from '../Toast';
 import { CallDeviceSetupModal } from './CallDeviceSetupModal';
 import { CallConferenceView } from './CallConferenceView';
+import { CallTroubleshootModal } from './CallTroubleshootModal';
 
 /**
  * AppCallOverlay
@@ -20,8 +24,15 @@ import { CallConferenceView } from './CallConferenceView';
  */
 export function AppCallOverlay() {
   const { t } = useTranslation();
+  const { apiBaseUrl } = useAppConfig();
   const { activeConversationId } = useConversations();
   const toast = useToast();
+  const [troubleshootOpen, setTroubleshootOpen] = useState(false);
+
+  const apiClient = useMemo(
+    () => createApiClient({ baseUrl: apiBaseUrl }).client,
+    [apiBaseUrl],
+  );
 
   const {
     activeSession,
@@ -124,6 +135,20 @@ export function AppCallOverlay() {
     void leaveCall();
   }, [leaveCall]);
 
+  const handleForceEndCall = useCallback(async () => {
+    const conversationId = activeSession?.conversationId;
+    const callId = activeSession?.call.id;
+    if (!conversationId || !callId) return;
+
+    const result = await apiForceEndCall(apiClient, conversationId, callId);
+    if (result.success) {
+      toast.success(t('call.forceEndSuccess'));
+      await leaveCall();
+    } else {
+      toast.error(t('call.forceEndFailed'));
+    }
+  }, [activeSession?.conversationId, activeSession?.call.id, apiClient, toast, t, leaveCall]);
+
   const isViewingCallConversation =
     activeSession !== null && activeConversationId === activeSession.conversationId;
 
@@ -137,24 +162,35 @@ export function AppCallOverlay() {
       />
 
       {activeSession && livekitUrl && livekitToken && (
-        <div
-          className="call-overlay"
-          data-phase={phase}
-          data-call-visible={isViewingCallConversation}
-        >
-          <LiveKitRoom
-            serverUrl={livekitUrl}
-            token={livekitToken}
-            connect={true}
-            audio={true}
-            video={false}
-            onConnected={handleConnected}
-            onDisconnected={handleDisconnected}
-            options={roomOptions}
+        <>
+          <div
+            className="call-overlay"
+            data-phase={phase}
+            data-call-visible={isViewingCallConversation}
           >
-            <CallConferenceView e2eeActive={!!callE2EEKey} />
-          </LiveKitRoom>
-        </div>
+            <LiveKitRoom
+              serverUrl={livekitUrl}
+              token={livekitToken}
+              connect={true}
+              audio={true}
+              video={false}
+              onConnected={handleConnected}
+              onDisconnected={handleDisconnected}
+              options={roomOptions}
+            >
+              <CallConferenceView
+                e2eeActive={!!callE2EEKey}
+                onTroubleshoot={() => setTroubleshootOpen(true)}
+              />
+            </LiveKitRoom>
+          </div>
+
+          <CallTroubleshootModal
+            open={troubleshootOpen}
+            onOpenChange={setTroubleshootOpen}
+            onForceEnd={handleForceEndCall}
+          />
+        </>
       )}
     </>
   );

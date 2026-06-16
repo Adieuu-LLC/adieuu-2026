@@ -6,7 +6,7 @@
  * Uses LiveKit hooks and the ControlBar prefab for media controls.
  */
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   useParticipants,
@@ -21,7 +21,16 @@ import {
 import { Track, VideoQuality } from 'livekit-client';
 import type { Participant, RemoteTrackPublication } from 'livekit-client';
 import { Avatar } from '../Avatar';
+import { InfoTip } from '../InfoTip';
+import { Icon } from '../../icons/Icon';
 import { useCallSession } from '../../hooks/useCallSession';
+import { useIsMobile } from '../../hooks/useIsMobile';
+
+const E2EE_STATUS_INFO_ROWS = [
+  { labelKey: 'call.e2eeActive', infoKey: 'call.e2eeStatusInfoActive' },
+  { labelKey: 'call.e2eeFailed', infoKey: 'call.e2eeStatusInfoFailed' },
+  { labelKey: 'call.e2eeNotSupported', infoKey: 'call.e2eeStatusInfoNotSupported' },
+] as const;
 
 function getParticipantDisplayName(participant: Participant): string {
   return participant.name || participant.identity || 'Unknown';
@@ -46,16 +55,22 @@ interface ParticipantTileProps {
   participant: Participant;
   videoTrackRef?: TrackReferenceOrPlaceholder;
   isLocal: boolean;
+  className?: string;
 }
 
-function ParticipantTile({ participant, videoTrackRef, isLocal }: ParticipantTileProps) {
+function ParticipantTile({ participant, videoTrackRef, isLocal, className }: ParticipantTileProps) {
   const displayName = getParticipantDisplayName(participant);
   const hasVideo = isCameraEnabled(participant);
   const hasMic = isMicEnabled(participant);
   const canRenderVideo = hasVideo && videoTrackRef && isTrackReference(videoTrackRef);
+  const tileClass = [
+    'call-conference__tile',
+    isLocal ? 'call-conference__tile--local' : '',
+    className,
+  ].filter(Boolean).join(' ');
 
   return (
-    <div className={`call-conference__tile ${isLocal ? 'call-conference__tile--local' : ''}`}>
+    <div className={tileClass}>
       {canRenderVideo ? (
         <VideoTrack
           trackRef={videoTrackRef}
@@ -81,6 +96,45 @@ function ParticipantTile({ participant, videoTrackRef, isLocal }: ParticipantTil
         )}
       </div>
     </div>
+  );
+}
+
+interface ParticipantThumbnailProps {
+  participant: Participant;
+  videoTrackRef?: TrackReferenceOrPlaceholder;
+  isLocal: boolean;
+  isActive: boolean;
+  onSelect: () => void;
+}
+
+function ParticipantThumbnail({
+  participant,
+  videoTrackRef,
+  isLocal,
+  isActive,
+  onSelect,
+}: ParticipantThumbnailProps) {
+  const displayName = getParticipantDisplayName(participant);
+  const hasVideo = isCameraEnabled(participant);
+  const canRenderVideo = hasVideo && videoTrackRef && isTrackReference(videoTrackRef);
+
+  return (
+    <button
+      type="button"
+      className={`call-conference__thumb${isActive ? ' call-conference__thumb--active' : ''}`}
+      onClick={onSelect}
+      aria-label={displayName}
+      aria-pressed={isActive}
+    >
+      {canRenderVideo ? (
+        <VideoTrack
+          trackRef={videoTrackRef}
+          className={`call-conference__thumb-video${isLocal ? ' call-conference__thumb-video--local' : ''}`}
+        />
+      ) : (
+        <Avatar name={displayName} size="sm" />
+      )}
+    </button>
   );
 }
 
@@ -124,32 +178,102 @@ function UnlockIcon({ size = 14 }: { size?: number }) {
   );
 }
 
-function E2EEStatusBanner({ e2eeActive, e2eeSupported }: { e2eeActive: boolean; e2eeSupported: boolean }) {
+function E2EEStatusInfoTip() {
   const { t } = useTranslation();
 
-  if (e2eeActive) {
-    return (
-      <div className="call-conference__e2ee-badge call-conference__e2ee-badge--active" title={t('call.e2eeActive')}>
-        <LockIcon />
-        <span>{t('call.e2eeActive')}</span>
-      </div>
-    );
-  }
+  return (
+    <InfoTip
+      mode="popover"
+      position="bottom"
+      className="call-e2ee-info-tooltip"
+      content={
+        <ul className="call-e2ee-info-list">
+          {E2EE_STATUS_INFO_ROWS.map(({ labelKey, infoKey }) => (
+            <li key={infoKey}>
+              <strong>{t(labelKey)}</strong>
+              {': '}
+              {t(infoKey)}
+            </li>
+          ))}
+        </ul>
+      }
+    >
+      <span
+        className="call-conference__e2ee-info-icon"
+        aria-label={t('call.e2eeStatusInfoLabel')}
+      >
+        <Icon name="info" size="sm" />
+      </span>
+    </InfoTip>
+  );
+}
 
-  const message = e2eeSupported ? t('call.e2eeFailed') : t('call.e2eeNotSupported');
+function E2EEStatusBanner({
+  e2eeActive,
+  e2eeSupported,
+  onTroubleshoot,
+}: {
+  e2eeActive: boolean;
+  e2eeSupported: boolean;
+  onTroubleshoot?: () => void;
+}) {
+  const { t } = useTranslation();
+
+  const statusMessage = e2eeActive
+    ? t('call.e2eeActive')
+    : e2eeSupported
+      ? t('call.e2eeFailed')
+      : t('call.e2eeNotSupported');
+
+  const bannerClass = e2eeActive
+    ? 'call-conference__e2ee-badge call-conference__e2ee-badge--active'
+    : 'call-conference__e2ee-banner call-conference__e2ee-banner--warning';
 
   return (
-    <div className="call-conference__e2ee-banner call-conference__e2ee-banner--warning" role="alert">
-      <UnlockIcon />
-      <span>{message}</span>
+    <div
+      className={bannerClass}
+      role={e2eeActive ? undefined : 'alert'}
+    >
+      <div className="call-conference__e2ee-status">
+        {e2eeActive ? <LockIcon /> : <UnlockIcon />}
+        <span>{statusMessage}</span>
+        <E2EEStatusInfoTip />
+      </div>
+      {onTroubleshoot && (
+        <button
+          type="button"
+          className="active-call-banner__troubleshoot"
+          onClick={onTroubleshoot}
+        >
+          {t('call.troubleshootLink')}
+        </button>
+      )}
     </div>
   );
 }
 
-export function CallConferenceView({ e2eeActive = false }: { e2eeActive?: boolean }) {
+export interface CallConferenceViewProps {
+  e2eeActive?: boolean;
+  onTroubleshoot?: () => void;
+}
+
+export function CallConferenceView({ e2eeActive = false, onTroubleshoot }: CallConferenceViewProps) {
   const participants = useParticipants();
   const { localParticipant } = useLocalParticipant();
   const { streamQualityCaps, e2eeSupported } = useCallSession();
+  const isMobile = useIsMobile();
+  const [focusedIdentity, setFocusedIdentity] = useState(localParticipant.identity);
+
+  useEffect(() => {
+    setFocusedIdentity((current) => {
+      if (participants.some((participant) => participant.identity === current)) {
+        return current;
+      }
+      return localParticipant.identity;
+    });
+  }, [participants, localParticipant.identity]);
+
+  const useMobileFocusLayout = isMobile && participants.length > 1;
 
   const cameraTracks = useTracks(
     [{ source: Track.Source.Camera, withPlaceholder: false }],
@@ -218,41 +342,99 @@ export function CallConferenceView({ e2eeActive = false }: { e2eeActive?: boolea
       ? 'call-conference__grid call-conference__grid--small'
       : 'call-conference__grid call-conference__grid--large';
 
+  const focusedParticipant = participants.find((participant) => participant.identity === focusedIdentity)
+    ?? localParticipant;
+  const focusedIsLocal = focusedParticipant.identity === localParticipant.identity;
+  const focusedVideoTrackRef = cameraTrackMap.get(focusedParticipant.identity);
+  const focusedScreenTrackRef = screenTrackMap.get(focusedParticipant.identity);
+  const focusedHasScreenShare = isScreenShareEnabled(focusedParticipant)
+    && focusedScreenTrackRef
+    && isTrackReference(focusedScreenTrackRef);
+
   return (
-    <div className="call-conference">
+    <div className={`call-conference${useMobileFocusLayout ? ' call-conference--mobile-focus' : ''}`}>
       <RoomAudioRenderer />
-      <E2EEStatusBanner e2eeActive={!!e2eeActive} e2eeSupported={e2eeSupported} />
+      <E2EEStatusBanner
+        e2eeActive={!!e2eeActive}
+        e2eeSupported={e2eeSupported}
+        onTroubleshoot={onTroubleshoot}
+      />
 
-      <div className={gridClass}>
-        {participants.map((participant) => {
-          const isLocal = participant.identity === localParticipant.identity;
-          const videoTrackRef = cameraTrackMap.get(participant.identity);
-          const screenTrackRef = screenTrackMap.get(participant.identity);
-
-          return (
-            <div key={participant.identity} className="call-conference__tile-wrapper">
-              <ParticipantTile
-                participant={participant}
-                videoTrackRef={videoTrackRef}
-                isLocal={isLocal}
-              />
-              {isScreenShareEnabled(participant) && screenTrackRef && isTrackReference(screenTrackRef) && (
-                <div className="call-conference__tile call-conference__tile--screen">
-                  <VideoTrack
-                    trackRef={screenTrackRef}
-                    className="call-conference__video"
-                  />
-                  <div className="call-conference__overlay">
-                    <span className="call-conference__name">
-                      {getParticipantDisplayName(participant)} - Screen
-                    </span>
-                  </div>
+      {useMobileFocusLayout ? (
+        <>
+          <div className="call-conference__mobile-stage">
+            {focusedHasScreenShare ? (
+              <div className="call-conference__tile call-conference__tile--screen call-conference__tile--stage">
+                <VideoTrack
+                  trackRef={focusedScreenTrackRef}
+                  className="call-conference__video"
+                />
+                <div className="call-conference__overlay">
+                  <span className="call-conference__name">
+                    {getParticipantDisplayName(focusedParticipant)} - Screen
+                  </span>
                 </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+              </div>
+            ) : (
+              <ParticipantTile
+                participant={focusedParticipant}
+                videoTrackRef={focusedVideoTrackRef}
+                isLocal={focusedIsLocal}
+                className="call-conference__tile--stage"
+              />
+            )}
+          </div>
+
+          <div className="call-conference__mobile-thumbnails" role="tablist">
+            {participants.map((participant) => {
+              const isLocal = participant.identity === localParticipant.identity;
+              const videoTrackRef = cameraTrackMap.get(participant.identity);
+
+              return (
+                <ParticipantThumbnail
+                  key={participant.identity}
+                  participant={participant}
+                  videoTrackRef={videoTrackRef}
+                  isLocal={isLocal}
+                  isActive={participant.identity === focusedIdentity}
+                  onSelect={() => setFocusedIdentity(participant.identity)}
+                />
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <div className={gridClass}>
+          {participants.map((participant) => {
+            const isLocal = participant.identity === localParticipant.identity;
+            const videoTrackRef = cameraTrackMap.get(participant.identity);
+            const screenTrackRef = screenTrackMap.get(participant.identity);
+
+            return (
+              <div key={participant.identity} className="call-conference__tile-wrapper">
+                <ParticipantTile
+                  participant={participant}
+                  videoTrackRef={videoTrackRef}
+                  isLocal={isLocal}
+                />
+                {isScreenShareEnabled(participant) && screenTrackRef && isTrackReference(screenTrackRef) && (
+                  <div className="call-conference__tile call-conference__tile--screen">
+                    <VideoTrack
+                      trackRef={screenTrackRef}
+                      className="call-conference__video"
+                    />
+                    <div className="call-conference__overlay">
+                      <span className="call-conference__name">
+                        {getParticipantDisplayName(participant)} - Screen
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="call-conference__controls">
         <ControlBar
@@ -264,7 +446,7 @@ export function CallConferenceView({ e2eeActive = false }: { e2eeActive?: boolea
             chat: false,
             settings: false,
           }}
-          variation="verbose"
+          variation={isMobile ? 'minimal' : 'verbose'}
         />
       </div>
     </div>

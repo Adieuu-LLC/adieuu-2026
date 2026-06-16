@@ -123,19 +123,31 @@
 // Call Overlay (fixed position, below conversation toolbar, top half)
 // ============================================================================
 
+// Fixed below conversation toolbar. On desktop (custom title bar), add 32px for window chrome.
+$call-overlay-top: 65px;
+$call-overlay-bottom-offset: 23px;
+$call-overlay-title-bar-height: 32px;
+
 .call-overlay {
   display: none;
   position: fixed;
-  top: 45px;
+  top: $call-overlay-top;
   left: min($sidebar-width, $sidebar-width-max);
   right: 0;
-  height: calc(50vh - 22px);
+  height: calc(50vh - #{$call-overlay-top - $call-overlay-bottom-offset});
   z-index: 100;
   flex-direction: column;
   background: var(--color-bg-primary);
   color: var(--color-text-primary);
   border-bottom: 1px solid var(--color-border);
   overflow: hidden;
+
+  body.has-custom-title-bar & {
+    top: calc(#{$call-overlay-top} + #{$call-overlay-title-bar-height});
+    height: calc(
+      50vh - #{$call-overlay-top - $call-overlay-bottom-offset + $call-overlay-title-bar-height}
+    );
+  }
 
   &[data-call-visible="true"] {
     display: flex;
@@ -218,6 +230,12 @@
   left: $sidebar-width-collapsed;
 }
 
+@media (max-width: $mobile-breakpoint) {
+  .call-overlay {
+    left: 0 !important;
+  }
+}
+
 // ============================================================================
 // Custom Call Conference View
 // ============================================================================
@@ -275,6 +293,12 @@
         transform: none;
       }
     }
+
+    &--stage {
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+    }
   }
 
   &__video {
@@ -323,7 +347,8 @@
   &__e2ee-badge {
     display: flex;
     align-items: center;
-    gap: var(--spacing-xs);
+    justify-content: space-between;
+    gap: var(--spacing-sm);
     padding: var(--spacing-xs) var(--spacing-sm);
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-medium);
@@ -339,6 +364,7 @@
   &__e2ee-banner {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: var(--spacing-sm);
     padding: var(--spacing-sm) var(--spacing-md);
     font-size: var(--font-size-xs);
@@ -355,6 +381,30 @@
     }
   }
 
+  &__e2ee-status {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    min-width: 0;
+    flex: 1;
+
+    > span {
+      min-width: 0;
+    }
+  }
+
+  &__e2ee-info-icon {
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-text-muted);
+    cursor: help;
+    flex-shrink: 0;
+
+    &:hover {
+      color: var(--color-text-secondary);
+    }
+  }
+
   &__controls {
     flex-shrink: 0;
     display: flex;
@@ -368,6 +418,77 @@
       gap: var(--spacing-sm);
     }
   }
+
+  &--mobile-focus {
+    .call-conference__mobile-stage {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      padding: var(--spacing-sm);
+    }
+
+    .call-conference__mobile-thumbnails {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+      padding: var(--spacing-xs) var(--spacing-sm);
+      overflow-x: auto;
+      flex-shrink: 0;
+      border-top: 1px solid var(--color-border);
+      background: var(--color-bg-primary);
+    }
+  }
+
+  &__thumb {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 3.5rem;
+    height: 3.5rem;
+    padding: 0;
+    border: 2px solid transparent;
+    border-radius: var(--radius-md);
+    background: var(--color-bg-secondary);
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color var(--transition-fast);
+
+    &--active {
+      border-color: var(--color-accent-primary);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--color-border-focus);
+      outline-offset: 2px;
+    }
+  }
+
+  &__thumb-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+
+    &--local {
+      transform: scaleX(-1);
+    }
+  }
+}
+
+.call-e2ee-info-tooltip {
+  white-space: normal;
+  max-width: 280px;
+}
+
+.call-e2ee-info-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
 }
 
 // ============================================================================
@@ -724,6 +845,61 @@
   &__leave {
     color: var(--color-error);
     flex-shrink: 0;
+  }
+}
+
+.sidebar-collapsed {
+  .sidebar-call-widget {
+    flex-direction: column;
+    align-items: stretch;
+    padding: var(--spacing-xs);
+    gap: var(--spacing-xs);
+    overflow: hidden;
+
+    .sidebar-call-widget__info {
+      justify-content: center;
+    }
+
+    .sidebar-call-widget__text {
+      display: none;
+    }
+
+    .sidebar-call-widget__leave {
+      align-self: center;
+    }
+
+    .sidebar-call-widget__actions {
+      flex-direction: column;
+      width: 100%;
+    }
+
+    .sidebar-call-widget__decline,
+    .sidebar-call-widget__accept {
+      align-self: center;
+    }
+  }
+}
+
+@media (max-width: $mobile-breakpoint) {
+  .call-conference {
+    &__e2ee-badge,
+    &__e2ee-banner {
+      flex-wrap: wrap;
+      padding: var(--spacing-xs) var(--spacing-sm);
+    }
+
+    &__e2ee-status > span {
+      white-space: normal;
+    }
+
+    &__controls {
+      padding: var(--spacing-xs) var(--spacing-sm);
+
+      .lk-button .lk-button-label,
+      .lk-disconnect-button .lk-button-label {
+        display: none;
+      }
+    }
   }
 }
 
