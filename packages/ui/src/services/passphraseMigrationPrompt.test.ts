@@ -13,7 +13,7 @@
  * Real crypto + fake-indexeddb, no mocks of the migrator. Runs against the web
  * (IndexedDB) backend.
  */
-import { describe, expect, test, beforeEach } from 'bun:test';
+import { describe, expect, test, beforeEach, afterAll } from 'bun:test';
 import {
   storeDeviceKeys,
   getDeviceKeysForIdentity,
@@ -90,6 +90,12 @@ function scriptedPrompt(decisions: MigrationPromptResult[]): {
 
 describe('attemptPassphraseMigration', () => {
   beforeEach(async () => {
+    await wipeAll();
+  });
+
+  // Don't leave device-key records in the shared (fake-)IndexedDB: other test
+  // files (e.g. the migrateIndexedDbToBackend suite) read the same global store.
+  afterAll(async () => {
     await wipeAll();
   });
 

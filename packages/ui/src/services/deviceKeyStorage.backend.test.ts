@@ -58,6 +58,20 @@ function createMockSecureStorage(): SecureStorage & { _store: Map<string, Uint8A
 
 const generateWrappingKey = (): Uint8Array => randomBytes(32);
 
+/** Deletes a (fake-)IndexedDB database so cross-file state cannot leak in. */
+function deleteIndexedDb(name: string): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof indexedDB === 'undefined') {
+      resolve();
+      return;
+    }
+    const req = indexedDB.deleteDatabase(name);
+    req.onsuccess = () => resolve();
+    req.onerror = () => resolve();
+    req.onblocked = () => resolve();
+  });
+}
+
 describe('deviceKeyStorage with SecureStorage backend', () => {
   let mockStorage: ReturnType<typeof createMockSecureStorage>;
 
@@ -571,7 +585,11 @@ describe('deviceKeyStorage with SecureStorage backend', () => {
 describe('migrateIndexedDbToBackend', () => {
   let mockStorage: ReturnType<typeof createMockSecureStorage>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    // The migrator's step 2 reads the global (fake-)IndexedDB device-keys store.
+    // Other test files in the same run leave records there, so clear it first to
+    // keep the single-blob migration count deterministic regardless of ordering.
+    await deleteIndexedDb('adieuu-device-keys');
     mockStorage = createMockSecureStorage();
   });
 
