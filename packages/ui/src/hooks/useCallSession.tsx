@@ -253,21 +253,29 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
           streamQualityCaps = resp.data.streamQualityCaps;
 
           if (e2eeSupported && call.wrappedE2EEKeys && call.wrappedE2EEKeys.length > 0) {
-            const deviceKeys = await loadDevicePrivateKeys();
-            if (deviceKeys) {
+            try {
+              const deviceKeys = await loadDevicePrivateKeys();
+              if (!deviceKeys) {
+                throw new Error(t('call.e2eeFailed'));
+              }
+
               const unwrapped = deserializeAndUnwrapCallKey(
                 call.wrappedE2EEKeys,
                 identity.id,
                 deviceKeys.ecdhPrivateKey,
                 deviceKeys.kemPrivateKey,
               );
-              if (unwrapped) {
-                callE2EEKey = unwrapped;
-              } else {
-                console.warn('[CallSession] No wrapped E2EE key found for this identity; call will proceed without E2EE.');
+              if (!unwrapped) {
+                throw new Error(t('call.e2eeFailed'));
               }
-            } else {
-              console.warn('[CallSession] Device keys unavailable; call will proceed without E2EE.');
+              callE2EEKey = unwrapped;
+            } catch (e2eeErr) {
+              try {
+                await apiLeaveCall(client, pendingConversationId, call.id);
+              } catch {
+                /* Best-effort rollback so a failed unwrap does not leave a ghost participant */
+              }
+              throw e2eeErr;
             }
           }
         } else {

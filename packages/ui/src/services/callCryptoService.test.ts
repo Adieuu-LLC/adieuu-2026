@@ -175,6 +175,31 @@ describe('callCryptoService', () => {
       expect(result).toBeNull();
     });
 
+    test('multiple wrapped keys for the same identity unwrap with the matching device keys', () => {
+      const callKey = generateCallE2EEKey();
+      const device1 = makeRecipient('alice');
+      const device2 = makeRecipient('alice');
+
+      const serialized = wrapAndSerializeCallKey(callKey, [
+        device1.recipient,
+        device2.recipient,
+      ]);
+
+      expect(serialized).toHaveLength(2);
+      expect(serialized[0].recipientIdentityId).toBe('alice');
+      expect(serialized[1].recipientIdentityId).toBe('alice');
+
+      const unwrapped = deserializeAndUnwrapCallKey(
+        serialized,
+        'alice',
+        device2.privateKeys.ecdhPrivate,
+        device2.privateKeys.kemPrivate,
+      );
+
+      expect(unwrapped).not.toBeNull();
+      expect(constantTimeEqual(unwrapped!, callKey)).toBe(true);
+    });
+
     test('wrong private keys fail to unwrap', () => {
       const callKey = generateCallE2EEKey();
       const alice = makeRecipient('alice');

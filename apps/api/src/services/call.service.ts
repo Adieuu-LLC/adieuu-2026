@@ -350,19 +350,20 @@ export async function leaveCall(
   const leaverIdentity = await identityRepo.findById(identityObjId);
   const leaverDisplayName = leaverIdentity?.displayName || leaverIdentity?.username || 'Unknown';
 
+  const activeParticipants = updated.participants.filter((p) => !p.leftAt);
+  const isLastParticipant = activeParticipants.length === 0;
+
   if (conversation) {
-    void emitCallSystemMessage(
+    await emitCallSystemMessage(
       updated.conversationId,
       conversation.participants,
-      'call_left',
+      isLastParticipant ? 'call_left_ended' : 'call_left',
       identityObjId,
       leaverDisplayName,
     );
   }
 
-  // Check if all participants have left — end call without requiring active membership
-  const activeParticipants = updated.participants.filter((p) => !p.leftAt);
-  if (activeParticipants.length === 0) {
+  if (isLastParticipant) {
     const ended = await callRepo.updateStatus(callObjId, 'ended', { endedAt: new Date() });
     if (!ended) {
       return { success: false, error: 'Failed to end call', errorCode: 'END_FAILED' };
@@ -630,7 +631,7 @@ function isDuplicateKeyError(err: unknown): boolean {
 async function emitCallSystemMessage(
   conversationId: ObjectId,
   participants: ObjectId[],
-  eventType: 'call_started' | 'call_joined' | 'call_left' | 'call_ended',
+  eventType: 'call_started' | 'call_joined' | 'call_left' | 'call_left_ended' | 'call_ended',
   identityId: ObjectId,
   displayName: string,
 ): Promise<void> {

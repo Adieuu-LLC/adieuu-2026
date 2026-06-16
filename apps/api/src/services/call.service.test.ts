@@ -72,7 +72,9 @@ mock.module('../repositories/identity.repository', () => ({
 }));
 
 const mockMessageRepo = {
-  create: mock(() => Promise.resolve({ _id: new ObjectId() })) as AnyMock,
+  createMessage: mock(() =>
+    Promise.resolve({ _id: new ObjectId(), createdAt: new Date() }),
+  ) as AnyMock,
 };
 mock.module('../repositories/message.repository', () => ({
   getMessageRepository: () => mockMessageRepo,
@@ -164,7 +166,7 @@ describe('call.service', () => {
     mockCallRepo.updateStatus.mockClear();
     mockConversationRepo.findById.mockClear();
     mockIdentityRepo.findById.mockClear();
-    mockMessageRepo.create.mockClear();
+    mockMessageRepo.createMessage.mockClear();
     mockCheckRateLimit.mockImplementation(() =>
       Promise.resolve({ allowed: true, remaining: 4, resetAt: 9999999999, limit: 5 }),
     );
@@ -578,6 +580,11 @@ describe('call.service', () => {
     );
     const r = await leaveCall(convId.toHexString(), callId.toHexString(), identityA.toHexString());
     expect(r.success).toBe(true);
+    expect(mockMessageRepo.createMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        systemEvent: expect.objectContaining({ type: 'call_left_ended' }),
+      }),
+    );
     expect(mockCallRepo.updateStatus).toHaveBeenCalledWith(
       callId,
       'ended',

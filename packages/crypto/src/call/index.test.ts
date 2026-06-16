@@ -119,4 +119,25 @@ describe('call E2EE keys', () => {
     expect(unwrapped).not.toBeNull();
     expect(constantTimeEqual(unwrapped!, callKey)).toBe(true);
   });
+
+  test('findAndUnwrapCallKey tries all wrapped keys for the same identity (multi-device)', () => {
+    const callKey = generateCallKey();
+    const device1 = generateIdentityKeyBundle();
+    const device2 = generateIdentityKeyBundle();
+
+    const wrapped = [
+      wrapCallKeyForRecipient(callKey, extractPublicKeys(device1), 'alice'),
+      wrapCallKeyForRecipient(callKey, extractPublicKeys(device2), 'alice'),
+    ];
+
+    const unwrapped = findAndUnwrapCallKey(
+      wrapped,
+      'alice',
+      device2.ecdh.privateKey,
+      device2.kem.privateKey,
+    );
+
+    expect(unwrapped).not.toBeNull();
+    expect(constantTimeEqual(unwrapped!, callKey)).toBe(true);
+  });
 });
