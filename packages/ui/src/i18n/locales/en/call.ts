@@ -45,10 +45,30 @@ export const call = {
   videoDevices: 'Video devices',
   selectSpeaker: 'Speaker',
 
+  // Active call banner
+  activeCallBanner: 'A call is in progress ({{count}} participant)',
+  activeCallBanner_other: 'A call is in progress ({{count}} participants)',
+  activeCallBannerEmpty: 'A call is in progress',
+  joinCall: 'Join',
+
   // Incoming call banner
   incoming: 'Incoming call',
   accept: 'Accept',
   decline: 'Decline',
+
+  // Call troubleshooting
+  troubleshootLink: 'Call issues?',
+  troubleshootTitle: 'Call Troubleshooting',
+  troubleshootDescription: 'If a call appears stuck or a participant seems to still be connected after leaving, you can force-end the call for all participants. Everyone will need to start or join a new call afterward.',
+  forceEndCall: 'End call for all participants',
+  forceEndConfirm: 'This will disconnect all participants from the current call. This action cannot be undone.',
+  forceEndSuccess: 'Call ended. You can now start a new call.',
+  forceEndFailed: 'Failed to end the call. Please try again.',
+
+  // E2EE status
+  e2eeActive: 'End-to-end encrypted',
+  e2eeNotSupported: 'Your browser does not support end-to-end encryption for calls.',
+  e2eeFailed: 'End-to-end encryption could not be established for this call. Your call is still active but may not be fully private.',
 
   // Session provider / errors
   alreadyInActiveCall: 'You are already in a call. Leave first to start or join another.',

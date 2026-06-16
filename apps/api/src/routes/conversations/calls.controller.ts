@@ -14,6 +14,7 @@ import {
   joinCall,
   leaveCall,
   endCall,
+  forceEndCall,
   getActiveCall,
   updateMediaState,
 } from '../../services/call.service';
@@ -32,8 +33,17 @@ const MediaOptionsSchema = z.object({
   screenshare: z.boolean(),
 });
 
+const WrappedCallKeySchema = z.object({
+  recipientIdentityId: z.string().min(1),
+  ephemeralPublicKey: z.string().min(1),
+  kemCiphertext: z.string().min(1),
+  wrappedKey: z.string().min(1),
+  wrappingNonce: z.string().min(1),
+});
+
 const InitiateCallSchema = z.object({
   media: MediaOptionsSchema,
+  wrappedE2EEKeys: z.array(WrappedCallKeySchema).optional(),
 });
 
 const JoinCallSchema = z.object({
@@ -81,6 +91,7 @@ export async function initiateCallCtrl(
     identity._id.toHexString(),
     parseResult.data.media,
     { subscriptions: ctx.identitySession.subscriptions, entitlements: ctx.identitySession.entitlements },
+    parseResult.data.wrappedE2EEKeys,
   );
 
   if (!result.success) {
@@ -222,6 +233,37 @@ export async function endCallCtrl(
       return { kind: 'forbidden', message: result.error! };
     }
     return { kind: 'bad_request', message: result.error ?? 'Failed to end call.' };
+  }
+
+  return { kind: 'ok', data: { call: result.call } };
+}
+
+/**
+ * POST /conversations/:id/calls/:callId/force-end
+ * Force-end a stuck call. Any conversation member can use this, even
+ * if they are not an active participant in the call.
+ */
+export async function forceEndCallCtrl(
+  ctx: RouteContext
+): Promise<ConversationRouteResult<unknown>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const conv = sanitizeObjectId24(ctx.params.id);
+  if (!conv.ok) return { kind: 'bad_request', message: 'Invalid conversation ID.' };
+  const call = sanitizeObjectId24(ctx.params.callId);
+  if (!call.ok) return { kind: 'bad_request', message: 'Invalid call ID.' };
+
+  const result = await forceEndCall(conv.id, call.id, identity._id.toHexString());
+
+  if (!result.success) {
+    if (result.errorCode === 'CALL_NOT_FOUND') {
+      return { kind: 'not_found', message: result.error! };
+    }
+    if (result.errorCode === 'NOT_PARTICIPANT') {
+      return { kind: 'forbidden', message: result.error! };
+    }
+    return { kind: 'bad_request', message: result.error ?? 'Failed to force-end call.' };
   }
 
   return { kind: 'ok', data: { call: result.call } };

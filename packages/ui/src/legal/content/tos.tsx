@@ -13,7 +13,7 @@ const TERMS_OF_SERVICE_SECTIONS: LegalPolicySection[] = [
         </p>
         <p>
           <strong>Welcome!</strong>&nbsp;
-          Adieuu is a privacy-focused social platform that aims to make online conversation more human, accountable, and transparent without compromising on individual privacy. Please read these Terms of Service ("Terms") carefully, as they are a legally binding contract between you and us. They apply to your use of our services.
+          Adieuu is a privacy-focused social platform that aims to make online conversation more human, accountable, and transparent without compromising on individual privacy. Please read these Terms of Service ("Terms", "terms") carefully, as they are a legally binding contract between you and us. They apply to your use of our services.
         </p>
         <p>
           As part of these Terms, you agree to comply with the most recent versions of our <a href='/legal-policies/privacy' target='_blank' rel='noopener noreferrer'>Privacy Policy</a>, <a href='/legal-policies/acceptable-use' target='_blank' rel='noopener noreferrer'>Acceptable Use Policy</a>, <a href='/legal-policies/paid-services' target='_blank' rel='noopener noreferrer'>Paid Services Terms</a>, and other policies (as listed <a href='/legal-policies' target='_blank' rel='noopener noreferrer'>here</a> or as otherwise made available to you), which are incorporated by reference into these Terms. If you use our services, or continue accessing or using the Services after being notified of a change to our Terms or any incorporated policies, you confirm that you have read, understand, and agree to be bound by these Terms and all incoporated policies.
@@ -26,7 +26,7 @@ const TERMS_OF_SERVICE_SECTIONS: LegalPolicySection[] = [
         <p>When we say "services" in these terms, we mean Adieuu's services, apps, websites, and other products.</p>
         <p>When we say "you" or "your" in these terms, we mean you. If you're accessing our services on behalf of a legal entity, you agree that you have the authority to bind that entity to these terms, and "you" and "your" will refer to that entity.</p>
         <h4>Modifications</h4>
-        <p>We may make changes to these Terms as we grow for legal or regulatory reasons, to prevent abuse of our services, better protect or serve users of our services, or to better reflect changes to our service or business. If we make a material change to the Terms, we will do our best to provide you with reasonable advance notice either by emailing the email address associated with your account or by messaging you through our services (we may not be able to include advance notice for urgent changes).</p>
+        <p>We may make changes to these Terms as we grow for legal or regulatory reasons, to prevent abuse of our services, better protect or serve users of our services, or to better reflect changes to our service or business. If we make a material change to the Terms, we will do our best to provide you with reasonable advance notice either by emailing the email address associated with your account or by messaging you through our services (we may not be able to include advance notice for urgent changes). Any material revisions to our Terms will become effective on the date set forth in our notice, and all other changes will become effective on the date we publish the change. If you use our services after the effective date of any changes, that use will constitute your acceptance of the revised terms and conditions.</p>
       </>
     ),
   },
@@ -66,6 +66,33 @@ const TERMS_OF_SERVICE_SECTIONS: LegalPolicySection[] = [
         </p>
         <p>
           You will indemnify and hold Adieuu and its owners, officers, directors, employees, and agents harmless from and against any claims, liabilities, damages, and costs (including reasonable accounting and legal fees) related to (a) your access to or use of our services or third-party services, (b) your content, (c) your violation of these Terms, or (d) your negligence or willful misconduct.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: 'general-provisions',
+    title: 'General Provisions',
+    content: (
+      <>
+        <blockquote>
+          <p>This section gives us the flexibility we need to protect our rights and the platform. TLDR: we'll enforce these Terms the best we can, you can't assign your rights or obligations to someone else, and in the event of a merger, sale, etc we'll attempt to notify you beforehand so you can make the appropriate choices about your data.</p>
+        </blockquote>
+        <h4>Waiver</h4>
+        <p>
+          No failure or delay by either you or us in exercising any right under the Terms, including other incorporated policies, will constitute a waiver of that right. No waiver under the Terms will be effective unless made in writing and signed by an authorized representative of the party being deemed to have granted the waiver.
+        </p>
+        <h4>Severability</h4>
+        <p>
+          The Terms, including incorporated policies, will be enforced to the fullest extent permitted under applicable law. If any provision of the Terms is held by a court of competent jurisdiction to be contrary to law, the provision will be modified by the court and interpreted so as best to accomplish the objectives of the original provision to the fullest extent permitted by law, and the remaining provisions of the Terms will remain in effect.
+        </p>
+        <h4>Assignment</h4>
+        <p>
+          You may not assign any of your rights or delegate your obligations under these Terms, whether by operation of law or otherwise, without the prior written consent of us (not to be unreasonably witheld). We may assign these Terms in their entirety (including all terms and conditions incorporated in these Terms), without your consent, to a corporate affiliate or in connection with a merger, acquisition, corporate reorganization, or sale of all or substantially all of our assets. In such an event, we will attempt to provide advance notice you via our services and/or the contact information you've provided to us (such as your email).
+        </p>
+        <h4>Governing Law; Venue; Fees</h4>
+        <p>
+          Except where prohibited by law, these Terms and incorporated policies, and any disputes arising out of or related hereto, whether in arbitration or court, shall be governed by the laws of Texas and the United States, without regard to the conflicts of laws rules or the United Nations Convention on the International Sale of Goods. You hereby consent and submit to the exclusive jurisdiction of courts in the United States and Texas. In any action or proceeding to enforce rights under the Terms, Adieuu will be entitled to recover its reasonable costs and attorney's fees.
         </p>
       </>
     ),

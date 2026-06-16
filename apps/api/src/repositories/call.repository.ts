@@ -63,14 +63,20 @@ export class CallRepository
    * already exists for the same conversation (unique partial index).
    */
   async createCall(input: CreateCallInput): Promise<CallDocument> {
-    return this.create({
+    const doc: Omit<CallDocument, '_id' | 'createdAt' | 'updatedAt'> = {
       conversationId: input.conversationId,
       initiatorIdentityId: input.initiatorIdentityId,
       status: 'ringing',
       allowedMedia: input.allowedMedia,
       participants: [],
       roomName: input.roomName,
-    } as Omit<CallDocument, '_id' | 'createdAt' | 'updatedAt'>);
+    } as Omit<CallDocument, '_id' | 'createdAt' | 'updatedAt'>;
+
+    if (input.wrappedE2EEKeys && input.wrappedE2EEKeys.length > 0) {
+      (doc as CallDocument).wrappedE2EEKeys = input.wrappedE2EEKeys;
+    }
+
+    return this.create(doc);
   }
 
   /**

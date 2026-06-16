@@ -273,6 +273,7 @@ export {
   type SystemEvent,
   type PublicConversation,
   type SerializedWrappedKey,
+  type SerializedWrappedCallKey,
   type PublicMessage,
   type PublicMessageRevision,
   type PublicGroupInvite,

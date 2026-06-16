@@ -18,6 +18,7 @@ const mockJoinCall = mock(() =>
 );
 const mockLeaveCall = mock(() => Promise.resolve({ success: true, call: { id: VALID_CALL } }));
 const mockEndCall = mock(() => Promise.resolve({ success: true, call: { id: VALID_CALL } }));
+const mockForceEndCall = mock(() => Promise.resolve({ success: true, call: { id: VALID_CALL } }));
 const mockGetActiveCall = mock(() => Promise.resolve({ success: true, call: null }));
 const mockUpdateMediaState = mock(() => Promise.resolve({ success: true, call: { id: VALID_CALL } }));
 const mockUpdateCallSettings = mock(() =>
@@ -29,6 +30,7 @@ let initiateCallCtrl: typeof import('./calls.controller').initiateCallCtrl;
 let joinCallCtrl: typeof import('./calls.controller').joinCallCtrl;
 let leaveCallCtrl: typeof import('./calls.controller').leaveCallCtrl;
 let endCallCtrl: typeof import('./calls.controller').endCallCtrl;
+let forceEndCallCtrl: typeof import('./calls.controller').forceEndCallCtrl;
 let getActiveCallCtrl: typeof import('./calls.controller').getActiveCallCtrl;
 let updateMediaStateCtrl: typeof import('./calls.controller').updateMediaStateCtrl;
 let updateCallSettingsCtrl: typeof import('./calls.controller').updateCallSettingsCtrl;
@@ -64,6 +66,7 @@ describe('calls.controller', () => {
       joinCall: mockJoinCall,
       leaveCall: mockLeaveCall,
       endCall: mockEndCall,
+      forceEndCall: mockForceEndCall,
       getActiveCall: mockGetActiveCall,
       updateMediaState: mockUpdateMediaState,
     }));
@@ -81,6 +84,7 @@ describe('calls.controller', () => {
       joinCallCtrl,
       leaveCallCtrl,
       endCallCtrl,
+      forceEndCallCtrl,
       getActiveCallCtrl,
       updateMediaStateCtrl,
       updateCallSettingsCtrl,
@@ -96,6 +100,7 @@ describe('calls.controller', () => {
     mockJoinCall.mockClear();
     mockLeaveCall.mockClear();
     mockEndCall.mockClear();
+    mockForceEndCall.mockClear();
     mockGetActiveCall.mockClear();
     mockUpdateMediaState.mockClear();
     mockUpdateCallSettings.mockClear();
@@ -108,6 +113,7 @@ describe('calls.controller', () => {
     );
     mockLeaveCall.mockImplementation(() => Promise.resolve({ success: true, call: { id: VALID_CALL } }));
     mockEndCall.mockImplementation(() => Promise.resolve({ success: true, call: { id: VALID_CALL } }));
+    mockForceEndCall.mockImplementation(() => Promise.resolve({ success: true, call: { id: VALID_CALL } }));
     mockGetActiveCall.mockImplementation(() => Promise.resolve({ success: true, call: null }));
     mockUpdateMediaState.mockImplementation(() =>
       Promise.resolve({ success: true, call: { id: VALID_CALL } }),
@@ -177,6 +183,7 @@ describe('calls.controller', () => {
       ROUTE_TEST_IDENTITY_ID.toHexString(),
       MEDIA,
       { subscriptions: undefined, entitlements: undefined },
+      undefined,
     );
   });
 
@@ -329,5 +336,153 @@ describe('calls.controller', () => {
       VALID_CONV,
       ROUTE_TEST_IDENTITY_ID.toHexString(),
     );
+  });
+
+  // ---------- force-end tests ----------
+
+  test('forceEndCallCtrl unauthorized without session', async () => {
+    const r = await forceEndCallCtrl(
+      baseCtx({ params: { id: VALID_CONV, callId: VALID_CALL } }),
+    );
+    expect(r).toEqual({ kind: 'unauthorized' });
+    expect(mockForceEndCall).not.toHaveBeenCalled();
+  });
+
+  test('forceEndCallCtrl bad_request on invalid conversation id', async () => {
+    const r = await forceEndCallCtrl(
+      authedCtx({ params: { id: INVALID_HEX_24, callId: VALID_CALL } }),
+    );
+    expect(r).toEqual({ kind: 'bad_request', message: 'Invalid conversation ID.' });
+    expect(mockForceEndCall).not.toHaveBeenCalled();
+  });
+
+  test('forceEndCallCtrl bad_request on invalid call id', async () => {
+    const r = await forceEndCallCtrl(
+      authedCtx({ params: { id: VALID_CONV, callId: INVALID_HEX_24 } }),
+    );
+    expect(r).toEqual({ kind: 'bad_request', message: 'Invalid call ID.' });
+    expect(mockForceEndCall).not.toHaveBeenCalled();
+  });
+
+  test('forceEndCallCtrl success', async () => {
+    const r = await forceEndCallCtrl(
+      authedCtx({ params: { id: VALID_CONV, callId: VALID_CALL } }),
+    );
+    expect(r.kind).toBe('ok');
+    expect(mockForceEndCall).toHaveBeenCalledWith(
+      VALID_CONV,
+      VALID_CALL,
+      ROUTE_TEST_IDENTITY_ID.toHexString(),
+    );
+  });
+
+  test('forceEndCallCtrl not_found on CALL_NOT_FOUND', async () => {
+    mockForceEndCall.mockImplementation(() =>
+      Promise.resolve({
+        success: false,
+        error: 'Call not found',
+        errorCode: 'CALL_NOT_FOUND',
+      } as never),
+    );
+    const r = await forceEndCallCtrl(
+      authedCtx({ params: { id: VALID_CONV, callId: VALID_CALL } }),
+    );
+    expect(r).toEqual({ kind: 'not_found', message: 'Call not found' });
+  });
+
+  test('forceEndCallCtrl forbidden on NOT_PARTICIPANT', async () => {
+    mockForceEndCall.mockImplementation(() =>
+      Promise.resolve({
+        success: false,
+        error: 'Not a participant',
+        errorCode: 'NOT_PARTICIPANT',
+      } as never),
+    );
+    const r = await forceEndCallCtrl(
+      authedCtx({ params: { id: VALID_CONV, callId: VALID_CALL } }),
+    );
+    expect(r).toEqual({ kind: 'forbidden', message: 'Not a participant' });
+  });
+
+  // ---------- E2EE wrappedE2EEKeys tests ----------
+
+  test('initiateCallCtrl passes wrappedE2EEKeys to service', async () => {
+    const wrappedKeys = [
+      {
+        recipientIdentityId: 'abc123',
+        ephemeralPublicKey: 'AAAA',
+        kemCiphertext: 'BBBB',
+        wrappedKey: 'CCCC',
+        wrappingNonce: 'DDDD',
+      },
+    ];
+    const r = await initiateCallCtrl(
+      authedCtx({
+        params: { id: VALID_CONV },
+        body: { media: MEDIA, wrappedE2EEKeys: wrappedKeys },
+      }),
+    );
+    expect(r.kind).toBe('ok');
+    expect(mockInitiateCall).toHaveBeenCalledWith(
+      VALID_CONV,
+      ROUTE_TEST_IDENTITY_ID.toHexString(),
+      MEDIA,
+      { subscriptions: undefined, entitlements: undefined },
+      wrappedKeys,
+    );
+  });
+
+  test('initiateCallCtrl accepts call without wrappedE2EEKeys', async () => {
+    const r = await initiateCallCtrl(
+      authedCtx({
+        params: { id: VALID_CONV },
+        body: { media: MEDIA },
+      }),
+    );
+    expect(r.kind).toBe('ok');
+    expect(mockInitiateCall).toHaveBeenCalledWith(
+      VALID_CONV,
+      ROUTE_TEST_IDENTITY_ID.toHexString(),
+      MEDIA,
+      { subscriptions: undefined, entitlements: undefined },
+      undefined,
+    );
+  });
+
+  test('initiateCallCtrl rejects malformed wrappedE2EEKeys', async () => {
+    const badKeys = [
+      {
+        recipientIdentityId: '',
+        ephemeralPublicKey: 'A',
+        kemCiphertext: 'B',
+        wrappedKey: 'C',
+        wrappingNonce: 'D',
+      },
+    ];
+    const r = await initiateCallCtrl(
+      authedCtx({
+        params: { id: VALID_CONV },
+        body: { media: MEDIA, wrappedE2EEKeys: badKeys },
+      }),
+    );
+    expect(r.kind).toBe('validation_failed');
+    expect(mockInitiateCall).not.toHaveBeenCalled();
+  });
+
+  test('initiateCallCtrl rejects wrappedE2EEKeys with missing fields', async () => {
+    const incompleteKeys = [
+      {
+        recipientIdentityId: 'abc123',
+        ephemeralPublicKey: 'AAAA',
+      },
+    ];
+    const r = await initiateCallCtrl(
+      authedCtx({
+        params: { id: VALID_CONV },
+        body: { media: MEDIA, wrappedE2EEKeys: incompleteKeys },
+      }),
+    );
+    expect(r.kind).toBe('validation_failed');
+    expect(mockInitiateCall).not.toHaveBeenCalled();
   });
 });

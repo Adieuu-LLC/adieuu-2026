@@ -71,6 +71,13 @@ mock.module('../repositories/identity.repository', () => ({
   getIdentityRepository: () => mockIdentityRepo,
 }));
 
+const mockMessageRepo = {
+  create: mock(() => Promise.resolve({ _id: new ObjectId() })) as AnyMock,
+};
+mock.module('../repositories/message.repository', () => ({
+  getMessageRepository: () => mockMessageRepo,
+}));
+
 mock.module('./conversation/redis-events', () => ({
   publishToParticipants: mockPublishToParticipants,
   publishConversationEvent: mockPublishConversationEvent,
@@ -94,7 +101,7 @@ mock.module('../utils/adieuuLogger', () => ({
   default: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
 }));
 
-import { initiateCall, joinCall, endCall, leaveCall, getActiveCall, updateMediaState } from './call.service';
+import { initiateCall, joinCall, endCall, forceEndCall, leaveCall, getActiveCall, updateMediaState } from './call.service';
 
 const identityA = new ObjectId('64a1b2c3d4e5f60718293a4b');
 const identityB = new ObjectId('64a1b2c3d4e5f60718293a4c');
@@ -152,7 +159,12 @@ describe('call.service', () => {
     mockCallRepo.createCall.mockClear();
     mockCallRepo.addParticipant.mockClear();
     mockCallRepo.findActiveForConversation.mockClear();
+    mockCallRepo.updateParticipantLeft.mockClear();
+    mockCallRepo.updateParticipantMediaState.mockClear();
+    mockCallRepo.updateStatus.mockClear();
     mockConversationRepo.findById.mockClear();
+    mockIdentityRepo.findById.mockClear();
+    mockMessageRepo.create.mockClear();
     mockCheckRateLimit.mockImplementation(() =>
       Promise.resolve({ allowed: true, remaining: 4, resetAt: 9999999999, limit: 5 }),
     );
@@ -363,6 +375,116 @@ describe('call.service', () => {
     );
   });
 
+  test('initiateCall passes wrappedE2EEKeys through to createCall', async () => {
+    mockConversationRepo.findById.mockImplementation(() =>
+      Promise.resolve(makeConversation()),
+    );
+    mockCallRepo.createCall.mockImplementation(() => Promise.resolve(makeCall({ status: 'ringing', participants: [] })));
+    mockCallRepo.addParticipant.mockImplementation(() =>
+      Promise.resolve(makeCall({ status: 'active' })),
+    );
+
+    const testWrappedKeys = [
+      {
+        recipientIdentityId: identityA.toHexString(),
+        ephemeralPublicKey: 'AAAA',
+        kemCiphertext: 'BBBB',
+        wrappedKey: 'CCCC',
+        wrappingNonce: 'DDDD',
+      },
+      {
+        recipientIdentityId: identityB.toHexString(),
+        ephemeralPublicKey: 'EEEE',
+        kemCiphertext: 'FFFF',
+        wrappedKey: 'GGGG',
+        wrappingNonce: 'HHHH',
+      },
+    ];
+
+    const r = await initiateCall(
+      convId.toHexString(),
+      identityA.toHexString(),
+      { audio: true, video: false, screenshare: false },
+      testAccess,
+      testWrappedKeys,
+    );
+    expect(r.success).toBe(true);
+    expect(mockCallRepo.createCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        wrappedE2EEKeys: testWrappedKeys,
+      }),
+    );
+  });
+
+  test('initiateCall works without wrappedE2EEKeys (backward compatible)', async () => {
+    mockConversationRepo.findById.mockImplementation(() =>
+      Promise.resolve(makeConversation()),
+    );
+    mockCallRepo.createCall.mockImplementation(() => Promise.resolve(makeCall({ status: 'ringing', participants: [] })));
+    mockCallRepo.addParticipant.mockImplementation(() =>
+      Promise.resolve(makeCall({ status: 'active' })),
+    );
+
+    const r = await initiateCall(
+      convId.toHexString(),
+      identityA.toHexString(),
+      { audio: true, video: false, screenshare: false },
+      testAccess,
+    );
+    expect(r.success).toBe(true);
+    expect(mockCallRepo.createCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        wrappedE2EEKeys: undefined,
+      }),
+    );
+  });
+
+  test('joinCall response includes wrappedE2EEKeys from stored call', async () => {
+    const storedWrappedKeys = [
+      {
+        recipientIdentityId: identityB.toHexString(),
+        ephemeralPublicKey: 'AAAA',
+        kemCiphertext: 'BBBB',
+        wrappedKey: 'CCCC',
+        wrappingNonce: 'DDDD',
+      },
+    ];
+    mockCallRepo.findById.mockImplementation(() =>
+      Promise.resolve(
+        makeCall({ wrappedE2EEKeys: storedWrappedKeys }),
+      ),
+    );
+    mockConversationRepo.findById.mockImplementation(() =>
+      Promise.resolve(makeConversation()),
+    );
+    mockCallRepo.addParticipant.mockImplementation(() =>
+      Promise.resolve(
+        makeCall({
+          wrappedE2EEKeys: storedWrappedKeys,
+          participants: [
+            {
+              identityId: identityA,
+              joinedAt: now,
+              mediaState: { audio: true, video: false, screenshare: false },
+            },
+            {
+              identityId: identityB,
+              joinedAt: now,
+              mediaState: { audio: true, video: false, screenshare: false },
+            },
+          ],
+        }),
+      ),
+    );
+    const r = await joinCall(convId.toHexString(), callId.toHexString(), identityB.toHexString(), {
+      audio: true,
+      video: false,
+      screenshare: false,
+    }, testAccess);
+    expect(r.success).toBe(true);
+    expect(r.call?.wrappedE2EEKeys).toEqual(storedWrappedKeys);
+  });
+
   test('joinCall returns ALREADY_IN_CALL for active participant', async () => {
     mockCallRepo.findById.mockImplementation(() => Promise.resolve(makeCall()));
     mockConversationRepo.findById.mockImplementation(() =>
@@ -488,6 +610,117 @@ describe('call.service', () => {
     );
     expect(r.success).toBe(false);
     expect(r.errorCode).toBe('NOT_IN_CALL');
+  });
+
+  test('initiateCall auto-joins existing call on duplicate key error', async () => {
+    const existingCall = makeCall({
+      participants: [
+        {
+          identityId: identityB,
+          joinedAt: now,
+          mediaState: { audio: true, video: false, screenshare: false },
+        },
+      ],
+    });
+    mockConversationRepo.findById.mockImplementation(() =>
+      Promise.resolve(makeConversation()),
+    );
+    const dupError = new Error('duplicate key') as Error & { code?: number };
+    dupError.code = 11000;
+    mockCallRepo.createCall.mockImplementation(() => Promise.reject(dupError));
+    mockCallRepo.findActiveForConversation.mockImplementation(() => Promise.resolve(existingCall));
+    mockCallRepo.findById.mockImplementation(() => Promise.resolve(existingCall));
+    mockCallRepo.addParticipant.mockImplementation(() =>
+      Promise.resolve(
+        makeCall({
+          participants: [
+            {
+              identityId: identityB,
+              joinedAt: now,
+              mediaState: { audio: true, video: false, screenshare: false },
+            },
+            {
+              identityId: identityA,
+              joinedAt: now,
+              mediaState: { audio: true, video: false, screenshare: false },
+            },
+          ],
+        }),
+      ),
+    );
+    const r = await initiateCall(convId.toHexString(), identityA.toHexString(), {
+      audio: true,
+      video: false,
+      screenshare: false,
+    }, testAccess);
+    expect(r.success).toBe(true);
+    expect(r.call?.participants).toHaveLength(2);
+    expect(mockCallRepo.findActiveForConversation).toHaveBeenCalled();
+  });
+
+  test('initiateCall returns CALL_ALREADY_ACTIVE when existing call not found after dup key', async () => {
+    mockConversationRepo.findById.mockImplementation(() =>
+      Promise.resolve(makeConversation()),
+    );
+    const dupError = new Error('duplicate key') as Error & { code?: number };
+    dupError.code = 11000;
+    mockCallRepo.createCall.mockImplementation(() => Promise.reject(dupError));
+    mockCallRepo.findActiveForConversation.mockImplementation(() => Promise.resolve(null));
+    const r = await initiateCall(convId.toHexString(), identityA.toHexString(), {
+      audio: true,
+      video: false,
+      screenshare: false,
+    }, testAccess);
+    expect(r.success).toBe(false);
+    expect(r.errorCode).toBe('CALL_ALREADY_ACTIVE');
+  });
+
+  test('forceEndCall succeeds for conversation member not in call', async () => {
+    const activeCall = makeCall({
+      participants: [
+        {
+          identityId: identityA,
+          joinedAt: now,
+          mediaState: { audio: true, video: false, screenshare: false },
+        },
+      ],
+    });
+    mockCallRepo.findById.mockImplementation(() => Promise.resolve(activeCall));
+    mockConversationRepo.findById.mockImplementation(() =>
+      Promise.resolve(makeConversation()),
+    );
+    mockCallRepo.updateStatus.mockImplementation(() =>
+      Promise.resolve({ ...activeCall, status: 'ended', endedAt: now }),
+    );
+    const r = await forceEndCall(convId.toHexString(), callId.toHexString(), identityB.toHexString());
+    expect(r.success).toBe(true);
+    expect(mockCallRepo.updateStatus).toHaveBeenCalledWith(
+      callId,
+      'ended',
+      expect.objectContaining({ endedAt: expect.any(Date) }),
+    );
+  });
+
+  test('forceEndCall returns NOT_PARTICIPANT for non-member', async () => {
+    const nonMember = new ObjectId('64a1b2c3d4e5f60718293a4d');
+    const activeCall = makeCall();
+    mockCallRepo.findById.mockImplementation(() => Promise.resolve(activeCall));
+    mockConversationRepo.findById.mockImplementation(() =>
+      Promise.resolve(makeConversation()),
+    );
+    const r = await forceEndCall(convId.toHexString(), callId.toHexString(), nonMember.toHexString());
+    expect(r.success).toBe(false);
+    expect(r.errorCode).toBe('NOT_PARTICIPANT');
+    expect(mockCallRepo.updateStatus).not.toHaveBeenCalled();
+  });
+
+  test('forceEndCall returns CALL_NOT_FOUND for ended call', async () => {
+    mockCallRepo.findById.mockImplementation(() =>
+      Promise.resolve(makeCall({ status: 'ended' })),
+    );
+    const r = await forceEndCall(convId.toHexString(), callId.toHexString(), identityA.toHexString());
+    expect(r.success).toBe(false);
+    expect(r.errorCode).toBe('CALL_NOT_FOUND');
   });
 
   test('updateMediaState enforces conversation media toggles', async () => {

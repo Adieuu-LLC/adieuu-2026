@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   useParticipants,
   useLocalParticipant,
@@ -105,10 +106,50 @@ function resolutionToVideoQuality(height: number): VideoQuality {
   return VideoQuality.LOW;
 }
 
-export function CallConferenceView() {
+function LockIcon({ size = 12 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </svg>
+  );
+}
+
+function UnlockIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0 1 5-5 5 5 0 0 1 4.33 2.5" />
+    </svg>
+  );
+}
+
+function E2EEStatusBanner({ e2eeActive, e2eeSupported }: { e2eeActive: boolean; e2eeSupported: boolean }) {
+  const { t } = useTranslation();
+
+  if (e2eeActive) {
+    return (
+      <div className="call-conference__e2ee-badge call-conference__e2ee-badge--active" title={t('call.e2eeActive')}>
+        <LockIcon />
+        <span>{t('call.e2eeActive')}</span>
+      </div>
+    );
+  }
+
+  const message = e2eeSupported ? t('call.e2eeFailed') : t('call.e2eeNotSupported');
+
+  return (
+    <div className="call-conference__e2ee-banner call-conference__e2ee-banner--warning" role="alert">
+      <UnlockIcon />
+      <span>{message}</span>
+    </div>
+  );
+}
+
+export function CallConferenceView({ e2eeActive = false }: { e2eeActive?: boolean }) {
   const participants = useParticipants();
   const { localParticipant } = useLocalParticipant();
-  const { streamQualityCaps } = useCallSession();
+  const { streamQualityCaps, e2eeSupported } = useCallSession();
 
   const cameraTracks = useTracks(
     [{ source: Track.Source.Camera, withPlaceholder: false }],
@@ -180,6 +221,7 @@ export function CallConferenceView() {
   return (
     <div className="call-conference">
       <RoomAudioRenderer />
+      <E2EEStatusBanner e2eeActive={!!e2eeActive} e2eeSupported={e2eeSupported} />
 
       <div className={gridClass}>
         {participants.map((participant) => {
