@@ -411,8 +411,8 @@ export function FeedbackList() {
                   key={post.postId}
                   className={`feedback-card feedback-card--status-${post.status}${post.isOfficial ? ' feedback-card--official' : ''}`}
                 >
-                  <Link to={`/feedback/${post.postId}`} className="feedback-card-link">
-                    <div className="feedback-card-main">
+                  <div className="feedback-card-main">
+                    <Link to={`/feedback/${post.postId}`} className="feedback-card-link">
                       <div className="feedback-card-header">
                         {post.isOfficial && (
                           <span className="feedback-wanted-badge">{t('feedback.feedbackWanted')}</span>
@@ -435,14 +435,14 @@ export function FeedbackList() {
                       <p className="feedback-card-description">
                         {truncate(post.description, DESC_MAX_LENGTH)}
                       </p>
-                      <div className="feedback-card-meta">
-                        <FeedbackAuthorLink author={post.author} layout="post-list" />
-                        <span className="feedback-card-stats">
-                          {t('feedback.commentCount', { count: post.commentCount })}
-                        </span>
-                      </div>
+                    </Link>
+                    <div className="feedback-card-meta">
+                      <FeedbackAuthorLink author={post.author} layout="post-list" />
+                      <span className="feedback-card-stats">
+                        {t('feedback.commentCount', { count: post.commentCount })}
+                      </span>
                     </div>
-                  </Link>
+                  </div>
                   {currentIdentityId === post.author.identityId ? (
                     <div
                       className="feedback-upvote-btn feedback-upvote-btn--list feedback-upvote-btn--readonly"

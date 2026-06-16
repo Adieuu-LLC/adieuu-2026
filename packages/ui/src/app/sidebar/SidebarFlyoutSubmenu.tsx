@@ -1,5 +1,4 @@
-import type { ReactNode } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useCallback, useRef, type KeyboardEvent, type ReactNode } from 'react';
 
 interface SidebarFlyoutSubmenuProps {
   label: string;
@@ -7,7 +6,6 @@ interface SidebarFlyoutSubmenuProps {
   children: ReactNode;
   /** Mobile drawer: render as section header + indented items instead of nested hover flyout */
   variant?: 'flyout' | 'drawer';
-  onNavClick?: () => void;
 }
 
 function FlyoutChevron() {
@@ -36,29 +34,45 @@ export function SidebarFlyoutSubmenu({
   isActive = false,
   children,
   variant = 'flyout',
-  onNavClick,
 }: SidebarFlyoutSubmenuProps) {
-  const { t } = useTranslation();
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  const focusFirstPanelItem = useCallback(() => {
+    const panel = wrapperRef.current?.querySelector('.sidebar-flyout-submenu-panel');
+    const firstFocusable = panel?.querySelector<HTMLElement>(
+      'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    firstFocusable?.focus();
+  }, []);
+
+  const handleTriggerKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        focusFirstPanelItem();
+      }
+    },
+    [focusFirstPanelItem],
+  );
 
   if (variant === 'drawer') {
     return (
       <div className="sidebar-flyout-drawer-submenu">
         <div className="sidebar-flyout-drawer-submenu-label">{label}</div>
-        <div className="sidebar-flyout-drawer-submenu-items" onClick={onNavClick}>
-          {children}
-        </div>
+        {/* Drawer nav items handle their own onClick (e.g. close drawer on navigate). */}
+        <div className="sidebar-flyout-drawer-submenu-items">{children}</div>
       </div>
     );
   }
 
   return (
-    <div className="sidebar-flyout-submenu-wrapper">
+    <div ref={wrapperRef} className="sidebar-flyout-submenu-wrapper">
       <div
         className={`sidebar-flyout-submenu-trigger ${isActive ? 'sidebar-flyout-item-active' : ''}`}
         role="button"
         tabIndex={0}
         aria-haspopup="true"
-        aria-label={t('nav.more')}
+        onKeyDown={handleTriggerKeyDown}
       >
         <span className="sidebar-flyout-submenu-label">{label}</span>
         <FlyoutChevron />

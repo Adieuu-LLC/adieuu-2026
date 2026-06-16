@@ -154,7 +154,11 @@ export function parseFeedbackListQuery(searchParams: URLSearchParams): FeedbackL
     isOfficialParam === 'true' ? true : isOfficialParam === 'false' ? false : undefined;
 
   const rawSearch = searchParams.get('search');
-  const search = rawSearch && rawSearch.length <= 200 ? rawSearch.trim() : undefined;
+  let search: string | undefined;
+  if (rawSearch && rawSearch.length <= 200) {
+    const trimmed = rawSearch.trim();
+    search = trimmed.length > 0 ? trimmed : undefined;
+  }
 
   return { page, limit, sort, category, statuses, hasStaffResponse, isOfficial, search };
 }

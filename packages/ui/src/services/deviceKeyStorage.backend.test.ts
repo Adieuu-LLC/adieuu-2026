@@ -60,7 +60,7 @@ const generateWrappingKey = (): Uint8Array => randomBytes(32);
 
 /** Deletes a (fake-)IndexedDB database so cross-file state cannot leak in. */
 function deleteIndexedDb(name: string): Promise<void> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     if (typeof indexedDB === 'undefined') {
       resolve();
       return;
@@ -68,7 +68,7 @@ function deleteIndexedDb(name: string): Promise<void> {
     const req = indexedDB.deleteDatabase(name);
     req.onsuccess = () => resolve();
     req.onerror = () => resolve();
-    req.onblocked = () => resolve();
+    req.onblocked = () => reject(new Error(`IndexedDB delete blocked: ${name}`));
   });
 }
 

@@ -2,7 +2,7 @@
  * Feedback post repository.
  */
 
-import { type Filter, type Sort } from 'mongodb';
+import { type ClientSession, type Filter, type Sort } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
 import type {
@@ -99,24 +99,37 @@ export class FeedbackPostRepository extends BaseRepository<FeedbackPostDocument>
     return { posts: posts as FeedbackPostDocument[], total };
   }
 
-  async incrementUpvotes(postId: string, delta: number): Promise<void> {
+  async incrementUpvotes(
+    postId: string,
+    delta: number,
+    options?: { session?: ClientSession },
+  ): Promise<void> {
     await this.collection.updateOne(
       { postId } as Filter<FeedbackPostDocument>,
       { $inc: { upvoteCount: delta } },
+      { session: options?.session },
     );
   }
 
-  async incrementComments(postId: string): Promise<void> {
+  async incrementComments(
+    postId: string,
+    options?: { session?: ClientSession },
+  ): Promise<void> {
     await this.collection.updateOne(
       { postId } as Filter<FeedbackPostDocument>,
       { $inc: { commentCount: 1 } },
+      { session: options?.session },
     );
   }
 
-  async setHasStaffResponse(postId: string): Promise<void> {
+  async setHasStaffResponse(
+    postId: string,
+    options?: { session?: ClientSession },
+  ): Promise<void> {
     await this.collection.updateOne(
       { postId } as Filter<FeedbackPostDocument>,
       { $set: { hasStaffResponse: true } },
+      { session: options?.session },
     );
   }
 

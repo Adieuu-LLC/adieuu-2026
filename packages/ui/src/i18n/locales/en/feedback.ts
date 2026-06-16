@@ -96,6 +96,7 @@ export const feedback = {
     related: 'seems related to this post',
     complementary: 'would go well with this post',
   },
+  linkCommentReciprocalSuggested: ' suggested ',
   linkCommentBodySuffix: 'suggested this post {{linkDescription}}',
   categories: {
     feature: 'New feature',

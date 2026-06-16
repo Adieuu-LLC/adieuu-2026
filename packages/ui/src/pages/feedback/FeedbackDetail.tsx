@@ -65,7 +65,7 @@ function LinkCommentBody({
         {isReciprocal ? (
           <>
             <FeedbackAuthorLink author={comment.author} layout="inline" />
-            {' suggested '}
+            {t('feedback.linkCommentReciprocalSuggested')}
             <Link to={`/feedback/${comment.linkedPostId}`} className="feedback-comment-link">
               {comment.linkedPostTitle}
             </Link>{' '}

@@ -2,7 +2,7 @@
  * Feedback comment repository.
  */
 
-import { ObjectId, type Filter } from 'mongodb';
+import { ObjectId, type ClientSession, type Filter } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
 import type {
@@ -15,13 +15,18 @@ export interface FeedbackCommentListResult {
   total: number;
 }
 
+const DEFAULT_COMMENT_LIST_LIMIT = 500;
+
 export class FeedbackCommentRepository extends BaseRepository<FeedbackCommentDocument> {
   constructor() {
     super(Collections.FEEDBACK_COMMENTS);
   }
 
-  async createComment(input: CreateFeedbackCommentInput): Promise<FeedbackCommentDocument> {
-    return await super.create(input);
+  async createComment(
+    input: CreateFeedbackCommentInput,
+    options?: { session?: ClientSession },
+  ): Promise<FeedbackCommentDocument> {
+    return await super.create(input, options);
   }
 
   async listByPost(
@@ -45,14 +50,20 @@ export class FeedbackCommentRepository extends BaseRepository<FeedbackCommentDoc
     return { comments: comments as FeedbackCommentDocument[], total };
   }
 
-  async listAllByPost(postId: string): Promise<FeedbackCommentDocument[]> {
-    return await this.findMany({ postId } as Filter<FeedbackCommentDocument>, 500);
+  async listAllByPost(
+    postId: string,
+    limit = DEFAULT_COMMENT_LIST_LIMIT,
+  ): Promise<FeedbackCommentDocument[]> {
+    return await this.findMany({ postId } as Filter<FeedbackCommentDocument>, limit);
   }
 
-  async listLinksToPost(postId: string): Promise<FeedbackCommentDocument[]> {
+  async listLinksToPost(
+    postId: string,
+    limit = DEFAULT_COMMENT_LIST_LIMIT,
+  ): Promise<FeedbackCommentDocument[]> {
     return await this.findMany(
       { linkedPostId: postId } as Filter<FeedbackCommentDocument>,
-      500,
+      limit,
     );
   }
 

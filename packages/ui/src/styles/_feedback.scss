@@ -171,13 +171,14 @@ $feedback-status-colors: (
 }
 
 .feedback-card-link {
-  flex: 1;
+  display: block;
   min-width: 0;
   text-decoration: none;
   color: inherit;
 }
 
 .feedback-card-main {
+  flex: 1;
   min-width: 0;
 }
 

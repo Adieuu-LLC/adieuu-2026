@@ -52,6 +52,10 @@ export function LinkPostModal({
   );
 
   const resetState = useCallback(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
     setSearch('');
     setDebouncedSearch('');
     setResults([]);
