@@ -119,11 +119,19 @@ function parseStatusesParam(raw: string | null): FeedbackStatus[] | undefined {
   return statuses.length > 0 ? statuses : [];
 }
 
+function parsePositiveInteger(raw: string | null, fallback: number): number {
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 1) {
+    return fallback;
+  }
+  return parsed;
+}
+
 export function parseFeedbackListQuery(searchParams: URLSearchParams): FeedbackListQuery {
-  const page = Math.max(1, Number(searchParams.get('page')) || 1);
+  const page = parsePositiveInteger(searchParams.get('page'), 1);
   const limit = Math.min(
     FEEDBACK_LIST_PAGE_SIZE_MAX,
-    Math.max(1, Number(searchParams.get('limit')) || FEEDBACK_LIST_PAGE_SIZE),
+    parsePositiveInteger(searchParams.get('limit'), FEEDBACK_LIST_PAGE_SIZE),
   );
   const sortParam = searchParams.get('sort') ?? 'upvotes';
   const sort: FeedbackSortOption = isFeedbackSortOption(sortParam) ? sortParam : 'upvotes';
@@ -205,10 +213,14 @@ async function toPublicPost(
   };
 }
 
+function feedbackCommentPublicId(comment: FeedbackCommentDocument): string {
+  return comment._id.toHexString();
+}
+
 function buildCommentParentMap(
   comments: FeedbackCommentDocument[],
 ): Map<string, FeedbackCommentDocument> {
-  return new Map(comments.map((comment) => [comment._id.toHexString(), comment]));
+  return new Map(comments.map((comment) => [feedbackCommentPublicId(comment), comment]));
 }
 
 function collectCommentAuthorIds(
@@ -247,7 +259,7 @@ function toPublicComment(
     const parentAuthorId = parent.identityId.toHexString();
     const parentAuthor = authorMap.get(parentAuthorId);
     parentPreview = {
-      commentId: parent._id.toHexString(),
+      commentId: feedbackCommentPublicId(parent),
       authorDisplayName: parentAuthor?.displayName ?? 'Unknown',
       bodyExcerpt: excerptFeedbackComment(parent.body),
     };
@@ -257,7 +269,7 @@ function toPublicComment(
     linkedPostId && linkedPostTitleById ? linkedPostTitleById.get(linkedPostId) ?? null : null;
 
   return {
-    id: comment._id.toHexString(),
+    id: feedbackCommentPublicId(comment),
     postId: comment.postId,
     author: {
       identityId: authorId,

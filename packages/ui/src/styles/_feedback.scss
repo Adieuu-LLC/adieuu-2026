@@ -170,8 +170,14 @@ $feedback-status-colors: (
   }
 }
 
-.feedback-card-main {
+.feedback-card-link {
   flex: 1;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.feedback-card-main {
   min-width: 0;
 }
 
@@ -452,7 +458,7 @@ $feedback-status-colors: (
 .feedback-detail-body {
   line-height: 1.6;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .feedback-attachment-grid {
@@ -771,7 +777,7 @@ $feedback-status-colors: (
   margin: 0;
   line-height: 1.5;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 
   &--link {
     display: flex;
@@ -828,7 +834,7 @@ $feedback-status-colors: (
   line-height: 1.45;
   color: var(--color-text-secondary);
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .feedback-comment-reply-btn {

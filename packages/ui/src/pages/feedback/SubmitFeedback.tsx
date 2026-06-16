@@ -81,26 +81,31 @@ export function SubmitFeedback() {
     setSubmitting(true);
     setError(null);
 
-    const res = await api.feedback.createPost({
-      category,
-      title: title.trim(),
-      description: description.trim(),
-      attachmentMediaIds: attachments.map((a) => a.mediaId),
-      ...(isOfficial ? { isOfficial: true } : {}),
-    });
+    try {
+      const res = await api.feedback.createPost({
+        category,
+        title: title.trim(),
+        description: description.trim(),
+        attachmentMediaIds: attachments.map((a) => a.mediaId),
+        ...(isOfficial ? { isOfficial: true } : {}),
+      });
 
-    setSubmitting(false);
+      if (res.success && res.data) {
+        setConfirmOpen(false);
+        navigate(`/feedback/${res.data.postId}`);
+        return;
+      }
 
-    if (res.success && res.data) {
-      setConfirmOpen(false);
-      navigate(`/feedback/${res.data.postId}`);
-      return;
-    }
-
-    if (res.error?.code === 'RATE_LIMITED') {
-      setError(t('common.rateLimited', 'Rate limit exceeded. Please try again later.'));
-    } else {
+      if (res.error?.code === 'RATE_LIMITED') {
+        setError(t('common.rateLimited', 'Rate limit exceeded. Please try again later.'));
+      } else {
+        setError(t('feedback.submitError'));
+      }
+    } catch (err) {
+      console.error('[SubmitFeedback] createPost failed', err);
       setError(t('feedback.submitError'));
+    } finally {
+      setSubmitting(false);
     }
   }, [api, attachments, canSubmit, category, description, isOfficial, navigate, t, title]);
 

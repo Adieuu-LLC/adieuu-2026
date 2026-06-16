@@ -376,11 +376,13 @@ export function ConversationMessageSearchPanel({
       if (mode === 'new') {
         searchAccumulatedActiveMsRef.current = 0;
       }
-      searchWindowRef.current = getEffectiveSearchWindowRange(
-        timePreset,
-        Date.now(),
-        selfParticipantJoinedAtMs
-      );
+      if (mode === 'new' || searchWindowRef.current === null) {
+        searchWindowRef.current = getEffectiveSearchWindowRange(
+          timePreset,
+          Date.now(),
+          selfParticipantJoinedAtMs
+        );
+      }
       searchSegmentStartMsRef.current = Date.now();
       setSearchTick(0);
       setBusy(true);

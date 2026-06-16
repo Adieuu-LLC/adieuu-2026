@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, type Dispatch, type SetStateAction } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MAX_FEEDBACK_ATTACHMENTS } from '@adieuu/shared';
 import { Button } from './Button';
@@ -16,7 +16,7 @@ export interface FeedbackAttachmentItem {
 
 interface FeedbackAttachmentUploaderProps {
   attachments: FeedbackAttachmentItem[];
-  onChange: (attachments: FeedbackAttachmentItem[]) => void;
+  onChange: Dispatch<SetStateAction<FeedbackAttachmentItem[]>>;
   disabled?: boolean;
 }
 
@@ -34,8 +34,8 @@ export function FeedbackAttachmentUploader({
     maxSizeBytes: FEEDBACK_ATTACHMENT_MAX_BYTES,
     acceptedTypes: ACCEPTED_TYPES,
     onComplete: (mediaId, cdnUrl) => {
-      onChange([
-        ...attachments,
+      onChange((prev) => [
+        ...prev,
         { mediaId, cdnUrl, contentType: pendingContentType.current },
       ]);
       reset();
@@ -58,9 +58,9 @@ export function FeedbackAttachmentUploader({
 
   const removeAttachment = useCallback(
     (mediaId: string) => {
-      onChange(attachments.filter((a) => a.mediaId !== mediaId));
+      onChange((prev) => prev.filter((a) => a.mediaId !== mediaId));
     },
-    [attachments, onChange],
+    [onChange],
   );
 
   const hint = useMemo(() => t('feedback.form.attachmentsHint'), [t]);

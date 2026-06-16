@@ -99,20 +99,30 @@ export function LinkPostModal({
     setSearching(true);
 
     void (async () => {
-      const res = await api.feedback.listPosts({
-        search: trimmedSearch,
-        limit: 10,
-        page: 1,
-      });
+      try {
+        const res = await api.feedback.listPosts({
+          search: trimmedSearch,
+          limit: 10,
+          page: 1,
+        });
 
-      if (cancelled) return;
+        if (cancelled) return;
 
-      if (res.success && res.data) {
-        setResults(res.data.items.filter((item) => item.postId !== currentPostId));
-      } else {
-        setResults([]);
+        if (res.success && res.data) {
+          setResults(res.data.items.filter((item) => item.postId !== currentPostId));
+        } else {
+          setResults([]);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('[LinkPostModal] search failed', err);
+          setResults([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setSearching(false);
+        }
       }
-      setSearching(false);
     })();
 
     return () => {

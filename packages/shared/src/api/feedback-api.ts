@@ -1,5 +1,5 @@
 import type { ApiResponse } from '../types';
-import type { HttpClient } from './http-client';
+import type { HttpClient, RequestOptions } from './http-client';
 import type {
   CreateFeedbackCommentParams,
   CreateFeedbackPostParams,
@@ -23,7 +23,10 @@ export class FeedbackApi {
     return this.client.post('/api/feedback', params);
   }
 
-  async listPosts(params?: FeedbackListParams): Promise<ApiResponse<FeedbackListResponse>> {
+  async listPosts(
+    params?: FeedbackListParams,
+    requestOptions?: RequestOptions,
+  ): Promise<ApiResponse<FeedbackListResponse>> {
     const qs = new URLSearchParams();
     if (params?.page) qs.set('page', String(params.page));
     if (params?.limit) qs.set('limit', String(params.limit));
@@ -38,7 +41,7 @@ export class FeedbackApi {
     }
     if (params?.search) qs.set('search', params.search);
     const query = qs.toString();
-    return this.client.get(`/api/feedback${query ? `?${query}` : ''}`);
+    return this.client.get(`/api/feedback${query ? `?${query}` : ''}`, requestOptions);
   }
 
   async getPost(postId: string): Promise<ApiResponse<FeedbackDetailResponse>> {
