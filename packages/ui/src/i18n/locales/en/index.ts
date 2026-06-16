@@ -18,9 +18,13 @@ import { staticPages } from './staticPages';
 import { compliance } from './compliance';
 import { sponsorship } from './sponsorship';
 import { support } from './support';
+import { feedback } from './feedback';
+import { legal, footer } from './legal';
 
 export const en = {
   ...core,
+  legal,
+  footer,
   identity,
   account,
   ...staticPages,
@@ -32,6 +36,7 @@ export const en = {
   report,
   moderation,
   support,
+  feedback,
   gif,
   achievements,
   compliance,

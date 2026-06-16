@@ -204,6 +204,26 @@ export {
   type PublicSupportTicketEvent,
 } from './support-ticket-api';
 
+export { FeedbackApi } from './feedback-api';
+
+export type {
+  FeedbackAuthor,
+  FeedbackAttachment,
+  PublicFeedbackPost,
+  PublicFeedbackComment,
+  RelatedFeedbackPost,
+  CreateFeedbackPostParams,
+  CreateFeedbackCommentParams,
+  FeedbackListParams,
+  FeedbackListResponse,
+  FeedbackDetailResponse,
+  UpdateFeedbackStatusParams,
+  CreateFeedbackPostResponse,
+  FeedbackNotificationPrefs,
+  UpdateFeedbackNotificationPrefsParams,
+  FeedbackUnreadSummary,
+} from './feedback-types';
+
 export type {
   CreateSupportTicketParams,
   SupportTicketDetailResponse,

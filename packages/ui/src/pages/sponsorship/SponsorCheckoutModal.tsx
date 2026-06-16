@@ -18,6 +18,7 @@ import { useAppConfig } from '../../config';
 import { Button } from '../../components/Button';
 import { Spinner } from '../../components/Spinner';
 import { Icon } from '../../icons/Icon';
+import { LegalAgreementNotice } from '../../components/LegalAgreementNotice';
 import { useToast } from '../../components/Toast';
 import { openCheckoutOrPortalUrl } from '../../utils/open-checkout-url';
 import { usePlatformCapabilities } from '../../config';
@@ -174,6 +175,8 @@ export function SponsorCheckoutModal({ open, entry, onClose }: SponsorCheckoutMo
               >
                 {loading ? <Spinner size="sm" /> : t('sponsorship.checkout.checkoutButton')}
               </Button>
+
+              <LegalAgreementNotice variant="compact" className="checkout-modal-legal-notice" />
             </div>
           </Dialog.Content>
         </Dialog.Positioner>

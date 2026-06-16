@@ -80,6 +80,8 @@ import {
   TicketDetail as ModerationTicketDetail,
 } from '../pages/moderation';
 import { MyTickets, SubmitTicket, TicketDetail } from '../pages/support';
+import { FeedbackList, FeedbackDetail, SubmitFeedback } from '../pages/feedback';
+import { LegalPoliciesPage, LegalPolicyPage } from '../legal';
 
 /**
  * Protected route wrapper - redirects to login if not authenticated.
@@ -293,6 +295,10 @@ export function App() {
         <Route path="/search" element={<Search />} />
         <Route path="/spaces" element={<PublicSpaces />} />
         <Route path="/identity/:id" element={<IdentityProfileView />} />
+        <Route path="/legal-policies" element={<LegalPoliciesPage />} />
+        <Route path="/legal-policies/:slug" element={<LegalPolicyPage />} />
+        <Route path="/feedback" element={<FeedbackList />} />
+        <Route path="/feedback/:postId" element={<FeedbackDetail />} />
       </Route>
 
       {/* Protected Routes with Sidebar Layout */}
@@ -318,6 +324,9 @@ export function App() {
         <Route path="/support" element={<MyTickets />} />
         <Route path="/support/new" element={<SubmitTicket />} />
         <Route path="/support/:ticketId" element={<TicketDetail />} />
+
+        {/* Community feedback — submit requires identity session */}
+        <Route path="/feedback/new" element={<SubmitFeedback />} />
 
         {/* Identity Routes */}
         <Route path="/identity" element={<Navigate to="/identity/profile" replace />} />

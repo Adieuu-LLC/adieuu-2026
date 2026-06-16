@@ -5,6 +5,7 @@ import type { PurchasableProductId, SubscriptionCatalogPricesMap } from '@adieuu
 import { Button } from '../../../components/Button';
 import { Spinner } from '../../../components/Spinner';
 import { Icon } from '../../../icons/Icon';
+import { LegalAgreementNotice } from '../../../components/LegalAgreementNotice';
 
 export interface CheckoutModalProps {
   open: boolean;
@@ -110,6 +111,8 @@ export function CheckoutModal({
               >
                 {loading ? <Spinner size="sm" /> : t('account.subscription.checkoutModal.checkoutWithStripe')}
               </Button>
+
+              <LegalAgreementNotice variant="compact" className="checkout-modal-legal-notice" />
 
               <Accordion.Root collapsible className="checkout-modal-accordion">
                 <Accordion.Item value="cash">

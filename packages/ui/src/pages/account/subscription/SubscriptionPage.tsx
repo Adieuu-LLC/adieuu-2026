@@ -26,6 +26,7 @@ import type { SubscriptionDerivedState } from './types';
 import '../../../styles/_subscription.scss';
 import '../../../styles/_sponsorship.scss';
 import { SessionLockedPage } from '../../../components/SessionLockedPage';
+import { LegalAgreementNotice } from '../../../components/LegalAgreementNotice';
 import { emitSubscriptionUpgraded, onSubscriptionUpgraded } from '../../../services/subscriptionEvents';
 
 const VALID_TABS = ['manage', 'billing', 'lifetime', 'sponsorships'] as const;
@@ -486,6 +487,10 @@ export function AccountSubscription() {
           />
         </TabContent>
       </Tabs>
+
+      {!identityMode && (
+        <LegalAgreementNotice className="subscription-legal-notice" />
+      )}
     </div>
   );
 }

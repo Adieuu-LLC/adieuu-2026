@@ -7,9 +7,9 @@
  * @module hooks/useReportEvidence
  */
 
-import { useCallback } from 'react';
+import { useCallback, useContext } from 'react';
 import type { ReportContextMessageCount } from '@adieuu/shared';
-import { useConversations } from './useConversations';
+import { ConversationsContext } from './conversations/context';
 
 export interface ReportEvidenceResult {
   evidenceMessageIds: string[];
@@ -18,7 +18,7 @@ export interface ReportEvidenceResult {
 }
 
 export function useReportEvidence() {
-  const { getSessionKeysForMessages, fetchMessagesAround } = useConversations();
+  const conversations = useContext(ConversationsContext);
 
   const gatherEvidence = useCallback(
     async (
@@ -26,6 +26,11 @@ export function useReportEvidence() {
       conversationId: string,
       contextMessageCount: ReportContextMessageCount,
     ): Promise<ReportEvidenceResult> => {
+      if (!conversations) {
+        throw new Error('Conversations unavailable');
+      }
+
+      const { getSessionKeysForMessages, fetchMessagesAround } = conversations;
       const msgs = await fetchMessagesAround(conversationId, targetMessageId, {
         before: contextMessageCount,
         after: contextMessageCount,
@@ -49,7 +54,7 @@ export function useReportEvidence() {
 
       return { evidenceMessageIds: messageIds, sessionKeys, missingKeys };
     },
-    [fetchMessagesAround, getSessionKeysForMessages],
+    [conversations],
   );
 
   return { gatherEvidence };

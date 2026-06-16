@@ -6,6 +6,7 @@ import { Button } from '../../components/Button';
 import { Alert } from '../../components/Alert';
 import { Card } from '../../components/Card';
 import { Spinner } from '../../components/Spinner';
+import { LegalAgreementNotice } from '../../components/LegalAgreementNotice';
 import { AccountRestrictionPanel } from '../../components/AccountRestrictionPanel';
 import { useAuth } from '../../hooks/useAuth';
 import type { AccountRestrictionInfo } from '../../services/authRestrictionFlow';
@@ -223,7 +224,8 @@ export function Verify() {
       </Card>
 
       <footer className="auth-footer slide-up stagger-3">
-        <p>
+        <LegalAgreementNotice variant="auth" />
+        <p style={{ marginTop: 'var(--spacing-sm)' }}>
           <Link to="/auth/login" className="auth-link">
             Use a different email or phone
           </Link>

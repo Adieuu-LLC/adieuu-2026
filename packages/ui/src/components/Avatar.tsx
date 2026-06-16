@@ -4,7 +4,7 @@
  * Uses avatar data from the API to render consistent avatars across platforms.
  */
 
-import { useMemo } from 'react';
+import { useMemo, type CSSProperties } from 'react';
 
 /**
  * Avatar data for rendering deterministic avatars.
@@ -31,6 +31,37 @@ const AVATAR_SIZES: Record<AvatarSize, number> = {
   lg: 64,
   xl: 80,
 };
+
+function avatarImageStyle(pixelSize: number): CSSProperties {
+  return {
+    width: pixelSize,
+    height: pixelSize,
+    borderRadius: '50%',
+    objectFit: 'cover',
+    display: 'block',
+    flexShrink: 0,
+  };
+}
+
+function avatarPlaceholderStyle(pixelSize: number): CSSProperties {
+  const fontSize = Math.max(10, Math.round(pixelSize * 0.375));
+
+  return {
+    width: pixelSize,
+    height: pixelSize,
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    boxSizing: 'border-box',
+    fontSize,
+    fontWeight: 600,
+    lineHeight: 1,
+    background: 'var(--color-bg-tertiary)',
+    color: 'var(--color-text-secondary)',
+  };
+}
 
 export interface AvatarProps {
   /** Avatar data from the API (for deterministic avatars) */
@@ -146,7 +177,7 @@ export function Avatar({ data, src, name, size = 80, fallbackInitial = '?', clas
         width={pixelSize}
         height={pixelSize}
         className={`avatar ${className || ''}`}
-        style={{ borderRadius: '50%', objectFit: 'cover' }}
+        style={avatarImageStyle(pixelSize)}
       />
     );
   }
@@ -160,7 +191,7 @@ export function Avatar({ data, src, name, size = 80, fallbackInitial = '?', clas
         width={pixelSize}
         height={pixelSize}
         className={`avatar ${className || ''}`}
-        style={{ borderRadius: '50%' }}
+        style={avatarImageStyle(pixelSize)}
       />
     );
   }
@@ -169,9 +200,14 @@ export function Avatar({ data, src, name, size = 80, fallbackInitial = '?', clas
   return (
     <div
       className={`avatar avatar-placeholder ${className || ''}`}
-      style={{ width: pixelSize, height: pixelSize }}
+      style={avatarPlaceholderStyle(pixelSize)}
+      role="img"
+      aria-label={name ? `${name} avatar` : undefined}
+      aria-hidden={name ? undefined : true}
     >
-      {initials}
+      <span className="avatar-placeholder-initials" aria-hidden="true">
+        {initials}
+      </span>
     </div>
   );
 }

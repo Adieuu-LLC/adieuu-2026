@@ -732,8 +732,11 @@ export const account = {
         accept: 'Accept referral and sign up',
         decline: 'Continue without referral',
         continueWithout: 'Continue to sign in',
-        privacyNote:
-          'Referral acceptance is optional and does not reveal your identity to the referrer. You can still give this person (or someone else) credit after signing up, if you\u2019d like.',
+        privacyNote: {
+          optional: 'Referral acceptance is optional and does not reveal your identity to the referrer.',
+          later: 'You may give this person (or someone else) credit after signing up via your account settings.',
+          credit: 'If you subscribe to Adieuu, this person will get a credit for a month of Access.',
+        },
         backHome: 'Back to home',
       },
     },

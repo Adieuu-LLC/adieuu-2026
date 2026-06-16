@@ -834,6 +834,14 @@
   justify-content: center;
 }
 
+.checkout-modal-legal-notice {
+  margin: 0;
+}
+
+.subscription-legal-notice {
+  margin-top: var(--spacing-sm);
+}
+
 .checkout-modal-accordion {
   border: 1px solid var(--color-border-subtle, var(--color-border));
   border-radius: var(--radius-md);

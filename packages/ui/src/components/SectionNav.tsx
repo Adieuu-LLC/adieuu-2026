@@ -11,9 +11,11 @@ interface SectionNavProps {
   sections: NavSection[];
   sectionRefs: React.RefObject<Map<string, HTMLElement>>;
   ariaLabel: string;
+  /** When true, updates the URL hash when navigating to a section */
+  syncHash?: boolean;
 }
 
-export function SectionNav({ sections, sectionRefs, ariaLabel }: SectionNavProps) {
+export function SectionNav({ sections, sectionRefs, ariaLabel, syncHash = false }: SectionNavProps) {
   const [activeSection, setActiveSection] = useState(
     () => sections[0]?.id ?? '',
   );
@@ -58,7 +60,10 @@ export function SectionNav({ sections, sectionRefs, ariaLabel }: SectionNavProps
     const el = sectionRefs.current?.get(id);
     if (!el) return;
     el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [sectionRefs]);
+    if (syncHash) {
+      history.replaceState(null, '', `#${id}`);
+    }
+  }, [sectionRefs, syncHash]);
 
   const handleSelectChange = useCallback(
     (details: { value: string[] }) => {

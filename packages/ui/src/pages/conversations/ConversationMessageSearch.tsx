@@ -112,6 +112,8 @@ export function ConversationMessageSearchPanel({
   const [searchPaused, setSearchPaused] = useState(false);
   const [searchTick, setSearchTick] = useState(0);
   const [indexRows, setIndexRows] = useState<MessageSearchCacheRow[]>([]);
+  /** Updated on every IndexedDB reload during search so the status line stays in sync. */
+  const [indexedCount, setIndexedCount] = useState(0);
   /** Shown in the results view after a run fully completes (including when there are 0 query matches). */
   const [searchRunCompleteSummary, setSearchRunCompleteSummary] = useState<{
     durationMs: number;
@@ -130,6 +132,8 @@ export function ConversationMessageSearchPanel({
   const indexRowsDataRef = useRef<MessageSearchCacheRow[]>([]);
   const searchFiltersForMetricsRef = useRef<MessageSearchFilters | null>(null);
   const resultSortForMetricsRef = useRef<'newest' | 'oldest'>('newest');
+  /** Pinned at search run start so reloads and pipeline stop conditions stay consistent. */
+  const searchWindowRef = useRef<{ startMs: number; endMs: number } | null>(null);
 
   const timeRangeId = useId();
   const authorLabelId = useId();
@@ -215,8 +219,8 @@ export function ConversationMessageSearchPanel({
     if (searchRunCompleteSummary != null && !busy && !searchPaused) {
       return searchRunCompleteSummary.indexedCount;
     }
-    return indexRows.length;
-  }, [searchRunCompleteSummary, indexRows.length, busy, searchPaused]);
+    return indexedCount;
+  }, [searchRunCompleteSummary, indexedCount, busy, searchPaused]);
 
   const displayResultCount = useMemo(() => {
     if (searchRunCompleteSummary != null && !busy && !searchPaused) {
@@ -249,18 +253,17 @@ export function ConversationMessageSearchPanel({
 
   const loadRowsFromIdb = useCallback(
     async (expectedRunId: number) => {
-      const { startMs, endMs } = getEffectiveSearchWindowRange(
-        timePreset,
-        Date.now(),
-        selfParticipantJoinedAtMs
-      );
-      const rows = await messageSearchCacheListConversation(conversationId, { startMs, endMs });
+      const timeRange =
+        searchWindowRef.current ??
+        getEffectiveSearchWindowRange(timePreset, Date.now(), selfParticipantJoinedAtMs);
+      const rows = await messageSearchCacheListConversation(conversationId, timeRange);
       if (expectedRunId !== searchRunIdRef.current) {
         return;
       }
       lastIndexedCountRef.current = rows.length;
       indexRowsDataRef.current = rows;
       setIndexRows(rows);
+      setIndexedCount(rows.length);
     },
     [conversationId, timePreset, selfParticipantJoinedAtMs]
   );
@@ -285,11 +288,9 @@ export function ConversationMessageSearchPanel({
 
   const runIndexingPipeline = useCallback(
     async (runId: number) => {
-      const { startMs } = getEffectiveSearchWindowRange(
-        timePreset,
-        Date.now(),
-        selfParticipantJoinedAtMs
-      );
+      const startMs =
+        searchWindowRef.current?.startMs ??
+        getEffectiveSearchWindowRange(timePreset, Date.now(), selfParticipantJoinedAtMs).startMs;
       for (let i = 0; i < 48; i++) {
         if (runId !== searchRunIdRef.current) {
           return;
@@ -367,6 +368,7 @@ export function ConversationMessageSearchPanel({
       setSearchRunCompleteSummary(null);
       if (mode === 'new') {
         setIndexRows([]);
+        setIndexedCount(0);
         lastIndexedCountRef.current = 0;
         indexRowsDataRef.current = [];
       }
@@ -374,6 +376,11 @@ export function ConversationMessageSearchPanel({
       if (mode === 'new') {
         searchAccumulatedActiveMsRef.current = 0;
       }
+      searchWindowRef.current = getEffectiveSearchWindowRange(
+        timePreset,
+        Date.now(),
+        selfParticipantJoinedAtMs
+      );
       searchSegmentStartMsRef.current = Date.now();
       setSearchTick(0);
       setBusy(true);
@@ -414,7 +421,7 @@ export function ConversationMessageSearchPanel({
         }
       }
     },
-    [checkPause, loadRowsFromIdb, runIndexingPipeline, syncBufferToIdb]
+    [checkPause, loadRowsFromIdb, runIndexingPipeline, selfParticipantJoinedAtMs, syncBufferToIdb, timePreset]
   );
 
   useEffect(() => {
@@ -426,11 +433,23 @@ export function ConversationMessageSearchPanel({
         .map((m) => displayMessageToSearchRow(m))
         .filter((r): r is NonNullable<typeof r> => r != null);
       if (rows.length > 0) {
-        void messageSearchCachePutBatch(rows);
+        void messageSearchCachePutBatch(rows).then(() => {
+          if (busy || searchPaused) {
+            void loadRowsFromIdb(searchRunIdRef.current);
+          }
+        });
       }
     }, 500);
     return () => clearTimeout(tmo);
-  }, [getActiveMessages, adminDisallowPersistentCache, cacheMode, conversationId]);
+  }, [
+    getActiveMessages,
+    adminDisallowPersistentCache,
+    cacheMode,
+    conversationId,
+    busy,
+    searchPaused,
+    loadRowsFromIdb,
+  ]);
 
   const applyStoredCriteria = useCallback((stored: StoredMessageSearchCriteria) => {
     setQuery(stored.filters.query);

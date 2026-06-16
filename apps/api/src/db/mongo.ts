@@ -407,6 +407,14 @@ export const Collections = {
   REFERRAL_CODES: 'referral_codes',
   /** Referral attribution records (referred user → referrer) */
   REFERRAL_ATTRIBUTIONS: 'referral_attributions',
+  /** Community feedback posts (feature requests, bugs, etc.) */
+  FEEDBACK_POSTS: 'feedback_posts',
+  /** Upvotes on feedback posts */
+  FEEDBACK_VOTES: 'feedback_votes',
+  /** Comments on feedback posts */
+  FEEDBACK_COMMENTS: 'feedback_comments',
+  /** Per-identity feedback notification preferences */
+  FEEDBACK_NOTIFICATION_PREFS: 'feedback_notification_prefs',
 } as const;
 
 /**
@@ -776,6 +784,31 @@ export async function createIndexes(): Promise<void> {
 
   const platformReportEvents = database.collection(Collections.PLATFORM_REPORT_EVENTS);
   await platformReportEvents.createIndex({ reportId: 1, createdAt: 1 });
+
+  const feedbackPosts = database.collection(Collections.FEEDBACK_POSTS);
+  await feedbackPosts.createIndex({ postId: 1 }, { unique: true });
+  await feedbackPosts.createIndex({ createdAt: -1 });
+  await feedbackPosts.createIndex({ upvoteCount: -1 });
+  await feedbackPosts.createIndex({ status: 1 });
+  await feedbackPosts.createIndex({ category: 1 });
+  await feedbackPosts.createIndex({ hasStaffResponse: 1 });
+  await feedbackPosts.createIndex({ isOfficial: 1 });
+  await feedbackPosts.createIndex(
+    { title: 'text', description: 'text' },
+    { default_language: 'english' },
+  );
+
+  await feedbackPosts.createIndex({ isOfficial: 1, createdAt: -1 });
+
+  const feedbackVotes = database.collection(Collections.FEEDBACK_VOTES);
+  await feedbackVotes.createIndex({ postId: 1, identityId: 1 }, { unique: true });
+  await feedbackVotes.createIndex({ identityId: 1 });
+
+  const feedbackComments = database.collection(Collections.FEEDBACK_COMMENTS);
+  await feedbackComments.createIndex({ postId: 1, createdAt: 1 });
+
+  const feedbackNotifPrefs = database.collection(Collections.FEEDBACK_NOTIFICATION_PREFS);
+  await feedbackNotifPrefs.createIndex({ identityId: 1 }, { unique: true });
 
   elog.debug('MongoDB indexes created/verified');
 }

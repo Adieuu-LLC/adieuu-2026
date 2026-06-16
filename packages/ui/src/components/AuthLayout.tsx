@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Logo } from './Logo';
+import { SiteFooter } from './SiteFooter';
 
 export interface AuthLayoutProps {
   children: ReactNode;
@@ -18,6 +19,7 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
         </header>
         {children}
       </div>
+      <SiteFooter />
     </div>
   );
 }
