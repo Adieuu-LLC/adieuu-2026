@@ -5,7 +5,8 @@ import { LiveKitRoom } from '@livekit/components-react';
 import { ExternalE2EEKeyProvider } from 'livekit-client';
 import '@livekit/components-styles';
 import { useAppConfig } from '../../config/PlatformContext';
-import { useCallSession } from '../../hooks/useCallSession';
+import { useCall } from '../../hooks/useCall';
+import { CallSessionError, useCallSession } from '../../hooks/useCallSession';
 import { useConversations } from '../../hooks/useConversations';
 import { forceEndCall as apiForceEndCall } from '../../services/callService';
 import { useToast } from '../Toast';
@@ -26,6 +27,7 @@ export function AppCallOverlay() {
   const { t } = useTranslation();
   const { apiBaseUrl } = useAppConfig();
   const { activeConversationId } = useConversations();
+  const { activeCall, refetch: refetchActiveCall } = useCall(activeConversationId);
   const toast = useToast();
   const [troubleshootOpen, setTroubleshootOpen] = useState(false);
 
@@ -117,6 +119,17 @@ export function AppCallOverlay() {
       try {
         await confirmDeviceSetup(devices);
       } catch (err) {
+        if (err instanceof CallSessionError && err.code === 'ALREADY_IN_CALL') {
+          toast.toast({
+            title: t('call.alreadyJoinedCall'),
+            variant: 'error',
+            action: {
+              label: t('call.troubleshootLink'),
+              onClick: () => setTroubleshootOpen(true),
+            },
+          });
+          return;
+        }
         const message = err instanceof Error ? err.message : t('call.callStartFailed');
         toast.error(message);
       }
@@ -136,18 +149,29 @@ export function AppCallOverlay() {
   }, [leaveCall]);
 
   const handleForceEndCall = useCallback(async () => {
-    const conversationId = activeSession?.conversationId;
-    const callId = activeSession?.call.id;
+    const conversationId = activeSession?.conversationId ?? activeConversationId;
+    const callId = activeSession?.call.id ?? activeCall?.id;
     if (!conversationId || !callId) return;
 
     const result = await apiForceEndCall(apiClient, conversationId, callId);
     if (result.success) {
       toast.success(t('call.forceEndSuccess'));
       await leaveCall();
+      await refetchActiveCall();
     } else {
       toast.error(t('call.forceEndFailed'));
     }
-  }, [activeSession?.conversationId, activeSession?.call.id, apiClient, toast, t, leaveCall]);
+  }, [
+    activeSession?.conversationId,
+    activeSession?.call.id,
+    activeConversationId,
+    activeCall?.id,
+    apiClient,
+    toast,
+    t,
+    leaveCall,
+    refetchActiveCall,
+  ]);
 
   const isViewingCallConversation =
     activeSession !== null && activeConversationId === activeSession.conversationId;
@@ -184,14 +208,14 @@ export function AppCallOverlay() {
               />
             </LiveKitRoom>
           </div>
-
-          <CallTroubleshootModal
-            open={troubleshootOpen}
-            onOpenChange={setTroubleshootOpen}
-            onForceEnd={handleForceEndCall}
-          />
         </>
       )}
+
+      <CallTroubleshootModal
+        open={troubleshootOpen}
+        onOpenChange={setTroubleshootOpen}
+        onForceEnd={handleForceEndCall}
+      />
     </>
   );
 }

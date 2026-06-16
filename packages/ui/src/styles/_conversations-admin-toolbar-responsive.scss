@@ -331,8 +331,13 @@
   }
 }
 
+.conversation-toolbar-more-menu-positioner {
+  z-index: var(--z-popover, 600);
+}
+
+// Explicit z-index so Zag popper copies it to --z-index on the positioner.
 .conversation-toolbar-more-menu {
-  z-index: calc(var(--z-popover, 600) + 1);
+  z-index: var(--z-popover, 600);
 }
 
 // Pins flyout: portaled to body; surface matches .dm-context-menu

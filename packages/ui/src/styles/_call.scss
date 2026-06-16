@@ -135,12 +135,25 @@ $call-overlay-title-bar-height: 32px;
   left: min($sidebar-width, $sidebar-width-max);
   right: 0;
   height: calc(50vh - #{$call-overlay-top - $call-overlay-bottom-offset});
-  z-index: 100;
+  // Same layer as .app-content ($z-content): above conversation, below sidebar/flyouts/popovers.
+  z-index: $z-content;
   flex-direction: column;
   background: var(--color-bg-primary);
   color: var(--color-text-primary);
   border-bottom: 1px solid var(--color-border);
   overflow: hidden;
+
+  // Bridge LiveKit theme tokens to app design system
+  --bg: var(--color-bg-primary);
+  --bg2: var(--color-bg-secondary);
+  --bg3: var(--color-bg-hover);
+  --border-color: var(--color-border);
+  --control-bg: var(--color-bg-secondary);
+  --control-hover-bg: var(--color-bg-hover);
+  --control-fg: var(--color-text-primary);
+  --accent-bg: var(--color-accent-primary);
+  --accent-fg: var(--color-text-on-accent, #fff);
+  --box-shadow: 0 4px 12px var(--color-shadow);
 
   body.has-custom-title-bar & {
     top: calc(#{$call-overlay-top} + #{$call-overlay-title-bar-height});
@@ -416,6 +429,21 @@ $call-overlay-title-bar-height: 32px;
     .lk-control-bar {
       display: flex;
       gap: var(--spacing-sm);
+    }
+
+    .lk-device-menu {
+      background: var(--color-bg-secondary);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      box-shadow: 0 4px 12px var(--color-shadow);
+    }
+
+    .lk-button-group-menu > .lk-button {
+      padding-inline: var(--spacing-xs) var(--spacing-sm);
+
+      &::after {
+        margin-left: 0.125rem;
+      }
     }
   }
 

@@ -949,6 +949,10 @@ export function ConversationView() {
                 />
               ) : undefined
             }
+            showCallInMenu={audioAllowed && !isDmBlocked && !blockedByOther}
+            onCallMenuClick={() => id && callSession.requestStartCall(id, { audio: true, video: false, screenshare: false })}
+            callMenuDisabled={isInCallElsewhere && !isInCallHere}
+            callMenuLabel={isInCallHere ? t('call.active') : t('call.startCall')}
             pinsSlot={
               <ConversationPinsMenu
                 conversationId={conversation.id}

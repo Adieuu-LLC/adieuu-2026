@@ -38,6 +38,16 @@ import { getDeviceKeysForIdentity, decryptDeviceKeys } from '../services/deviceK
 // Types
 // ---------------------------------------------------------------------------
 
+export class CallSessionError extends Error {
+  readonly code?: string;
+
+  constructor(message: string, code?: string) {
+    super(message);
+    this.name = 'CallSessionError';
+    this.code = code;
+  }
+}
+
 export type CallSessionPhase = 'idle' | 'device-setup' | 'connecting' | 'active';
 
 interface CallSession {
@@ -245,7 +255,13 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
         if (pendingIsJoin && pendingCallId) {
           const resp = await apiJoinCall(client, pendingConversationId, pendingCallId, pendingCallType);
           if (!resp.success || !resp.data) {
-            throw new Error(resp.error?.message ?? t('call.callJoinFailed'));
+            if (resp.error?.code === 'ALREADY_IN_CALL') {
+              throw new CallSessionError(t('call.alreadyJoinedCall'), 'ALREADY_IN_CALL');
+            }
+            throw new CallSessionError(
+              resp.error?.message ?? t('call.callJoinFailed'),
+              resp.error?.code,
+            );
           }
           call = resp.data.call;
           livekitToken = resp.data.livekitToken;

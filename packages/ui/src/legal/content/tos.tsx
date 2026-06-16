@@ -94,6 +94,19 @@ const TERMS_OF_SERVICE_SECTIONS: LegalPolicySection[] = [
         <p>
           Except where prohibited by law, these Terms and incorporated policies, and any disputes arising out of or related hereto, whether in arbitration or court, shall be governed by the laws of Texas and the United States, without regard to the conflicts of laws rules or the United Nations Convention on the International Sale of Goods. You hereby consent and submit to the exclusive jurisdiction of courts in the United States and Texas. In any action or proceeding to enforce rights under the Terms, Adieuu will be entitled to recover its reasonable costs and attorney's fees.
         </p>
+        <h4>Entire Agreement</h4>
+        <p>
+          These Terms cover the entire agreement between you and Adieuu for your use of our services and supersede all prior and contemporaneous agreements, proposals, or representations, written or oral, concerning its subject matter. Where incorporated or referenced policies or pages, or additional terms, apply to our services, the additional terms will control with respect to your use of that service to the extent of any conflict with these Terms.
+        </p>
+        <h4>Submission of Legal and Abuse Notices</h4>
+        <p>
+          Notices to Adieuu should be sent to <a href='mailto:say@adieuu.com' target='_blank' rel='noopener noreferrer'>say@adieuu.com</a>, except for <strong>legal notices</strong> (which must be sent to <a href='mailto:legal@adieuu.com' target='_blank' rel='noopener noreferrer'>legal@adieuu.com</a>), <strong>security disclosures</strong> (which must be sent to <a href='mailto:security@adieuu.com' target='_blank' rel='noopener noreferrer'>security@adieuu.com</a> and filed and handled responsibly in accordance with our Security Practices), <strong>DMCA notices</strong> (which must be submitted in accordance with our DMCA policy to <a href='mailto:dmca@adieuu.com' target='_blank' rel='noopener noreferrer'>dmca@adieuu.com</a>), or <strong>abuse notices</strong> (which must be sent to <a href='mailto:abuse@adieuu.com' target='_blank' rel='noopener noreferrer'>abuse@adieuu.com</a> or otherwise submitted via the content reporting mechanisms provided in our services).
+        </p>
+        <p>When submitting any legal, DMCA, or platform abuse notice ("Notice") to Adieuu, you represent that you are authorized to act on behalf of the relevant rightsholder and that all information provided is accurate, truthful, and submitted in good faith. Please be advised that under applicable laws, including 17 U.S.C. § 512(f) of the Digital Millennium Copyright Act (DMCA), any person who knowingly materially misrepresents that material or activity is infringing, or that it was removed by mistake, may be subject to liability for significant damages, including costs and attorneys' fees incurred by Adieuu or our users.</p>
+        <p>To be considered valid, a Notice must strictly comply with all applicable statutory requirements and Adieuu’s reporting procedures. Adieuu will not process Notices that are incomplete, unattributed, unverifiable, or that otherwise fail to meet legal standards. We reserve the right to take no action on deficient Notices and assume no obligation to notify the sender of such deficiencies or to request corrections. Furthermore, for Adieuu account holders, the repeated submission of false, frivolous, or bad-faith Notices constitutes a violation of these Terms and may result in the immediate suspension or termination of your account.</p>
+        <blockquote>
+          <p>TLDR: Don't submit fake or incomplete notices. We can't process them, and making false claims can result in legal consequences.</p>
+        </blockquote>
       </>
     ),
   },

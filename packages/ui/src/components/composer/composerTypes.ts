@@ -90,26 +90,7 @@ export function resolveConversationComposerMediaMaxBytes(args: {
 
 export const PLACEHOLDER_VERB_KEYS = [
   'message',
-  'ping',
-  'poke',
-  'nudge',
-  'sendLove',
-  'whisper',
-  'shout',
-  'wave',
-  'holla',
-  'buzz',
-  'serenade',
-  'sing',
-  'pigeon',
-  'dropLine',
-  'converse',
-  'sonnet',
-  'telepathy',
-  'vibes',
-  'beam',
-  'raven',
-  'smoke',
+  'hi',
 ] as const;
 
 export const TTL_OPTIONS: { label: string; seconds: number }[] = [

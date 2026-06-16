@@ -76,6 +76,7 @@ export const call = {
 
   // Session provider / errors
   alreadyInActiveCall: 'You are already in a call. Leave first to start or join another.',
+  alreadyJoinedCall: 'You already joined this call',
   callStartFailed: 'Failed to start call.',
   callJoinFailed: 'Failed to join call.',
 } as const;
