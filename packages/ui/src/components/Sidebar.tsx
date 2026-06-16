@@ -147,6 +147,12 @@ export function Sidebar({
     closeMobile,
   };
 
+  const toggleClassNames = [
+    'sidebar-toggle',
+    `sidebar-toggle--${orientation}`,
+    isExpanded ? '' : 'sidebar-toggle--collapsed',
+  ].filter(Boolean).join(' ');
+
   return (
     <SidebarContext.Provider value={contextValue}>
       {/* Mobile overlay */}
@@ -184,31 +190,32 @@ export function Sidebar({
         {footer && <div className="sidebar-footer">{footer}</div>}
 
         {panel}
-        
-        <button
-          className="sidebar-toggle"
-          onClick={toggleExpanded}
-          aria-label={toggleLabel}
-          title={toggleLabel}
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            className="sidebar-toggle-icon"
-          >
-            <path
-              d={getChevronPath()}
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
       </aside>
+
+      <button
+        type="button"
+        className={toggleClassNames}
+        onClick={toggleExpanded}
+        aria-label={toggleLabel}
+        title={toggleLabel}
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="sidebar-toggle-icon"
+        >
+          <path
+            d={getChevronPath()}
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
     </SidebarContext.Provider>
   );
 }
