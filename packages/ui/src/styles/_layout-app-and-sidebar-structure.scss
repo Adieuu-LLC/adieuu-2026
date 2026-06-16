@@ -33,6 +33,11 @@
   display: flex;
   flex-direction: column;
   min-height: 100%;
+
+  &:has(> .conversation-page),
+  &:has(> .new-conversation) {
+    height: 100%;
+  }
 }
 
 // App layout orientation

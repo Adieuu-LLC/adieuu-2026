@@ -70,39 +70,6 @@ const TERMS_OF_SERVICE_SECTIONS: LegalPolicySection[] = [
       </>
     ),
   },
-  {
-    id: 'termination',
-    title: 'Termination',
-    content: (
-      <p>
-        We may suspend or terminate access to the service for violations of these Terms or where
-        required by law. You may stop using the service at any time. This section will describe
-        what happens to your data upon termination.
-      </p>
-    ),
-  },
-  {
-    id: 'limitation-of-liability',
-    title: 'Limitation of Liability',
-    content: (
-      <p>
-        To the fullest extent permitted by applicable law, Adieuu and its operators will not be
-        liable for indirect, incidental, or consequential damages arising from your use of the
-        service. Full liability limitations will be set out in the final terms.
-      </p>
-    ),
-  },
-  {
-    id: 'changes',
-    title: 'Changes to These Terms',
-    content: (
-      <p>
-        We may update these Terms from time to time. Material changes will be communicated through
-        the service or by other appropriate means. Continued use after changes take effect
-        constitutes acceptance of the revised Terms.
-      </p>
-    ),
-  },
 ];
 
 interface ContentProps {
