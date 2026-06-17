@@ -6,6 +6,7 @@ import type {
   FeedbackSortOption,
   FeedbackStatus,
 } from '../constants/feedback';
+import type { RoadmapTimelineGroup, RoadmapTimelineResponse } from '../feedback/roadmap-timeline';
 
 export interface FeedbackAuthor {
   identityId: string;
@@ -33,8 +34,11 @@ export interface PublicFeedbackPost {
   upvoteCount: number;
   commentCount: number;
   hasStaffResponse: boolean;
-  isOfficial: boolean;
+  isRoadmapOfficial: boolean;
+  isStaffAuthored: boolean;
   hasUpvoted: boolean;
+  targetReleaseDate?: string;
+  releasedAt?: string;
   statusChangedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -73,7 +77,9 @@ export interface CreateFeedbackPostParams {
   description: string;
   category: FeedbackCategory;
   attachmentMediaIds?: string[];
-  isOfficial?: boolean;
+  isRoadmapOfficial?: boolean;
+  targetReleaseDate?: string;
+  status?: FeedbackStatus;
 }
 
 export type CreateFeedbackTextCommentParams = {
@@ -98,7 +104,6 @@ export interface FeedbackListParams {
   category?: FeedbackCategory;
   statuses?: FeedbackStatus[];
   hasStaffResponse?: boolean;
-  isOfficial?: boolean;
   search?: string;
 }
 
@@ -127,17 +132,17 @@ export interface CreateFeedbackPostResponse {
 export interface FeedbackNotificationPrefs {
   notifyPostReplies: boolean;
   notifyCommentReplies: boolean;
-  notifyOfficialPosts: boolean;
 }
 
 export interface UpdateFeedbackNotificationPrefsParams {
   notifyPostReplies?: boolean;
   notifyCommentReplies?: boolean;
-  notifyOfficialPosts?: boolean;
 }
 
 export interface FeedbackUnreadSummary {
   postReplies: number;
   commentReplies: number;
-  officialPosts: number;
 }
+
+export type RoadmapTimelineGroupResponse = RoadmapTimelineGroup<PublicFeedbackPost>;
+export type RoadmapTimelineResponseData = RoadmapTimelineResponse<PublicFeedbackPost>;

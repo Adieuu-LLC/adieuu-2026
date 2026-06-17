@@ -15,6 +15,8 @@ import {
   buildFeedbackReciprocalLinkCommentBody,
   excerptFeedbackComment,
   isFeedbackLinkType,
+  buildRoadmapTimeline,
+  parseTargetReleaseDate,
   type FeedbackCategory,
   type FeedbackLinkType,
   type FeedbackResponseLabel,
@@ -203,17 +205,22 @@ export interface CreateFeedbackPostInput {
   description: string;
   category: string;
   attachmentMediaIds?: string[];
-  isOfficial?: boolean;
+  isRoadmapOfficial?: boolean;
+  targetReleaseDate?: string;
+  status?: string;
 }
 
-export async function canMarkFeedbackOfficial(identity: IdentityDocument): Promise<boolean> {
-  const caps = await getPlatformCapabilities(identity._id);
-  return caps.isPlatformAdmin || caps.isPlatformModerator;
+export async function canManageFeedbackCreateFields(
+  identity: IdentityDocument,
+  sessionEntitlements: string[] = [],
+): Promise<boolean> {
+  return canManageFeedbackStatus(identity, sessionEntitlements);
 }
 
 export async function createFeedbackPost(
   identity: IdentityDocument,
   input: CreateFeedbackPostInput,
+  sessionEntitlements: string[] = [],
 ): Promise<ServiceResult<{ postId: string }>> {
   const identityId = identity._id.toHexString();
   const rl = await checkRateLimit('feedback:create', identityId, FEEDBACK_CREATE_RATE_LIMIT);
@@ -227,12 +234,17 @@ export async function createFeedbackPost(
 
   const title = sanitizeString(input.title.trim(), 'general').value;
   const description = sanitizeString(input.description.trim(), 'general').value;
+  const canStaffSubmit = await canManageFeedbackCreateFields(identity, sessionEntitlements);
 
   if (title.length === 0 || title.length > MAX_FEEDBACK_TITLE_LENGTH) {
     return { success: false, error: 'Invalid title length', errorCode: 'TITLE_TOO_LONG' };
   }
 
-  if (description.length === 0 || description.length > MAX_FEEDBACK_BODY_LENGTH) {
+  if (description.length === 0 && !canStaffSubmit) {
+    return { success: false, error: 'Invalid description length', errorCode: 'BODY_TOO_LONG' };
+  }
+
+  if (description.length > MAX_FEEDBACK_BODY_LENGTH) {
     return { success: false, error: 'Invalid description length', errorCode: 'BODY_TOO_LONG' };
   }
 
@@ -242,9 +254,37 @@ export async function createFeedbackPost(
     return attachmentResult;
   }
 
-  const wantsOfficial = input.isOfficial === true;
-  if (wantsOfficial && !(await canMarkFeedbackOfficial(identity))) {
-    return { success: false, error: 'Forbidden', errorCode: 'FORBIDDEN' };
+  const wantsRoadmapOfficial = input.isRoadmapOfficial === true;
+  const wantsTargetDate = Boolean(input.targetReleaseDate?.trim());
+  const wantsStatus = input.status !== undefined && input.status !== 'submitted';
+  const hasPrivilegedFields = wantsRoadmapOfficial || wantsTargetDate || wantsStatus;
+
+  if (hasPrivilegedFields) {
+    const allowed = await canManageFeedbackCreateFields(identity, sessionEntitlements);
+    if (!allowed) {
+      return { success: false, error: 'Forbidden', errorCode: 'FORBIDDEN' };
+    }
+  }
+
+  let parsedTargetDate: Date | undefined;
+  if (wantsTargetDate) {
+    parsedTargetDate = parseTargetReleaseDate(input.targetReleaseDate!.trim()) ?? undefined;
+    if (!parsedTargetDate) {
+      return { success: false, error: 'Invalid target release date', errorCode: 'INVALID_STATUS' };
+    }
+  }
+
+  let initialStatus: FeedbackStatus = 'submitted';
+  if (input.status !== undefined) {
+    if (!FEEDBACK_STATUSES.includes(input.status as FeedbackStatus)) {
+      return { success: false, error: 'Invalid status', errorCode: 'INVALID_STATUS' };
+    }
+    initialStatus = input.status as FeedbackStatus;
+  }
+
+  const isRoadmapOfficial = wantsRoadmapOfficial || Boolean(parsedTargetDate);
+  if (initialStatus !== 'submitted' && !isRoadmapOfficial) {
+    return { success: false, error: 'Official roadmap entry required for initial status', errorCode: 'FORBIDDEN' };
   }
 
   const postRepo = getFeedbackPostRepository();
@@ -256,8 +296,15 @@ export async function createFeedbackPost(
     category: input.category as FeedbackCategory,
     attachmentMediaIds: attachmentResult.data.mediaIds,
     attachmentUrls: attachmentResult.data.urls,
-    isOfficial: wantsOfficial,
+    status: initialStatus,
+    isRoadmapOfficial,
+    isStaffAuthored: canStaffSubmit,
+    targetReleaseDate: parsedTargetDate,
   });
+
+  if (isFeedbackSuggestionAcceptedStatus(initialStatus)) {
+    awardFeedbackSuggestionAchievements(post.identityId, post.category, initialStatus);
+  }
 
   return { success: true, data: { postId: post.postId } };
 }
@@ -269,7 +316,6 @@ export interface FeedbackListQuery {
   category?: FeedbackCategory;
   statuses?: FeedbackStatus[];
   hasStaffResponse?: boolean;
-  isOfficial?: boolean;
   search?: string;
 }
 
@@ -679,7 +725,14 @@ export async function updateFeedbackStatus(
     return { success: false, error: 'Post not found', errorCode: 'NOT_FOUND' };
   }
 
-  await postRepo.updateStatus(postId, newStatus as FeedbackStatus, identity._id.toHexString());
+  await postRepo.updateStatus(
+    postId,
+    newStatus as FeedbackStatus,
+    identity._id.toHexString(),
+    newStatus === 'released'
+      ? (post.releasedAt ?? post.targetReleaseDate ?? new Date())
+      : undefined,
+  );
   awardFeedbackSuggestionAchievements(
     post.identityId,
     post.category,
@@ -733,4 +786,12 @@ export async function buildAttachmentList(
   }
 
   return attachments;
+}
+
+export async function getRoadmapTimelinePosts(): Promise<
+  ServiceResult<{ posts: FeedbackPostDocument[] }>
+> {
+  const postRepo = getFeedbackPostRepository();
+  const posts = await postRepo.listRoadmapTimelinePosts();
+  return { success: true, data: { posts } };
 }

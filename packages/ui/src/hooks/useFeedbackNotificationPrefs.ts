@@ -5,7 +5,6 @@ import { useAppConfig } from '../config';
 const DEFAULTS: FeedbackNotificationPrefs = {
   notifyPostReplies: true,
   notifyCommentReplies: true,
-  notifyOfficialPosts: true,
 };
 
 export function useFeedbackNotificationPrefs(enabled: boolean) {
@@ -60,13 +59,11 @@ export function useFeedbackNotificationPrefs(enabled: boolean) {
 
   const togglePostReplies = useCallback(() => toggle('notifyPostReplies'), [toggle]);
   const toggleCommentReplies = useCallback(() => toggle('notifyCommentReplies'), [toggle]);
-  const toggleOfficialPosts = useCallback(() => toggle('notifyOfficialPosts'), [toggle]);
 
   return {
     ...prefs,
     loading,
     togglePostReplies,
     toggleCommentReplies,
-    toggleOfficialPosts,
   };
 }

@@ -6,7 +6,7 @@ import { TourRoot } from '../components/Tour';
 import { Home } from '../pages/Home';
 import { PublicHome } from '../pages/PublicHome';
 import { About } from '../pages/About';
-import { AboutLearn, AboutUpdates } from '../pages/about';
+import { AboutLearn, AboutUpdates, AboutRoadmap } from '../pages/about';
 import { Download } from '../pages/Download';
 import { Search } from '../pages/Search';
 import { PublicSpaces } from '../pages/spaces';
@@ -288,6 +288,7 @@ export function App() {
         <Route path="/" element={<RootRedirect />} />
         <Route path="/about" element={<About />} />
         <Route path="/about/learn" element={<AboutLearn />} />
+        <Route path="/about/roadmap" element={<AboutRoadmap />} />
         <Route path="/about/updates" element={<AboutUpdates />} />
         <Route path="/download" element={<Download />} />
         <Route path="/search" element={<Search />} />

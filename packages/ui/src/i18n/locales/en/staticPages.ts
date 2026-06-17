@@ -19,6 +19,27 @@ export const staticPages = {
       webAvailableHint: 'Refresh this page to load the latest assets and fixes.',
       webRefreshButton: 'Refresh to update',
     },
+    roadmap: {
+      title: 'Roadmap',
+      subtitle: 'What we have shipped, what we are building, and what is coming next.',
+      today: 'Today',
+      navigateUp: 'Jump to earlier timeline group',
+      navigateDown: 'Jump to later timeline group',
+      teamRoadmap: 'Team roadmap',
+      suggestedBy: 'Suggested by',
+      dateLabel: '{{date}}',
+      undatedReleased: 'Released (date unknown)',
+      undatedBand: '{{status}} (no target date)',
+      viewComments: 'See {{count}} comments and submit your own feedback',
+      viewComments_one: 'See 1 comment and submit your own feedback',
+      viewComments_other: 'See {{count}} comments and submit your own feedback',
+      footerTitle: 'And much, much more!',
+      footerText:
+        'Have something you would like to see us add? Submit your own feature idea and see if others agree! We use community upvotes on Features to help determine what to prioritize next. Your idea could be the next big thing we work on!',
+      footerCta: 'Vote on Features',
+      loadError: 'Could not load the roadmap timeline.',
+      empty: 'Nothing on the roadmap yet. Check back soon!',
+    },
   },
 
   download: {

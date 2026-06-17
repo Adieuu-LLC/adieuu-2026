@@ -6,6 +6,8 @@ import {
   MAX_FEEDBACK_COMMENT_LENGTH,
   createApiClient,
   excerptFeedbackComment,
+  isRoadmapTimelineStatus,
+  shouldShowFeedbackAuthorCredit,
   type FeedbackLinkType,
   type FeedbackStatus,
   type PublicFeedbackComment,
@@ -395,9 +397,6 @@ export function FeedbackDetail() {
         <Card variant="elevated" className="feedback-detail-card">
           <div className="feedback-detail-header">
             <div className="feedback-detail-badges">
-              {post.isOfficial && (
-                <span className="feedback-wanted-badge">{t('feedback.feedbackWanted')}</span>
-              )}
               <span className={`feedback-category-badge feedback-category-${post.category}`}>
                 {t(`feedback.categories.${post.category}`)}
               </span>
@@ -430,11 +429,21 @@ export function FeedbackDetail() {
           <h1 className="feedback-detail-title">{post.title}</h1>
 
           <div className="feedback-detail-author">
-            <FeedbackAuthorLink author={post.author} layout="post-detail" />
+            {shouldShowFeedbackAuthorCredit(post) && (
+              <FeedbackAuthorLink author={post.author} layout="post-detail" />
+            )}
+            {isRoadmapTimelineStatus(post.status) && (
+              <Link
+                to={`/about/roadmap?postId=${encodeURIComponent(post.postId)}`}
+                className="feedback-timeline-link"
+              >
+                {t('feedback.viewInTimeline')}
+              </Link>
+            )}
           </div>
 
           <div className="feedback-detail-body">
-            <p>{post.description}</p>
+            {post.description.length > 0 ? <p>{post.description}</p> : null}
           </div>
 
           {post.attachments.length > 0 && (

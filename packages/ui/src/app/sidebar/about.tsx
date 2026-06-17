@@ -101,6 +101,13 @@ export function AboutFlyout() {
       >
         {t('home.learn.navLabel')}
       </Link>
+      <Link
+        to="/about/roadmap"
+        onClick={handleNavClick}
+        className={`sidebar-flyout-item ${isActive('/about/roadmap') ? 'sidebar-flyout-item-active' : ''}`}
+      >
+        {t('about.roadmap.title')}
+      </Link>
       {platform === 'web' ? (
         <Link
           to="/download"
