@@ -10,6 +10,7 @@ import type {
   FeedbackNotificationPrefs,
   FeedbackUnreadSummary,
   PublicFeedbackComment,
+  RoadmapTimelineResponseData,
   UpdateFeedbackNotificationPrefsParams,
   UpdateFeedbackStatusParams,
 } from './feedback-types';
@@ -36,12 +37,15 @@ export class FeedbackApi {
     if (params?.hasStaffResponse !== undefined) {
       qs.set('hasStaffResponse', String(params.hasStaffResponse));
     }
-    if (params?.isOfficial !== undefined) {
-      qs.set('isOfficial', String(params.isOfficial));
-    }
     if (params?.search) qs.set('search', params.search);
     const query = qs.toString();
     return this.client.get(`/api/feedback${query ? `?${query}` : ''}`, requestOptions);
+  }
+
+  async getRoadmapTimeline(
+    requestOptions?: RequestOptions,
+  ): Promise<ApiResponse<RoadmapTimelineResponseData>> {
+    return this.client.get('/api/feedback/roadmap', requestOptions);
   }
 
   async getPost(postId: string): Promise<ApiResponse<FeedbackDetailResponse>> {
@@ -88,9 +92,5 @@ export class FeedbackApi {
 
   async getUnreadSummary(): Promise<ApiResponse<FeedbackUnreadSummary>> {
     return this.client.get('/api/feedback/unread-summary');
-  }
-
-  async markOfficialSeen(): Promise<ApiResponse<void>> {
-    return this.client.post('/api/feedback/official-mark-seen', {});
   }
 }

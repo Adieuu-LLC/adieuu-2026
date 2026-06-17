@@ -20,6 +20,7 @@ export const FEEDBACK_STATUSES = [
   'internal_testing',
   'public_testing',
   'released',
+  'closed',
 ] as const;
 
 export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number];
@@ -50,8 +51,14 @@ export const FEEDBACK_LIST_PAGE_SIZE = 15;
 export const FEEDBACK_LIST_PAGE_SIZE_MAX = 50;
 export const FEEDBACK_LIST_DEFAULT_SORT: FeedbackSortOption = 'upvotes';
 
+export const ROADMAP_TIMELINE_EXCLUDED_STATUSES = ['submitted', 'closed'] as const;
+
 export function getFeedbackListDefaultStatuses(): FeedbackStatus[] {
-  return FEEDBACK_STATUSES.filter((status) => status !== 'released');
+  return FEEDBACK_STATUSES.filter((status) => status !== 'released' && status !== 'closed');
+}
+
+export function isRoadmapTimelineStatus(status: FeedbackStatus): boolean {
+  return !(ROADMAP_TIMELINE_EXCLUDED_STATUSES as readonly string[]).includes(status);
 }
 
 export function excerptFeedbackComment(

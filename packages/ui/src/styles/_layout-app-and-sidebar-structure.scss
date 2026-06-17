@@ -108,7 +108,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 72px;
+  min-height: 50px;
   // Keep scaled logo hover from painting over the collapse toggle (narrow rail)
   overflow: hidden;
 
@@ -119,12 +119,14 @@
   // Full-header hit target for home link (logo alone is a small target)
   .app-logo-link {
     position: absolute;
-    inset: 0;
+    top: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
+
     // Electron: header may use -webkit-app-region: drag; link must stay clickable
     -webkit-app-region: no-drag;
+    
   }
 }
 

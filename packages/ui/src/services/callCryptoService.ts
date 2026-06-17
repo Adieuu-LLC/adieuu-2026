@@ -161,6 +161,8 @@ export function zeroCallKey(key: Uint8Array | null): void {
   }
 }
 
+export { clearBytes };
+
 // ============================================================================
 // Browser E2EE Support Detection
 // ============================================================================

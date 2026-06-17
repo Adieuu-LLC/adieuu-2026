@@ -7,6 +7,7 @@ import {
   FEEDBACK_LIST_DEFAULT_SORT,
   FEEDBACK_LIST_PAGE_SIZE,
   getFeedbackListDefaultStatuses,
+  shouldShowFeedbackAuthorCredit,
   type FeedbackCategory,
   type FeedbackSortOption,
   type FeedbackStatus,
@@ -33,7 +34,7 @@ function truncate(text: string, max: number): string {
   return text.slice(0, max).trimEnd() + '\u2026';
 }
 
-type FeedbackStaffFilter = 'all' | 'yes' | 'no' | 'feedback_wanted';
+type FeedbackStaffFilter = 'all' | 'yes' | 'no';
 
 export function FeedbackList() {
   const { t } = useTranslation();
@@ -107,7 +108,6 @@ export function FeedbackList() {
           { value: 'all', label: t('feedback.filterStaffResponseAll') },
           { value: 'yes', label: t('feedback.filterStaffResponseYes') },
           { value: 'no', label: t('feedback.filterStaffResponseNo') },
-          { value: 'feedback_wanted', label: t('feedback.filterFeedbackWanted') },
         ],
       }),
     [t],
@@ -145,7 +145,6 @@ export function FeedbackList() {
           statuses: statusFilters,
           hasStaffResponse:
             staffResponseFilter === 'yes' ? true : staffResponseFilter === 'no' ? false : undefined,
-          isOfficial: staffResponseFilter === 'feedback_wanted' ? true : undefined,
         },
         { signal: controller.signal },
       );
@@ -222,6 +221,9 @@ export function FeedbackList() {
             <div>
               <h1 className="page-title">{t('feedback.title')}</h1>
               <p className="page-subtitle">{t('feedback.subtitle')}</p>
+              <p className="feedback-roadmap-link">
+                <Link to="/about/roadmap">{t('feedback.viewRoadmap')}</Link>
+              </p>
             </div>
             <Button variant="primary" size="sm" onClick={handleNewPost}>
               {t('feedback.newPost')}
@@ -267,19 +269,6 @@ export function FeedbackList() {
                 >
                   <Switch.Label className="sidebar-filter-switch-label">
                     {t('feedback.notifications.notifyCommentReplies')}
-                  </Switch.Label>
-                  <Switch.Control className="sidebar-filter-switch-control">
-                    <Switch.Thumb className="sidebar-filter-switch-thumb" />
-                  </Switch.Control>
-                  <Switch.HiddenInput />
-                </Switch.Root>
-                <Switch.Root
-                  checked={notifPrefs.notifyOfficialPosts}
-                  onCheckedChange={notifPrefs.toggleOfficialPosts}
-                  className="sidebar-filter-switch feedback-notif-switch"
-                >
-                  <Switch.Label className="sidebar-filter-switch-label">
-                    {t('feedback.notifications.notifyOfficialPosts')}
                   </Switch.Label>
                   <Switch.Control className="sidebar-filter-switch-control">
                     <Switch.Thumb className="sidebar-filter-switch-thumb" />
@@ -409,14 +398,11 @@ export function FeedbackList() {
               {items.map((post) => (
                 <div
                   key={post.postId}
-                  className={`feedback-card feedback-card--status-${post.status}${post.isOfficial ? ' feedback-card--official' : ''}`}
+                  className={`feedback-card feedback-card--status-${post.status}`}
                 >
                   <div className="feedback-card-main">
                     <Link to={`/feedback/${post.postId}`} className="feedback-card-link">
                       <div className="feedback-card-header">
-                        {post.isOfficial && (
-                          <span className="feedback-wanted-badge">{t('feedback.feedbackWanted')}</span>
-                        )}
                         <span className={`feedback-category-badge feedback-category-${post.category}`}>
                           {t(`feedback.categories.${post.category}`)}
                         </span>
@@ -433,11 +419,15 @@ export function FeedbackList() {
                       </div>
                       <h2 className="feedback-card-title">{post.title}</h2>
                       <p className="feedback-card-description">
-                        {truncate(post.description, DESC_MAX_LENGTH)}
+                        {post.description.length > 0
+                          ? truncate(post.description, DESC_MAX_LENGTH)
+                          : '\u2014'}
                       </p>
                     </Link>
                     <div className="feedback-card-meta">
-                      <FeedbackAuthorLink author={post.author} layout="post-list" />
+                      {shouldShowFeedbackAuthorCredit(post) && (
+                        <FeedbackAuthorLink author={post.author} layout="post-list" />
+                      )}
                       <span className="feedback-card-stats">
                         {t('feedback.commentCount', { count: post.commentCount })}
                       </span>

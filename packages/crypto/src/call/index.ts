@@ -163,14 +163,19 @@ export function unwrapCallKey(
   return decrypt(sharedSecret, wrapped.wrappedKey, wrapped.wrappingNonce, profile);
 }
 
+const SUPPORTED_PROFILES: CryptoProfile[] = ['default', 'cnsa2'];
+
 /**
  * Finds and unwraps the call key addressed to a specific recipient.
+ *
+ * Tries the requested profile first, then falls back to other supported
+ * profiles in case the key was wrapped with a different profile than expected.
  *
  * @param wrappedKeys - Array of wrapped call keys
  * @param recipientIdentityId - Identity ID of the recipient
  * @param ecdhPrivate - Recipient's X25519 private key
  * @param kemPrivate - Recipient's ML-KEM private key
- * @param profile - Crypto profile
+ * @param profile - Crypto profile to try first
  * @returns Unwrapped call key, or null if no key was addressed to this recipient
  */
 export function findAndUnwrapCallKey(
@@ -185,14 +190,20 @@ export function findAndUnwrapCallKey(
     return null;
   }
 
-  let lastError: unknown;
   for (const wrapped of candidates) {
     try {
       return unwrapCallKey(wrapped, ecdhPrivate, kemPrivate, profile);
-    } catch (err) {
-      lastError = err;
+    } catch { /* try next candidate */ }
+  }
+
+  for (const fallbackProfile of SUPPORTED_PROFILES) {
+    if (fallbackProfile === profile) continue;
+    for (const wrapped of candidates) {
+      try {
+        return unwrapCallKey(wrapped, ecdhPrivate, kemPrivate, fallbackProfile);
+      } catch { /* try next */ }
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error('Failed to unwrap call key');
+  throw new Error('Failed to unwrap call key');
 }

@@ -261,15 +261,17 @@ export function useCall(conversationId: string | null): UseCallReturn {
             });
           }
 
-          const next = applyCallSocketMessage(
-            { activeCall: activeCallRef.current, loading: false },
-            message,
-            convId
-          );
+          let applied = false;
+          setState(prev => {
+            const next = applyCallSocketMessage(prev, message, convId);
+            if (next) {
+              applied = true;
+              return next;
+            }
+            return prev;
+          });
 
-          if (next) {
-            setState(next);
-          } else if (
+          if (!applied &&
             !activeCallRef.current &&
             (message.type === 'call_initiated' ||
               message.type === 'call_participant_joined' ||

@@ -724,12 +724,12 @@ function useIdentityState(): IdentityContextValue {
           }
         }
 
-        // Cache keys in memory
+        // Cache keys
         wrappingKeyRef.current = wrappingKey;
         wrappingSaltRef.current = salt;
         signingKeyRef.current = signingPrivateKey ?? null;
         currentDeviceIdRef.current = deviceId;
-        console.debug('[Identity] loginToIdentity: all keys cached in memory');
+        console.debug('[Identity] loginToIdentity: keys cached');
 
         // Generate and upload pre-keys for new devices (forward secrecy)
         if (isNewDevice && signingPrivateKey && deviceId) {
@@ -962,12 +962,12 @@ function useIdentityState(): IdentityContextValue {
           };
         }
 
-        // Cache keys in memory
+        // Cache keys
         wrappingKeyRef.current = wrappingKey;
         wrappingSaltRef.current = salt;
         signingKeyRef.current = signingPrivateKey;
         currentDeviceIdRef.current = deviceId;
-        console.debug('[Identity] unlockIdentity: all keys cached in memory');
+        console.debug('[Identity] unlockIdentity: keys cached');
 
         // Record this successful unlock for remote passphrase-change detection.
         try {

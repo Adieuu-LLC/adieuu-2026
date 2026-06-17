@@ -21,8 +21,7 @@ export function useFeedbackUnreadCount(enabled: boolean): number {
       if (res.success && res.data) {
         const total =
           (res.data.postReplies ?? 0) +
-          (res.data.commentReplies ?? 0) +
-          (res.data.officialPosts ?? 0);
+          (res.data.commentReplies ?? 0);
         setUnreadCount(total);
       }
     } catch {

@@ -17,6 +17,7 @@ import {
   FEEDBACK_LIST_PAGE_SIZE,
   FEEDBACK_LIST_PAGE_SIZE_MAX,
   excerptFeedbackComment,
+  buildRoadmapTimeline,
   isFeedbackCategory,
   isFeedbackSortOption,
   isFeedbackStatus,
@@ -38,6 +39,7 @@ import {
   buildAttachmentList,
   createFeedbackPost,
   getFeedbackPostDetail,
+  getRoadmapTimelinePosts,
   listFeedbackPosts,
   removeFeedbackUpvote,
   resolveFeedbackAuthors,
@@ -60,10 +62,12 @@ export type FeedbackResult<T = undefined> =
 
 export const CreateFeedbackPostSchema = z.object({
   title: z.string().min(1).max(MAX_FEEDBACK_TITLE_LENGTH),
-  description: z.string().min(1).max(MAX_FEEDBACK_BODY_LENGTH),
+  description: z.string().max(MAX_FEEDBACK_BODY_LENGTH).optional().default(''),
   category: z.enum(FEEDBACK_CATEGORIES as unknown as [string, ...string[]]),
   attachmentMediaIds: z.array(z.string().min(1).max(200)).max(MAX_FEEDBACK_ATTACHMENTS).optional(),
-  isOfficial: z.boolean().optional(),
+  isRoadmapOfficial: z.boolean().optional(),
+  targetReleaseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  status: z.enum(FEEDBACK_STATUSES as unknown as [string, ...string[]]).optional(),
 });
 
 export const CreateFeedbackCommentSchema = z
@@ -106,7 +110,6 @@ export type FeedbackListQuery = {
   category?: FeedbackCategory;
   statuses?: FeedbackStatus[];
   hasStaffResponse?: boolean;
-  isOfficial?: boolean;
   search?: string;
 };
 
@@ -150,8 +153,7 @@ export function parseFeedbackListQuery(searchParams: URLSearchParams): FeedbackL
         : undefined;
 
   const isOfficialParam = searchParams.get('isOfficial');
-  const isOfficial =
-    isOfficialParam === 'true' ? true : isOfficialParam === 'false' ? false : undefined;
+  void isOfficialParam;
 
   const rawSearch = searchParams.get('search');
   let search: string | undefined;
@@ -160,7 +162,7 @@ export function parseFeedbackListQuery(searchParams: URLSearchParams): FeedbackL
     search = trimmed.length > 0 ? trimmed : undefined;
   }
 
-  return { page, limit, sort, category, statuses, hasStaffResponse, isOfficial, search };
+  return { page, limit, sort, category, statuses, hasStaffResponse, search };
 }
 
 function mapServiceError(errorCode: string, error: string): FeedbackResult<never> {
@@ -209,8 +211,11 @@ async function toPublicPost(
     upvoteCount: post.upvoteCount,
     commentCount: post.commentCount,
     hasStaffResponse: post.hasStaffResponse,
-    isOfficial: post.isOfficial ?? false,
+    isRoadmapOfficial: post.isRoadmapOfficial ?? false,
+    isStaffAuthored: post.isStaffAuthored ?? false,
     hasUpvoted,
+    targetReleaseDate: post.targetReleaseDate?.toISOString().slice(0, 10),
+    releasedAt: post.releasedAt?.toISOString(),
     statusChangedAt: post.statusChangedAt?.toISOString(),
     createdAt: post.createdAt.toISOString(),
     updatedAt: post.updatedAt.toISOString(),
@@ -315,7 +320,7 @@ export async function createPostResult(
     return { ok: false, kind: 'validation_failed' };
   }
 
-  const result = await createFeedbackPost(ctx.identity, parsed.data);
+  const result = await createFeedbackPost(ctx.identity, parsed.data, ctx.entitlements ?? []);
   if (!result.success) {
     return mapServiceError(result.errorCode, result.error);
   }
@@ -535,7 +540,6 @@ export async function updateStatusResult(
 const UpdateNotificationPrefsSchema = z.object({
   notifyPostReplies: z.boolean().optional(),
   notifyCommentReplies: z.boolean().optional(),
-  notifyOfficialPosts: z.boolean().optional(),
 });
 
 export async function getNotificationPrefsResult(
@@ -543,7 +547,6 @@ export async function getNotificationPrefsResult(
 ): Promise<FeedbackResult<{
   notifyPostReplies: boolean;
   notifyCommentReplies: boolean;
-  notifyOfficialPosts: boolean;
 }>> {
   const prefsRepo = getFeedbackNotificationPrefsRepository();
   const doc = await prefsRepo.findByIdentityId(ctx.identity._id);
@@ -553,7 +556,6 @@ export async function getNotificationPrefsResult(
     data: {
       notifyPostReplies: doc?.notifyPostReplies ?? FEEDBACK_NOTIFICATION_PREFS_DEFAULTS.notifyPostReplies,
       notifyCommentReplies: doc?.notifyCommentReplies ?? FEEDBACK_NOTIFICATION_PREFS_DEFAULTS.notifyCommentReplies,
-      notifyOfficialPosts: doc?.notifyOfficialPosts ?? FEEDBACK_NOTIFICATION_PREFS_DEFAULTS.notifyOfficialPosts,
     },
   };
 }
@@ -564,7 +566,6 @@ export async function updateNotificationPrefsResult(
 ): Promise<FeedbackResult<{
   notifyPostReplies: boolean;
   notifyCommentReplies: boolean;
-  notifyOfficialPosts: boolean;
 }>> {
   const parsed = UpdateNotificationPrefsSchema.safeParse(body);
   if (!parsed.success) {
@@ -573,8 +574,7 @@ export async function updateNotificationPrefsResult(
 
   if (
     parsed.data.notifyPostReplies === undefined &&
-    parsed.data.notifyCommentReplies === undefined &&
-    parsed.data.notifyOfficialPosts === undefined
+    parsed.data.notifyCommentReplies === undefined
   ) {
     return { ok: false, kind: 'bad_request', message: 'No fields to update' };
   }
@@ -587,7 +587,6 @@ export async function updateNotificationPrefsResult(
     data: {
       notifyPostReplies: doc.notifyPostReplies,
       notifyCommentReplies: doc.notifyCommentReplies,
-      notifyOfficialPosts: doc.notifyOfficialPosts,
     },
   };
 }
@@ -601,43 +600,42 @@ export async function getUnreadSummaryResult(
 ): Promise<FeedbackResult<{
   postReplies: number;
   commentReplies: number;
-  officialPosts: number;
 }>> {
   const prefsRepo = getFeedbackNotificationPrefsRepository();
   const notifRepo = getNotificationRepository();
-  const postRepo = getFeedbackPostRepository();
 
   const prefs = await prefsRepo.findByIdentityId(ctx.identity._id);
 
   const notifyPostReplies = prefs?.notifyPostReplies ?? FEEDBACK_NOTIFICATION_PREFS_DEFAULTS.notifyPostReplies;
   const notifyCommentReplies = prefs?.notifyCommentReplies ?? FEEDBACK_NOTIFICATION_PREFS_DEFAULTS.notifyCommentReplies;
-  const notifyOfficialPosts = prefs?.notifyOfficialPosts ?? FEEDBACK_NOTIFICATION_PREFS_DEFAULTS.notifyOfficialPosts;
 
-  const officialSince = prefs?.lastOfficialPostSeenAt ?? prefs?.createdAt ?? null;
-
-  const [byType, officialPosts] = await Promise.all([
-    (notifyPostReplies || notifyCommentReplies)
-      ? notifRepo.countUnreadByType(ctx.identity._id)
-      : Promise.resolve({} as Record<string, number>),
-    (notifyOfficialPosts && officialSince)
-      ? postRepo.countOfficialSince(officialSince)
-      : Promise.resolve(0),
-  ]);
+  const byType = (notifyPostReplies || notifyCommentReplies)
+    ? await notifRepo.countUnreadByType(ctx.identity._id)
+    : ({} as Record<string, number>);
 
   return {
     ok: true,
     data: {
       postReplies: notifyPostReplies ? (byType['feedback_post_reply'] ?? 0) : 0,
       commentReplies: notifyCommentReplies ? (byType['feedback_comment_reply'] ?? 0) : 0,
-      officialPosts,
     },
   };
 }
 
-export async function markOfficialSeenResult(
-  ctx: IdentityContext,
-): Promise<FeedbackResult<void>> {
-  const prefsRepo = getFeedbackNotificationPrefsRepository();
-  await prefsRepo.setLastOfficialPostSeenAt(ctx.identity._id, new Date());
-  return { ok: true, data: undefined };
+export async function getRoadmapTimelineResult(): Promise<
+  FeedbackResult<ReturnType<typeof buildRoadmapTimeline<Awaited<ReturnType<typeof toPublicPost>>>>>
+> {
+  const result = await getRoadmapTimelinePosts();
+  if (!result.success) {
+    return mapServiceError(result.errorCode, result.error);
+  }
+
+  const authorIds = result.data.posts.map((post) => post.identityId.toHexString());
+  const authorMap = await resolveFeedbackAuthors(authorIds);
+
+  const publicPosts = await Promise.all(
+    result.data.posts.map((post) => toPublicPost(post, false, authorMap)),
+  );
+
+  return { ok: true, data: buildRoadmapTimeline(publicPosts) };
 }

@@ -66,6 +66,9 @@ export function resolveRouteChrome(pathname: string): RouteChromeDescriptor {
     return { icon: 'download', titleKey: 'download.title', titleDefault: 'Download the desktop app' };
   }
 
+  if (pathname === '/about/roadmap') {
+    return { icon: 'info', titleKey: 'about.roadmap.title', titleDefault: 'Roadmap' };
+  }
   if (pathname === '/about/learn') {
     return { icon: 'info', titleKey: 'home.learn.navLabel', titleDefault: 'Learn' };
   }

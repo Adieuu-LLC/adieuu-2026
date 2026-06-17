@@ -7,6 +7,8 @@ export * from './constants/moderation-reason-map';
 export * from './constants/account-moderation';
 export * from './constants/support-ticket-categories';
 export * from './constants/feedback';
+export * from './feedback/roadmap-timeline';
+export * from './feedback/feedback-display';
 export * from './types';
 export * from './schemas';
 export * from './api';

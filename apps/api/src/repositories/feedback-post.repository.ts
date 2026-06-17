@@ -9,7 +9,12 @@ import type {
   CreateFeedbackPostInput,
   FeedbackPostDocument,
 } from '../models/feedback-post';
-import type { FeedbackCategory, FeedbackSortOption, FeedbackStatus } from '@adieuu/shared';
+import {
+  ROADMAP_TIMELINE_EXCLUDED_STATUSES,
+  type FeedbackCategory,
+  type FeedbackSortOption,
+  type FeedbackStatus,
+} from '@adieuu/shared';
 
 export interface FeedbackPostListOptions {
   page: number;
@@ -18,7 +23,6 @@ export interface FeedbackPostListOptions {
   category?: FeedbackCategory;
   statuses?: FeedbackStatus[];
   hasStaffResponse?: boolean;
-  isOfficial?: boolean;
   search?: string;
 }
 
@@ -37,19 +41,30 @@ export class FeedbackPostRepository extends BaseRepository<FeedbackPostDocument>
   }
 
   async createPost(input: CreateFeedbackPostInput): Promise<FeedbackPostDocument> {
+    const now = new Date();
+    const status = input.status ?? 'submitted';
     const doc: Omit<FeedbackPostDocument, '_id' | 'createdAt' | 'updatedAt'> = {
       postId: input.postId,
       identityId: input.identityId,
       title: input.title,
       description: input.description,
       category: input.category,
-      status: 'submitted',
+      status,
       attachmentMediaIds: input.attachmentMediaIds,
       attachmentUrls: input.attachmentUrls,
       upvoteCount: 0,
       commentCount: 0,
       hasStaffResponse: false,
-      isOfficial: input.isOfficial ?? false,
+      isOfficial: false,
+      isRoadmapOfficial: input.isRoadmapOfficial ?? false,
+      isStaffAuthored: input.isStaffAuthored ?? false,
+      ...(input.targetReleaseDate ? { targetReleaseDate: input.targetReleaseDate } : {}),
+      ...(status !== 'submitted'
+        ? { statusChangedAt: now, statusChangedBy: input.identityId.toHexString() }
+        : {}),
+      ...(status === 'released'
+        ? { releasedAt: input.targetReleaseDate ?? now }
+        : {}),
     };
 
     return await super.create(doc);
@@ -74,9 +89,6 @@ export class FeedbackPostRepository extends BaseRepository<FeedbackPostDocument>
     if (options.hasStaffResponse !== undefined) {
       filter.hasStaffResponse = options.hasStaffResponse;
     }
-    if (options.isOfficial !== undefined) {
-      filter.isOfficial = options.isOfficial;
-    }
     if (options.search) {
       const regex = new RegExp(escapeRegex(options.search), 'i');
       filter.$or = [{ title: regex }, { description: regex }];
@@ -97,6 +109,14 @@ export class FeedbackPostRepository extends BaseRepository<FeedbackPostDocument>
     ]);
 
     return { posts: posts as FeedbackPostDocument[], total };
+  }
+
+  async listRoadmapTimelinePosts(): Promise<FeedbackPostDocument[]> {
+    const filter: Filter<FeedbackPostDocument> = {
+      status: { $nin: [...ROADMAP_TIMELINE_EXCLUDED_STATUSES] },
+    };
+    const posts = await this.collection.find(filter).toArray();
+    return posts as FeedbackPostDocument[];
   }
 
   async incrementUpvotes(
@@ -137,28 +157,25 @@ export class FeedbackPostRepository extends BaseRepository<FeedbackPostDocument>
     postId: string,
     status: FeedbackStatus,
     changedBy: string,
+    releasedAt?: Date,
   ): Promise<FeedbackPostDocument | null> {
+    const now = new Date();
+    const setFields: Partial<FeedbackPostDocument> & { updatedAt: Date } = {
+      status,
+      statusChangedAt: now,
+      statusChangedBy: changedBy,
+      updatedAt: now,
+    };
+    if (status === 'released' && releasedAt) {
+      setFields.releasedAt = releasedAt;
+    }
+
     const result = await this.collection.findOneAndUpdate(
       { postId } as Filter<FeedbackPostDocument>,
-      {
-        $set: {
-          status,
-          statusChangedAt: new Date(),
-          statusChangedBy: changedBy,
-          updatedAt: new Date(),
-        },
-      },
+      { $set: setFields },
       { returnDocument: 'after' },
     );
     return result as FeedbackPostDocument | null;
-  }
-
-  async countOfficialSince(since: Date | null): Promise<number> {
-    const filter: Filter<FeedbackPostDocument> = { isOfficial: true };
-    if (since) {
-      filter.createdAt = { $gt: since };
-    }
-    return await this.count(filter);
   }
 
   async findByPostIds(postIds: string[]): Promise<FeedbackPostDocument[]> {

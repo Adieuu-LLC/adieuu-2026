@@ -160,15 +160,22 @@ export function AppCallOverlay() {
   const handleForceEndCall = useCallback(async () => {
     const conversationId = activeSession?.conversationId ?? activeConversationId;
     const callId = activeSession?.call.id ?? activeCall?.id;
-    if (!conversationId || !callId) return;
+    if (!conversationId || !callId) return false;
 
-    const result = await apiForceEndCall(apiClient, conversationId, callId);
-    if (result.success) {
-      toast.success(t('call.forceEndSuccess'));
-      await leaveCall();
-      await refetchActiveCall();
-    } else {
+    try {
+      const result = await apiForceEndCall(apiClient, conversationId, callId);
+      if (result.success) {
+        toast.success(t('call.forceEndSuccess'));
+        await leaveCall();
+        await refetchActiveCall();
+        return true;
+      }
       toast.error(t('call.forceEndFailed'));
+      return false;
+    } catch (err) {
+      console.warn('[AppCallOverlay] force end call failed', err);
+      toast.error(t('call.forceEndFailed'));
+      return false;
     }
   }, [
     activeSession?.conversationId,

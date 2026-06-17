@@ -20,7 +20,12 @@ export interface FeedbackPostDocument extends BaseDocument {
   upvoteCount: number;
   commentCount: number;
   hasStaffResponse: boolean;
-  isOfficial: boolean;
+  /** @deprecated Legacy field; no longer used in UI */
+  isOfficial?: boolean;
+  isRoadmapOfficial: boolean;
+  isStaffAuthored: boolean;
+  targetReleaseDate?: Date;
+  releasedAt?: Date;
   statusChangedAt?: Date;
   statusChangedBy?: string;
 }
@@ -33,5 +38,8 @@ export interface CreateFeedbackPostInput {
   category: FeedbackCategory;
   attachmentMediaIds: string[];
   attachmentUrls: string[];
-  isOfficial?: boolean;
+  status?: FeedbackStatus;
+  isRoadmapOfficial?: boolean;
+  isStaffAuthored?: boolean;
+  targetReleaseDate?: Date;
 }

@@ -29,6 +29,7 @@ import {
   wrapAndSerializeCallKey,
   deserializeAndUnwrapCallKey,
   zeroCallKey,
+  clearBytes,
   isE2EESupported,
   type CallKeyRecipient,
 } from '../services/callCryptoService';
@@ -269,12 +270,11 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
           streamQualityCaps = resp.data.streamQualityCaps;
 
           if (e2eeSupported && call.wrappedE2EEKeys && call.wrappedE2EEKeys.length > 0) {
+            const deviceKeys = await loadDevicePrivateKeys();
+            if (!deviceKeys) {
+              throw new Error(t('call.e2eeFailed'));
+            }
             try {
-              const deviceKeys = await loadDevicePrivateKeys();
-              if (!deviceKeys) {
-                throw new Error(t('call.e2eeFailed'));
-              }
-
               const unwrapped = deserializeAndUnwrapCallKey(
                 call.wrappedE2EEKeys,
                 identity.id,
@@ -292,6 +292,9 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
                 /* Best-effort rollback so a failed unwrap does not leave a ghost participant */
               }
               throw e2eeErr;
+            } finally {
+              clearBytes(deviceKeys.ecdhPrivateKey);
+              clearBytes(deviceKeys.kemPrivateKey);
             }
           }
         } else {
@@ -299,13 +302,21 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
 
           if (e2eeSupported) {
             callE2EEKey = generateCallE2EEKey();
-            const recipients = await buildCallKeyRecipients(pendingConversationId);
-            if (recipients.length > 0) {
-              wrappedE2EEKeys = wrapAndSerializeCallKey(callE2EEKey, recipients);
-            } else {
-              console.warn('[CallSession] No recipients for E2EE key wrapping; call will proceed without E2EE.');
-              zeroCallKey(callE2EEKey);
-              callE2EEKey = undefined;
+            try {
+              const recipients = await buildCallKeyRecipients(pendingConversationId);
+              if (recipients.length > 0) {
+                wrappedE2EEKeys = wrapAndSerializeCallKey(callE2EEKey, recipients);
+              } else {
+                console.warn('[CallSession] No recipients for E2EE key wrapping; call will proceed without E2EE.');
+                zeroCallKey(callE2EEKey);
+                callE2EEKey = undefined;
+              }
+            } catch (wrapErr) {
+              if (callE2EEKey) {
+                zeroCallKey(callE2EEKey);
+                callE2EEKey = undefined;
+              }
+              throw wrapErr;
             }
           }
 

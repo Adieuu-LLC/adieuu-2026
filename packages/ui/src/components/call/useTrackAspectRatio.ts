@@ -19,8 +19,19 @@ export function useTrackAspectRatio(
     const container = containerRef.current;
     if (!container) return;
 
+    let currentVideo: HTMLVideoElement | null = null;
+
     const update = () => {
       const video = container.querySelector('video');
+
+      if (video !== currentVideo) {
+        currentVideo?.removeEventListener('loadedmetadata', update);
+        currentVideo?.removeEventListener('resize', update);
+        currentVideo = video;
+        video?.addEventListener('loadedmetadata', update);
+        video?.addEventListener('resize', update);
+      }
+
       if (video && video.videoWidth > 0 && video.videoHeight > 0) {
         setIsPortrait(video.videoHeight > video.videoWidth);
       }
@@ -31,14 +42,10 @@ export function useTrackAspectRatio(
     const observer = new MutationObserver(update);
     observer.observe(container, { childList: true, subtree: true });
 
-    const video = container.querySelector('video');
-    video?.addEventListener('loadedmetadata', update);
-    video?.addEventListener('resize', update);
-
     return () => {
       observer.disconnect();
-      video?.removeEventListener('loadedmetadata', update);
-      video?.removeEventListener('resize', update);
+      currentVideo?.removeEventListener('loadedmetadata', update);
+      currentVideo?.removeEventListener('resize', update);
     };
   }, [containerRef, enabled]);
 
