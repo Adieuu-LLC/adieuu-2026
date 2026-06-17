@@ -13,6 +13,8 @@ export function RoadmapTimelineGroupView({
   group,
   section,
   index,
+  isLatestRelease,
+  isFocused,
   expandedPostId,
   highlightedPostId,
   onTogglePost,
@@ -20,6 +22,8 @@ export function RoadmapTimelineGroupView({
   group: RoadmapTimelineGroupResponse;
   section: 'past' | 'future';
   index: number;
+  isLatestRelease?: boolean;
+  isFocused?: boolean;
   expandedPostId: string | null;
   highlightedPostId: string | null;
   onTogglePost: (postId: string) => void;
@@ -27,7 +31,7 @@ export function RoadmapTimelineGroupView({
   const { t } = useTranslation();
   const groupId = getRoadmapTimelineGroupId(section, index);
 
-  const label = group.dateKey ? (
+  const dateLabel = group.dateKey ? (
     <RoadmapTimelineDateLabel dateKey={group.dateKey} />
   ) : (
     <div className="roadmap-timeline-group-label">
@@ -40,12 +44,17 @@ export function RoadmapTimelineGroupView({
   return (
     <section
       id={groupId}
-      className={`roadmap-timeline-group roadmap-timeline-group--${section}`}
+      className={`roadmap-timeline-group roadmap-timeline-group--${section}${isLatestRelease ? ' roadmap-timeline-group--latest' : ''}`}
       data-roadmap-group={groupId}
     >
-      <span className="roadmap-timeline-marker" aria-hidden />
+      <span className={`roadmap-timeline-marker${isLatestRelease ? ' roadmap-timeline-marker--latest' : ''}`} aria-hidden />
       <div className="roadmap-timeline-group-content">
-        {label}
+        {isLatestRelease && (
+          <div className="roadmap-timeline-latest-label">
+            {t('about.roadmap.latestRelease')}
+          </div>
+        )}
+        {dateLabel}
         <RoadmapHorizontalRow>
           {group.items.map((post: PublicFeedbackPost) => (
             <RoadmapTimelineCard
@@ -53,6 +62,7 @@ export function RoadmapTimelineGroupView({
               post={post}
               expanded={expandedPostId === post.postId}
               highlighted={highlightedPostId === post.postId}
+              isFocused={isFocused}
               onToggle={() => onTogglePost(post.postId)}
             />
           ))}

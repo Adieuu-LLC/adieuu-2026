@@ -1,4 +1,4 @@
-import { describe, expect, mock, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { PublicFeedbackPost } from '@adieuu/shared';
 import { setMockTranslate } from '../../test/react-i18next-mock';
@@ -9,8 +9,7 @@ setMockTranslate((key, options) => {
     return `Comments (${(options as { count?: number })?.count ?? 0})`;
   }
   const labels: Record<string, string> = {
-    'about.roadmap.teamRoadmap': 'Team roadmap',
-    'about.roadmap.suggestedBy': 'Suggested by',
+    'about.roadmap.communityIdea': 'Community Idea',
     'about.roadmap.readMore': 'Read more',
     'about.roadmap.showLess': 'Show less',
     'feedback.statuses.planned': 'Planned',
@@ -18,12 +17,6 @@ setMockTranslate((key, options) => {
   };
   return labels[key] ?? key;
 });
-
-mock.module('../FeedbackAuthorLink', () => ({
-  FeedbackAuthorLink: ({ author }: { author: { displayName: string } }) => (
-    <span data-testid="feedback-author">{author.displayName}</span>
-  ),
-}));
 
 const { RoadmapTimelineCard } = await import('./RoadmapTimelineCard');
 
@@ -55,7 +48,7 @@ function makePost(overrides: Partial<PublicFeedbackPost> = {}): PublicFeedbackPo
 }
 
 describe('RoadmapTimelineCard', () => {
-  test('community posts show author credit and community styling', () => {
+  test('community posts show "Community Idea" badge', () => {
     const html = renderToStaticMarkup(
       <RoadmapTimelineCard
         post={makePost()}
@@ -65,25 +58,22 @@ describe('RoadmapTimelineCard', () => {
     );
 
     expect(html).toContain('roadmap-timeline-card--community');
-    expect(html).toContain('Suggested by');
-    expect(html).toContain('data-testid="feedback-author"');
-    expect(html).toContain('Contributor');
-    expect(html).not.toContain('feedback-wanted-badge');
-    expect(html).not.toContain('Feedback Wanted');
+    expect(html).toContain('Community Idea');
+    expect(html).toContain('roadmap-timeline-card-badge--community');
   });
 
-  test('official posts show team roadmap label', () => {
+  test('official posts do not show community badge or team label', () => {
     const html = renderToStaticMarkup(
       <RoadmapTimelineCard
-        post={makePost({ isRoadmapOfficial: true, status: 'roadmapped' })}
+        post={makePost({ isRoadmapOfficial: true, status: 'released' })}
         expanded={false}
         onToggle={() => {}}
       />,
     );
 
-    expect(html).toContain('roadmap-timeline-card--team');
-    expect(html).toContain('Team roadmap');
-    expect(html).not.toContain('data-testid="feedback-author"');
+    expect(html).not.toContain('roadmap-timeline-card--community');
+    expect(html).not.toContain('Community Idea');
+    expect(html).toContain('feedback-status-released');
   });
 
   test('collapsed cards truncate long descriptions', () => {
@@ -115,7 +105,7 @@ describe('RoadmapTimelineCard', () => {
     expect(html).toContain('Comments (5)');
   });
 
-  test('staff-authored posts hide author credit', () => {
+  test('staff-authored posts do not show community badge', () => {
     const html = renderToStaticMarkup(
       <RoadmapTimelineCard
         post={makePost({ isStaffAuthored: true })}
@@ -124,7 +114,34 @@ describe('RoadmapTimelineCard', () => {
       />,
     );
 
-    expect(html).not.toContain('Suggested by');
-    expect(html).not.toContain('data-testid="feedback-author"');
+    expect(html).not.toContain('Community Idea');
+    expect(html).not.toContain('roadmap-timeline-card--community');
+  });
+
+  test('focused cards are wrapped with BorderGlow', () => {
+    const html = renderToStaticMarkup(
+      <RoadmapTimelineCard
+        post={makePost()}
+        expanded={false}
+        isFocused
+        onToggle={() => {}}
+      />,
+    );
+
+    expect(html).toContain('border-glow-card');
+    expect(html).toContain('roadmap-card-glow');
+  });
+
+  test('non-focused cards are not wrapped with BorderGlow', () => {
+    const html = renderToStaticMarkup(
+      <RoadmapTimelineCard
+        post={makePost()}
+        expanded={false}
+        isFocused={false}
+        onToggle={() => {}}
+      />,
+    );
+
+    expect(html).not.toContain('border-glow-card');
   });
 });

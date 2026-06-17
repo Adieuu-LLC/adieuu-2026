@@ -7,21 +7,23 @@ import {
   truncateRoadmapExcerpt,
   type PublicFeedbackPost,
 } from '@adieuu/shared';
-import { FeedbackAuthorLink } from '../FeedbackAuthorLink';
+import { BorderGlow } from '../BorderGlow';
 
 export function RoadmapTimelineCard({
   post,
   expanded,
   highlighted,
+  isFocused,
   onToggle,
 }: {
   post: PublicFeedbackPost;
   expanded: boolean;
   highlighted?: boolean;
+  isFocused?: boolean;
   onToggle: () => void;
 }) {
   const { t } = useTranslation();
-  const showAuthorCredit = shouldShowFeedbackAuthorCredit(post);
+  const isCommunityIdea = shouldShowFeedbackAuthorCredit(post);
   const excerpt = truncateRoadmapExcerpt(post.description);
   const isTruncated = post.description.length > ROADMAP_TIMELINE_EXCERPT_MAX_LENGTH;
   const body = expanded ? post.description : excerpt;
@@ -39,12 +41,11 @@ export function RoadmapTimelineCard({
     }
   };
 
-  return (
+  const card = (
     <article
       className={[
         'roadmap-timeline-card',
-        showAuthorCredit ? 'roadmap-timeline-card--community' : '',
-        post.isRoadmapOfficial ? 'roadmap-timeline-card--team' : '',
+        isCommunityIdea ? 'roadmap-timeline-card--community' : '',
         expanded ? 'roadmap-timeline-card--expanded' : '',
         highlighted ? 'roadmap-timeline-card--highlighted' : '',
       ].filter(Boolean).join(' ')}
@@ -58,14 +59,11 @@ export function RoadmapTimelineCard({
         onKeyDown={handleToggleKeyDown}
       >
         <div className="roadmap-timeline-card-header">
-          {post.isRoadmapOfficial ? (
-            <span className="roadmap-timeline-card-label">{t('about.roadmap.teamRoadmap')}</span>
-          ) : showAuthorCredit ? (
-            <span className="roadmap-timeline-card-label roadmap-timeline-card-label--community">
-              <span>{t('about.roadmap.suggestedBy')}</span>{' '}
-              <FeedbackAuthorLink author={post.author} layout="inline" />
+          {isCommunityIdea && (
+            <span className="roadmap-timeline-card-badge roadmap-timeline-card-badge--community">
+              {t('about.roadmap.communityIdea')}
             </span>
-          ) : null}
+          )}
           <span className={`feedback-status-badge feedback-status-${post.status}`}>
             {t(`feedback.statuses.${post.status}`)}
           </span>
@@ -89,4 +87,22 @@ export function RoadmapTimelineCard({
       </div>
     </article>
   );
+
+  if (isFocused) {
+    return (
+      <BorderGlow
+        className="roadmap-card-glow"
+        animated
+        colors={['#38bdf8', '#c084fc', '#38bdf8']}
+        glowColor="200 80 70"
+        backgroundColor="var(--color-bg-elevated)"
+        borderRadius={12}
+        glowIntensity={0.7}
+      >
+        {card}
+      </BorderGlow>
+    );
+  }
+
+  return card;
 }

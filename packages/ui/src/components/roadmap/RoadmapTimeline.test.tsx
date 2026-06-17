@@ -4,7 +4,7 @@ import { setMockTranslate } from '../../test/react-i18next-mock';
 
 setMockTranslate((key) => key);
 
-const { RoadmapTimelineFooter, RoadmapTodayMarker } = await import('./RoadmapTodayMarker');
+const { RoadmapTimelineFooter } = await import('./RoadmapTodayMarker');
 
 describe('RoadmapTimeline components', () => {
   test('RoadmapTimelineFooter links to the features page', () => {
@@ -13,13 +13,5 @@ describe('RoadmapTimeline components', () => {
     expect(html).toContain('roadmap-timeline-footer');
     expect(html).toContain('href="/feedback"');
     expect(html).toContain('about.roadmap.footerCta');
-  });
-
-  test('RoadmapTodayMarker renders today label and timeline dot', () => {
-    const html = renderToStaticMarkup(<RoadmapTodayMarker />);
-
-    expect(html).toContain('data-roadmap-today');
-    expect(html).toContain('about.roadmap.today');
-    expect(html).toContain('roadmap-timeline-marker--today');
   });
 });

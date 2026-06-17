@@ -48,9 +48,9 @@ export function AboutRoadmap() {
                 <button
                   type="button"
                   className="roadmap-header-today-btn"
-                  onClick={() => nav?.jumpToToday()}
+                  onClick={() => nav?.jumpToLatest()}
                 >
-                  {t('about.roadmap.today')}
+                  {t('about.roadmap.latestRelease')}
                 </button>
               </div>
               {isStaff && (

@@ -12,12 +12,12 @@ import { useAppConfig } from '../../config';
 import { Spinner } from '../Spinner';
 import { Alert } from '../Alert';
 import { RoadmapTimelineGroupView } from './RoadmapTimelineGroup';
-import { RoadmapTodayMarker, RoadmapTimelineFooter } from './RoadmapTodayMarker';
+import { RoadmapTimelineFooter } from './RoadmapTodayMarker';
 
 export interface RoadmapTimelineNav {
   navigateUp: () => void;
   navigateDown: () => void;
-  jumpToToday: () => void;
+  jumpToLatest: () => void;
   canNavigateUp: boolean;
   canNavigateDown: boolean;
 }
@@ -74,22 +74,19 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
     };
   }, [api, t]);
 
-  const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  // The latest release is the last past group (past is sorted ascending by date).
+  // Items from today appear as regular past groups — no separate "Today" marker.
+  const latestReleaseIndex = useMemo(() => {
+    if (!timeline || timeline.past.length === 0) return -1;
+    return timeline.past.length - 1;
+  }, [timeline]);
 
-  const { pastBeforeToday, todayPastGroups } = useMemo(() => {
-    if (!timeline) return { pastBeforeToday: [], todayPastGroups: [] };
-
-    const withIndices = timeline.past.map((group, index) => ({ group, index }));
-    return {
-      pastBeforeToday: withIndices.filter(({ group }) => group.dateKey !== todayKey),
-      todayPastGroups: withIndices.filter(({ group }) => group.dateKey === todayKey),
-    };
-  }, [timeline, todayKey]);
+  const latestReleaseGroupId = useMemo(
+    () => latestReleaseIndex >= 0 ? getRoadmapTimelineGroupId('past', latestReleaseIndex) : null,
+    [latestReleaseIndex],
+  );
 
   // Scroll tracking: accent progress line, passed/focused dot states.
-  // blueHeight = scrollTop * (timelineHeight / totalScrollable)
-  // A dot is "passed" when blueHeight >= its offsetTop within the timeline.
-  // The "focused" dot is the one closest to blueHeight.
   useEffect(() => {
     const el = timelineRef.current;
     if (!el) return;
@@ -134,7 +131,6 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
       prog.style.height = `${blueHeight}px`;
       blueHeightRef.current = blueHeight;
 
-      // Compute per-marker state from blueHeight
       const groups = el.querySelectorAll<HTMLElement>('[data-roadmap-group]');
       let focusedEl: HTMLElement | null = null;
       let focusedDist = Infinity;
@@ -198,26 +194,42 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
     };
   }, [timeline]);
 
+  // Initial scroll: jump to deep-linked post, or scroll so the blue line
+  // sits at the latest release group.
   useEffect(() => {
     if (!timeline || didInitialScrollRef.current) return;
 
     const targetPostId = deepLinkPostId;
     const scrollTarget = targetPostId ? resolveRoadmapScrollTarget(timeline, targetPostId) : null;
-    const groupId = scrollTarget?.groupId
-      ?? (timeline.future[0]
-        ? getRoadmapTimelineGroupId('future', 0)
-        : todayPastGroups.length > 0
-          ? getRoadmapTimelineGroupId('past', todayPastGroups[0]!.index)
-          : timeline.past.length > 0
-            ? getRoadmapTimelineGroupId('past', timeline.past.length - 1)
-            : null);
 
     requestAnimationFrame(() => {
-      if (groupId) {
-        document.getElementById(groupId)?.scrollIntoView({ block: 'center' });
-        setActiveGroupId(groupId);
-      } else {
-        document.querySelector('[data-roadmap-today]')?.scrollIntoView({ block: 'center' });
+      const el = timelineRef.current;
+      const container = scrollContainerRef.current;
+
+      if (scrollTarget?.groupId) {
+        document.getElementById(scrollTarget.groupId)?.scrollIntoView({ block: 'center' });
+      } else if (latestReleaseGroupId && el) {
+        // Scroll so the blue line lands on the latest release marker
+        const groupEl = document.getElementById(latestReleaseGroupId);
+        const marker = groupEl?.querySelector<HTMLElement>('.roadmap-timeline-marker');
+        if (groupEl && marker) {
+          const markerTop = groupEl.offsetTop + marker.offsetTop;
+          const timelineHeight = el.offsetHeight;
+          const totalScrollable = container
+            ? container.scrollHeight - container.clientHeight
+            : document.documentElement.scrollHeight - window.innerHeight;
+
+          if (totalScrollable > 0 && timelineHeight > 0) {
+            const targetScrollTop = (markerTop / timelineHeight) * totalScrollable;
+            if (container) {
+              container.scrollTop = targetScrollTop;
+            } else {
+              window.scrollTo({ top: targetScrollTop });
+            }
+          } else {
+            groupEl.scrollIntoView({ block: 'center' });
+          }
+        }
       }
 
       if (targetPostId) {
@@ -227,11 +239,8 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
 
       didInitialScrollRef.current = true;
     });
-  }, [deepLinkPostId, timeline, todayPastGroups]);
+  }, [deepLinkPostId, timeline, latestReleaseGroupId]);
 
-  // Navigation: up/down move to adjacent markers relative to the blue line tip.
-  // Down = next marker after the focused one (extends the blue line forward).
-  // Up = previous marker before the focused one (shortens the blue line back).
   const navigateGroup = useCallback(
     (direction: 'up' | 'down') => {
       const el = timelineRef.current;
@@ -282,19 +291,41 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
     [],
   );
 
-  const jumpToToday = useCallback(() => {
-    document.querySelector('[data-roadmap-today]')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  }, []);
+  const jumpToLatest = useCallback(() => {
+    if (!latestReleaseGroupId) return;
+    const el = timelineRef.current;
+    const container = scrollContainerRef.current;
+    if (!el) return;
+
+    const groupEl = document.getElementById(latestReleaseGroupId);
+    const marker = groupEl?.querySelector<HTMLElement>('.roadmap-timeline-marker');
+    if (!groupEl || !marker) return;
+
+    const markerTop = groupEl.offsetTop + marker.offsetTop;
+    const timelineHeight = el.offsetHeight;
+    const totalScrollable = container
+      ? container.scrollHeight - container.clientHeight
+      : document.documentElement.scrollHeight - window.innerHeight;
+
+    if (totalScrollable <= 0) return;
+
+    const targetScrollTop = (markerTop / timelineHeight) * totalScrollable;
+    if (container) {
+      container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+    } else {
+      window.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+    }
+  }, [latestReleaseGroupId]);
 
   useEffect(() => {
     onNavReady?.({
       navigateUp: () => navigateGroup('up'),
       navigateDown: () => navigateGroup('down'),
-      jumpToToday,
+      jumpToLatest,
       canNavigateUp,
       canNavigateDown,
     });
-  }, [onNavReady, navigateGroup, jumpToToday, canNavigateUp, canNavigateDown]);
+  }, [onNavReady, navigateGroup, jumpToLatest, canNavigateUp, canNavigateDown]);
 
   const togglePost = useCallback((postId: string) => {
     setExpandedPostId((current) => (current === postId ? null : postId));
@@ -328,36 +359,20 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
       <div className="roadmap-timeline-progress" ref={progressRef} aria-hidden />
 
       <div className="roadmap-timeline-section roadmap-timeline-section--past">
-        {pastBeforeToday.map(({ group, index }: { group: RoadmapTimelineGroupResponse; index: number }) => (
+        {timeline.past.map((group: RoadmapTimelineGroupResponse, index: number) => (
           <RoadmapTimelineGroupView
             key={getRoadmapTimelineGroupId('past', index)}
             group={group}
             section="past"
             index={index}
+            isLatestRelease={index === latestReleaseIndex}
+            isFocused={getRoadmapTimelineGroupId('past', index) === activeGroupId}
             expandedPostId={expandedPostId}
             highlightedPostId={highlightedPostId}
             onTogglePost={togglePost}
           />
         ))}
       </div>
-
-      <RoadmapTodayMarker />
-
-      {todayPastGroups.length > 0 && (
-        <div className="roadmap-timeline-section roadmap-timeline-section--today">
-          {todayPastGroups.map(({ group, index }: { group: RoadmapTimelineGroupResponse; index: number }) => (
-            <RoadmapTimelineGroupView
-              key={getRoadmapTimelineGroupId('past', index)}
-              group={group}
-              section="past"
-              index={index}
-              expandedPostId={expandedPostId}
-              highlightedPostId={highlightedPostId}
-              onTogglePost={togglePost}
-            />
-          ))}
-        </div>
-      )}
 
       <div className="roadmap-timeline-section roadmap-timeline-section--future">
         {timeline.future.map((group: RoadmapTimelineGroupResponse, index: number) => (
@@ -366,6 +381,7 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
             group={group}
             section="future"
             index={index}
+            isFocused={getRoadmapTimelineGroupId('future', index) === activeGroupId}
             expandedPostId={expandedPostId}
             highlightedPostId={highlightedPostId}
             onTogglePost={togglePost}

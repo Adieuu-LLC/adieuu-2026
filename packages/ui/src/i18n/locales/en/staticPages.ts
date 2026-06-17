@@ -23,6 +23,8 @@ export const staticPages = {
       title: 'Roadmap',
       subtitle: 'What we have shipped, what we are building, and what is coming next.',
       today: 'Today',
+      latestRelease: 'Latest Release',
+      communityIdea: 'Community Idea',
       navigateUp: 'Jump to earlier timeline group',
       navigateDown: 'Jump to later timeline group',
       teamRoadmap: 'Team roadmap',

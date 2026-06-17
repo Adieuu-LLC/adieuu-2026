@@ -1,20 +1,5 @@
 import { useTranslation } from 'react-i18next';
 
-export function RoadmapTodayMarker() {
-  const { t } = useTranslation();
-
-  return (
-    <div className="roadmap-today-marker" data-roadmap-today>
-      <span className="roadmap-timeline-marker roadmap-timeline-marker--today" aria-hidden />
-      <div className="roadmap-today-marker-content">
-        <div className="roadmap-today-marker-label">
-          {t('about.roadmap.today')}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function RoadmapTimelineFooter() {
   const { t } = useTranslation();
 

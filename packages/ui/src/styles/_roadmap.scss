@@ -110,7 +110,7 @@
   transition: background 0.25s ease, width 0.25s ease, height 0.25s ease, left 0.25s ease, top 0.25s ease, box-shadow 0.25s ease;
   z-index: 2;
 
-  &--today {
+  &--latest {
     background: var(--color-accent-primary);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent-primary) 20%, transparent);
   }
@@ -129,10 +129,19 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent-primary) 20%, transparent);
 }
 
-.roadmap-timeline-group--focused .roadmap-timeline-card {
-  border-color: color-mix(in srgb, var(--color-accent-primary) 50%, var(--color-border));
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-accent-primary) 12%, transparent);
-  transform: scale(1.015);
+.roadmap-timeline-latest-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: 2px var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-accent-primary);
+  background: color-mix(in srgb, var(--color-accent-primary) 10%, transparent);
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .roadmap-timeline-group-content {
@@ -192,19 +201,20 @@
     border-color: color-mix(in srgb, var(--color-accent-primary) 35%, var(--color-border));
   }
 
-  &--team {
-    border-color: color-mix(in srgb, var(--color-text-muted) 40%, var(--color-border));
-  }
-
   &--highlighted {
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent-primary) 45%, transparent);
+  }
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--color-accent-primary) 50%, var(--color-border));
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--color-accent-primary) 12%, transparent);
+    transform: scale(1.015);
   }
 }
 
 .roadmap-timeline-card-toggle {
   padding: var(--spacing-md);
-  cursor: pointer;
-  color: inherit;
+  cursor: default;
 }
 
 .roadmap-timeline-card-header {
@@ -213,6 +223,20 @@
   align-items: center;
   gap: var(--spacing-xs);
   margin-bottom: var(--spacing-sm);
+}
+
+.roadmap-timeline-card-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  border-radius: var(--radius-sm);
+
+  &--community {
+    color: var(--color-accent-primary);
+    background: color-mix(in srgb, var(--color-accent-primary) 12%, transparent);
+  }
 }
 
 .roadmap-timeline-card-label {
@@ -253,6 +277,7 @@
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
   color: var(--color-accent-primary);
+  cursor: pointer;
 }
 
 .roadmap-timeline-card-footer {
@@ -265,6 +290,7 @@
   font-weight: var(--font-weight-medium);
   color: var(--color-accent-primary);
   text-decoration: none;
+  cursor: pointer;
 
   &:hover {
     text-decoration: underline;
@@ -336,6 +362,10 @@
   color: var(--color-on-accent, #fff);
   font-weight: var(--font-weight-semibold);
   text-decoration: none;
+}
+
+.roadmap-card-glow {
+  flex: 0 0 min(320px, 85vw);
 }
 
 .feedback-roadmap-link {
