@@ -436,13 +436,18 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   // WebSocket events (via shared ChatSocket)
   // -------------------------------------------------------------------------
 
-  const markConversationRead = useCallback((conversationId: string) => {
+  const markConversationRead = useCallback((conversationId: string, readUpToMessageId?: string) => {
     setConversations((prev) => {
       const conv = prev.find((c) => c.id === conversationId);
-      if (!conv || (conv.unreadCount === 0 && !conv.hasUnread)) return prev;
+      if (!conv) return prev;
 
-      if (conv.lastMessageId) {
-        const encrypted = encryptReadState(conversationId, conv.lastMessageId);
+      const targetMessageId = readUpToMessageId ?? conv.lastMessageId;
+      const alreadyMarked =
+        conv.unreadCount === 0 && !conv.hasUnread && !readUpToMessageId;
+      if (alreadyMarked) return prev;
+
+      if (targetMessageId) {
+        const encrypted = encryptReadState(conversationId, targetMessageId);
         api.conversations.updatePreferences(conversationId, { encryptedReadState: encrypted }).catch(() => {});
       }
 
@@ -476,6 +481,9 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const tRef = useRef(t);
   tRef.current = t;
 
+  const markConversationReadRef = useRef(markConversationRead);
+  markConversationReadRef.current = markConversationRead;
+
   useConversationsSocketEffects({
     isLoggedIn,
     subscribe,
@@ -498,6 +506,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     resolveParticipantsRef,
     refreshParticipantProfileRef,
     onPendingInvitesChangedRef,
+    markConversationReadRef,
     tRef,
     decryptGroupName,
   });

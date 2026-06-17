@@ -667,6 +667,7 @@ async function emitCallSystemMessage(
           messageId: systemMsg._id.toHexString(),
           fromIdentityId: identityId.toHexString(),
           createdAt: systemMsg.createdAt.toISOString(),
+          messageType: 'system',
         },
       });
     }

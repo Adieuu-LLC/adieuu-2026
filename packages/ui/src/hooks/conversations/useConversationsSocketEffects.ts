@@ -63,6 +63,9 @@ export interface ConversationsSocketEffectsParams {
   >;
   refreshParticipantProfileRef: MutableRefObject<(identityId: string) => Promise<void>>;
   onPendingInvitesChangedRef: MutableRefObject<(conversationId: string) => void>;
+  markConversationReadRef: MutableRefObject<
+    (conversationId: string, readUpToMessageId?: string) => void
+  >;
   tRef: MutableRefObject<TFunction>;
   decryptGroupName: (encryptedName: string, nonce: string, conversationId: string) => string;
 }
@@ -93,6 +96,7 @@ export function useConversationsSocketEffects(params: ConversationsSocketEffects
     resolveParticipantsRef,
     refreshParticipantProfileRef,
     onPendingInvitesChangedRef,
+    markConversationReadRef,
     tRef,
     decryptGroupName,
   } = params;
@@ -149,6 +153,8 @@ export function useConversationsSocketEffects(params: ConversationsSocketEffects
         refreshParticipantProfile: (identityId) =>
           void refreshParticipantProfileRef.current(identityId),
         onPendingInvitesChanged: (cid) => onPendingInvitesChangedRef.current(cid),
+        markConversationRead: (conversationId, readUpToMessageId) =>
+          markConversationReadRef.current(conversationId, readUpToMessageId),
       });
     });
 

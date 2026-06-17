@@ -174,6 +174,8 @@ export interface ChatConversationMessageMessage extends ChatMessageBase {
     expiresAt?: string;
     /** Identity IDs of participants @mentioned in this message (for mention-specific notification sounds). */
     mentionedIdentityIds?: string[];
+    /** When `system`, the message is informational (call/member events) and should not notify or increment unread. */
+    messageType?: 'user' | 'system';
   };
 }
 
