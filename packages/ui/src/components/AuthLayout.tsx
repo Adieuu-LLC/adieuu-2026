@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Logo } from './Logo';
 import { SiteFooter } from './SiteFooter';
+import { AppNavigationChrome } from '../navigation';
 
 export interface AuthLayoutProps {
   children: ReactNode;
@@ -9,8 +10,13 @@ export interface AuthLayoutProps {
 }
 
 export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
+  useEffect(() => {
+    document.body.classList.remove('has-app-sidebar', 'sidebar-is-collapsed');
+  }, []);
+
   return (
     <div className="auth-layout">
+      <AppNavigationChrome />
       <div className="auth-container fade-in">
         <header className="auth-header slide-up">
           <Logo size="md" />

@@ -192,6 +192,20 @@ describe('computePinnedLayout', () => {
     expect(withPromotion?.sidebar.some((f) => f.id === 'b:camera')).toBe(true);
     expect(withPromotion?.overflow.some((f) => f.id === 'd:camera')).toBe(false);
   });
+
+  test('solo mode sends every other frame to overflow', () => {
+    const participants = ['a', 'b', 'c', 'd'].map((identity) =>
+      mockParticipant({ identity }),
+    );
+    const frames = participants.flatMap((participant) => [
+      frame(participant.identity, 'camera', participant),
+    ]);
+
+    const result = computePinnedLayout(frames, 'a:camera', null, true);
+    expect(result?.hero.id).toBe('a:camera');
+    expect(result?.sidebar).toHaveLength(0);
+    expect(result?.overflow).toHaveLength(3);
+  });
 });
 
 describe('selectAutoPinScreenShareFrameId', () => {

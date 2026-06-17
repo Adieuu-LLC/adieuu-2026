@@ -34,9 +34,12 @@ export interface UseCallFrameLayoutResult {
   pinFrame: (frameId: string) => void;
   unpinFrame: () => void;
   togglePinFrame: (frameId: string) => void;
+  focusSoloFrame: (frameId: string) => void;
   selectFocusedFrame: (frameId: string) => void;
   promoteFromOverflow: (frameId: string) => void;
   isFramePinned: (frameId: string) => boolean;
+  isFrameSolo: (frameId: string) => boolean;
+  isSoloPinned: boolean;
 }
 
 export function useCallFrameLayout({
@@ -52,6 +55,7 @@ export function useCallFrameLayout({
   );
 
   const [pinnedFrameId, setPinnedFrameId] = useState<string | null>(null);
+  const [soloFrameId, setSoloFrameId] = useState<string | null>(null);
   const [focusedFrameId, setFocusedFrameId] = useState<string | null>(null);
   const [sidebarPromotionId, setSidebarPromotionId] = useState<string | null>(null);
   const prevScreenFrameIdsRef = useRef<Set<string>>(new Set());
@@ -64,9 +68,16 @@ export function useCallFrameLayout({
 
   useEffect(() => {
     setPinnedFrameId((current) => sanitizeFrameId(current, frames, null));
+    setSoloFrameId((current) => sanitizeFrameId(current, frames, null));
     setSidebarPromotionId((current) => sanitizeFrameId(current, frames, null));
     setFocusedFrameId((current) => sanitizeFrameId(current, frames, defaultHeroId));
   }, [frames, defaultHeroId]);
+
+  useEffect(() => {
+    if (soloFrameId && soloFrameId !== pinnedFrameId) {
+      setSoloFrameId(null);
+    }
+  }, [soloFrameId, pinnedFrameId]);
 
   useEffect(() => {
     const activeScreenShares = getActiveScreenShareFrames(frames);
@@ -85,6 +96,9 @@ export function useCallFrameLayout({
         declinedAutoPinScreenShareRef.current,
         prevScreenFrameIdsRef.current,
       );
+      if (autoPinId && autoPinId !== current) {
+        setSoloFrameId(null);
+      }
       return autoPinId ?? current;
     });
 
@@ -107,17 +121,20 @@ export function useCallFrameLayout({
   const pinFrame = useCallback((frameId: string) => {
     declinedAutoPinScreenShareRef.current = false;
     setPinnedFrameId(frameId);
+    setSoloFrameId(null);
     setSidebarPromotionId(null);
   }, []);
 
   const unpinFrame = useCallback(() => {
     setPinnedFrameId(null);
+    setSoloFrameId(null);
     setSidebarPromotionId(null);
   }, []);
 
   const togglePinFrame = useCallback((frameId: string) => {
     setPinnedFrameId((current) => {
       if (current === frameId) {
+        setSoloFrameId(null);
         setSidebarPromotionId(null);
         const unpinnedFrame = frames.find((frame) => frame.id === frameId);
         if (unpinnedFrame?.source === 'screenshare') {
@@ -126,28 +143,52 @@ export function useCallFrameLayout({
         return null;
       }
       declinedAutoPinScreenShareRef.current = false;
+      setSoloFrameId(null);
       setSidebarPromotionId(null);
       return frameId;
     });
   }, [frames]);
+
+  const focusSoloFrame = useCallback((frameId: string) => {
+    declinedAutoPinScreenShareRef.current = false;
+    setSidebarPromotionId(null);
+    setPinnedFrameId(frameId);
+    setSoloFrameId((current) => (current === frameId ? null : frameId));
+  }, []);
 
   const selectFocusedFrame = useCallback((frameId: string) => {
     setFocusedFrameId(frameId);
   }, []);
 
   const promoteFromOverflow = useCallback((frameId: string) => {
+    if (soloFrameId) {
+      focusSoloFrame(frameId);
+      return;
+    }
     setSidebarPromotionId(frameId);
-  }, []);
+  }, [soloFrameId, focusSoloFrame]);
 
   const isFramePinned = useCallback(
     (frameId: string) => pinnedFrameId === frameId,
     [pinnedFrameId],
   );
 
+  const isFrameSolo = useCallback(
+    (frameId: string) => soloFrameId === frameId && pinnedFrameId === frameId,
+    [soloFrameId, pinnedFrameId],
+  );
+
+  const isSoloPinned = soloFrameId !== null && soloFrameId === pinnedFrameId;
+
   const pinnedLayout = useMemo(() => {
     if (!pinnedFrameId) return null;
-    return computePinnedLayout(frames, pinnedFrameId, sidebarPromotionId);
-  }, [frames, pinnedFrameId, sidebarPromotionId]);
+    return computePinnedLayout(
+      frames,
+      pinnedFrameId,
+      sidebarPromotionId,
+      isSoloPinned,
+    );
+  }, [frames, pinnedFrameId, sidebarPromotionId, isSoloPinned]);
 
   const dmSplitFrames = useMemo(
     () => (mode === 'dm-split' ? getDmSplitFrames(frames, localIdentity) : []),
@@ -188,8 +229,11 @@ export function useCallFrameLayout({
     pinFrame,
     unpinFrame,
     togglePinFrame,
+    focusSoloFrame,
     selectFocusedFrame,
     promoteFromOverflow,
     isFramePinned,
+    isFrameSolo,
+    isSoloPinned,
   };
 }

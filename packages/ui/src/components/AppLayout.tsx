@@ -1,6 +1,7 @@
-import { useState, useCallback, cloneElement, isValidElement, type ReactNode } from 'react';
+import { useState, useCallback, useEffect, cloneElement, isValidElement, type ReactNode } from 'react';
 import type { SidebarOrientation } from './Sidebar';
 import { SiteFooter } from './SiteFooter';
+import { AppNavigationChrome } from '../navigation';
 
 export interface AppLayoutProps {
   sidebar: ReactNode;
@@ -33,6 +34,14 @@ export function AppLayout({
     setIsSidebarCollapsed(!expanded);
   }, []);
 
+  useEffect(() => {
+    document.body.classList.add('has-app-sidebar');
+    document.body.classList.toggle('sidebar-is-collapsed', isSidebarCollapsed);
+    return () => {
+      document.body.classList.remove('has-app-sidebar', 'sidebar-is-collapsed');
+    };
+  }, [isSidebarCollapsed]);
+
   const classNames = [
     'app-layout',
     `app-layout-sidebar-${sidebarOrientation}`,
@@ -46,6 +55,7 @@ export function AppLayout({
 
   return (
     <div className={classNames}>
+      <AppNavigationChrome />
       {sidebarWithCallback}
       <main className="app-content">
         <div className="app-content-inner">

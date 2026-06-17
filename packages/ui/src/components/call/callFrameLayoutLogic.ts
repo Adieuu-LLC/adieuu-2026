@@ -148,12 +148,17 @@ export function computePinnedLayout(
   frames: CallFrame[],
   pinnedFrameId: string,
   sidebarPromotionId: string | null,
+  soloOnly = false,
 ): PinnedLayoutSlice | null {
   const hero = frames.find((frame) => frame.id === pinnedFrameId);
   if (!hero) return null;
 
   const nonPinned = frames.filter((frame) => frame.id !== pinnedFrameId);
   const sorted = [...nonPinned].sort(compareFramesBySpeakingPriority);
+
+  if (soloOnly) {
+    return { hero, sidebar: [], overflow: sorted };
+  }
 
   let sidebar: CallFrame[];
   if (sidebarPromotionId && sorted.some((frame) => frame.id === sidebarPromotionId)) {

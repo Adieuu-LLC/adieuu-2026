@@ -26,6 +26,101 @@ body {
   height: 100%;
 }
 
+.window-title-bar-nav {
+  position: fixed;
+  top: 0;
+  left: min($sidebar-width, $sidebar-width-max);
+  height: $title-bar-height;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding-left: var(--spacing-sm);
+  padding-right: var(--spacing-sm);
+  max-width: min(420px, calc(100vw - 200px));
+  -webkit-app-region: no-drag;
+  pointer-events: auto;
+
+  body.sidebar-is-collapsed & {
+    left: $sidebar-width-collapsed;
+  }
+
+  body:not(.has-app-sidebar) & {
+    left: 0;
+  }
+
+  @media (max-width: $mobile-breakpoint) {
+    left: 0;
+    max-width: none;
+    padding-left: var(--spacing-xs);
+    padding-right: 0;
+
+    body.sidebar-is-collapsed &,
+    body.has-app-sidebar & {
+      left: 0;
+    }
+  }
+}
+
+.window-nav-btn {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+
+  &:hover:not(:disabled) {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-accent-primary);
+    outline-offset: -2px;
+  }
+}
+
+.window-nav-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  min-width: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
+}
+
+.window-nav-title-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+}
+
+.window-nav-title-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: $mobile-breakpoint) {
+  .window-nav-title {
+    display: none;
+  }
+}
+
 .window-controls {
   display: flex;
   height: 100%;

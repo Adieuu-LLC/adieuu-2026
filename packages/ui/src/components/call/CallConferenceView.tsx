@@ -192,10 +192,11 @@ export function CallConferenceView({
   const conferenceClass = useMemo(() => {
     const classes = ['call-conference'];
     if (layout.mode === 'pinned') classes.push('call-conference--pinned');
+    if (layout.isSoloPinned) classes.push('call-conference--pinned-solo');
     if (layout.mode === 'dm-split') classes.push('call-conference--dm-split');
     if (layout.mode === 'mobile-stage') classes.push('call-conference--mobile-focus');
     return classes.join(' ');
-  }, [layout.mode]);
+  }, [layout.mode, layout.isSoloPinned]);
 
   const renderFrameTile = (
     frame: typeof frames[number],
@@ -211,7 +212,9 @@ export function CallConferenceView({
         variant={variant}
         className={extraClass}
         isPinned={layout.isFramePinned(frame.id)}
+        isSolo={layout.isFrameSolo(frame.id)}
         onTogglePin={() => layout.togglePinFrame(frame.id)}
+        onFocusSolo={() => layout.focusSoloFrame(frame.id)}
         showPinControl
       />
     );
@@ -230,10 +233,14 @@ export function CallConferenceView({
 
       {layout.mode === 'pinned' && layout.heroFrame && (
         <>
-          <div className="call-conference__pinned-body">
-            <div className="call-conference__sidebar">
-              {layout.sidebarFrames.map((frame) => renderFrameTile(frame, 'sidebar'))}
-            </div>
+          <div
+            className={`call-conference__pinned-body${layout.isSoloPinned ? ' call-conference__pinned-body--solo' : ''}`}
+          >
+            {!layout.isSoloPinned && (
+              <div className="call-conference__sidebar">
+                {layout.sidebarFrames.map((frame) => renderFrameTile(frame, 'sidebar'))}
+              </div>
+            )}
             <div className="call-conference__hero">
               {renderFrameTile(layout.heroFrame, 'hero')}
             </div>

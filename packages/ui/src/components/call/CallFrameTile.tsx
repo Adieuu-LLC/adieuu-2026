@@ -33,7 +33,9 @@ export interface CallFrameTileProps {
   variant?: CallFrameTileVariant;
   className?: string;
   isPinned?: boolean;
+  isSolo?: boolean;
   onTogglePin?: () => void;
+  onFocusSolo?: () => void;
   showPinControl?: boolean;
 }
 
@@ -43,7 +45,9 @@ export function CallFrameTile({
   variant = 'grid',
   className,
   isPinned = false,
+  isSolo = false,
   onTogglePin,
+  onFocusSolo,
   showPinControl = false,
 }: CallFrameTileProps) {
   const { t } = useTranslation();
@@ -76,8 +80,13 @@ export function CallFrameTile({
     isPortrait ? 'call-conference__video--portrait' : '',
   ].filter(Boolean).join(' ');
 
+  const focusSoloTooltip = isSolo ? t('call.showOtherFrames') : t('call.focusSoloFrame');
+
   return (
-    <div className={tileClass}>
+    <div
+      className={tileClass}
+      tabIndex={showPinControl ? 0 : undefined}
+    >
       <div ref={videoContainerRef} className="call-conference__video-wrap">
         {canRenderVideo ? (
           <VideoTrack
@@ -106,24 +115,44 @@ export function CallFrameTile({
             <MicOffIcon />
           </span>
         )}
-        {showPinControl && onTogglePin && (
-          <Tooltip
-            content={isPinned ? t('call.unpinFrame') : t('call.pinFrame')}
-            position="top"
-          >
-            <button
-              type="button"
-              className={`call-conference__pin-btn${isPinned ? ' call-conference__pin-btn--active' : ''}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                onTogglePin();
-              }}
-              aria-label={isPinned ? t('call.unpinFrame') : t('call.pinFrame')}
-              aria-pressed={isPinned}
-            >
-              <Icon name="pin" size="sm" fixedWidth />
-            </button>
-          </Tooltip>
+        {showPinControl && (onTogglePin || onFocusSolo) && (
+          <div className="call-conference__frame-controls">
+            {onFocusSolo && (
+              <Tooltip content={focusSoloTooltip} position="top">
+                <button
+                  type="button"
+                  className={`call-conference__frame-control-btn${isSolo ? ' call-conference__frame-control-btn--active' : ''}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onFocusSolo();
+                  }}
+                  aria-label={focusSoloTooltip}
+                  aria-pressed={isSolo}
+                >
+                  <Icon name="focusFrame" size="lg" fixedWidth />
+                </button>
+              </Tooltip>
+            )}
+            {onTogglePin && (
+              <Tooltip
+                content={isPinned ? t('call.unpinFrame') : t('call.pinFrame')}
+                position="top"
+              >
+                <button
+                  type="button"
+                  className={`call-conference__frame-control-btn${isPinned ? ' call-conference__frame-control-btn--active' : ''}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onTogglePin();
+                  }}
+                  aria-label={isPinned ? t('call.unpinFrame') : t('call.pinFrame')}
+                  aria-pressed={isPinned}
+                >
+                  <Icon name="pin" size="lg" fixedWidth />
+                </button>
+              </Tooltip>
+            )}
+          </div>
         )}
       </div>
     </div>

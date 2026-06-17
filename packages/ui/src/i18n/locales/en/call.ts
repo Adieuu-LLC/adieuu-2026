@@ -68,6 +68,8 @@ export const call = {
   // Frame layout
   pinFrame: 'Pin frame',
   unpinFrame: 'Unpin frame',
+  focusSoloFrame: 'Pin and show only this frame',
+  showOtherFrames: 'Show other frames alongside this one',
   screenShareLabel: 'Screen',
   youLabel: 'You',
   mutedLabel: 'Muted',
@@ -94,7 +96,7 @@ export const call = {
   e2eeNotSupported: 'E2E Not Supported',
   e2eeFailed: 'E2E Encryption Failed',
   e2eeStatusInfoLabel: "What does this mean?",
-  e2eeStatusInfoIntro: "This indicates the call's end-to-end (E2E) encryption status. Below are the available statuses. This applies only to audio/video in the call - all text and status updates in conversations are always encrypted end-to-end.",
+  e2eeStatusInfoIntro: "This indicates the call's end-to-end (E2E) encryption status. Below are the available statuses. The statuses below only relate to audio/video in the call - all text and status updates in conversations are always encrypted end-to-end.",
   e2eeStatusInfoActive: "Audio and video are encrypted between participants' clients. Only members of this call can decrypt the media - even Adieuu staff (or a bad actor, if a breach occurs) are unable to to view your stream.",
   e2eeStatusInfoFailed: "This indicates full E2E encryption could not be established for this call. The call is still connected, but media may not be fully private. Anyone with server access (such as Adieuu staff, a bad actor in the event of a breach, or a self-hosted server owner) *may* be able view your stream. This status can sometimes happen legitimately, like in cases where a user's app data gets corrupted during an update, but shouldn't be common. You might try restarting the call to see if E2E can be re-established, or if the issue persists try an app reinstall or reach out to Adieuu support.",
   e2eeStatusInfoNotSupported: "One or more participants' devices or browsers do not support E2E encryption. Media is relayed through the server without end-to-end protection. Anyone with server access (such as Adieuu staff, a bad actor in the event of a breach, or a self-hosted server owner) could potentially snoop on your stream. Ensure all partipants are using the Adieuu app or a modern browser.",
