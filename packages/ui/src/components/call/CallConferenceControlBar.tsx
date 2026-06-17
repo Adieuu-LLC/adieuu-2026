@@ -6,10 +6,13 @@ import {
   useTrackToggle,
 } from '@livekit/components-react';
 import { Track } from 'livekit-client';
+import { Icon } from '../../icons/Icon';
 import { Tooltip } from '../Tooltip';
 
 export interface CallConferenceControlBarProps {
   isMobile?: boolean;
+  isExpanded?: boolean;
+  onToggleFullscreen?: () => void;
 }
 
 function MicControlGroup() {
@@ -54,6 +57,32 @@ function ScreenShareControl() {
   );
 }
 
+function FullscreenControl({
+  isExpanded,
+  onToggleFullscreen,
+}: {
+  isExpanded: boolean;
+  onToggleFullscreen: () => void;
+}) {
+  const { t } = useTranslation();
+  const tooltip = isExpanded ? t('call.exitFullscreen') : t('call.expandFullscreen');
+  const ariaLabel = isExpanded ? t('call.exitFullscreenLabel') : t('call.expandFullscreenLabel');
+
+  return (
+    <Tooltip content={tooltip} position="top">
+      <button
+        type="button"
+        className="lk-button call-conference__controls-fullscreen"
+        onClick={() => void onToggleFullscreen()}
+        aria-label={ariaLabel}
+        aria-pressed={isExpanded}
+      >
+        <Icon name={isExpanded ? 'compress' : 'expand'} size="sm" />
+      </button>
+    </Tooltip>
+  );
+}
+
 function LeaveControl() {
   const { t } = useTranslation();
 
@@ -64,9 +93,14 @@ function LeaveControl() {
   );
 }
 
-export function CallConferenceControlBar({ isMobile = false }: CallConferenceControlBarProps) {
+export function CallConferenceControlBar({
+  isMobile = false,
+  isExpanded = false,
+  onToggleFullscreen,
+}: CallConferenceControlBarProps) {
   const controlClass = [
     'lk-control-bar',
+    'call-conference__controls-bar',
     isMobile ? 'call-conference__controls-bar--minimal' : 'call-conference__controls-bar--verbose',
   ].join(' ');
 
@@ -75,6 +109,12 @@ export function CallConferenceControlBar({ isMobile = false }: CallConferenceCon
       <MicControlGroup />
       <CameraControlGroup />
       <ScreenShareControl />
+      {onToggleFullscreen && (
+        <FullscreenControl
+          isExpanded={isExpanded}
+          onToggleFullscreen={onToggleFullscreen}
+        />
+      )}
       <LeaveControl />
     </div>
   );

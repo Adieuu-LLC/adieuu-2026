@@ -1,4 +1,5 @@
 export const CALL_OVERLAY_HEIGHT_STORAGE_KEY = 'adieuu:call-overlay-height-v1';
+export const CALL_OVERLAY_HEIGHT_CSS_VAR = '--call-overlay-height';
 
 export const CALL_OVERLAY_MIN_HEIGHT_PX = 220;
 export const CALL_OVERLAY_BOTTOM_RESERVE_PX = 80;
@@ -16,9 +17,24 @@ export function getCallOverlayTopOffsetPx(): number {
     : CALL_OVERLAY_TOP_OFFSET_PX;
 }
 
+export function getConversationViewHeightPx(viewportHeight: number): number {
+  return viewportHeight - getCallOverlayTopOffsetPx();
+}
+
 export function getDefaultCallOverlayHeightPx(viewportHeight: number): number {
-  const top = getCallOverlayTopOffsetPx();
-  return Math.round(viewportHeight * 0.5 - (top - CALL_OVERLAY_BOTTOM_OFFSET_PX));
+  return Math.round(getConversationViewHeightPx(viewportHeight) * (2 / 3));
+}
+
+export function setCallOverlayHeightCssVar(heightPx: number | null): void {
+  if (typeof document === 'undefined') return;
+  if (heightPx === null) {
+    document.documentElement.style.removeProperty(CALL_OVERLAY_HEIGHT_CSS_VAR);
+    return;
+  }
+  document.documentElement.style.setProperty(
+    CALL_OVERLAY_HEIGHT_CSS_VAR,
+    `${Math.round(heightPx)}px`,
+  );
 }
 
 export function clampCallOverlayHeight(

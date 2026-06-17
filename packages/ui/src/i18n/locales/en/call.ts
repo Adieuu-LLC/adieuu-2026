@@ -89,13 +89,15 @@ export const call = {
   tooltipLeave: 'Leave the call',
 
   // E2EE status
-  e2eeActive: 'End-to-end encrypted',
-  e2eeNotSupported: 'Your browser does not support end-to-end encryption for calls.',
-  e2eeFailed: 'End-to-end encryption could not be established for this call. Your call is still active but may not be fully private.',
-  e2eeStatusInfoLabel: 'Encryption status details',
-  e2eeStatusInfoActive: 'Audio and video are encrypted between participants. Only members of this call can decrypt the media.',
-  e2eeStatusInfoFailed: 'Encryption could not be established for this call. The call is still connected, but media may not be fully private.',
-  e2eeStatusInfoNotSupported: 'Your browser does not support call encryption. Media is relayed through the server without end-to-end protection.',
+  e2eeIntro: 'Status',
+  e2eeActive: 'E2E Encrypted',
+  e2eeNotSupported: 'E2E Not Supported',
+  e2eeFailed: 'E2E Encryption Failed',
+  e2eeStatusInfoLabel: "What does this mean?",
+  e2eeStatusInfoIntro: "This indicates the call's end-to-end (E2E) encryption status. Below are the available statuses. This applies only to audio/video in the call - all text and status updates in conversations are always encrypted end-to-end.",
+  e2eeStatusInfoActive: "Audio and video are encrypted between participants' clients. Only members of this call can decrypt the media - even Adieuu staff (or a bad actor, if a breach occurs) are unable to to view your stream.",
+  e2eeStatusInfoFailed: "This indicates full E2E encryption could not be established for this call. The call is still connected, but media may not be fully private. Anyone with server access (such as Adieuu staff, a bad actor in the event of a breach, or a self-hosted server owner) *may* be able view your stream. This status can sometimes happen legitimately, like in cases where a user's app data gets corrupted during an update, but shouldn't be common. You might try restarting the call to see if E2E can be re-established, or if the issue persists try an app reinstall or reach out to Adieuu support.",
+  e2eeStatusInfoNotSupported: "One or more participants' devices or browsers do not support E2E encryption. Media is relayed through the server without end-to-end protection. Anyone with server access (such as Adieuu staff, a bad actor in the event of a breach, or a self-hosted server owner) could potentially snoop on your stream. Ensure all partipants are using the Adieuu app or a modern browser.",
 
   // Session provider / errors
   alreadyInActiveCall: 'You are already in a call. Leave first to start or join another.',

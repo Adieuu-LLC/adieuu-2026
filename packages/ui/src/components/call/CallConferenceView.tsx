@@ -28,6 +28,7 @@ import { useCallFrameLayout } from './useCallFrameLayout';
 import { useCallFrames } from './useCallFrames';
 
 const E2EE_STATUS_INFO_ROWS = [
+  { labelKey: 'call.e2eeIntro', infoKey: 'call.e2eeStatusInfoIntro' },
   { labelKey: 'call.e2eeActive', infoKey: 'call.e2eeStatusInfoActive' },
   { labelKey: 'call.e2eeFailed', infoKey: 'call.e2eeStatusInfoFailed' },
   { labelKey: 'call.e2eeNotSupported', infoKey: 'call.e2eeStatusInfoNotSupported' },
@@ -219,10 +220,7 @@ export function CallConferenceView({
   return (
     <div className={conferenceClass}>
       <RoomAudioRenderer />
-      <CallOverlayChrome
-        isExpanded={isExpanded}
-        onToggleFullscreen={onToggleFullscreen ?? (() => undefined)}
-      >
+      <CallOverlayChrome>
         <E2EEStatusBanner
           e2eeActive={!!e2eeActive}
           e2eeSupported={e2eeSupported}
@@ -290,7 +288,11 @@ export function CallConferenceView({
       )}
 
       <div className="call-conference__controls">
-        <CallConferenceControlBar isMobile={isMobile} />
+        <CallConferenceControlBar
+          isMobile={isMobile}
+          isExpanded={isExpanded}
+          onToggleFullscreen={onToggleFullscreen}
+        />
       </div>
     </div>
   );

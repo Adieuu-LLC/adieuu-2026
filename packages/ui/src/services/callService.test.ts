@@ -5,6 +5,7 @@ import {
   leaveCall,
   endCall,
   getActiveCall,
+  fetchActiveCallIdsByConversation,
   updateMediaState,
   updateCallSettings,
 } from './callService';
@@ -62,6 +63,32 @@ describe('callService', () => {
     expect(client.get).toHaveBeenCalledWith(
       `/api/conversations/${encodeURIComponent(CONV)}/calls/active`
     );
+  });
+
+  test('fetchActiveCallIdsByConversation returns active call ids', async () => {
+    const client = {
+      get: mock(async (path: string) => {
+        if (path.includes('conv-a')) {
+          return {
+            success: true,
+            data: { call: { id: 'call-a', status: 'active' } },
+          };
+        }
+        if (path.includes('conv-b')) {
+          return { success: true, data: { call: null } };
+        }
+        return { success: true, data: { call: { id: 'call-ended', status: 'ended' } } };
+      }),
+    };
+
+    const result = await fetchActiveCallIdsByConversation(client as never, [
+      'conv-a',
+      'conv-b',
+      'conv-c',
+    ]);
+
+    expect(result.size).toBe(1);
+    expect(result.get('conv-a')).toBe('call-a');
   });
 
   test('updateMediaState patches media path', async () => {

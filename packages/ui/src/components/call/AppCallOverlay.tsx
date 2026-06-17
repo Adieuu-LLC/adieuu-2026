@@ -11,6 +11,7 @@ import { useCallFullscreen } from '../../hooks/useCallFullscreen';
 import { useCallOverlayResize } from '../../hooks/useCallOverlayResize';
 import { useConversations } from '../../hooks/useConversations';
 import { forceEndCall as apiForceEndCall } from '../../services/callService';
+import { setCallOverlayHeightCssVar } from '../../services/callOverlayPreferences';
 import { useToast } from '../Toast';
 import { CallDeviceSetupModal } from './CallDeviceSetupModal';
 import { CallConferenceView } from './CallConferenceView';
@@ -55,7 +56,9 @@ export function AppCallOverlay() {
   } = useCallSession();
 
   const { isExpanded, toggle: toggleFullscreen } = useCallFullscreen(overlayRef);
-  const { heightPx, resizeHandleProps } = useCallOverlayResize({ disabled: isExpanded });
+  const { heightPx, committedHeightPx, resizeHandleProps } = useCallOverlayResize({
+    disabled: isExpanded,
+  });
 
   // ---- E2EE key provider (stable instance across the session) ----
 
@@ -187,6 +190,14 @@ export function AppCallOverlay() {
     const conversation = conversations.find((c) => c.id === activeSession.conversationId);
     return conversation?.type === 'dm';
   }, [activeSession, conversations]);
+
+  useEffect(() => {
+    if (!isViewingCallConversation || isExpanded) {
+      setCallOverlayHeightCssVar(null);
+      return;
+    }
+    setCallOverlayHeightCssVar(committedHeightPx);
+  }, [isViewingCallConversation, isExpanded, committedHeightPx]);
 
   const overlayClassName = [
     'call-overlay',

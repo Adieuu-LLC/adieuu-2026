@@ -18,12 +18,18 @@ export interface CallOverlayResizeHandleProps {
 
 export function useCallOverlayResize(options: UseCallOverlayResizeOptions = {}) {
   const { disabled = false } = options;
-  const [heightPx, setHeightPx] = useState(() => resolveInitialCallOverlayHeight());
+  const initialHeight = resolveInitialCallOverlayHeight();
+  const [heightPx, setHeightPx] = useState(initialHeight);
+  const [committedHeightPx, setCommittedHeightPx] = useState(initialHeight);
   const dragRef = useRef<{ startY: number; startHeight: number; pointerId: number } | null>(null);
 
   useEffect(() => {
     const onWindowResize = () => {
-      setHeightPx((current) => clampCallOverlayHeight(current));
+      setHeightPx((current) => {
+        const clamped = clampCallOverlayHeight(current);
+        setCommittedHeightPx(clamped);
+        return clamped;
+      });
     };
     window.addEventListener('resize', onWindowResize);
     return () => window.removeEventListener('resize', onWindowResize);
@@ -35,6 +41,7 @@ export function useCallOverlayResize(options: UseCallOverlayResizeOptions = {}) 
     setHeightPx((current) => {
       const clamped = clampCallOverlayHeight(current);
       writeStoredCallOverlayHeight(clamped);
+      setCommittedHeightPx(clamped);
       return clamped;
     });
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -66,5 +73,5 @@ export function useCallOverlayResize(options: UseCallOverlayResizeOptions = {}) 
     onPointerCancel: finishDrag,
   };
 
-  return { heightPx, resizeHandleProps };
+  return { heightPx, committedHeightPx, resizeHandleProps };
 }

@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import {
   CALL_OVERLAY_MIN_HEIGHT_PX,
+  CALL_OVERLAY_TOP_OFFSET_PX,
   clampCallOverlayHeight,
+  getConversationViewHeightPx,
   getDefaultCallOverlayHeightPx,
   readStoredCallOverlayHeight,
   resolveInitialCallOverlayHeight,
@@ -34,10 +36,13 @@ describe('clampCallOverlayHeight', () => {
 });
 
 describe('getDefaultCallOverlayHeightPx', () => {
-  test('returns roughly half viewport minus top offset', () => {
-    const height = getDefaultCallOverlayHeightPx(1000);
-    expect(height).toBeGreaterThan(300);
-    expect(height).toBeLessThan(600);
+  test('returns two thirds of conversation view height', () => {
+    const viewportHeight = 900;
+    const expected = Math.round(getConversationViewHeightPx(viewportHeight) * (2 / 3));
+    expect(getDefaultCallOverlayHeightPx(viewportHeight)).toBe(expected);
+    expect(getDefaultCallOverlayHeightPx(viewportHeight)).toBeGreaterThan(
+      Math.round((viewportHeight - CALL_OVERLAY_TOP_OFFSET_PX) * 0.5),
+    );
   });
 });
 

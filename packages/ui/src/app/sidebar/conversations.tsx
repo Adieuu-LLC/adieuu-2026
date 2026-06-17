@@ -16,6 +16,7 @@ import { getSidebarListAvatarMemberIds } from '../../pages/conversations/convers
 import { useConversationPreferences } from '../../hooks/useConversationPreferences';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useGlobalCallEvents } from '../../hooks/useGlobalCallEvents';
+import { useCallSession } from '../../hooks/useCallSession';
 import { useTheme } from '../../hooks/useTheme';
 import { usePlatformCapabilities } from '../../config';
 import { ChatInvitationsSidebarButton } from './invitations';
@@ -142,6 +143,7 @@ function ConversationListItem({
   isArchived,
   isFavorited,
   hasActiveCall,
+  isUserInCall,
   onLeave,
 }: {
   conversation: DecryptedConversation;
@@ -149,6 +151,7 @@ function ConversationListItem({
   isArchived: boolean;
   isFavorited: boolean;
   hasActiveCall: boolean;
+  isUserInCall: boolean;
   onLeave: (conversationId: string) => void;
 }) {
   const { t } = useTranslation();
@@ -275,7 +278,11 @@ function ConversationListItem({
       </div>
       <div className="conversation-list-item-badges">
         {hasActiveCall && (
-          <Icon name="phone" className="conversation-list-item-call-icon" />
+          <Icon
+            name="phone"
+            className={`conversation-list-item-call-icon${isUserInCall ? ' conversation-list-item-call-icon--joined' : ''}`}
+            aria-hidden
+          />
         )}
         {isFavorited && (
           <Icon name="star" className="conversation-list-item-star" />
@@ -423,6 +430,7 @@ export function ConversationsSidebarSection({
   const { preferences } = useConversationPreferences();
   const { identity } = useIdentity();
   const { activeCallConversationIds } = useGlobalCallEvents();
+  const { activeSession } = useCallSession();
   const { closeMobile } = useSidebar();
   const [activeTab, setActiveTab] = useState('conversations');
 
@@ -552,6 +560,7 @@ export function ConversationsSidebarSection({
       isArchived={!!item.pref?.archived}
       isFavorited={!!item.pref?.favorited}
       hasActiveCall={activeCallConversationIds.has(item.conversation.id)}
+      isUserInCall={activeSession?.conversationId === item.conversation.id}
       onLeave={handleLeaveRequest}
     />
   );

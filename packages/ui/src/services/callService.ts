@@ -121,6 +121,31 @@ export async function getActiveCall(
   return client.get(`/api/conversations/${enc(conversationId)}/calls/active`);
 }
 
+/** Fetch active call IDs for many conversations (e.g. sidebar sync after reconnect). */
+export async function fetchActiveCallIdsByConversation(
+  client: HttpClient,
+  conversationIds: string[],
+): Promise<Map<string, string>> {
+  const results = await Promise.all(
+    conversationIds.map(async (conversationId) => {
+      try {
+        const resp = await getActiveCall(client, conversationId);
+        const call = resp.success ? resp.data?.call : null;
+        if (call && call.status !== 'ended') {
+          return [conversationId, call.id] as const;
+        }
+      } catch {
+        // Best-effort per conversation.
+      }
+      return null;
+    }),
+  );
+
+  return new Map(
+    results.filter((entry): entry is readonly [string, string] => entry !== null),
+  );
+}
+
 export async function updateMediaState(
   client: HttpClient,
   conversationId: string,
