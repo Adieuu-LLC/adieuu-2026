@@ -7,7 +7,6 @@ import {
   truncateRoadmapExcerpt,
   type PublicFeedbackPost,
 } from '@adieuu/shared';
-import { BorderGlow } from '../BorderGlow';
 
 export function RoadmapTimelineCard({
   post,
@@ -41,13 +40,14 @@ export function RoadmapTimelineCard({
     }
   };
 
-  const card = (
+  return (
     <article
       className={[
         'roadmap-timeline-card',
         isCommunityIdea ? 'roadmap-timeline-card--community' : '',
         expanded ? 'roadmap-timeline-card--expanded' : '',
         highlighted ? 'roadmap-timeline-card--highlighted' : '',
+        isFocused ? 'roadmap-timeline-card--focused' : '',
       ].filter(Boolean).join(' ')}
     >
       {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
@@ -87,22 +87,4 @@ export function RoadmapTimelineCard({
       </div>
     </article>
   );
-
-  if (isFocused) {
-    return (
-      <BorderGlow
-        className="roadmap-card-glow"
-        animated
-        colors={['#38bdf8', '#c084fc', '#38bdf8']}
-        glowColor="200 80 70"
-        backgroundColor="var(--color-bg-elevated)"
-        borderRadius={12}
-        glowIntensity={0.7}
-      >
-        {card}
-      </BorderGlow>
-    );
-  }
-
-  return card;
 }

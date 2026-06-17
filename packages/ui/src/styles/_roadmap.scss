@@ -187,7 +187,27 @@
   gap: var(--spacing-md);
 }
 
+@property --roadmap-glow-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes roadmap-card-glow-rotate {
+  to { --roadmap-glow-angle: 360deg; }
+}
+
+@keyframes roadmap-card-glow-pulse {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 .roadmap-timeline-card {
+  position: relative;
   flex: 0 0 min(320px, 85vw);
   display: flex;
   flex-direction: column;
@@ -209,6 +229,41 @@
     border-color: color-mix(in srgb, var(--color-accent-primary) 50%, var(--color-border));
     box-shadow: 0 2px 8px color-mix(in srgb, var(--color-accent-primary) 12%, transparent);
     transform: scale(1.015);
+  }
+
+  &--focused {
+    overflow: visible;
+    border-color: transparent;
+    transform: scale(1.015);
+    box-shadow: 0 0 16px 0 color-mix(in srgb, var(--color-accent-primary) 20%, transparent);
+
+    &::before {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      border-radius: inherit;
+      padding: 2px;
+      background: conic-gradient(
+        from var(--roadmap-glow-angle),
+        #38bdf8,
+        color-mix(in srgb, var(--color-accent-primary) 30%, transparent) 25%,
+        #c084fc 50%,
+        color-mix(in srgb, var(--color-accent-primary) 30%, transparent) 75%,
+        #38bdf8
+      );
+      mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      mask-composite: exclude;
+      -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      animation:
+        roadmap-card-glow-rotate 3s linear infinite,
+        roadmap-card-glow-pulse 2.5s ease-in-out infinite;
+      pointer-events: none;
+    }
   }
 }
 
@@ -362,10 +417,6 @@
   color: var(--color-on-accent, #fff);
   font-weight: var(--font-weight-semibold);
   text-decoration: none;
-}
-
-.roadmap-card-glow {
-  flex: 0 0 min(320px, 85vw);
 }
 
 .feedback-roadmap-link {

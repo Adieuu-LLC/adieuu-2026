@@ -118,7 +118,7 @@ describe('RoadmapTimelineCard', () => {
     expect(html).not.toContain('roadmap-timeline-card--community');
   });
 
-  test('focused cards are wrapped with BorderGlow', () => {
+  test('focused cards get the focused class', () => {
     const html = renderToStaticMarkup(
       <RoadmapTimelineCard
         post={makePost()}
@@ -128,11 +128,10 @@ describe('RoadmapTimelineCard', () => {
       />,
     );
 
-    expect(html).toContain('border-glow-card');
-    expect(html).toContain('roadmap-card-glow');
+    expect(html).toContain('roadmap-timeline-card--focused');
   });
 
-  test('non-focused cards are not wrapped with BorderGlow', () => {
+  test('non-focused cards do not get the focused class', () => {
     const html = renderToStaticMarkup(
       <RoadmapTimelineCard
         post={makePost()}
@@ -142,6 +141,6 @@ describe('RoadmapTimelineCard', () => {
       />,
     );
 
-    expect(html).not.toContain('border-glow-card');
+    expect(html).not.toContain('roadmap-timeline-card--focused');
   });
 });
