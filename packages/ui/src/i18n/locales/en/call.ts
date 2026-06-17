@@ -72,6 +72,22 @@ export const call = {
   youLabel: 'You',
   mutedLabel: 'Muted',
 
+  // Overlay chrome
+  expandFullscreen: 'Expand the call to full screen',
+  exitFullscreen: 'Exit full screen',
+  expandFullscreenLabel: 'Expand call to full screen',
+  exitFullscreenLabel: 'Exit full screen call view',
+  resizeOverlay: 'Drag to resize call panel',
+
+  // Control bar tooltips
+  tooltipMicOn: 'Mute — click the arrow to change input device',
+  tooltipMicOff: 'Unmute — click the arrow to change input device',
+  tooltipCameraOn: 'Turn off camera — click the arrow to change camera',
+  tooltipCameraOff: 'Turn on camera — click the arrow to change camera',
+  tooltipScreenOn: 'Stop sharing your screen',
+  tooltipScreenOff: 'Share your screen',
+  tooltipLeave: 'Leave the call',
+
   // E2EE status
   e2eeActive: 'End-to-end encrypted',
   e2eeNotSupported: 'Your browser does not support end-to-end encryption for calls.',

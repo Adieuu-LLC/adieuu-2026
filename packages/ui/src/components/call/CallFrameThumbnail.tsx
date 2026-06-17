@@ -31,11 +31,12 @@ export function CallFrameThumbnail({
   const label = isScreen
     ? `${displayName} — ${t('call.screenShareLabel')}`
     : displayName;
+  const isSpeaking = participant.isSpeaking;
 
   return (
     <button
       type="button"
-      className={`call-conference__thumb${isActive ? ' call-conference__thumb--active' : ''}${isScreen ? ' call-conference__thumb--screen' : ''}`}
+      className={`call-conference__thumb${isActive ? ' call-conference__thumb--active' : ''}${isScreen ? ' call-conference__thumb--screen' : ''}${isSpeaking && !isActive ? ' call-conference__thumb--speaking' : ''}`}
       onClick={onSelect}
       aria-label={label}
       aria-pressed={isActive}

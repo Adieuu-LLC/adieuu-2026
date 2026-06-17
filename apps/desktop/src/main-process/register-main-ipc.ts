@@ -125,6 +125,15 @@ export function registerMainProcessIpc(options: {
     return runtime.mainWindow?.isMaximized() ?? false;
   });
 
+  ipcMain.handle('window:setFullScreen', (_event, fullScreen: unknown) => {
+    if (typeof fullScreen !== 'boolean') return;
+    runtime.mainWindow?.setFullScreen(fullScreen);
+  });
+
+  ipcMain.handle('window:isFullScreen', () => {
+    return runtime.mainWindow?.isFullScreen() ?? false;
+  });
+
   ipcMain.handle('window:save-bounds-if-changed', () => {
     saveMainWindowLayoutIfChanged();
   });

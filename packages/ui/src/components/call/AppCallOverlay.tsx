@@ -7,6 +7,8 @@ import '@livekit/components-styles';
 import { useAppConfig } from '../../config/PlatformContext';
 import { useCall } from '../../hooks/useCall';
 import { CallSessionError, useCallSession } from '../../hooks/useCallSession';
+import { useCallFullscreen } from '../../hooks/useCallFullscreen';
+import { useCallOverlayResize } from '../../hooks/useCallOverlayResize';
 import { useConversations } from '../../hooks/useConversations';
 import { forceEndCall as apiForceEndCall } from '../../services/callService';
 import { useToast } from '../Toast';
@@ -30,6 +32,7 @@ export function AppCallOverlay() {
   const { activeCall, refetch: refetchActiveCall } = useCall(activeConversationId);
   const toast = useToast();
   const [troubleshootOpen, setTroubleshootOpen] = useState(false);
+  const overlayRef = useRef<HTMLDivElement>(null);
 
   const apiClient = useMemo(
     () => createApiClient({ baseUrl: apiBaseUrl }).client,
@@ -50,6 +53,9 @@ export function AppCallOverlay() {
     callE2EEKey,
     e2eeSupported,
   } = useCallSession();
+
+  const { isExpanded, toggle: toggleFullscreen } = useCallFullscreen(overlayRef);
+  const { heightPx, resizeHandleProps } = useCallOverlayResize({ disabled: isExpanded });
 
   // ---- E2EE key provider (stable instance across the session) ----
 
@@ -182,6 +188,11 @@ export function AppCallOverlay() {
     return conversation?.type === 'dm';
   }, [activeSession, conversations]);
 
+  const overlayClassName = [
+    'call-overlay',
+    isExpanded ? 'call-overlay--expanded' : '',
+  ].filter(Boolean).join(' ');
+
   return (
     <>
       <CallDeviceSetupModal
@@ -194,9 +205,12 @@ export function AppCallOverlay() {
       {activeSession && livekitUrl && livekitToken && (
         <>
           <div
-            className="call-overlay"
+            ref={overlayRef}
+            className={overlayClassName}
+            style={isExpanded ? undefined : { height: `${heightPx}px` }}
             data-phase={phase}
             data-call-visible={isViewingCallConversation}
+            data-call-expanded={isExpanded}
           >
             <LiveKitRoom
               serverUrl={livekitUrl}
@@ -211,9 +225,20 @@ export function AppCallOverlay() {
               <CallConferenceView
                 e2eeActive={!!callE2EEKey}
                 isDm={isCallDm}
+                isExpanded={isExpanded}
+                onToggleFullscreen={() => void toggleFullscreen()}
                 onTroubleshoot={() => setTroubleshootOpen(true)}
               />
             </LiveKitRoom>
+            {!isExpanded && (
+              <div
+                className="call-overlay__resize-handle"
+                role="separator"
+                aria-orientation="horizontal"
+                aria-label={t('call.resizeOverlay')}
+                {...resizeHandleProps}
+              />
+            )}
           </div>
         </>
       )}

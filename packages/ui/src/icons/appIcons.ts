@@ -91,6 +91,8 @@ export const APP_ICON_NAMES = {
   microphoneSlash: 'microphone-slash',
   screenShare: 'screen-users',
   phoneIncoming: 'phone-arrow-down-left',
+  expand: 'maximize',
+  compress: 'compress',
 } as const;
 
 export type AppIconName = keyof typeof APP_ICON_NAMES;

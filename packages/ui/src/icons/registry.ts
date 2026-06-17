@@ -49,6 +49,7 @@ import {
   faPhone as fasPhone, faPhoneHangup as fasPhoneHangup, faVideo as fasVideo,
   faVideoSlash as fasVideoSlash, faMicrophone as fasMicrophone,
   faMicrophoneSlash as fasMicrophoneSlash, faScreenUsers as fasScreenUsers,
+  faMaximize as fasMaximize, faCompress as fasCompress,
   faPhoneArrowDownLeft as fasPhoneArrowDownLeft,
   faEyeSlash as fasEyeSlash,
 } from '@adieuu-llc/fa-pro-solid-svg-icons';
@@ -91,6 +92,7 @@ import {
   faPhone as fadPhone, faPhoneHangup as fadPhoneHangup, faVideo as fadVideo,
   faVideoSlash as fadVideoSlash, faMicrophone as fadMicrophone,
   faMicrophoneSlash as fadMicrophoneSlash, faScreenUsers as fadScreenUsers,
+  faMaximize as fadMaximize, faCompress as fadCompress,
   faPhoneArrowDownLeft as fadPhoneArrowDownLeft,
   faEyeSlash as fadEyeSlash,
 } from '@adieuu-llc/fa-pro-duotone-svg-icons';
@@ -175,6 +177,7 @@ import {
   faPhone as fasdsPhone, faPhoneHangup as fasdsPhoneHangup, faVideo as fasdsVideo,
   faVideoSlash as fasdsVideoSlash, faMicrophone as fasdsMicrophone,
   faMicrophoneSlash as fasdsMicrophoneSlash, faScreenUsers as fasdsScreenUsers,
+  faMaximize as fasdsMaximize, faCompress as fasdsCompress,
   faPhoneArrowDownLeft as fasdsPhoneArrowDownLeft,
   faEyeSlash as fasdsEyeSlash,
 } from '@adieuu-llc/fa-sharp-duotone-solid-svg-icons';
@@ -217,6 +220,7 @@ import {
   faPhone as fasdtPhone, faPhoneHangup as fasdtPhoneHangup, faVideo as fasdtVideo,
   faVideoSlash as fasdtVideoSlash, faMicrophone as fasdtMicrophone,
   faMicrophoneSlash as fasdtMicrophoneSlash, faScreenUsers as fasdtScreenUsers,
+  faMaximize as fasdtMaximize, faCompress as fasdtCompress,
   faPhoneArrowDownLeft as fasdtPhoneArrowDownLeft,
   faEyeSlash as fasdtEyeSlash,
 } from '@adieuu-llc/fa-sharp-duotone-thin-svg-icons';
@@ -241,6 +245,7 @@ const allIcons: IconDefinition[] = [
   fasCopy, fasFiles, fasBorderAll, fasLink, fasExternalLink, fasArrowUpFromBracket, fasFilm,
   fasPhone, fasPhoneHangup, fasVideo, fasVideoSlash, fasMicrophone,
   fasMicrophoneSlash, fasScreenUsers, fasPhoneArrowDownLeft, fasEyeSlash,
+  fasMaximize, fasCompress,
 
   // DuoTone Solid
   fadHouse, fadMessage, fadReply, fadUsers, fadGear, fadCircleInfo, fadDownload,
@@ -257,6 +262,7 @@ const allIcons: IconDefinition[] = [
   fadCopy, fadFiles, fadBorderAll, fadLink, fadExternalLink, fadArrowUpFromBracket, fadFilm,
   fadPhone, fadPhoneHangup, fadVideo, fadVideoSlash, fadMicrophone,
   fadMicrophoneSlash, fadScreenUsers, fadPhoneArrowDownLeft, fadEyeSlash,
+  fadMaximize, fadCompress,
 
   // DuoTone Thin
   fadtHouse, fadtMessage, fadtReply, fadtUsers, fadtGear, fadtCircleInfo, fadtDownload,
@@ -289,6 +295,7 @@ const allIcons: IconDefinition[] = [
   fasdsCopy, fasdsFiles, fasdsBorderAll, fasdsLink, fasdsExternalLink, fasdsArrowUpFromBracket, fasdsFilm,
   fasdsPhone, fasdsPhoneHangup, fasdsVideo, fasdsVideoSlash, fasdsMicrophone,
   fasdsMicrophoneSlash, fasdsScreenUsers, fasdsPhoneArrowDownLeft, fasdsEyeSlash,
+  fasdsMaximize, fasdsCompress,
 
   // Sharp DuoTone Thin
   fasdtHouse, fasdtMessage, fasdtReply, fasdtUsers, fasdtGear, fasdtCircleInfo, fasdtDownload,
@@ -305,6 +312,7 @@ const allIcons: IconDefinition[] = [
   fasdtCopy, fasdtFiles, fasdtBorderAll, fasdtLink, fasdtExternalLink, fasdtArrowUpFromBracket, fasdtFilm,
   fasdtPhone, fasdtPhoneHangup, fasdtVideo, fasdtVideoSlash, fasdtMicrophone,
   fasdtMicrophoneSlash, fasdtScreenUsers, fasdtPhoneArrowDownLeft, fasdtEyeSlash,
+  fasdtMaximize, fasdtCompress,
 ];
 
 library.add(...allIcons);

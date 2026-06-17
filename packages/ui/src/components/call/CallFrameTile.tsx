@@ -67,6 +67,7 @@ export function CallFrameTile({
     variant === 'sidebar' ? 'call-conference__tile--sidebar' : '',
     isPortrait ? 'call-conference__tile--portrait' : '',
     isPinned ? 'call-conference__tile--pinned' : '',
+    !isPinned && participant.isSpeaking ? 'call-conference__tile--speaking' : '',
     className,
   ].filter(Boolean).join(' ');
 

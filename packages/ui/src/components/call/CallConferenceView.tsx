@@ -11,7 +11,6 @@ import { useTranslation } from 'react-i18next';
 import {
   useLocalParticipant,
   useParticipants,
-  ControlBar,
   RoomAudioRenderer,
   isTrackReference,
 } from '@livekit/components-react';
@@ -23,6 +22,8 @@ import { useCallSession } from '../../hooks/useCallSession';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { CallFrameThumbnail } from './CallFrameThumbnail';
 import { CallFrameTile } from './CallFrameTile';
+import { CallConferenceControlBar } from './CallConferenceControlBar';
+import { CallOverlayChrome } from './CallOverlayChrome';
 import { useCallFrameLayout } from './useCallFrameLayout';
 import { useCallFrames } from './useCallFrames';
 
@@ -133,12 +134,16 @@ function E2EEStatusBanner({
 export interface CallConferenceViewProps {
   e2eeActive?: boolean;
   isDm?: boolean;
+  isExpanded?: boolean;
+  onToggleFullscreen?: () => void;
   onTroubleshoot?: () => void;
 }
 
 export function CallConferenceView({
   e2eeActive = false,
   isDm = false,
+  isExpanded = false,
+  onToggleFullscreen,
   onTroubleshoot,
 }: CallConferenceViewProps) {
   const participants = useParticipants();
@@ -214,11 +219,16 @@ export function CallConferenceView({
   return (
     <div className={conferenceClass}>
       <RoomAudioRenderer />
-      <E2EEStatusBanner
-        e2eeActive={!!e2eeActive}
-        e2eeSupported={e2eeSupported}
-        onTroubleshoot={onTroubleshoot}
-      />
+      <CallOverlayChrome
+        isExpanded={isExpanded}
+        onToggleFullscreen={onToggleFullscreen ?? (() => undefined)}
+      >
+        <E2EEStatusBanner
+          e2eeActive={!!e2eeActive}
+          e2eeSupported={e2eeSupported}
+          onTroubleshoot={onTroubleshoot}
+        />
+      </CallOverlayChrome>
 
       {layout.mode === 'pinned' && layout.heroFrame && (
         <>
@@ -280,17 +290,7 @@ export function CallConferenceView({
       )}
 
       <div className="call-conference__controls">
-        <ControlBar
-          controls={{
-            microphone: true,
-            camera: true,
-            screenShare: true,
-            leave: true,
-            chat: false,
-            settings: false,
-          }}
-          variation={isMobile ? 'minimal' : 'verbose'}
-        />
+        <CallConferenceControlBar isMobile={isMobile} />
       </div>
     </div>
   );

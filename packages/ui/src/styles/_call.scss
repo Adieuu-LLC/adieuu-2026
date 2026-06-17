@@ -134,6 +134,8 @@ $call-overlay-title-bar-height: 32px;
   top: $call-overlay-top;
   left: min($sidebar-width, $sidebar-width-max);
   right: 0;
+  min-height: 220px;
+  // Height is set inline from persisted user preference (see useCallOverlayResize).
   height: calc(50vh - #{$call-overlay-top - $call-overlay-bottom-offset});
   // Same layer as .app-content ($z-content): above conversation, below sidebar/flyouts/popovers.
   z-index: $z-content;
@@ -157,9 +159,47 @@ $call-overlay-title-bar-height: 32px;
 
   body.has-custom-title-bar & {
     top: calc(#{$call-overlay-top} + #{$call-overlay-title-bar-height});
-    height: calc(
-      50vh - #{$call-overlay-top - $call-overlay-bottom-offset + $call-overlay-title-bar-height}
-    );
+  }
+
+  &--expanded {
+    top: 0 !important;
+    left: 0 !important;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100% !important;
+    max-height: none;
+    z-index: calc(#{$z-sidebar-mobile-open} + 5);
+    border-bottom: none;
+  }
+
+  &__resize-handle {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 0.75rem;
+    cursor: ns-resize;
+    touch-action: none;
+    z-index: 2;
+
+    &::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      bottom: 3px;
+      transform: translateX(-50%);
+      width: 2.5rem;
+      height: 3px;
+      border-radius: 9999px;
+      background: var(--color-border);
+      transition: background var(--transition-fast);
+    }
+
+    &:hover::after,
+    &:active::after {
+      background: var(--color-accent-primary);
+    }
   }
 
   &[data-call-visible="true"] {
@@ -246,6 +286,51 @@ $call-overlay-title-bar-height: 32px;
 @media (max-width: $mobile-breakpoint) {
   .call-overlay {
     left: 0 !important;
+  }
+}
+
+.call-overlay-chrome {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-xs);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+
+  &__main {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__expand {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: var(--spacing-xs);
+    margin-right: var(--spacing-xs);
+    padding: var(--spacing-xs);
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: color var(--transition-fast), background var(--transition-fast);
+
+    &:hover {
+      color: var(--color-text-primary);
+      background: var(--color-bg-hover);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--color-border-focus);
+      outline-offset: 2px;
+    }
+  }
+
+  .call-conference__e2ee-badge,
+  .call-conference__e2ee-banner {
+    margin: 0;
   }
 }
 
@@ -364,6 +449,11 @@ $call-overlay-title-bar-height: 32px;
     }
 
     &--pinned {
+      outline: 2px solid var(--color-accent-primary);
+      outline-offset: -2px;
+    }
+
+    &--speaking {
       outline: 2px solid var(--color-accent-primary);
       outline-offset: -2px;
     }
@@ -544,9 +634,18 @@ $call-overlay-title-bar-height: 32px;
     border-top: 1px solid var(--color-border);
     background: var(--color-bg-primary);
 
-    .lk-control-bar {
+    .lk-control-bar,
+    .call-conference__controls-bar--verbose,
+    .call-conference__controls-bar--minimal {
       display: flex;
       gap: var(--spacing-sm);
+    }
+
+    .call-conference__controls-bar--minimal {
+      .lk-button .lk-button-label,
+      .lk-disconnect-button .lk-button-label {
+        display: none;
+      }
     }
 
     .lk-device-menu {
@@ -602,6 +701,10 @@ $call-overlay-title-bar-height: 32px;
     transition: border-color var(--transition-fast);
 
     &--active {
+      border-color: var(--color-accent-primary);
+    }
+
+    &--speaking {
       border-color: var(--color-accent-primary);
     }
 

@@ -44,6 +44,9 @@ contextBridge.exposeInMainWorld('electron', {
     maximize: () => ipcRenderer.invoke('window:maximize'),
     close: () => ipcRenderer.invoke('window:close'),
     isMaximized: () => ipcRenderer.invoke('window:isMaximized') as Promise<boolean>,
+    setFullScreen: (fullScreen: boolean) =>
+      ipcRenderer.invoke('window:setFullScreen', fullScreen) as Promise<void>,
+    isFullScreen: () => ipcRenderer.invoke('window:isFullScreen') as Promise<boolean>,
     saveBoundsIfChanged: () => ipcRenderer.invoke('window:save-bounds-if-changed'),
     setBadgeCount: (count: number, accentColorHex?: string) =>
       ipcRenderer.invoke('window:setBadgeCount', count, accentColorHex),
@@ -137,6 +140,8 @@ declare global {
         maximize: () => Promise<void>;
         close: () => Promise<void>;
         isMaximized: () => Promise<boolean>;
+        setFullScreen: (fullScreen: boolean) => Promise<void>;
+        isFullScreen: () => Promise<boolean>;
         saveBoundsIfChanged: () => Promise<void>;
         setBadgeCount: (count: number, accentColorHex?: string) => Promise<void>;
       };
