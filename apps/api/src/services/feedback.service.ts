@@ -725,7 +725,7 @@ export async function updateFeedbackStatus(
     return { success: false, error: 'Post not found', errorCode: 'NOT_FOUND' };
   }
 
-  await postRepo.updateStatus(
+  const updated = await postRepo.updateStatus(
     postId,
     newStatus as FeedbackStatus,
     identity._id.toHexString(),
@@ -733,6 +733,9 @@ export async function updateFeedbackStatus(
       ? (post.releasedAt ?? post.targetReleaseDate ?? new Date())
       : undefined,
   );
+  if (!updated) {
+    return { success: false, error: 'Post not found', errorCode: 'NOT_FOUND' };
+  }
   awardFeedbackSuggestionAchievements(
     post.identityId,
     post.category,

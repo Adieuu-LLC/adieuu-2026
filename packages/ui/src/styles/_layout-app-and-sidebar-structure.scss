@@ -123,6 +123,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+
     // Electron: header may use -webkit-app-region: drag; link must stay clickable
     -webkit-app-region: no-drag;
     

@@ -1,7 +1,6 @@
 import { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Button } from '../../components/Button';
 import { Tooltip } from '../../components/Tooltip';
 import { RoadmapTimeline, type RoadmapTimelineNav } from '../../components/roadmap/RoadmapTimeline';
 import { Icon } from '../../icons/Icon';
@@ -60,8 +59,11 @@ export function AboutRoadmap() {
               <Link to="/feedback" className="roadmap-browse-proposals-link">
                 {t('about.roadmap.browseProposals')}
               </Link>
-              <Link to="/feedback/new?returnTo=/about/roadmap">
-                <Button variant="primary" size="sm">{t('about.roadmap.proposeFeature')}</Button>
+              <Link
+                to="/feedback/new?returnTo=/about/roadmap"
+                className="btn btn-primary btn-sm"
+              >
+                {t('about.roadmap.proposeFeature')}
               </Link>
             </div>
           </div>

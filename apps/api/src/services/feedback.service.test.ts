@@ -153,6 +153,9 @@ describe('feedback.service', () => {
         targetReleaseDate: (input as { targetReleaseDate?: Date }).targetReleaseDate,
       }),
     );
+    mockUpdateStatus.mockImplementation(async (...args: unknown[]) =>
+      makeCreatedPost({ postId: args[0] as string }),
+    );
   });
 
   test('createFeedbackPost defaults non-privileged submissions to submitted', async () => {
@@ -365,6 +368,27 @@ describe('feedback.service', () => {
       identityId.toHexString(),
       existingReleasedAt,
     );
+  });
+
+  test('updateFeedbackStatus returns NOT_FOUND when updateStatus returns null', async () => {
+    setStaffDevCapabilities();
+    mockFindByPostId.mockResolvedValue(
+      makeCreatedPost({ postId: 'FB-missing', status: 'planned' }),
+    );
+    mockUpdateStatus.mockResolvedValue(null);
+
+    const result = await updateFeedbackStatus(
+      'FB-missing',
+      identity,
+      'planned',
+      [ADIEUU_DEV_ENTITLEMENT],
+    );
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errorCode).toBe('NOT_FOUND');
+    }
+    expect(mockCheckAndAward).not.toHaveBeenCalled();
   });
 
   test('getRoadmapTimelinePosts returns repository posts', async () => {

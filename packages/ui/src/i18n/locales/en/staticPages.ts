@@ -38,7 +38,7 @@ export const staticPages = {
       undatedReleased: 'Released (date unknown)',
       undatedBand: '{{status}} (no target date)',
       commentCount: '{{count}} comments',
-      commentCount_one: '1 comment and feedback',
+      commentCount_one: '1 comment',
       commentCount_other: '{{count}} comments',
       seeMore: 'View Discussion',
       readMore: 'Read more',

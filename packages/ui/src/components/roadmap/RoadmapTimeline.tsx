@@ -22,6 +22,18 @@ export interface RoadmapTimelineNav {
   canNavigateDown: boolean;
 }
 
+function getTimelineContentOffset(
+  el: HTMLElement,
+  scrollContainer: HTMLElement | null,
+): number {
+  const elRect = el.getBoundingClientRect();
+  if (scrollContainer) {
+    const containerRect = scrollContainer.getBoundingClientRect();
+    return elRect.top - containerRect.top + scrollContainer.scrollTop;
+  }
+  return elRect.top + window.scrollY;
+}
+
 export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTimelineNav) => void }) {
   const { t } = useTranslation();
   const { apiBaseUrl } = useAppConfig();
@@ -125,8 +137,10 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
       if (totalScrollable <= 0) {
         blueHeight = timelineHeight;
       } else {
+        const timelineOffset = getTimelineContentOffset(el, scrollContainer);
+        const relativeScrollTop = Math.max(0, scrollTop - timelineOffset);
         const ratio = timelineHeight / totalScrollable;
-        blueHeight = Math.max(0, Math.min(scrollTop * ratio, timelineHeight));
+        blueHeight = Math.max(0, Math.min(relativeScrollTop * ratio, timelineHeight));
       }
       prog.style.height = `${blueHeight}px`;
       blueHeightRef.current = blueHeight;
@@ -220,7 +234,8 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
             : document.documentElement.scrollHeight - window.innerHeight;
 
           if (totalScrollable > 0 && timelineHeight > 0) {
-            const targetScrollTop = (markerTop / timelineHeight) * totalScrollable;
+            const timelineOffset = getTimelineContentOffset(el, container);
+            const targetScrollTop = timelineOffset + (markerTop / timelineHeight) * totalScrollable;
             if (container) {
               container.scrollTop = targetScrollTop;
             } else {
@@ -280,7 +295,8 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
 
       if (totalScrollable <= 0) return;
 
-      const targetScrollTop = (targetOffset / timelineHeight) * totalScrollable;
+      const timelineOffset = getTimelineContentOffset(el, container);
+      const targetScrollTop = timelineOffset + (targetOffset / timelineHeight) * totalScrollable;
 
       if (container) {
         container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
@@ -309,7 +325,8 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
 
     if (totalScrollable <= 0) return;
 
-    const targetScrollTop = (markerTop / timelineHeight) * totalScrollable;
+    const timelineOffset = getTimelineContentOffset(el, container);
+    const targetScrollTop = timelineOffset + (markerTop / timelineHeight) * totalScrollable;
     if (container) {
       container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
     } else {
