@@ -21,7 +21,7 @@ export const staticPages = {
     },
     roadmap: {
       title: 'Roadmap',
-      subtitle: 'What we have shipped, what we are building, and what is coming next.',
+      subtitle: "What we've built and what we're building, with your input!",
       today: 'Today',
       latestRelease: 'Latest Release',
       communityIdea: 'Community Idea',
@@ -49,6 +49,8 @@ export const staticPages = {
       footerCta: 'Create & Vote on Feature Proposals',
       loadError: 'Could not load the roadmap timeline.',
       empty: 'Nothing on the roadmap yet. Check back soon!',
+      proposeFeature: 'Propose Feature',
+      browseProposals: 'Browse All Proposals',
     },
   },
 

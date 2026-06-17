@@ -8,44 +8,28 @@ import { Button } from '../../components/Button';
 import { Icon } from '../../icons/Icon';
 import { useAppConfig } from '../../config';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { useIdentity } from '../../hooks/useIdentity';
-import { useFeedbackUnreadCount } from '../../hooks/useFeedbackUnreadCount';
 import { SidebarFlyoutSubmenu } from './SidebarFlyoutSubmenu';
 
-function FeedbackUnreadBadge({ count }: { count: number }) {
-  if (count <= 0) return null;
-  return (
-    <span className="sidebar-tab-badge" aria-label={`${count} unread feedback notifications`}>
-      {count > 99 ? '99+' : count}
-    </span>
-  );
-}
-
-export function FeedbackSidebarLink() {
+export function RoadmapSidebarLink() {
   const { t } = useTranslation();
   const location = useLocation();
   const { isExpanded, closeMobile } = useSidebar();
-  const { status: identityStatus } = useIdentity();
-  const feedbackUnreadCount = useFeedbackUnreadCount(identityStatus === 'logged_in');
-  const isActive = location.pathname.startsWith('/feedback');
-  const label = t('feedback.title');
+  const isActive = location.pathname === '/about/roadmap';
+  const label = t('about.roadmap.title');
 
   return (
     <Link
-      to="/feedback"
+      to="/about/roadmap"
       onClick={closeMobile}
       title={!isExpanded ? label : undefined}
       aria-label={label}
-      data-tour="feedback-nav"
-      className={`sidebar-account-btn ${isActive ? 'sidebar-account-btn-active' : ''}`}
+      data-tour="roadmap-nav"
+      className={`sidebar-item ${isActive ? 'sidebar-item-active' : ''}`}
     >
-      <span style={{ position: 'relative', display: 'inline-flex' }}>
-        <Icon name="ballotCheck" />
-        {feedbackUnreadCount > 0 && (
-          <FeedbackUnreadBadge count={feedbackUnreadCount} />
-        )}
+      <span className="sidebar-item-icon">
+        <Icon name="clock" />
       </span>
-      <span className="sidebar-account-label">{label}</span>
+      <span className="sidebar-item-label">{label}</span>
     </Link>
   );
 }
@@ -62,7 +46,8 @@ export function AboutFlyout() {
   const isLegalPoliciesActive = location.pathname.startsWith('/legal-policies');
   const isSectionActive =
     location.pathname === '/about'
-    || location.pathname.startsWith('/about/')
+    || (location.pathname.startsWith('/about/') && location.pathname !== '/about/roadmap')
+    || location.pathname.startsWith('/feedback')
     || isLegalPoliciesActive;
 
   const handleNavClick = () => {
@@ -97,11 +82,11 @@ export function AboutFlyout() {
         {t('home.learn.navLabel')}
       </Link>
       <Link
-        to="/about/roadmap"
+        to="/feedback"
         onClick={handleNavClick}
-        className={`sidebar-flyout-item ${isActive('/about/roadmap') ? 'sidebar-flyout-item-active' : ''}`}
+        className={`sidebar-flyout-item ${location.pathname.startsWith('/feedback') ? 'sidebar-flyout-item-active' : ''}`}
       >
-        {t('about.roadmap.title')}
+        {t('feedback.title')}
       </Link>
       {platform === 'web' ? (
         <Link

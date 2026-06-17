@@ -5,12 +5,9 @@ import { Button } from '../../components/Button';
 import { Tooltip } from '../../components/Tooltip';
 import { RoadmapTimeline, type RoadmapTimelineNav } from '../../components/roadmap/RoadmapTimeline';
 import { Icon } from '../../icons/Icon';
-import { useAuth } from '../../hooks/useAuth';
 
 export function AboutRoadmap() {
   const { t } = useTranslation();
-  const { session } = useAuth();
-  const isStaff = session?.isPlatformAdmin === true || session?.isPlatformModerator === true;
   const [nav, setNav] = useState<RoadmapTimelineNav | null>(null);
 
   const handleNavReady = useCallback((next: RoadmapTimelineNav) => {
@@ -60,11 +57,12 @@ export function AboutRoadmap() {
                   </button>
                 </Tooltip>
               </div>
-              {isStaff && (
-                <Link to="/feedback/new?returnTo=/about/roadmap">
-                  <Button variant="primary" size="sm">{t('feedback.newPost')}</Button>
-                </Link>
-              )}
+              <Link to="/feedback" className="roadmap-browse-proposals-link">
+                {t('about.roadmap.browseProposals')}
+              </Link>
+              <Link to="/feedback/new?returnTo=/about/roadmap">
+                <Button variant="primary" size="sm">{t('about.roadmap.proposeFeature')}</Button>
+              </Link>
             </div>
           </div>
         </div>

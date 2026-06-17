@@ -32,6 +32,18 @@
   }
 }
 
+.roadmap-browse-proposals-link {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+
+  &:hover {
+    color: var(--color-accent-primary);
+    text-decoration: underline;
+  }
+}
+
 .roadmap-header-nav {
   display: flex;
   align-items: center;

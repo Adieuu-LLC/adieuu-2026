@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { SidebarSection } from '../../components/Sidebar';
 import { SidebarSearch } from '../../components/SidebarSearch';
-import { AboutFlyout, FeedbackSidebarLink } from './about';
+import { AboutFlyout, RoadmapSidebarLink } from './about';
 import { FriendsSidebarButton } from './friends';
 import { ConversationsSidebarSection } from './conversations';
 
@@ -29,7 +29,7 @@ export function SidebarTopNavContent({
       </div>
       <SidebarSection>
         <AboutFlyout />
-        <FeedbackSidebarLink />
+        <RoadmapSidebarLink />
         {!isPublic && (
           <FriendsSidebarButton
             isOpen={isFriendsPanelOpen}
