@@ -144,5 +144,93 @@ export const achievements = {
       name: 'Down the Rabbit Hole',
       description: "Whoa. You're beginning to believe.",
     },
+    edgeLord03: {
+      name: "Edge Lord '03",
+      description: 'We get it, you listened to Linkin Park and played Halo.',
+    },
+    mclovin: {
+      name: '25-Year-Old Hawaiian Organ Donor',
+      description: 'It was between that or Mohammed.',
+    },
+    pleaseStandUp: {
+      name: 'Please Stand Up',
+      description: "We're gonna have a problem here.",
+    },
+    witnessProtection: {
+      name: 'Witness Protection',
+      description: 'Who are you running from? Is it the feds?',
+    },
+    artistFormerlyKnownAs: {
+      name: 'The Artist Formerly Known As',
+      description: "We'll make sure to queue up some Prince for you.",
+    },
+    theRedPill: {
+      name: 'The Red Pill',
+      description: 'Wake up. The platform has you.',
+    },
+    tomsBestFriend: {
+      name: "Tom's Best Friend",
+      description: "Trying to code a custom glitter background, aren't we?",
+    },
+    theRupertHolmes: {
+      name: 'The Rupert Holmes',
+      description: 'Do you like piña coladas?',
+    },
+    blockbusterScriptwriter: {
+      name: 'Blockbuster Scriptwriter',
+      description: 'We asked for a bio, not the entire script of Titanic.',
+    },
+    silentBob: {
+      name: 'The Silent Bob',
+      description: '...',
+    },
+    dialupSound: {
+      name: 'EEEEE-AWWWW-BING-BONG',
+      description: 'We can hear this bio, and it takes 5 minutes to load a picture.',
+    },
+    heWasABoy: {
+      name: 'He Was a Boy',
+      description: 'She said see ya later boy.',
+    },
+    reginaGeorge: {
+      name: "You Can't Sit With Us",
+      description: 'On Wednesdays we wear pink.',
+    },
+    chuckNorris: {
+      name: 'Roundhouse Kick',
+      description: 'When Chuck Norris signs up for a platform, the database updates itself.',
+    },
+    zoltan: {
+      name: 'Dude, Sweet',
+      description: '*Makes Z shape with hands*',
+    },
+    slappersOnly: {
+      name: 'Slappers Only',
+      description: 'No Oddjob allowed.',
+    },
+    yerAWizard: {
+      name: "Yer a Wizard",
+      description: 'We solemnly swear that we are up to no good.',
+    },
+    townLocal: {
+      name: 'Town Local',
+      description: 'Like no one ever was.',
+    },
+    identityTheftJoke: {
+      name: 'Identity Theft is Not a Joke',
+      description: 'Millions of families suffer every year!',
+    },
+    saveMe: {
+      name: 'Save Me',
+      description: 'Call my name and save me from the dark.',
+    },
+    theBedazzler: {
+      name: 'The Bedazzler',
+      description: "T9 predictive text couldn't handle this much flair.",
+    },
+    noThatsImpossible: {
+      name: "No, That's Impossible",
+      description: 'Search your feelings, you know it to be true.',
+    },
     sponsor: { name: 'Patron of the Arts', description: 'Sponsored another user\'s subscription.' },
 } as const;

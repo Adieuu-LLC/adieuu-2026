@@ -58,6 +58,15 @@ import {
   faHandshake as fasHandshake,
   faPersonPregnant as fasPersonPregnant,
   faCreditCard as fasCreditCard,
+  faCoconut as fasCoconut,
+  faKidneys as fasKidneys,
+  faRabbit as fasRabbit,
+  faRouter as fasRouter,
+  faCrown as fasCrown,
+  faHandFist as fasHandFist,
+  faUserSecret as fasUserSecret,
+  faHatWizard as fasHatWizard,
+  faMoon as fasMoon,
 } from '@adieuu-llc/fa-pro-solid-svg-icons';
 
 // ---------------------------------------------------------------------------
@@ -107,6 +116,15 @@ import {
   faHandshake as fadHandshake,
   faPersonPregnant as fadPersonPregnant,
   faCreditCard as fadCreditCard,
+  faCoconut as fadCoconut,
+  faKidneys as fadKidneys,
+  faRabbit as fadRabbit,
+  faRouter as fadRouter,
+  faCrown as fadCrown,
+  faHandFist as fadHandFist,
+  faUserSecret as fadUserSecret,
+  faHatWizard as fadHatWizard,
+  faMoon as fadMoon,
 } from '@adieuu-llc/fa-pro-duotone-svg-icons';
 
 // ---------------------------------------------------------------------------
@@ -154,6 +172,15 @@ import {
   faHandshake as fadtHandshake,
   faPersonPregnant as fadtPersonPregnant,
   faCreditCard as fadtCreditCard,
+  faCoconut as fadtCoconut,
+  faKidneys as fadtKidneys,
+  faRabbit as fadtRabbit,
+  faRouter as fadtRouter,
+  faCrown as fadtCrown,
+  faHandFist as fadtHandFist,
+  faUserSecret as fadtUserSecret,
+  faHatWizard as fadtHatWizard,
+  faMoon as fadtMoon,
 } from '@adieuu-llc/fa-duotone-thin-svg-icons';
 
 // ---------------------------------------------------------------------------
@@ -203,6 +230,15 @@ import {
   faHandshake as fasdsHandshake,
   faPersonPregnant as fasdsPersonPregnant,
   faCreditCard as fasdsCreditCard,
+  faCoconut as fasdsCoconut,
+  faKidneys as fasdsKidneys,
+  faRabbit as fasdsRabbit,
+  faRouter as fasdsRouter,
+  faCrown as fasdsCrown,
+  faHandFist as fasdsHandFist,
+  faUserSecret as fasdsUserSecret,
+  faHatWizard as fasdsHatWizard,
+  faMoon as fasdsMoon,
 } from '@adieuu-llc/fa-sharp-duotone-solid-svg-icons';
 
 // ---------------------------------------------------------------------------
@@ -252,6 +288,15 @@ import {
   faHandshake as fasdtHandshake,
   faPersonPregnant as fasdtPersonPregnant,
   faCreditCard as fasdtCreditCard,
+  faCoconut as fasdtCoconut,
+  faKidneys as fasdtKidneys,
+  faRabbit as fasdtRabbit,
+  faRouter as fasdtRouter,
+  faCrown as fasdtCrown,
+  faHandFist as fasdtHandFist,
+  faUserSecret as fasdtUserSecret,
+  faHatWizard as fasdtHatWizard,
+  faMoon as fasdtMoon,
 } from '@adieuu-llc/fa-sharp-duotone-thin-svg-icons';
 
 // ---------------------------------------------------------------------------
@@ -279,6 +324,15 @@ const allIcons: IconDefinition[] = [
   fasHandshake,
   fasPersonPregnant,
   fasCreditCard,
+  fasCoconut,
+  fasKidneys,
+  fasRabbit,
+  fasRouter,
+  fasCrown,
+  fasHandFist,
+  fasUserSecret,
+  fasHatWizard,
+  fasMoon,
 
   // DuoTone Solid
   fadHouse, fadMessage, fadReply, fadUsers, fadGear, fadCircleInfo, fadDownload,
@@ -300,6 +354,15 @@ const allIcons: IconDefinition[] = [
   fadHandshake,
   fadPersonPregnant,
   fadCreditCard,
+  fadCoconut,
+  fadKidneys,
+  fadRabbit,
+  fadRouter,
+  fadCrown,
+  fadHandFist,
+  fadUserSecret,
+  fadHatWizard,
+  fadMoon,
 
   // DuoTone Thin
   fadtHouse, fadtMessage, fadtReply, fadtUsers, fadtGear, fadtCircleInfo, fadtDownload,
@@ -320,6 +383,15 @@ const allIcons: IconDefinition[] = [
   fadtHandshake,
   fadtPersonPregnant,
   fadtCreditCard,
+  fadtCoconut,
+  fadtKidneys,
+  fadtRabbit,
+  fadtRouter,
+  fadtCrown,
+  fadtHandFist,
+  fadtUserSecret,
+  fadtHatWizard,
+  fadtMoon,
 
   // Sharp DuoTone Solid
   fasdsHouse, fasdsMessage, fasdsReply, fasdsUsers, fasdsGear, fasdsCircleInfo, fasdsDownload,
@@ -341,6 +413,15 @@ const allIcons: IconDefinition[] = [
   fasdsHandshake,
   fasdsPersonPregnant,
   fasdsCreditCard,
+  fasdsCoconut,
+  fasdsKidneys,
+  fasdsRabbit,
+  fasdsRouter,
+  fasdsCrown,
+  fasdsHandFist,
+  fasdsUserSecret,
+  fasdsHatWizard,
+  fasdsMoon,
 
   // Sharp DuoTone Thin
   fasdtHouse, fasdtMessage, fasdtReply, fasdtUsers, fasdtGear, fasdtCircleInfo, fasdtDownload,
@@ -362,6 +443,15 @@ const allIcons: IconDefinition[] = [
   fasdtHandshake,
   fasdtPersonPregnant,
   fasdtCreditCard,
+  fasdtCoconut,
+  fasdtKidneys,
+  fasdtRabbit,
+  fasdtRouter,
+  fasdtCrown,
+  fasdtHandFist,
+  fasdtUserSecret,
+  fasdtHatWizard,
+  fasdtMoon,
 ];
 
 library.add(...allIcons);

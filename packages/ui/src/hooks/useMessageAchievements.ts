@@ -4,9 +4,15 @@
  * Since messages are E2E encrypted, the server never sees plaintext.
  * Detection runs locally after a successful send; claims are
  * fire-and-forget via the existing claim endpoint.
+ * 
+ * You could manipulate your client to give you all of these at once,
+ * that's fine, don't care, they're just here for fun & delightful surprise.
+ * The non-memey ones generally also serve a secondary goal of teaching about
+ * different features in the app, so ... useful and maybe some giggles.
  */
 
 import { useCallback } from 'react';
+import { getPopCultureTextAchievementActions } from '@adieuu/shared';
 import { useClaimAchievement } from './useClaimAchievement';
 import { useIdentity } from './useIdentity';
 import { containsProfanity } from '../utils/profanityCheck';
@@ -219,6 +225,10 @@ export function useMessageAchievements() {
       }
       if (RABBIT_HOLE_RE.test(plaintext)) {
         claim('rabbit_hole_message_sent');
+      }
+
+      for (const action of getPopCultureTextAchievementActions(plaintext)) {
+        claim(action);
       }
     },
     [claim, identity],
