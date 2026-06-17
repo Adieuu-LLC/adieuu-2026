@@ -65,6 +65,13 @@ export const call = {
   forceEndSuccess: 'Call ended. You can now start a new call.',
   forceEndFailed: 'Failed to end the call. Please try again.',
 
+  // Frame layout
+  pinFrame: 'Pin frame',
+  unpinFrame: 'Unpin frame',
+  screenShareLabel: 'Screen',
+  youLabel: 'You',
+  mutedLabel: 'Muted',
+
   // E2EE status
   e2eeActive: 'End-to-end encrypted',
   e2eeNotSupported: 'Your browser does not support end-to-end encryption for calls.',

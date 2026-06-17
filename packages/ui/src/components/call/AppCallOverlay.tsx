@@ -26,7 +26,7 @@ import { CallTroubleshootModal } from './CallTroubleshootModal';
 export function AppCallOverlay() {
   const { t } = useTranslation();
   const { apiBaseUrl } = useAppConfig();
-  const { activeConversationId } = useConversations();
+  const { activeConversationId, conversations } = useConversations();
   const { activeCall, refetch: refetchActiveCall } = useCall(activeConversationId);
   const toast = useToast();
   const [troubleshootOpen, setTroubleshootOpen] = useState(false);
@@ -176,6 +176,12 @@ export function AppCallOverlay() {
   const isViewingCallConversation =
     activeSession !== null && activeConversationId === activeSession.conversationId;
 
+  const isCallDm = useMemo(() => {
+    if (!activeSession) return false;
+    const conversation = conversations.find((c) => c.id === activeSession.conversationId);
+    return conversation?.type === 'dm';
+  }, [activeSession, conversations]);
+
   return (
     <>
       <CallDeviceSetupModal
@@ -204,6 +210,7 @@ export function AppCallOverlay() {
             >
               <CallConferenceView
                 e2eeActive={!!callE2EEKey}
+                isDm={isCallDm}
                 onTroubleshoot={() => setTroubleshootOpen(true)}
               />
             </LiveKitRoom>
