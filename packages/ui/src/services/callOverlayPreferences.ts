@@ -8,7 +8,7 @@ export const CALL_OVERLAY_BOTTOM_OFFSET_PX = 23;
 export const CALL_OVERLAY_TITLE_BAR_PX = 32;
 
 export function getCallOverlayTopOffsetPx(): number {
-  if (typeof document === 'undefined') {
+  if (typeof document === 'undefined' || !document.body?.classList?.contains) {
     return CALL_OVERLAY_TOP_OFFSET_PX;
   }
   const hasTitleBar = document.body.classList.contains('has-custom-title-bar');

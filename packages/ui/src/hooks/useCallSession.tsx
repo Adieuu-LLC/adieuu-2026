@@ -312,8 +312,10 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
                 callE2EEKey = undefined;
               }
             } catch (wrapErr) {
-              zeroCallKey(callE2EEKey);
-              callE2EEKey = undefined;
+              if (callE2EEKey) {
+                zeroCallKey(callE2EEKey);
+                callE2EEKey = undefined;
+              }
               throw wrapErr;
             }
           }
