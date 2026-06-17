@@ -33,6 +33,8 @@ export const staticPages = {
       viewComments: 'See {{count}} comments and submit your own feedback',
       viewComments_one: 'See 1 comment and submit your own feedback',
       viewComments_other: 'See {{count}} comments and submit your own feedback',
+      readMore: 'Read more',
+      showLess: 'Show less',
       footerTitle: 'And much, much more!',
       footerText:
         'Have something you would like to see us add? Submit your own feature idea and see if others agree! We use community upvotes on Features to help determine what to prioritize next. Your idea could be the next big thing we work on!',

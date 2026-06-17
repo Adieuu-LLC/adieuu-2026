@@ -1,6 +1,8 @@
+import { type MouseEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
+  ROADMAP_TIMELINE_EXCERPT_MAX_LENGTH,
   shouldShowFeedbackAuthorCredit,
   truncateRoadmapExcerpt,
   type PublicFeedbackPost,
@@ -21,8 +23,21 @@ export function RoadmapTimelineCard({
   const { t } = useTranslation();
   const showAuthorCredit = shouldShowFeedbackAuthorCredit(post);
   const excerpt = truncateRoadmapExcerpt(post.description);
+  const isTruncated = post.description.length > ROADMAP_TIMELINE_EXCERPT_MAX_LENGTH;
   const body = expanded ? post.description : excerpt;
   const showBody = body.length > 0;
+
+  const handleToggleClick = (e: MouseEvent) => {
+    if ((e.target as HTMLElement).closest('a')) return;
+    onToggle();
+  };
+
+  const handleToggleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onToggle();
+    }
+  };
 
   return (
     <article
@@ -34,7 +49,14 @@ export function RoadmapTimelineCard({
         highlighted ? 'roadmap-timeline-card--highlighted' : '',
       ].filter(Boolean).join(' ')}
     >
-      <button type="button" className="roadmap-timeline-card-toggle" onClick={onToggle}>
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
+      <div
+        className="roadmap-timeline-card-toggle"
+        role="button"
+        tabIndex={0}
+        onClick={handleToggleClick}
+        onKeyDown={handleToggleKeyDown}
+      >
         <div className="roadmap-timeline-card-header">
           {post.isRoadmapOfficial ? (
             <span className="roadmap-timeline-card-label">{t('about.roadmap.teamRoadmap')}</span>
@@ -50,9 +72,16 @@ export function RoadmapTimelineCard({
         </div>
         <h3 className="roadmap-timeline-card-title">{post.title}</h3>
         {showBody && (
-          <p className="roadmap-timeline-card-excerpt">{body}</p>
+          <div className={`roadmap-timeline-card-body${!expanded && isTruncated ? ' roadmap-timeline-card-body--truncated' : ''}`}>
+            <p className="roadmap-timeline-card-excerpt">{body}</p>
+          </div>
         )}
-      </button>
+        {isTruncated && (
+          <span className="roadmap-timeline-card-expand-hint">
+            {expanded ? t('about.roadmap.showLess') : t('about.roadmap.readMore')}
+          </span>
+        )}
+      </div>
       <div className="roadmap-timeline-card-footer">
         <Link to={`/feedback/${post.postId}`} className="roadmap-timeline-card-comments-link">
           {t('about.roadmap.viewComments', { count: post.commentCount })}

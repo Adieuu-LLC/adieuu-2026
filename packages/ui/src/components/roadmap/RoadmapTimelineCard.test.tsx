@@ -2,6 +2,7 @@ import { describe, expect, mock, test } from 'bun:test';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { PublicFeedbackPost } from '@adieuu/shared';
 import { setMockTranslate } from '../../test/react-i18next-mock';
+import '../../test/react-router-dom-mock';
 
 setMockTranslate((key, options) => {
   if (key === 'about.roadmap.viewComments') {
@@ -10,6 +11,8 @@ setMockTranslate((key, options) => {
   const labels: Record<string, string> = {
     'about.roadmap.teamRoadmap': 'Team roadmap',
     'about.roadmap.suggestedBy': 'Suggested by',
+    'about.roadmap.readMore': 'Read more',
+    'about.roadmap.showLess': 'Show less',
     'feedback.statuses.planned': 'Planned',
     'feedback.statuses.released': 'Released',
   };

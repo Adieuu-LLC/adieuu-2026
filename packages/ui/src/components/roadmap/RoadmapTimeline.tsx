@@ -37,6 +37,11 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
   const [highlightedPostId, setHighlightedPostId] = useState<string | null>(null);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
 
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const progressRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number>(0);
+  const activeGroupRef = useRef<string | null>(null);
+
   const deepLinkPostId = searchParams.get('postId');
 
   useEffect(() => {
@@ -65,6 +70,109 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
     };
   }, [api, t]);
 
+  // Split past groups: items released today should appear after the Today marker
+  const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const { pastBeforeToday, todayPastGroups } = useMemo(() => {
+    if (!timeline) return { pastBeforeToday: [], todayPastGroups: [] };
+
+    const withIndices = timeline.past.map((group, index) => ({ group, index }));
+    return {
+      pastBeforeToday: withIndices.filter(({ group }) => group.dateKey !== todayKey),
+      todayPastGroups: withIndices.filter(({ group }) => group.dateKey === todayKey),
+    };
+  }, [timeline, todayKey]);
+
+  // Scroll tracking: accent progress line + active group detection.
+  // The blue line height is proportional to how far the container has been scrolled.
+  // ratio = timelineHeight / totalScrollableHeight
+  // blueLineHeight = scrollTop * ratio
+  useEffect(() => {
+    const el = timelineRef.current;
+    if (!el) return;
+
+    // The page scrolls inside .app-content (overflow-y: auto), not the window.
+    // Walk up to find the real scroll container.
+    let scrollContainer: HTMLElement | null = null;
+    let parent = el.parentElement;
+    while (parent) {
+      const style = getComputedStyle(parent);
+      if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+        scrollContainer = parent;
+        break;
+      }
+      parent = parent.parentElement;
+    }
+
+    const getScrollMetrics = () => {
+      if (scrollContainer) {
+        return {
+          scrollTop: scrollContainer.scrollTop,
+          totalScrollable: scrollContainer.scrollHeight - scrollContainer.clientHeight,
+          viewportMid: scrollContainer.clientHeight / 2,
+        };
+      }
+      return {
+        scrollTop: window.scrollY || document.documentElement.scrollTop,
+        totalScrollable: document.documentElement.scrollHeight - window.innerHeight,
+        viewportMid: window.innerHeight / 2,
+      };
+    };
+
+    const update = () => {
+      const prog = progressRef.current;
+      if (!prog) return;
+
+      const { scrollTop, totalScrollable, viewportMid } = getScrollMetrics();
+      const timelineHeight = el.offsetHeight;
+
+      if (totalScrollable <= 0) {
+        prog.style.height = `${timelineHeight}px`;
+      } else {
+        const ratio = timelineHeight / totalScrollable;
+        const blueHeight = Math.max(0, Math.min(scrollTop * ratio, timelineHeight));
+        prog.style.height = `${blueHeight}px`;
+      }
+
+      // Track which group is closest to viewport center for keyboard navigation
+      const groups = el.querySelectorAll<HTMLElement>('[data-roadmap-group]');
+      let closestId: string | null = null;
+      let closestDist = Infinity;
+
+      groups.forEach((group) => {
+        const groupRect = group.getBoundingClientRect();
+        const dist = Math.abs(groupRect.top - viewportMid);
+        if (dist < closestDist) {
+          closestDist = dist;
+          closestId = group.id;
+        }
+      });
+
+      if (closestId && activeGroupRef.current !== closestId) {
+        activeGroupRef.current = closestId;
+        setActiveGroupId(closestId);
+      }
+    };
+
+    const onScroll = () => {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(update);
+    };
+
+    const scrollTarget = scrollContainer ?? window;
+    scrollTarget.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+
+    const timer = setTimeout(onScroll, 100);
+
+    return () => {
+      scrollTarget.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+      cancelAnimationFrame(rafRef.current);
+      clearTimeout(timer);
+    };
+  }, [timeline]);
+
   useEffect(() => {
     if (!timeline || didInitialScrollRef.current) return;
 
@@ -73,9 +181,11 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
     const groupId = scrollTarget?.groupId
       ?? (timeline.future[0]
         ? getRoadmapTimelineGroupId('future', 0)
-        : timeline.past.length > 0
-          ? getRoadmapTimelineGroupId('past', timeline.past.length - 1)
-          : null);
+        : todayPastGroups.length > 0
+          ? getRoadmapTimelineGroupId('past', todayPastGroups[0]!.index)
+          : timeline.past.length > 0
+            ? getRoadmapTimelineGroupId('past', timeline.past.length - 1)
+            : null);
 
     requestAnimationFrame(() => {
       if (groupId) {
@@ -92,7 +202,7 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
 
       didInitialScrollRef.current = true;
     });
-  }, [deepLinkPostId, timeline]);
+  }, [deepLinkPostId, timeline, todayPastGroups]);
 
   const navigateGroup = useCallback(
     (direction: 'up' | 'down') => {
@@ -108,14 +218,17 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
   const jumpToToday = useCallback(() => {
     document.querySelector('[data-roadmap-today]')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     if (!timeline) return;
+    const firstTodayPast = todayPastGroups.length > 0
+      ? getRoadmapTimelineGroupId('past', todayPastGroups[0]!.index)
+      : null;
     const firstFuture = timeline.future[0]
       ? getRoadmapTimelineGroupId('future', 0)
       : null;
-    const lastPast = timeline.past.length > 0
-      ? getRoadmapTimelineGroupId('past', timeline.past.length - 1)
+    const lastPast = pastBeforeToday.length > 0
+      ? getRoadmapTimelineGroupId('past', pastBeforeToday[pastBeforeToday.length - 1]!.index)
       : null;
-    setActiveGroupId(firstFuture ?? lastPast);
-  }, [timeline]);
+    setActiveGroupId(firstTodayPast ?? firstFuture ?? lastPast);
+  }, [timeline, todayPastGroups, pastBeforeToday]);
 
   const canNavigateUp = timeline && activeGroupId
     ? getAdjacentRoadmapGroupId(timeline, activeGroupId, 'up') !== null
@@ -162,9 +275,11 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
   }
 
   return (
-    <div className="roadmap-timeline">
+    <div className="roadmap-timeline" ref={timelineRef}>
+      <div className="roadmap-timeline-progress" ref={progressRef} aria-hidden />
+
       <div className="roadmap-timeline-section roadmap-timeline-section--past">
-        {timeline.past.map((group: RoadmapTimelineGroupResponse, index: number) => (
+        {pastBeforeToday.map(({ group, index }: { group: RoadmapTimelineGroupResponse; index: number }) => (
           <RoadmapTimelineGroupView
             key={getRoadmapTimelineGroupId('past', index)}
             group={group}
@@ -178,6 +293,22 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
       </div>
 
       <RoadmapTodayMarker />
+
+      {todayPastGroups.length > 0 && (
+        <div className="roadmap-timeline-section roadmap-timeline-section--today">
+          {todayPastGroups.map(({ group, index }: { group: RoadmapTimelineGroupResponse; index: number }) => (
+            <RoadmapTimelineGroupView
+              key={getRoadmapTimelineGroupId('past', index)}
+              group={group}
+              section="past"
+              index={index}
+              expandedPostId={expandedPostId}
+              highlightedPostId={highlightedPostId}
+              onTogglePost={togglePost}
+            />
+          ))}
+        </div>
+      )}
 
       <div className="roadmap-timeline-section roadmap-timeline-section--future">
         {timeline.future.map((group: RoadmapTimelineGroupResponse, index: number) => (
