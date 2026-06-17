@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   createApiClient,
-  getAdjacentRoadmapGroupId,
   getRoadmapTimelineGroupId,
   resolveRoadmapScrollTarget,
   type RoadmapTimelineGroupResponse,
@@ -36,11 +35,16 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
   const [highlightedPostId, setHighlightedPostId] = useState<string | null>(null);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [canNavigateUp, setCanNavigateUp] = useState(false);
+  const [canNavigateDown, setCanNavigateDown] = useState(false);
 
   const timelineRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number>(0);
   const activeGroupRef = useRef<string | null>(null);
+  const scrollContainerRef = useRef<HTMLElement | null>(null);
+  const blueHeightRef = useRef(0);
+  const canNavRef = useRef({ up: false, down: false });
 
   const deepLinkPostId = searchParams.get('postId');
 
@@ -70,7 +74,6 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
     };
   }, [api, t]);
 
-  // Split past groups: items released today should appear after the Today marker
   const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   const { pastBeforeToday, todayPastGroups } = useMemo(() => {
@@ -83,16 +86,14 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
     };
   }, [timeline, todayKey]);
 
-  // Scroll tracking: accent progress line + active group detection.
-  // The blue line height is proportional to how far the container has been scrolled.
-  // ratio = timelineHeight / totalScrollableHeight
-  // blueLineHeight = scrollTop * ratio
+  // Scroll tracking: accent progress line, passed/focused dot states.
+  // blueHeight = scrollTop * (timelineHeight / totalScrollable)
+  // A dot is "passed" when blueHeight >= its offsetTop within the timeline.
+  // The "focused" dot is the one closest to blueHeight.
   useEffect(() => {
     const el = timelineRef.current;
     if (!el) return;
 
-    // The page scrolls inside .app-content (overflow-y: auto), not the window.
-    // Walk up to find the real scroll container.
     let scrollContainer: HTMLElement | null = null;
     let parent = el.parentElement;
     while (parent) {
@@ -103,54 +104,78 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
       }
       parent = parent.parentElement;
     }
+    scrollContainerRef.current = scrollContainer;
 
-    const getScrollMetrics = () => {
-      if (scrollContainer) {
-        return {
-          scrollTop: scrollContainer.scrollTop,
-          totalScrollable: scrollContainer.scrollHeight - scrollContainer.clientHeight,
-          viewportMid: scrollContainer.clientHeight / 2,
-        };
-      }
-      return {
-        scrollTop: window.scrollY || document.documentElement.scrollTop,
-        totalScrollable: document.documentElement.scrollHeight - window.innerHeight,
-        viewportMid: window.innerHeight / 2,
-      };
-    };
+    const getScrollTop = () =>
+      scrollContainer
+        ? scrollContainer.scrollTop
+        : (window.scrollY || document.documentElement.scrollTop);
+
+    const getTotalScrollable = () =>
+      scrollContainer
+        ? scrollContainer.scrollHeight - scrollContainer.clientHeight
+        : document.documentElement.scrollHeight - window.innerHeight;
 
     const update = () => {
       const prog = progressRef.current;
       if (!prog) return;
 
-      const { scrollTop, totalScrollable, viewportMid } = getScrollMetrics();
+      const scrollTop = getScrollTop();
+      const totalScrollable = getTotalScrollable();
       const timelineHeight = el.offsetHeight;
 
+      let blueHeight: number;
       if (totalScrollable <= 0) {
-        prog.style.height = `${timelineHeight}px`;
+        blueHeight = timelineHeight;
       } else {
         const ratio = timelineHeight / totalScrollable;
-        const blueHeight = Math.max(0, Math.min(scrollTop * ratio, timelineHeight));
-        prog.style.height = `${blueHeight}px`;
+        blueHeight = Math.max(0, Math.min(scrollTop * ratio, timelineHeight));
       }
+      prog.style.height = `${blueHeight}px`;
+      blueHeightRef.current = blueHeight;
 
-      // Track which group is closest to viewport center for keyboard navigation
+      // Compute per-marker state from blueHeight
       const groups = el.querySelectorAll<HTMLElement>('[data-roadmap-group]');
-      let closestId: string | null = null;
-      let closestDist = Infinity;
+      let focusedEl: HTMLElement | null = null;
+      let focusedDist = Infinity;
+      let focusedIdx = -1;
+      let idx = 0;
 
       groups.forEach((group) => {
-        const groupRect = group.getBoundingClientRect();
-        const dist = Math.abs(groupRect.top - viewportMid);
-        if (dist < closestDist) {
-          closestDist = dist;
-          closestId = group.id;
+        const marker = group.querySelector<HTMLElement>('.roadmap-timeline-marker');
+        if (!marker) { idx++; return; }
+
+        const markerTop = group.offsetTop + marker.offsetTop;
+        const isPassed = blueHeight >= markerTop;
+        const dist = Math.abs(blueHeight - markerTop);
+
+        group.classList.toggle('roadmap-timeline-group--passed', isPassed);
+        group.classList.remove('roadmap-timeline-group--focused');
+
+        if (dist < focusedDist) {
+          focusedDist = dist;
+          focusedEl = group;
+          focusedIdx = idx;
         }
+        idx++;
       });
 
-      if (closestId && activeGroupRef.current !== closestId) {
-        activeGroupRef.current = closestId;
-        setActiveGroupId(closestId);
+      if (focusedEl) {
+        (focusedEl as HTMLElement).classList.add('roadmap-timeline-group--focused');
+        const id = (focusedEl as HTMLElement).id;
+        if (activeGroupRef.current !== id) {
+          activeGroupRef.current = id;
+          setActiveGroupId(id);
+        }
+      }
+
+      const totalGroups = groups.length;
+      const newCanUp = focusedIdx > 0;
+      const newCanDown = focusedIdx >= 0 && focusedIdx < totalGroups - 1;
+      if (canNavRef.current.up !== newCanUp || canNavRef.current.down !== newCanDown) {
+        canNavRef.current = { up: newCanUp, down: newCanDown };
+        setCanNavigateUp(newCanUp);
+        setCanNavigateDown(newCanDown);
       }
     };
 
@@ -204,38 +229,62 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
     });
   }, [deepLinkPostId, timeline, todayPastGroups]);
 
+  // Navigation: up/down move to adjacent markers relative to the blue line tip.
+  // Down = next marker after the focused one (extends the blue line forward).
+  // Up = previous marker before the focused one (shortens the blue line back).
   const navigateGroup = useCallback(
     (direction: 'up' | 'down') => {
-      if (!timeline || !activeGroupId) return;
-      const nextGroupId = getAdjacentRoadmapGroupId(timeline, activeGroupId, direction);
-      if (!nextGroupId) return;
-      document.getElementById(nextGroupId)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      setActiveGroupId(nextGroupId);
+      const el = timelineRef.current;
+      if (!el) return;
+
+      const groups = el.querySelectorAll<HTMLElement>('[data-roadmap-group]');
+      const offsets: number[] = [];
+
+      groups.forEach((group) => {
+        const marker = group.querySelector<HTMLElement>('.roadmap-timeline-marker');
+        if (!marker) return;
+        offsets.push(group.offsetTop + marker.offsetTop);
+      });
+
+      if (offsets.length === 0) return;
+
+      const blueHeight = blueHeightRef.current;
+      let focusedIdx = 0;
+      let bestDist = Infinity;
+      for (let i = 0; i < offsets.length; i++) {
+        const dist = Math.abs(offsets[i]! - blueHeight);
+        if (dist < bestDist) {
+          bestDist = dist;
+          focusedIdx = i;
+        }
+      }
+
+      const targetIdx = direction === 'down' ? focusedIdx + 1 : focusedIdx - 1;
+      if (targetIdx < 0 || targetIdx >= offsets.length) return;
+
+      const targetOffset = offsets[targetIdx]!;
+      const timelineHeight = el.offsetHeight;
+      const container = scrollContainerRef.current;
+      const totalScrollable = container
+        ? container.scrollHeight - container.clientHeight
+        : document.documentElement.scrollHeight - window.innerHeight;
+
+      if (totalScrollable <= 0) return;
+
+      const targetScrollTop = (targetOffset / timelineHeight) * totalScrollable;
+
+      if (container) {
+        container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+      } else {
+        window.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+      }
     },
-    [activeGroupId, timeline],
+    [],
   );
 
   const jumpToToday = useCallback(() => {
     document.querySelector('[data-roadmap-today]')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    if (!timeline) return;
-    const firstTodayPast = todayPastGroups.length > 0
-      ? getRoadmapTimelineGroupId('past', todayPastGroups[0]!.index)
-      : null;
-    const firstFuture = timeline.future[0]
-      ? getRoadmapTimelineGroupId('future', 0)
-      : null;
-    const lastPast = pastBeforeToday.length > 0
-      ? getRoadmapTimelineGroupId('past', pastBeforeToday[pastBeforeToday.length - 1]!.index)
-      : null;
-    setActiveGroupId(firstTodayPast ?? firstFuture ?? lastPast);
-  }, [timeline, todayPastGroups, pastBeforeToday]);
-
-  const canNavigateUp = timeline && activeGroupId
-    ? getAdjacentRoadmapGroupId(timeline, activeGroupId, 'up') !== null
-    : false;
-  const canNavigateDown = timeline && activeGroupId
-    ? getAdjacentRoadmapGroupId(timeline, activeGroupId, 'down') !== null
-    : false;
+  }, []);
 
   useEffect(() => {
     onNavReady?.({
