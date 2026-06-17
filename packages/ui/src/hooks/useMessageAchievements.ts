@@ -12,7 +12,7 @@
  */
 
 import { useCallback } from 'react';
-import { getPopCultureTextAchievementActions } from '@adieuu/shared';
+import { getPopCultureTextAchievementActions, getTvReferenceBioOrMessageAchievementActions } from '@adieuu/shared';
 import { useClaimAchievement } from './useClaimAchievement';
 import { useIdentity } from './useIdentity';
 import { containsProfanity } from '../utils/profanityCheck';
@@ -228,6 +228,10 @@ export function useMessageAchievements() {
       }
 
       for (const action of getPopCultureTextAchievementActions(plaintext)) {
+        claim(action);
+      }
+
+      for (const action of getTvReferenceBioOrMessageAchievementActions(plaintext)) {
         claim(action);
       }
     },

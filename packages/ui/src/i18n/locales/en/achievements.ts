@@ -232,5 +232,97 @@ export const achievements = {
       name: "No, That's Impossible",
       description: 'Search your feelings, you know it to be true.',
     },
+    theLongestDay: {
+      name: 'The Longest Day',
+      description: "Dammit Chloe, we're running out of time!",
+    },
+    beepBeepBeep: {
+      name: 'Beep... Beep... Beep...',
+      description: 'The following takes place between 10:00 AM and 11:00 AM.',
+    },
+    systemFailureImminent: {
+      name: 'System Failure Imminent',
+      description: 'You better push the button, brotha.',
+    },
+    dontTellMeWhatICantDo: {
+      name: "Don't Tell Me What I Can't Do",
+      description: 'You just found the hatch.',
+    },
+    grabYourTorch: {
+      name: 'Grab Your Torch',
+      description: "It's time for you to go.",
+    },
+    soleSurvivor: {
+      name: 'Sole Survivor',
+      description: 'You just found the hidden immunity idol.',
+    },
+    theMathisonMethod: {
+      name: 'The Mathison Method',
+      description: 'Turn up the frantic jazz music.',
+    },
+    turnedAsset: {
+      name: 'Turned Asset',
+      description: "We're keeping an eye on you.",
+    },
+    jesusChristThatsJasonBourne: {
+      name: 'Jesus Christ...',
+      description: "...that's Jason Bourne.",
+    },
+    assetActivated: {
+      name: 'Asset Activated',
+      description: 'Look at us. Look at what they make you give.',
+    },
+    offTheGrid: {
+      name: 'Off the Grid',
+      description: 'Get some rest. You look tired.',
+    },
+    sethCohenSpecial: {
+      name: 'The Seth Cohen Special',
+      description: 'Chrismukkah came early this year.',
+    },
+    helloDarkness: {
+      name: 'Hello Darkness',
+      description: 'My old friend.',
+    },
+    legendary: {
+      name: 'Legen...',
+      description: '...dary.',
+    },
+    theBroCode: {
+      name: 'The Bro Code',
+      description: 'Challenge accepted!',
+    },
+    townMeeting: {
+      name: 'Town Meeting',
+      description: 'Taylor Doose requires your attendance.',
+    },
+    lukesDinerRegular: {
+      name: "Luke's Diner Regular",
+      description: 'You definitely need more coffee.',
+    },
+    lifeAndDeathBrigade: {
+      name: 'The Life and Death Brigade',
+      description: 'You jump, I jump, Jack.',
+    },
+    wasteManagementConsultant: {
+      name: 'Waste Management Consultant',
+      description: 'Woke up this morning, got yourself a gun.',
+    },
+    satrialesVip: {
+      name: "Satriale's VIP",
+      description: 'Whatever happened to the strong, silent type?',
+    },
+    regionalManager: {
+      name: 'Regional Manager',
+      description: "Or, World's Best Boss.",
+    },
+    worstThingAboutPrison: {
+      name: 'The Worst Thing About Prison',
+      description: 'It was the dementors!',
+    },
+    theDundieAward: {
+      name: 'The Dundie Award',
+      description: 'You really left us no choice but to give you this.',
+    },
     sponsor: { name: 'Patron of the Arts', description: 'Sponsored another user\'s subscription.' },
 } as const;

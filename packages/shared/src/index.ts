@@ -15,6 +15,7 @@ export * from './utils/themeChecksum';
 export * from './messaging/messagePagination';
 export * from './subscriptions';
 export * from './achievements/pop-culture-text-patterns';
+export * from './achievements/tv-reference-text-patterns';
 export {
   CUSTOM_EMOJI_SHORTCODE_BODY_RE,
   createCustomEmojiColonTokenRegex,

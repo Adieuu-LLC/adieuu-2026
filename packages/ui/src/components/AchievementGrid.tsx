@@ -27,6 +27,8 @@ export interface AchievementGridProps {
   achievements: PublicAchievement[];
   /** Show the earned / unearned filter (catalog mode only). */
   showStatusFilter?: boolean;
+  /** Initial status filter in catalog mode (defaults to all). */
+  defaultStatusFilter?: StatusFilter;
   /** Viewer's earned achievement IDs -- shows "you don't have this" badge. */
   viewerAchievementIds?: Set<string>;
   /** Replace the grid with a loading spinner. */
@@ -52,6 +54,7 @@ export function AchievementGrid({
   definitions,
   achievements,
   showStatusFilter = false,
+  defaultStatusFilter = 'all',
   viewerAchievementIds,
   loading = false,
   accentColor,
@@ -59,7 +62,7 @@ export function AchievementGrid({
 }: AchievementGridProps) {
   const { t } = useTranslation();
   const [categoryFilter, setCategoryFilter] = useState<'all' | AchievementCategory>('all');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(defaultStatusFilter);
 
   const catalogMode = !!definitions;
 

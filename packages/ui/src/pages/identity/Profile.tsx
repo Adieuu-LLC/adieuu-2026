@@ -28,6 +28,7 @@ import { BannerUpload } from '../../components/BannerUpload';
 import { ProfileColorPicker } from '../../components/ProfileColorPicker';
 import { PrivacySelect } from '../../components/PrivacySelect';
 import { AchievementGrid } from '../../components/AchievementGrid';
+import { ProfileContentTabs } from '../../components/ProfileContentTabs';
 import { Icon } from '../../icons/Icon';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useAppConfig } from '../../config';
@@ -202,6 +203,23 @@ export function IdentityProfile() {
     return false;
   }, [identity, displayName, bio, avatarMediaId, removeAvatar, bannerMediaId, removeBanner, colors, privacy]);
 
+  const handleDiscard = useCallback(() => {
+    if (!identity) return;
+    setDisplayName(identity.displayName ?? '');
+    setBio(identity.bio ?? '');
+    setAvatarUrl(identity.avatarUrl ?? null);
+    setBannerUrl(identity.bannerUrl ?? null);
+    setColors(identity.profileColors ?? {});
+    setPrivacy(identity.privacySettings ?? { ...DEFAULT_PRIVACY });
+    setAvatarMediaId(null);
+    setBannerMediaId(null);
+    setRemoveAvatar(false);
+    setRemoveBanner(false);
+    setSaveMessage(null);
+    setSaveError(null);
+    setEditingField(null);
+  }, [identity]);
+
   const handleSave = useCallback(async () => {
     if (!identity || !hasChanges) return;
 
@@ -302,6 +320,14 @@ export function IdentityProfile() {
     };
   }, [displayName, bio, avatarUrl, bannerUrl, colors, privacy, previewMode, identity]);
 
+  const canPreviewAchievements = useMemo(() => {
+    if (previewMode === 'self') return true;
+    const setting = privacy.achievements ?? DEFAULT_PRIVACY.achievements;
+    if (setting === 'public') return true;
+    if (setting === 'friends' && previewMode === 'friend') return true;
+    return false;
+  }, [previewMode, privacy.achievements]);
+
   if (identityStatus === 'locked') {
     return <SessionLockedPage titleI18nKey="identity.profile.title" />;
   }
@@ -335,30 +361,59 @@ export function IdentityProfile() {
 
         <div
           className="profile-editor"
-          style={colors.accent
-            ? { '--profile-accent': colors.accent } as React.CSSProperties
-            : undefined}
+          style={{
+            ...(colors.accent ? { '--profile-accent': colors.accent } : {}),
+            ...(colors.cardBackground ? { '--profile-card-bg': colors.cardBackground } : {}),
+          } as React.CSSProperties}
         >
-          {/* Save bar */}
-          <div className="profile-save-bar">
-            {saveMessage && (
-              <span className="profile-save-message profile-save-message--success">
-                {saveMessage}
-              </span>
-            )}
-            {saveError && (
-              <span className="profile-save-message profile-save-message--error">
-                {saveError}
-              </span>
-            )}
-            <Button
-              variant="primary"
-              onClick={handleSave}
-              disabled={saving || !hasChanges}
-            >
-              {saving ? t('identity.profile.saving') : t('identity.profile.save')}
-            </Button>
-          </div>
+          {/* Save feedback (after successful save or errors when nothing pending) */}
+          {(saveMessage || saveError) && !hasChanges && (
+            <div className="profile-save-feedback">
+              {saveMessage && (
+                <span className="profile-save-message profile-save-message--success">
+                  {saveMessage}
+                </span>
+              )}
+              {saveError && (
+                <span className="profile-save-message profile-save-message--error">
+                  {saveError}
+                </span>
+              )}
+            </div>
+          )}
+
+          {hasChanges && (
+            <div className="profile-save-banner" role="status">
+              <div className="profile-save-banner__leading">
+                <p className="profile-save-banner__text">
+                  {t('identity.profile.unsavedChanges')}
+                </p>
+                {saveError && (
+                  <span className="profile-save-message profile-save-message--error">
+                    {saveError}
+                  </span>
+                )}
+              </div>
+              <div className="profile-save-banner__actions">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDiscard}
+                  disabled={saving}
+                >
+                  {t('identity.profile.discardChanges')}
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleSave}
+                  disabled={saving}
+                >
+                  {saving ? t('identity.profile.saving') : t('identity.profile.save')}
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* Viewing-as selector */}
           <div className="profile-preview-header">
@@ -559,17 +614,29 @@ export function IdentityProfile() {
                 </Card>
               )}
 
-              {/* Achievements */}
-              {allDefinitions.length > 0 && (
-                <Card variant="elevated" className="profile-section profile-edit-achievements-section">
-                  <AchievementGrid
-                    title={t('achievements.yourAchievements')}
-                    definitions={allDefinitions}
-                    achievements={myAchievements}
-                    showStatusFilter
-                  />
-                </Card>
-              )}
+              <ProfileContentTabs
+                className="profile-view-content--editor"
+                tabsChrome
+                achievements={
+                  canPreviewAchievements && allDefinitions.length > 0 ? (
+                    <AchievementGrid
+                      title={t('identity.profileView.tabAchievements')}
+                      definitions={allDefinitions}
+                      achievements={myAchievements}
+                      showStatusFilter
+                      defaultStatusFilter="earned"
+                      accentColor={colors.accent}
+                      cardBackgroundColor={colors.cardBackground}
+                    />
+                  ) : (
+                    <p className="profile-view-tab-placeholder">
+                      {canPreviewAchievements
+                        ? t('achievements.noAchievements')
+                        : t('identity.profile.achievementsHiddenPreview')}
+                    </p>
+                  )
+                }
+              />
             </TabContent>
 
             {/* Privacy tab */}

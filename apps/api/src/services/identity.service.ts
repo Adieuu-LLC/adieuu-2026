@@ -30,6 +30,7 @@ import { getRedis, isRedisConnected, RedisKeys, withTransaction } from '../db';
 import { getKeyBundleRepository } from '../repositories/key-bundle.repository';
 import { checkDisplayNameAchievements } from './display-name-achievement.service';
 import { awardPopCultureTextAchievements } from './pop-culture-text-achievement.service';
+import { awardTvReferenceDisplayNameAchievements } from './tv-reference-text-achievement.service';
 import { deriveBundleId } from '../utils/crypto';
 import {
   createIdentitySession,
@@ -303,6 +304,7 @@ export async function createIdentity(
 
   checkDisplayNameAchievements(identity._id, displayName).catch(() => {});
   awardPopCultureTextAchievements(identity._id, displayName);
+  awardTvReferenceDisplayNameAchievements(identity._id, displayName);
 
   // Session creation is best-effort: it touches Redis as well as MongoDB,
   // and a failure here is recoverable (user can simply log in).

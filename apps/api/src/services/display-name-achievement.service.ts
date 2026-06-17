@@ -5,6 +5,7 @@
 import type { ObjectId } from 'mongodb';
 import { checkAndAward } from './achievement.service';
 import { getIdentityRepository } from '../repositories/identity.repository';
+import { awardTvReferenceDisplayNameAchievements } from './tv-reference-text-achievement.service';
 
 const WITNESS_PROTECTION_WINDOW_MS = 60 * 60 * 1000;
 const WITNESS_PROTECTION_CHANGE_THRESHOLD = 3;
@@ -51,6 +52,8 @@ async function awardDisplayNamePatternAchievements(
   if (isNeoOrTrinityDisplayName(displayName)) {
     checkAndAward(identityId, 'display_name_neo_or_trinity').catch(() => {});
   }
+
+  awardTvReferenceDisplayNameAchievements(identityId, displayName);
 }
 
 /**

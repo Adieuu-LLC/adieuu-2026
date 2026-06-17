@@ -20,6 +20,10 @@ import { checkAndAward } from '../../services/achievement.service';
 import { checkDisplayNameChangeAchievements } from '../../services/display-name-achievement.service';
 import { checkBioAchievements } from '../../services/bio-achievement.service';
 import { awardPopCultureTextAchievements } from '../../services/pop-culture-text-achievement.service';
+import {
+  awardTvReferenceBioAchievements,
+  awardTvReferenceDisplayNameAchievements,
+} from '../../services/tv-reference-text-achievement.service';
 import { publishProfileUpdated } from '../../services/profile-event.service';
 import { contrastRatio } from '../../utils/color';
 import { getIdentityRepository } from '../../repositories/identity.repository';
@@ -277,10 +281,12 @@ export async function updateProfileCtrl(ctx: RouteContext): Promise<Response> {
     const bio = update.bio as string;
     checkBioAchievements(identity._id, bio).catch(() => {});
     awardPopCultureTextAchievements(identity._id, bio);
+    awardTvReferenceBioAchievements(identity._id, bio);
   }
 
   if (data.displayName !== undefined) {
     awardPopCultureTextAchievements(identity._id, update.displayName as string);
+    awardTvReferenceDisplayNameAchievements(identity._id, update.displayName as string);
   }
 
   publishProfileUpdated(identityId).catch(() => {});
