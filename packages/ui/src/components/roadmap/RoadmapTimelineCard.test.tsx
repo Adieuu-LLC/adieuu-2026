@@ -8,13 +8,17 @@ mock.module('../../icons/Icon', () => ({
   Icon: ({ name }: { name: string }) => <span data-icon={name} />,
 }));
 
+mock.module('../Tooltip', () => ({
+  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 setMockTranslate((key, options) => {
   if (key === 'about.roadmap.commentCount') {
     return `${(options as { count?: number })?.count ?? 0} comments and feedback`;
   }
   const labels: Record<string, string> = {
     'about.roadmap.communityIdea': 'Community Idea',
-    'about.roadmap.seeMore': 'See More',
+    'about.roadmap.seeMore': 'View Discussion',
     'about.roadmap.readMore': 'Read more',
     'about.roadmap.showLess': 'Show less',
     'feedback.statuses.planned': 'Planned',
@@ -131,7 +135,7 @@ describe('RoadmapTimelineCard', () => {
       />,
     );
 
-    expect(html).toContain('See More');
+    expect(html).toContain('View Discussion');
     expect(html).toContain('roadmap-timeline-card-see-more');
   });
 

@@ -49,12 +49,16 @@ export function RoadmapTimelineGroupView({
     >
       <span className={`roadmap-timeline-marker${isLatestRelease ? ' roadmap-timeline-marker--latest' : ''}`} aria-hidden />
       <div className="roadmap-timeline-group-content">
-        {isLatestRelease && (
-          <div className="roadmap-timeline-latest-label">
-            {t('about.roadmap.latestRelease')}
+        {isLatestRelease ? (
+          <div className="roadmap-timeline-latest-row">
+            <span className="roadmap-timeline-latest-label">
+              {t('about.roadmap.latestRelease')}
+            </span>
+            {dateLabel}
           </div>
+        ) : (
+          dateLabel
         )}
-        {dateLabel}
         <RoadmapHorizontalRow>
           {group.items.map((post: PublicFeedbackPost) => (
             <RoadmapTimelineCard

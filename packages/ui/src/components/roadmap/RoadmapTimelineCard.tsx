@@ -7,6 +7,7 @@ import {
   type PublicFeedbackPost,
 } from '@adieuu/shared';
 import { Icon } from '../../icons/Icon';
+import { Tooltip } from '../Tooltip';
 
 export function RoadmapTimelineCard({
   post,
@@ -51,18 +52,22 @@ export function RoadmapTimelineCard({
       <div className="roadmap-timeline-card-body-area">
         <div className="roadmap-timeline-card-header">
           {isCommunityIdea && (
-            <span className="roadmap-timeline-card-badge roadmap-timeline-card-badge--community">
-              {t('about.roadmap.communityIdea')}
-            </span>
+            <Tooltip content={t('about.roadmap.communityIdeaTooltip')} position="top">
+              <span className="roadmap-timeline-card-badge roadmap-timeline-card-badge--community">
+                {t('about.roadmap.communityIdea')}
+              </span>
+            </Tooltip>
           )}
           <span className={`feedback-status-badge feedback-status-${post.status}`}>
             {t(`feedback.statuses.${post.status}`)}
           </span>
           {isCommunityIdea && post.upvoteCount > 0 && (
-            <span className="roadmap-timeline-card-upvotes">
-              <Icon name="thumbsUp" size="xs" />
-              {post.upvoteCount}
-            </span>
+            <Tooltip content={t('about.roadmap.upvoteTooltip', { count: post.upvoteCount })} position="top">
+              <span className="roadmap-timeline-card-upvotes">
+                <Icon name="thumbsUp" size="xs" />
+                {post.upvoteCount}
+              </span>
+            </Tooltip>
           )}
         </div>
         <h3 className="roadmap-timeline-card-title">{post.title}</h3>
