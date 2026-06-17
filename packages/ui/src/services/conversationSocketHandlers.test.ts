@@ -26,6 +26,7 @@ function createContext() {
   };
 
   const refreshCalls: Array<{ c: string; m: string }> = [];
+  const readCalls: Array<{ conversationId: string; messageId?: string }> = [];
   const ctx: ConversationSocketHandlerContext = {
     setConversations: (updater) => {
       conversations = updater(conversations as never) as never;
@@ -61,11 +62,18 @@ function createContext() {
     loadReactionNotificationsEnabled: () => true,
     openInvites: () => undefined,
     refreshParticipantProfile: () => undefined,
+    markConversationRead: (conversationId, messageId) => {
+      readCalls.push({ conversationId, messageId });
+      conversations = conversations.map((c) =>
+        c.id === conversationId ? { ...c, unreadCount: 0, hasUnread: false } : c,
+      );
+    },
   };
 
   return {
     ctx,
     refreshCalls,
+    readCalls,
     get conversations() {
       return conversations;
     },
@@ -96,6 +104,26 @@ describe('conversationSocketHandlers', () => {
     handleConversationSocketMessage(msg, h.ctx);
     expect(h.conversations[0]?.unreadCount).toBe(1);
     expect(h.notifications.length).toBe(1);
+  });
+
+  test('handles system conversation_message without unread or notification', () => {
+    const h = createContext();
+    h.ctx.isAtBottom = false;
+    h.ctx.hasFocus = false;
+    const msg = {
+      type: 'conversation_message',
+      data: {
+        conversationId: 'conv-1',
+        messageId: 'm-sys',
+        fromIdentityId: 'sender-1',
+        createdAt: new Date().toISOString(),
+        messageType: 'system',
+      },
+    } as ChatIncomingMessage;
+    handleConversationSocketMessage(msg, h.ctx);
+    expect(h.conversations[0]?.unreadCount).toBe(0);
+    expect(h.notifications.length).toBe(0);
+    expect(h.readCalls).toEqual([{ conversationId: 'conv-1', messageId: 'm-sys' }]);
   });
 
   test('handles conversation_message_edited by refreshing that message in the active thread', () => {

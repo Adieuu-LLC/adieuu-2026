@@ -35,6 +35,7 @@ import {
   useTtlNotificationSoundPreference,
   useMentionNotificationSoundPreference,
 } from '../useNotificationSoundPreference';
+import { useClaimAchievement } from '../useClaimAchievement';
 import { fireConversationNotification } from '../../utils/conversationNotifications';
 import {
   decryptGroupName,
@@ -81,6 +82,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const soundPref = useNotificationSoundPreference();
   const ttlSoundPref = useTtlNotificationSoundPreference();
   const mentionSoundPref = useMentionNotificationSoundPreference();
+  const claimAchievement = useClaimAchievement();
   const navigate = useNavigate();
 
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
@@ -426,23 +428,28 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           expiresAt: opts?.expiresAt,
           isMention: opts?.isMention,
         },
-        { toast, soundPref, ttlSoundPref, mentionSoundPref, notifications, audio }
+        { toast, soundPref, ttlSoundPref, mentionSoundPref, notifications, audio, onWilhelmScream: () => claimAchievement('wilhelm_scream') }
       );
     },
-    [toast, soundPref, ttlSoundPref, mentionSoundPref, audio, notifications]
+    [toast, soundPref, ttlSoundPref, mentionSoundPref, audio, notifications, claimAchievement]
   );
 
   // -------------------------------------------------------------------------
   // WebSocket events (via shared ChatSocket)
   // -------------------------------------------------------------------------
 
-  const markConversationRead = useCallback((conversationId: string) => {
+  const markConversationRead = useCallback((conversationId: string, readUpToMessageId?: string) => {
     setConversations((prev) => {
       const conv = prev.find((c) => c.id === conversationId);
-      if (!conv || (conv.unreadCount === 0 && !conv.hasUnread)) return prev;
+      if (!conv) return prev;
 
-      if (conv.lastMessageId) {
-        const encrypted = encryptReadState(conversationId, conv.lastMessageId);
+      const targetMessageId = readUpToMessageId ?? conv.lastMessageId;
+      const alreadyMarked =
+        conv.unreadCount === 0 && !conv.hasUnread && !readUpToMessageId;
+      if (alreadyMarked) return prev;
+
+      if (targetMessageId) {
+        const encrypted = encryptReadState(conversationId, targetMessageId);
         api.conversations.updatePreferences(conversationId, { encryptedReadState: encrypted }).catch(() => {});
       }
 
@@ -476,6 +483,9 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const tRef = useRef(t);
   tRef.current = t;
 
+  const markConversationReadRef = useRef(markConversationRead);
+  markConversationReadRef.current = markConversationRead;
+
   useConversationsSocketEffects({
     isLoggedIn,
     subscribe,
@@ -498,6 +508,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     resolveParticipantsRef,
     refreshParticipantProfileRef,
     onPendingInvitesChangedRef,
+    markConversationReadRef,
     tRef,
     decryptGroupName,
   });

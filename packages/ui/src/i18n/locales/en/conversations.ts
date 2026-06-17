@@ -221,6 +221,11 @@ export const conversations = {
       adminPromotedSimple: '{{name}} is now an admin',
       groupRenamed: '{{actor}} updated the conversation topic',
       groupRenamedSimple: '{{name}} updated the conversation topic',
+      callStarted: '{{name}} started a call',
+      callJoined: '{{name}} joined the call',
+      callLeft: '{{name}} left the call',
+      callLeftEnded: '{{name}} left the call, and the call was ended',
+      callEnded: '{{name}} ended the call',
     },
 
     invites: {

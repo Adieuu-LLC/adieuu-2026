@@ -1,15 +1,19 @@
 /**
  * Global incoming call event listener.
  *
- * Subscribes to `call_initiated` and `call_ended` WS events across ALL
- * conversations (not filtered by the currently active one). Powers the
- * sidebar widget and ringtone regardless of which conversation the user
- * is viewing.
+ * Subscribes to call WebSocket events across ALL conversations (not filtered
+ * by the currently active one). Powers the sidebar call indicator and incoming
+ * call UI regardless of which conversation the user is viewing.
+ *
+ * On connect/reconnect, active calls are fetched from the API so users who
+ * were offline when a call started still see the sidebar phone icon.
  */
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, useMemo } from 'react';
 import type { ReactNode } from 'react';
-import type { ChatIncomingMessage } from '@adieuu/shared';
+import { createApiClient, type ChatIncomingMessage } from '@adieuu/shared';
+import { useAppConfig } from '../config/PlatformContext';
+import { fetchActiveCallIdsByConversation } from '../services/callService';
 import { useChatSocket } from './useChatSocket';
 import { useIdentity } from './useIdentity';
 import { useConversations } from './useConversations';
@@ -40,11 +44,29 @@ export function useGlobalCallEvents(): GlobalCallEventsContextValue {
   return ctx;
 }
 
+function mergeActiveCallMaps(
+  prev: Map<string, string>,
+  synced: Map<string, string>,
+  conversationIds: string[],
+): Map<string, string> {
+  const next = new Map(prev);
+  for (const conversationId of conversationIds) {
+    const callId = synced.get(conversationId);
+    if (callId) {
+      next.set(conversationId, callId);
+    } else {
+      next.delete(conversationId);
+    }
+  }
+  return next;
+}
+
 export function GlobalCallEventsProvider({ children }: { children: ReactNode }) {
-  const { subscribe } = useChatSocket();
+  const { subscribe, onStateChange } = useChatSocket();
   const { identity } = useIdentity();
   const { conversations } = useConversations();
   const { activeSession } = useCallSession();
+  const { apiBaseUrl } = useAppConfig();
 
   const [incomingCalls, setIncomingCalls] = useState<IncomingCall[]>([]);
   const [activeCallMap, setActiveCallMap] = useState<Map<string, string>>(new Map());
@@ -54,6 +76,35 @@ export function GlobalCallEventsProvider({ children }: { children: ReactNode }) 
 
   const conversationsRef = useRef(conversations);
   conversationsRef.current = conversations;
+
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const client = useMemo(
+    () => createApiClient({ baseUrl: apiBaseUrl }).client,
+    [apiBaseUrl],
+  );
+
+  const syncActiveCalls = useCallback(async () => {
+    const myId = identityIdRef.current;
+    if (!myId) return;
+
+    const conversationIds = conversationsRef.current.map((c) => c.id);
+    if (conversationIds.length === 0) return;
+
+    const synced = await fetchActiveCallIdsByConversation(client, conversationIds);
+    setActiveCallMap((prev) => mergeActiveCallMaps(prev, synced, conversationIds));
+  }, [client]);
+
+  const syncActiveCallsRef = useRef(syncActiveCalls);
+  syncActiveCallsRef.current = syncActiveCalls;
+
+  const scheduleSyncActiveCalls = useCallback(() => {
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    syncTimeoutRef.current = setTimeout(() => {
+      syncTimeoutRef.current = null;
+      void syncActiveCallsRef.current();
+    }, 300);
+  }, []);
 
   const dismissIncoming = useCallback((callId: string) => {
     dismissedRef.current.add(callId);
@@ -103,6 +154,18 @@ export function GlobalCallEventsProvider({ children }: { children: ReactNode }) 
           break;
         }
 
+        case 'call_participant_joined': {
+          const { callId } = message.data;
+          setActiveCallMap((prev) => {
+            for (const [, trackedCallId] of prev) {
+              if (trackedCallId === callId) return prev;
+            }
+            scheduleSyncActiveCalls();
+            return prev;
+          });
+          break;
+        }
+
         case 'call_ended': {
           const { callId } = message.data;
           dismissedRef.current.delete(callId);
@@ -123,9 +186,8 @@ export function GlobalCallEventsProvider({ children }: { children: ReactNode }) 
     });
 
     return unsubscribe;
-  }, [subscribe]);
+  }, [subscribe, scheduleSyncActiveCalls]);
 
-  // Clear incoming calls for the active session (user joined) and track it as active
   useEffect(() => {
     if (activeSession) {
       setIncomingCalls((prev) =>
@@ -139,6 +201,31 @@ export function GlobalCallEventsProvider({ children }: { children: ReactNode }) 
       });
     }
   }, [activeSession]);
+
+  const conversationIdsKey = useMemo(
+    () => conversations.map((c) => c.id).sort().join(','),
+    [conversations],
+  );
+
+  useEffect(() => {
+    if (!identity?.id || conversationIdsKey.length === 0) return;
+    void syncActiveCallsRef.current();
+  }, [identity?.id, conversationIdsKey]);
+
+  useEffect(() => {
+    const unsub = onStateChange((socketState) => {
+      if (socketState === 'connected') {
+        void syncActiveCallsRef.current();
+      }
+    });
+    return unsub;
+  }, [onStateChange]);
+
+  useEffect(() => {
+    return () => {
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    };
+  }, []);
 
   const activeCallConversationIds = useMemo(
     () => new Set(activeCallMap.keys()),

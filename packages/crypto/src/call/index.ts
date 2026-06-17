@@ -180,10 +180,19 @@ export function findAndUnwrapCallKey(
   kemPrivate: Uint8Array,
   profile: CryptoProfile = 'default'
 ): Uint8Array | null {
-  const wrapped = wrappedKeys.find((wk) => wk.recipientIdentityId === recipientIdentityId);
-  if (!wrapped) {
+  const candidates = wrappedKeys.filter((wk) => wk.recipientIdentityId === recipientIdentityId);
+  if (candidates.length === 0) {
     return null;
   }
 
-  return unwrapCallKey(wrapped, ecdhPrivate, kemPrivate, profile);
+  let lastError: unknown;
+  for (const wrapped of candidates) {
+    try {
+      return unwrapCallKey(wrapped, ecdhPrivate, kemPrivate, profile);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('Failed to unwrap call key');
 }

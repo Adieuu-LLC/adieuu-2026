@@ -189,6 +189,12 @@ export interface IdentityDocument extends BaseDocument {
   friendCount?: number;
   /** One row per distinct earned achievement (`IDENTITY_ACHIEVEMENTS`). */
   achievementsEarnedCount?: number;
+
+  /** Internal: timestamps of recent display name changes (not exposed to clients). */
+  displayNameChangeTimestamps?: Date[];
+
+  /** Internal: number of times the user saved an empty bio (not exposed to clients). */
+  emptyBioSaveCount?: number;
 }
 
 /**

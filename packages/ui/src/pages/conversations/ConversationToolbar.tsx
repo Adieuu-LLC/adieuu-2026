@@ -70,6 +70,10 @@ export function ConversationToolbar({
   hasMediaOutboxJobs,
   onOpenDeviceSignatures,
   hasDeviceSignatures,
+  showCallInMenu,
+  onCallMenuClick,
+  callMenuDisabled,
+  callMenuLabel,
 }: {
   displayName: string;
   /** Resolved participant avatars for the left chip (1 image or a stack for groups / multi-DM). */
@@ -107,6 +111,11 @@ export function ConversationToolbar({
   onOpenDeviceSignatures?: () => void;
   /** Mobile menu: whether device signatures action is available. */
   hasDeviceSignatures?: boolean;
+  /** Mobile menu: show start/focus call action. */
+  showCallInMenu?: boolean;
+  onCallMenuClick?: () => void;
+  callMenuDisabled?: boolean;
+  callMenuLabel?: string;
 }) {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
@@ -114,6 +123,17 @@ export function ConversationToolbar({
 
   const mobileMenuItems = isMobile ? (
     <>
+      {showCallInMenu && onCallMenuClick && (
+        <Menu.Item
+          value="call"
+          className="dm-context-menu-item"
+          onClick={onCallMenuClick}
+          disabled={callMenuDisabled}
+        >
+          <Icon name="phone" className="dm-context-menu-item-icon" />
+          {callMenuLabel ?? t('call.startCall', 'Start call')}
+        </Menu.Item>
+      )}
       {onToggleSearch && (
         <Menu.Item
           value="search"
@@ -242,7 +262,7 @@ export function ConversationToolbar({
               </Button>
             </Menu.Trigger>
             <Portal>
-              <Menu.Positioner>
+              <Menu.Positioner className="conversation-toolbar-more-menu-positioner">
                 <Menu.Content className="dm-context-menu conversation-toolbar-more-menu">
                   {mobileMenuItems}
                   {isMobile && showMoreMenu && (

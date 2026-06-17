@@ -17,6 +17,7 @@ export const achievements = {
     notYetEarned: 'Not yet earned',
     youDontHaveThis: "You don't have this yet!",
     yourAchievements: 'Achievements',
+    progressCountAria: '{{earned}} of {{total}} achievements earned',
     holderCount_one: '{{count}} other person has earned this',
     holderCount_other: '{{count}} other people have earned this',
 
@@ -80,5 +81,305 @@ export const achievements = {
     allCaps: { name: 'Indoor Voice, Please', description: 'We can hear you just fine.' },
     laughingOutLoud: { name: 'Laughing Out Loud', description: 'Classic internet laughter.' },
     shrug: { name: 'It Is What It Is', description: "Sometimes words just aren't enough." },
+    viennaCalling: { name: 'Vienna Calling', description: 'Start a call for the first time.' },
+    kthxbye: { name: 'kthxbye', description: 'Leave a call for the first time.' },
+    oneInAMillion: {
+      name: 'One in a Million',
+      description: 'Man getting bit by an alligator, and he screams.',
+    },
+    imHelping: { name: "I'm Helping!", description: 'Upvote a feature or feedback report for the first time.' },
+    bigBrain: { name: 'Big Brain', description: 'Submit a feature or feedback report that gets at least 10 upvotes.' },
+    whyDidntIThink: {
+      name: "Why Didn't I Think of That?",
+      description: 'Have a suggested feature accepted by Adieuu staff.',
+    },
+    pushedToProd: {
+      name: 'Just Ship It!',
+      description: 'Have a suggested feature fully implemented and released by Adieuu.',
+    },
+    itsAllConnected: {
+      name: "It's all connected!",
+      description: 'Link a feedback item to another for the first time.',
+    },
+    howIsPrangentFormed: {
+      name: 'how is prangent formed',
+      description: 'Comedy gold until May 4, 2021.',
+    },
+    priceless: {
+      name: 'Priceless',
+      description: "For everything else, there's a trademark dispute we'd rather avoid.",
+    },
+    corporateJargonBingo: {
+      name: 'Corporate Jargon Bingo',
+      description: 'You actually used the word "synergy." We are both impressed and disappointed.',
+    },
+    doorClosingSound: {
+      name: '*Door Closing Sound*',
+      description: 'Put up an angsty away message. Mom needs to use the landline.',
+    },
+    writingAMessage: {
+      name: "It Looks Like You're Writing a Message!",
+      description: 'Would you like some unsolicited, incredibly annoying help with that?',
+    },
+    enteringChatRoom: {
+      name: 'Entering the Chat Room',
+      description: "18/f/cali. Just kidding, I'm a chat app!",
+    },
+    atLeastIHaveChicken: {
+      name: "At least I have Chicken",
+      description: "Time's up, let's do this!",
+    },
+    walkIntoMordor: {
+      name: 'Walk Into Mordor',
+      description: 'Its black gates are guarded by more than just orcs!',
+    },
+    ahAhAh: {
+      name: 'Ah Ah Ah!',
+      description: "You didn't say the magic word!",
+    },
+    ughAsIf: {
+      name: 'Ugh, As If!',
+      description: "You are totally buggin' right now.",
+    },
+    downTheRabbitHole: {
+      name: 'Down the Rabbit Hole',
+      description: "Whoa. You're beginning to believe.",
+    },
+    edgeLord03: {
+      name: "Edge Lord '03",
+      description: 'We get it, you listened to Linkin Park and played Halo.',
+    },
+    mclovin: {
+      name: '25-Year-Old Hawaiian Organ Donor',
+      description: 'It was between that or Mohammed.',
+    },
+    pleaseStandUp: {
+      name: 'Please Stand Up',
+      description: "We're gonna have a problem here.",
+    },
+    witnessProtection: {
+      name: 'Witness Protection',
+      description: 'Who are you running from? Is it the feds?',
+    },
+    artistFormerlyKnownAs: {
+      name: 'The Artist Formerly Known As',
+      description: "We'll make sure to queue up some Prince for you.",
+    },
+    theRedPill: {
+      name: 'The Red Pill',
+      description: 'Wake up. The platform has you.',
+    },
+    tomsBestFriend: {
+      name: "Tom's Best Friend",
+      description: "Trying to code a custom glitter background, aren't we?",
+    },
+    theRupertHolmes: {
+      name: 'The Rupert Holmes',
+      description: 'Do you like piña coladas?',
+    },
+    blockbusterScriptwriter: {
+      name: 'Blockbuster Scriptwriter',
+      description: 'We asked for a bio, not the entire script of Titanic.',
+    },
+    silentBob: {
+      name: 'The Silent Bob',
+      description: '...',
+    },
+    dialupSound: {
+      name: 'EEEEE-AWWWW-BING-BONG',
+      description: 'We can hear this bio, and it takes 5 minutes to load a picture.',
+    },
+    heWasABoy: {
+      name: 'He Was a Boy',
+      description: 'She said see ya later boy.',
+    },
+    reginaGeorge: {
+      name: "You Can't Sit With Us",
+      description: 'On Wednesdays we wear pink.',
+    },
+    chuckNorris: {
+      name: 'Roundhouse Kick',
+      description: 'When Chuck Norris signs up for a platform, the database updates itself.',
+    },
+    zoltan: {
+      name: 'Dude, Sweet',
+      description: '*Makes Z shape with hands*',
+    },
+    slappersOnly: {
+      name: 'Slappers Only',
+      description: 'No Oddjob allowed.',
+    },
+    yerAWizard: {
+      name: "Yer a Wizard",
+      description: 'We solemnly swear that we are up to no good.',
+    },
+    townLocal: {
+      name: 'Town Local',
+      description: 'Like no one ever was.',
+    },
+    identityTheftJoke: {
+      name: 'Identity Theft is Not a Joke',
+      description: 'Millions of families suffer every year!',
+    },
+    saveMe: {
+      name: 'Save Me',
+      description: 'Call my name and save me from the dark.',
+    },
+    theBedazzler: {
+      name: 'The Bedazzler',
+      description: "T9 predictive text couldn't handle this much flair.",
+    },
+    noThatsImpossible: {
+      name: "No, That's Impossible",
+      description: 'Search your feelings, you know it to be true.',
+    },
+    theLongestDay: {
+      name: 'The Longest Day',
+      description: "Dammit Chloe, we're running out of time!",
+    },
+    beepBeepBeep: {
+      name: 'Beep... Beep... Beep...',
+      description: 'The following takes place between 10:00 AM and 11:00 AM.',
+    },
+    systemFailureImminent: {
+      name: 'System Failure Imminent',
+      description: 'You better push the button, brotha.',
+    },
+    dontTellMeWhatICantDo: {
+      name: "Don't Tell Me What I Can't Do",
+      description: 'You just found the hatch.',
+    },
+    grabYourTorch: {
+      name: 'Grab Your Torch',
+      description: "It's time for you to go.",
+    },
+    soleSurvivor: {
+      name: 'Sole Survivor',
+      description: 'You just found the hidden immunity idol.',
+    },
+    theMathisonMethod: {
+      name: 'The Mathison Method',
+      description: 'Turn up the frantic jazz music.',
+    },
+    turnedAsset: {
+      name: 'Turned Asset',
+      description: "We're keeping an eye on you.",
+    },
+    jesusChristThatsJasonBourne: {
+      name: 'Jesus Christ...',
+      description: "...that's Jason Bourne.",
+    },
+    assetActivated: {
+      name: 'Asset Activated',
+      description: 'Look at us. Look at what they make you give.',
+    },
+    offTheGrid: {
+      name: 'Off the Grid',
+      description: 'Get some rest. You look tired.',
+    },
+    sethCohenSpecial: {
+      name: 'The Seth Cohen Special',
+      description: 'Chrismukkah came early this year.',
+    },
+    helloDarkness: {
+      name: 'Hello Darkness',
+      description: 'My old friend.',
+    },
+    legendary: {
+      name: 'Legen...',
+      description: '...dary.',
+    },
+    theBroCode: {
+      name: 'The Bro Code',
+      description: 'Challenge accepted!',
+    },
+    townMeeting: {
+      name: 'Town Meeting',
+      description: 'Taylor Doose requires your attendance.',
+    },
+    lukesDinerRegular: {
+      name: "Luke's Diner Regular",
+      description: 'You definitely need more coffee.',
+    },
+    lifeAndDeathBrigade: {
+      name: 'The Life and Death Brigade',
+      description: 'You jump, I jump, Jack.',
+    },
+    wasteManagementConsultant: {
+      name: 'Waste Management Consultant',
+      description: 'Woke up this morning, got yourself a gun.',
+    },
+    satrialesVip: {
+      name: "Satriale's VIP",
+      description: 'Whatever happened to the strong, silent type?',
+    },
+    regionalManager: {
+      name: 'Regional Manager',
+      description: "Or, World's Best Boss.",
+    },
+    worstThingAboutPrison: {
+      name: 'The Worst Thing About Prison',
+      description: 'It was the dementors!',
+    },
+    theDundieAward: {
+      name: 'The Dundie Award',
+      description: 'You really left us no choice but to give you this.',
+    },
+    whatAreYou: {
+      name: 'WHAT ARE YOU?!',
+      description: 'An idiot sandwich, Chef.',
+    },
+    itsRaw: {
+      name: "IT'S RAW!",
+      description: "Look at it! It's still moving!",
+    },
+    welcomeMayorsOffice: {
+      name: "Welcome to the Mayor's Office",
+      description: 'That bio is totally out of bounds.',
+    },
+    houseStark: {
+      name: 'House Stark',
+      description: 'The North remembers.',
+    },
+    motherOfDragons: {
+      name: 'Mother of Dragons',
+      description: 'Breaker of Chains, Saver of Profiles.',
+    },
+    godOfDeath: {
+      name: 'The God of Death',
+      description: 'A user has no name.',
+    },
+    handOfKing: {
+      name: 'The Hand of the King',
+      description: "It's what I do.",
+    },
+    eatTheFoodTina: {
+      name: 'Eat the Food, Tina!',
+      description: 'Make sure to feed your pet llama.',
+    },
+    stayClassy: {
+      name: 'Stay Classy',
+      description: 'I love lamp.',
+    },
+    freakinIdiot: {
+      name: "Freakin' Idiot!",
+      description: 'You can always just make yourself a dang quesadilla.',
+    },
+    ouchCharlie: {
+      name: 'Ouch, Charlie!',
+      description: 'And that really hurt, Charlie!',
+    },
+    coldPop: {
+      name: 'Cold Pop',
+      description: "I didn't grab no shoes or nothin' Jesus.",
+    },
+    noThisIsPatrick: {
+      name: 'No, This Is Patrick!',
+      description: 'I am not a Krusty Krab.',
+    },
+    earthKingdom: {
+      name: 'The Earth Kingdom',
+      description: 'This place is worse than Omashu!',
+    },
     sponsor: { name: 'Patron of the Arts', description: 'Sponsored another user\'s subscription.' },
 } as const;

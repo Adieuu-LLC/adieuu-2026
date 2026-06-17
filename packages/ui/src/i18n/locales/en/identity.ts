@@ -343,13 +343,6 @@ export const identity = {
         dismiss: 'Dismiss',
       },
 
-      // Web platform security recommendation (banner)
-      webSecurityBanner: {
-        message: 'For stronger security, consider using the Adieuu desktop app. It can protect your encryption keys with your operating system\'s secure keychain, adding a layer of protection beyond your password alone.',
-        openInDesktop: 'Open in Desktop',
-        dismiss: 'Dismiss',
-      },
-
       // App update notification (banner)
       updateBanner: {
         message: 'A new version of Adieuu is available.',
@@ -483,6 +476,10 @@ export const identity = {
       previewFriend: 'Friend',
       previewSelf: 'You',
       noChanges: 'No changes to save.',
+      unsavedChanges: 'You have unsaved profile changes.',
+      discardChanges: 'Discard changes',
+      achievementsHiddenPreview:
+        'Achievements are hidden from this audience based on your privacy settings.',
     },
     // Public profile view (read-only)
     profileView: {
@@ -492,7 +489,14 @@ export const identity = {
       lastActive: 'Last active {{date}}',
       joined: 'Joined {{date}}',
       tabAbout: 'About',
+      tabPosts: 'Posts',
+      tabSpaces: 'Spaces',
       tabAchievements: 'Achievements',
+      tabReports: 'Reports',
+      postsPlaceholder: 'Available in the future when we add feeds and posts!',
+      spacesPlaceholder:
+        'Public & Mutual Spaces this user is a member of will be visible here when we add Spaces in the near future!',
+      reportsPlaceholder: 'Not yet available, coming soon.',
     },
     // Privacy page (identity-scoped)
     privacy: {

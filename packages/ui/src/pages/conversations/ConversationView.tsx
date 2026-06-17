@@ -47,6 +47,8 @@ import { useCallSession } from '../../hooks/useCallSession';
 import { useCall } from '../../hooks/useCall';
 import { ConversationCallButton } from '../../components/call/ConversationCallButton';
 import { ActiveCallBanner } from '../../components/call/ActiveCallBanner';
+import { CallTroubleshootModal } from '../../components/call/CallTroubleshootModal';
+import { forceEndCall as apiForceEndCall } from '../../services/callService';
 import { Icon } from '../../icons/Icon';
 import { Button } from '../../components/Button';
 import { useToast } from '../../components/Toast';
@@ -407,6 +409,20 @@ export function ConversationView() {
 
   const callSession = useCallSession();
   const conversationCall = useCall(id ?? null);
+  const [troubleshootOpen, setTroubleshootOpen] = useState(false);
+
+  const handleForceEndCall = useCallback(async () => {
+    const callId = conversationCall.activeCall?.id;
+    if (!id || !callId) return;
+    const result = await apiForceEndCall(api.client, id, callId);
+    if (result.success) {
+      toast.success(t('call.forceEndSuccess'));
+      conversationCall.refetch();
+    } else {
+      toast.error(t('call.forceEndFailed'));
+    }
+  }, [id, conversationCall.activeCall?.id, api.client, toast, t, conversationCall.refetch]);
+
   const activeMessagesRef = useRef(activeMessages);
   activeMessagesRef.current = activeMessages;
   const getActiveMessages = useCallback(() => activeMessagesRef.current, []);
@@ -933,6 +949,10 @@ export function ConversationView() {
                 />
               ) : undefined
             }
+            showCallInMenu={audioAllowed && !isDmBlocked && !blockedByOther}
+            onCallMenuClick={() => id && callSession.requestStartCall(id, { audio: true, video: false, screenshare: false })}
+            callMenuDisabled={isInCallElsewhere && !isInCallHere}
+            callMenuLabel={isInCallHere ? t('call.active') : t('call.startCall')}
             pinsSlot={
               <ConversationPinsMenu
                 conversationId={conversation.id}
@@ -1049,8 +1069,15 @@ export function ConversationView() {
                   );
                 }
               }}
+              onTroubleshoot={() => setTroubleshootOpen(true)}
             />
           )}
+
+          <CallTroubleshootModal
+            open={troubleshootOpen}
+            onOpenChange={setTroubleshootOpen}
+            onForceEnd={handleForceEndCall}
+          />
 
           <div className={`conversation-body${isInCallHere ? ' conversation-body--in-call' : ''}`}>
             <div

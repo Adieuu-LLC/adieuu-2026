@@ -95,6 +95,12 @@ export function SystemMessageRow({ event }: { event: SystemEvent }) {
         defaultValue: `${name} left the call`,
       });
       break;
+    case 'call_left_ended':
+      text = t('conversations.systemMessage.callLeftEnded', {
+        name,
+        defaultValue: `${name} left the call, and the call was ended`,
+      });
+      break;
     case 'call_ended':
       text = t('conversations.systemMessage.callEnded', {
         name,

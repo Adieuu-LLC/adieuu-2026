@@ -23,10 +23,11 @@ import { mintLiveKitToken, generateRoomName } from './livekit-auth.service';
 import { removeParticipant as livekitRemoveParticipant, deleteRoom as livekitDeleteRoom } from './livekit-room.service';
 import { publishToParticipants, publishConversationEvent } from './conversation/redis-events';
 import { createNotification } from './notification.service';
+import { checkAndAward } from './achievement.service';
 import { checkRateLimit, getCallInitiateConfig } from './rate-limit.service';
 import { resolveStreamQualityCaps } from '@adieuu/shared';
 import type { StreamQualityCaps, SubscriptionTierId } from '@adieuu/shared';
-import type { CallDocument, CallMediaOptions, PublicCall } from '../models/call';
+import type { CallDocument, CallMediaOptions, PublicCall, SerializedWrappedCallKey } from '../models/call';
 import { toPublicCall } from '../models/call';
 import elog from '../utils/adieuuLogger';
 
@@ -64,6 +65,7 @@ export async function initiateCall(
   initiatorIdentityId: string,
   requestedMedia: CallMediaOptions,
   access: { subscriptions: readonly SubscriptionTierId[]; entitlements: readonly string[] },
+  wrappedE2EEKeys?: SerializedWrappedCallKey[],
 ): Promise<CallResult> {
   const rlConfig = await getCallInitiateConfig(initiatorIdentityId);
   const rl = await checkRateLimit('calls:initiate:identity', initiatorIdentityId, rlConfig);
@@ -132,10 +134,22 @@ export async function initiateCall(
       initiatorIdentityId: initiatorObjId,
       allowedMedia,
       roomName,
+      wrappedE2EEKeys,
     });
   } catch (err: unknown) {
     if (isDuplicateKeyError(err)) {
-      return { success: false, error: 'A call is already active for this conversation', errorCode: 'CALL_ALREADY_ACTIVE' };
+      const existingCall = await callRepo.findActiveForConversation(convObjId);
+      if (!existingCall) {
+        return { success: false, error: 'A call is already active for this conversation', errorCode: 'CALL_ALREADY_ACTIVE' };
+      }
+
+      return joinCall(
+        conversationId,
+        existingCall._id.toHexString(),
+        initiatorIdentityId,
+        requestedMedia,
+        access,
+      );
     }
     throw err;
   }
@@ -183,6 +197,8 @@ export async function initiateCall(
       });
     }
   });
+
+  checkAndAward(initiatorObjId, 'call_started').catch(() => {});
 
   return {
     success: true,
@@ -337,19 +353,20 @@ export async function leaveCall(
   const leaverIdentity = await identityRepo.findById(identityObjId);
   const leaverDisplayName = leaverIdentity?.displayName || leaverIdentity?.username || 'Unknown';
 
+  const activeParticipants = updated.participants.filter((p) => !p.leftAt);
+  const isLastParticipant = activeParticipants.length === 0;
+
   if (conversation) {
-    void emitCallSystemMessage(
+    await emitCallSystemMessage(
       updated.conversationId,
       conversation.participants,
-      'call_left',
+      isLastParticipant ? 'call_left_ended' : 'call_left',
       identityObjId,
       leaverDisplayName,
     );
   }
 
-  // Check if all participants have left — end call without requiring active membership
-  const activeParticipants = updated.participants.filter((p) => !p.leftAt);
-  if (activeParticipants.length === 0) {
+  if (isLastParticipant) {
     const ended = await callRepo.updateStatus(callObjId, 'ended', { endedAt: new Date() });
     if (!ended) {
       return { success: false, error: 'Failed to end call', errorCode: 'END_FAILED' };
@@ -359,6 +376,7 @@ export async function leaveCall(
     if (conversation) {
       await notifyCallEnded(conversation.participants, callId, identityId);
     }
+    checkAndAward(identityObjId, 'call_left').catch(() => {});
     return { success: true, call: toPublicCall(ended) };
   }
 
@@ -368,6 +386,8 @@ export async function leaveCall(
       data: { callId, identityId },
     });
   }
+
+  checkAndAward(identityObjId, 'call_left').catch(() => {});
 
   return { success: true, call: toPublicCall(updated) };
 }
@@ -418,6 +438,64 @@ export async function endCall(
   }
 
   // Delete the LiveKit room — force-disconnects all participants and frees resources
+  void livekitDeleteRoom(call.roomName);
+
+  const enderIdentity = await identityRepo.findById(identityObjId);
+  const enderDisplayName = enderIdentity?.displayName || enderIdentity?.username || 'Unknown';
+
+  void emitCallSystemMessage(
+    call.conversationId,
+    conversation.participants,
+    'call_ended',
+    identityObjId,
+    enderDisplayName,
+  );
+
+  await notifyCallEnded(conversation.participants, callId, identityId);
+
+  return { success: true, call: toPublicCall(ended) };
+}
+
+// ---------------------------------------------------------------------------
+// Force End (any conversation member)
+// ---------------------------------------------------------------------------
+
+/**
+ * Force-end a stuck call. Unlike `endCall`, this does NOT require the
+ * requester to be an active call participant -- only a conversation member.
+ * Use for ghost-call recovery when no real participants remain.
+ */
+export async function forceEndCall(
+  conversationId: string,
+  callId: string,
+  identityId: string
+): Promise<CallResult> {
+  const callRepo = getCallRepository();
+  const conversationRepo = getConversationRepository();
+  const identityRepo = getIdentityRepository();
+
+  const callObjId = new ObjectId(callId);
+  const identityObjId = new ObjectId(identityId);
+
+  const call = await callRepo.findById(callObjId);
+  if (!call || call.status === 'ended') {
+    return { success: false, error: 'Call not found or already ended', errorCode: 'CALL_NOT_FOUND' };
+  }
+
+  if (call.conversationId.toHexString() !== conversationId) {
+    return { success: false, error: 'Call not found or already ended', errorCode: 'CALL_NOT_FOUND' };
+  }
+
+  const conversation = await conversationRepo.findById(call.conversationId);
+  if (!conversation || !conversation.participants.some((p) => p.equals(identityObjId))) {
+    return { success: false, error: 'Not a participant of this conversation', errorCode: 'NOT_PARTICIPANT' };
+  }
+
+  const ended = await callRepo.updateStatus(callObjId, 'ended', { endedAt: new Date() });
+  if (!ended) {
+    return { success: false, error: 'Failed to end call', errorCode: 'END_FAILED' };
+  }
+
   void livekitDeleteRoom(call.roomName);
 
   const enderIdentity = await identityRepo.findById(identityObjId);
@@ -559,7 +637,7 @@ function isDuplicateKeyError(err: unknown): boolean {
 async function emitCallSystemMessage(
   conversationId: ObjectId,
   participants: ObjectId[],
-  eventType: 'call_started' | 'call_joined' | 'call_left' | 'call_ended',
+  eventType: 'call_started' | 'call_joined' | 'call_left' | 'call_left_ended' | 'call_ended',
   identityId: ObjectId,
   displayName: string,
 ): Promise<void> {
@@ -595,6 +673,7 @@ async function emitCallSystemMessage(
           messageId: systemMsg._id.toHexString(),
           fromIdentityId: identityId.toHexString(),
           createdAt: systemMsg.createdAt.toISOString(),
+          messageType: 'system',
         },
       });
     }

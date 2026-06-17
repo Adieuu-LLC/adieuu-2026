@@ -86,6 +86,8 @@ export interface ConversationSocketHandlerContext {
   refreshParticipantProfile: (identityId: string) => void;
   /** When the server signals a change to pending group invites (sidebar list). */
   onPendingInvitesChanged?: (conversationId: string) => void;
+  /** Advance read pointer and clear local unread state for a conversation. */
+  markConversationRead: (conversationId: string, readUpToMessageId?: string) => void;
 }
 
 export function handleConversationSocketMessage(
@@ -354,20 +356,24 @@ export function handleConversationSocketMessage(
         replyToMessageAuthorId,
         expiresAt,
         mentionedIdentityIds,
+        messageType,
       } = message.data;
+      const isSystemMessage = messageType === 'system';
       const isActiveConvo = conversationId === ctx.activeConversationId;
       const isViewing = isActiveConvo && ctx.hasFocus && ctx.isAtBottom;
 
-      if (!isViewing) {
-        ctx.setConversations((prev) =>
-          prev.map((c) =>
-            c.id === conversationId ? { ...c, unreadCount: c.unreadCount + 1 } : c
-          )
-        );
-      } else {
-        ctx.setConversations((prev) =>
-          prev.map((c) => (c.id === conversationId ? { ...c, unreadCount: 0 } : c))
-        );
+      if (!isSystemMessage) {
+        if (!isViewing) {
+          ctx.setConversations((prev) =>
+            prev.map((c) =>
+              c.id === conversationId ? { ...c, unreadCount: c.unreadCount + 1 } : c
+            )
+          );
+        } else {
+          ctx.setConversations((prev) =>
+            prev.map((c) => (c.id === conversationId ? { ...c, unreadCount: 0 } : c))
+          );
+        }
       }
 
       if (isActiveConvo) {
@@ -388,6 +394,11 @@ export function handleConversationSocketMessage(
         const rest = [...prev.slice(0, idx), ...prev.slice(idx + 1)];
         return [updated, ...rest];
       });
+
+      if (isSystemMessage) {
+        ctx.markConversationRead(conversationId, messageId);
+        break;
+      }
 
       const senderProfile = ctx.participantProfiles[fromIdentityId];
       const senderName = senderProfile?.displayName ?? senderProfile?.username;

@@ -32,6 +32,8 @@ interface Window {
       maximize: () => Promise<void>;
       close: () => Promise<void>;
       isMaximized: () => Promise<boolean>;
+      setFullScreen: (fullScreen: boolean) => Promise<void>;
+      isFullScreen: () => Promise<boolean>;
     };
     secureStorage: {
       get: (keyId: string) => Promise<string | null>;

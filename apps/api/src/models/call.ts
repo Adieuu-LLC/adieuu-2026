@@ -59,6 +59,14 @@ export interface CallDocument extends BaseDocument {
   /** Reference to the E2EE key distribution for this call */
   e2eeKeyId?: string;
 
+  /**
+   * Wrapped call E2EE keys -- one per conversation participant.
+   * Each entry contains the call symmetric key hybrid-encrypted for a single
+   * recipient using X25519 + ML-KEM. The server stores only opaque ciphertext;
+   * it never sees the plaintext call key.
+   */
+  wrappedE2EEKeys?: SerializedWrappedCallKey[];
+
   /** When the first participant connected (status transitioned to 'active') */
   startedAt?: Date;
 
@@ -66,11 +74,24 @@ export interface CallDocument extends BaseDocument {
   endedAt?: Date;
 }
 
+/**
+ * Serialized wrapped call E2EE key for API transport and DB storage.
+ * Binary fields are base64-encoded strings.
+ */
+export interface SerializedWrappedCallKey {
+  recipientIdentityId: string;
+  ephemeralPublicKey: string;
+  kemCiphertext: string;
+  wrappedKey: string;
+  wrappingNonce: string;
+}
+
 export interface CreateCallInput {
   conversationId: ObjectId;
   initiatorIdentityId: ObjectId;
   allowedMedia: CallMediaOptions;
   roomName: string;
+  wrappedE2EEKeys?: SerializedWrappedCallKey[];
 }
 
 /**
@@ -90,6 +111,7 @@ export interface PublicCall {
   }>;
   roomName: string;
   e2eeKeyId?: string;
+  wrappedE2EEKeys?: SerializedWrappedCallKey[];
   startedAt?: string;
   endedAt?: string;
   createdAt: string;
@@ -114,6 +136,7 @@ export function toPublicCall(doc: CallDocument): PublicCall {
     })),
     roomName: doc.roomName,
     e2eeKeyId: doc.e2eeKeyId,
+    wrappedE2EEKeys: doc.wrappedE2EEKeys,
     startedAt: doc.startedAt?.toISOString(),
     endedAt: doc.endedAt?.toISOString(),
     createdAt: doc.createdAt.toISOString(),

@@ -87,18 +87,43 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-md);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   min-width: 0;
   width: 100%;
+  margin-bottom: var(--spacing-md);
+
+  .profile-section-title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    margin: 0;
+    flex-shrink: 0;
+  }
+
+  &__count {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-secondary);
+  }
 
   &__filters {
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: var(--spacing-xs);
     min-width: 0;
-    flex: 1 1 auto;
+    margin-left: auto;
+  }
+
+  @media (max-width: $mobile-breakpoint) {
+    flex-wrap: wrap;
+
+    &__filters {
+      width: 100%;
+      justify-content: flex-start;
+      margin-left: 0;
+    }
   }
 }
 
@@ -116,13 +141,15 @@
   padding: var(--spacing-xs) var(--spacing-sm);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: var(--color-bg-secondary);
+  background: var(--color-bg-tertiary);
   color: var(--color-text-primary);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-sans);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   white-space: nowrap;
-  transition: border-color var(--transition-fast);
-  min-width: 0;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  min-width: 7.5rem;
   max-width: 100%;
   box-sizing: border-box;
 
@@ -133,7 +160,13 @@
   }
 
   &:hover {
+    border-color: var(--color-border-focus);
+  }
+
+  &:focus-visible {
+    outline: none;
     border-color: var(--color-accent-primary);
+    box-shadow: 0 0 0 3px var(--color-accent-glow);
   }
 }
 
@@ -165,7 +198,7 @@
   justify-content: space-between;
   gap: var(--spacing-xs);
   padding: var(--spacing-xs) var(--spacing-sm);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   color: var(--color-text-primary);
   cursor: pointer;
   transition: background var(--transition-fast);

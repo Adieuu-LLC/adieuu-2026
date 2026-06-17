@@ -15,6 +15,7 @@ import {
   createApiClient,
   type PublicIdentity,
   type PublicAchievement,
+  type PublicAchievementDefinition,
   type FriendshipStatus,
 } from '@adieuu/shared';
 import { Card } from '../../components/Card';
@@ -22,6 +23,7 @@ import { Button } from '../../components/Button';
 import { Icon } from '../../icons/Icon';
 import { ReportModal } from '../../components/ReportModal';
 import { AchievementGrid } from '../../components/AchievementGrid';
+import { ProfileContentTabs } from '../../components/ProfileContentTabs';
 import { BlockActionButton } from '../../components/BlockActionButton';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useFriends } from '../../hooks/useFriends';
@@ -54,6 +56,7 @@ export function IdentityProfileView() {
   const [friendActionLoading, setFriendActionLoading] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [achievements, setAchievements] = useState<PublicAchievement[]>([]);
+  const [achievementDefinitions, setAchievementDefinitions] = useState<PublicAchievementDefinition[]>([]);
   const [achievementsLoaded, setAchievementsLoaded] = useState(false);
   const [myAchievementIds, setMyAchievementIds] = useState<Set<string>>(new Set());
 
@@ -124,6 +127,11 @@ export function IdentityProfileView() {
     let cancelled = false;
 
     const fetches: Promise<void>[] = [
+      api.achievements.getDefinitions().then((res) => {
+        if (!cancelled && res.success && res.data) {
+          setAchievementDefinitions(res.data.definitions);
+        }
+      }),
       api.achievements.getForIdentity(id).then((res) => {
         if (!cancelled && res.success && res.data) {
           setAchievements(res.data.achievements);
@@ -348,17 +356,22 @@ export function IdentityProfileView() {
             </div>
           </div>
 
-          {/* Achievements */}
-          <div className="profile-view-achievements">
-            <AchievementGrid
-              title={t('identity.profileView.tabAchievements')}
-              achievements={achievements}
-              viewerAchievementIds={isIdentityLoggedIn ? myAchievementIds : undefined}
-              loading={!achievementsLoaded}
-              accentColor={accent}
-              cardBackgroundColor={cardBg}
-            />
-          </div>
+          <ProfileContentTabs
+            tabsChrome
+            achievements={
+              <AchievementGrid
+                title={t('identity.profileView.tabAchievements')}
+                definitions={achievementDefinitions.length > 0 ? achievementDefinitions : undefined}
+                achievements={achievements}
+                showStatusFilter={achievementDefinitions.length > 0}
+                defaultStatusFilter="earned"
+                viewerAchievementIds={isIdentityLoggedIn ? myAchievementIds : undefined}
+                loading={!achievementsLoaded}
+                accentColor={accent}
+                cardBackgroundColor={cardBg}
+              />
+            }
+          />
         </div>
       </div>
 

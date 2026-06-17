@@ -81,6 +81,19 @@ export interface SerializedWrappedKey {
   routingTag?: string;
 }
 
+/**
+ * Serialized wrapped call E2EE key for API transport.
+ * Binary fields are base64-encoded. Each entry wraps the shared call
+ * symmetric key for a single recipient using hybrid X25519 + ML-KEM.
+ */
+export interface SerializedWrappedCallKey {
+  recipientIdentityId: string;
+  ephemeralPublicKey: string;
+  kemCiphertext: string;
+  wrappedKey: string;
+  wrappingNonce: string;
+}
+
 export interface PublicMessageRevision {
   ciphertext: string;
   nonce: string;

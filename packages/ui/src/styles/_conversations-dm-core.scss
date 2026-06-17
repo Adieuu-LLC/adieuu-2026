@@ -7,7 +7,7 @@
 .conversation-page {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
   min-height: 0;
 }
 
@@ -25,7 +25,11 @@
   overflow: hidden;
 
   &--in-call {
-    padding-top: calc(50vh - 22px);
+    padding-top: var(--call-overlay-height, calc((100vh - 65px) * 2 / 3));
+
+    body.has-custom-title-bar & {
+      padding-top: var(--call-overlay-height, calc((100vh - 97px) * 2 / 3));
+    }
   }
 }
 

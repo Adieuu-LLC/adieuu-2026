@@ -64,6 +64,8 @@ export interface IIdentityRepository {
   decrementFriendCounts(identityA: ObjectId, identityB: ObjectId, options?: { session?: ClientSession }): Promise<void>;
   incrementAchievementsEarnedCount(identityId: string | ObjectId, options?: { session?: ClientSession }): Promise<void>;
   decrementAchievementsEarnedCount(identityId: string | ObjectId, options?: { session?: ClientSession }): Promise<void>;
+  recordDisplayNameChange(identityId: string | ObjectId): Promise<number>;
+  incrementEmptyBioSaveCount(identityId: string | ObjectId): Promise<number>;
   findActivityStatsProjection(
     identityId: ObjectId
   ): Promise<Pick<
@@ -564,6 +566,43 @@ export class IdentityRepository
       { $inc: { achievementsEarnedCount: -1 } },
       { session: options?.session },
     );
+  }
+
+  async recordDisplayNameChange(identityId: string | ObjectId): Promise<number> {
+    const objectId = this.toObjectId(identityId);
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $push: {
+          displayNameChangeTimestamps: {
+            $each: [now],
+            $slice: -20,
+          },
+        },
+      },
+    );
+
+    const doc = await this.collection.findOne(
+      { _id: objectId },
+      { projection: { displayNameChangeTimestamps: 1 } },
+    );
+
+    const timestamps = (doc?.displayNameChangeTimestamps as Date[] | undefined) ?? [];
+    return timestamps.filter((timestamp) => timestamp >= oneHourAgo).length;
+  }
+
+  async incrementEmptyBioSaveCount(identityId: string | ObjectId): Promise<number> {
+    const objectId = this.toObjectId(identityId);
+    const result = await this.collection.findOneAndUpdate(
+      { _id: objectId },
+      { $inc: { emptyBioSaveCount: 1 } },
+      { returnDocument: 'after', projection: { emptyBioSaveCount: 1 } },
+    );
+
+    return result?.emptyBioSaveCount ?? 1;
   }
 
   async findActivityStatsProjection(

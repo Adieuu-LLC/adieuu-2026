@@ -30,6 +30,7 @@ import { useIdentity } from './useIdentity';
 import { useChatSocket } from './useChatSocket';
 import { useToast } from '../components/Toast';
 import { useNotificationSoundPreference } from './useNotificationSoundPreference';
+import { useClaimAchievement } from './useClaimAchievement';
 import { fireConversationNotification } from '../utils/conversationNotifications';
 import { sidebarActions } from '../utils/sidebarActions';
 
@@ -87,6 +88,7 @@ export function FriendsProvider({ children }: FriendsProviderProps) {
   const toast = useToast();
   const { notifications, audio } = usePlatformCapabilities();
   const soundPref = useNotificationSoundPreference();
+  const claimAchievement = useClaimAchievement();
 
   const [friends, setFriends] = useState<FriendInfo[]>([]);
   const [incomingRequests, setIncomingRequests] = useState<IncomingFriendRequestInfo[]>([]);
@@ -104,10 +106,10 @@ export function FriendsProvider({ children }: FriendsProviderProps) {
         title,
         body,
         { onClick, isViewingConversation: false, nativeTag: 'friend-event' },
-        { toast, soundPref, notifications, audio }
+        { toast, soundPref, notifications, audio, onWilhelmScream: () => claimAchievement('wilhelm_scream') }
       );
     },
-    [toast, soundPref, audio, notifications]
+    [toast, soundPref, audio, notifications, claimAchievement]
   );
 
   // --------------------------------------------------------------------------

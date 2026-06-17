@@ -226,6 +226,7 @@ export const staticPages = {
     // Learn tab (shared across modes)
     learn: {
       title: 'Learn about Adieuu',
+      goBack: 'Go Back',
       navLabel: 'Learn',
       copyLink: 'Copy link to section',
       linkCopied: 'Link copied to clipboard',

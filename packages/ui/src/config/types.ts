@@ -144,6 +144,10 @@ export interface AppWindowCapabilities {
   /** Update the OS taskbar badge / dock count with the given unread total.
    *  An optional accent colour hex (e.g. "#22d3ee") tints the badge pill. */
   setBadgeCount(count: number, accentColorHex?: string): void;
+  /** Enter or exit OS-level fullscreen (desktop Electron only). */
+  setFullScreen?: (fullScreen: boolean) => Promise<void>;
+  /** Whether the host window is in OS-level fullscreen. */
+  isFullScreen?: () => Promise<boolean>;
 }
 
 /**

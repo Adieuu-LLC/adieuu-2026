@@ -18,6 +18,7 @@ import type {
 } from '@adieuu/shared';
 import { Icon } from '../icons/Icon';
 import type { AppIconName } from '../icons/appIcons';
+import { isAppIconName } from '../icons/appIcons';
 
 export interface AchievementGridProps {
   title: string;
@@ -27,6 +28,8 @@ export interface AchievementGridProps {
   achievements: PublicAchievement[];
   /** Show the earned / unearned filter (catalog mode only). */
   showStatusFilter?: boolean;
+  /** Initial status filter in catalog mode (defaults to all). */
+  defaultStatusFilter?: StatusFilter;
   /** Viewer's earned achievement IDs -- shows "you don't have this" badge. */
   viewerAchievementIds?: Set<string>;
   /** Replace the grid with a loading spinner. */
@@ -52,6 +55,7 @@ export function AchievementGrid({
   definitions,
   achievements,
   showStatusFilter = false,
+  defaultStatusFilter = 'all',
   viewerAchievementIds,
   loading = false,
   accentColor,
@@ -59,7 +63,7 @@ export function AchievementGrid({
 }: AchievementGridProps) {
   const { t } = useTranslation();
   const [categoryFilter, setCategoryFilter] = useState<'all' | AchievementCategory>('all');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(defaultStatusFilter);
 
   const catalogMode = !!definitions;
 
@@ -100,6 +104,19 @@ export function AchievementGrid({
     [items, categoryFilter, statusFilter],
   );
 
+  const sorted = useMemo(
+    () =>
+      [...filtered].sort((a, b) =>
+        t(a.definition.name).localeCompare(t(b.definition.name), undefined, {
+          sensitivity: 'base',
+        }),
+      ),
+    [filtered, t],
+  );
+
+  const earnedCount = useMemo(() => items.filter((item) => item.earned).length, [items]);
+  const totalCount = items.length;
+
   const categoryCollection = useMemo(
     () =>
       createListCollection({
@@ -139,6 +156,11 @@ export function AchievementGrid({
         <h3 className="profile-section-title">
           <Icon name="trophy" size="sm" />
           {title}
+          {!loading && totalCount > 0 && (
+            <span className="achievement-header__count" aria-label={t('achievements.progressCountAria', { earned: earnedCount, total: totalCount })}>
+              {earnedCount}/{totalCount}
+            </span>
+          )}
         </h3>
 
         {showFilters && (
@@ -179,7 +201,7 @@ export function AchievementGrid({
         </div>
       ) : (
         <div className="profile-view-achievements-grid">
-          {filtered.map((item) => {
+          {sorted.map((item) => {
             const viewerLacks = viewerAchievementIds
               && !viewerAchievementIds.has(item.definition.id);
 
@@ -189,7 +211,10 @@ export function AchievementGrid({
                 className={`achievement-card${!item.earned ? ' achievement-card--locked' : ''}`}
               >
                 <div className="achievement-card-icon">
-                  <Icon name={item.definition.icon as AppIconName} size="lg" />
+                  <Icon
+                    name={isAppIconName(item.definition.icon) ? item.definition.icon : 'trophy'}
+                    size="lg"
+                  />
                 </div>
                 <div className="achievement-card-info">
                   <span className="achievement-card-name">

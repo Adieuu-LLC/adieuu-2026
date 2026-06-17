@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ChatIncomingMessage, StreamQualityCaps } from '@adieuu/shared';
+import type { ChatIncomingMessage, StreamQualityCaps, SerializedWrappedCallKey } from '@adieuu/shared';
 import { createApiClient } from '@adieuu/shared';
 import { useAppConfig } from '../config';
 import { useIdentity } from './useIdentity';
@@ -24,10 +24,29 @@ import {
 } from '../services/callService';
 import { applyCallSocketMessage } from './callStateUpdates';
 import { parseRetryAfterSeconds } from './callStateUpdates';
+import {
+  generateCallE2EEKey,
+  wrapAndSerializeCallKey,
+  deserializeAndUnwrapCallKey,
+  zeroCallKey,
+  isE2EESupported,
+  type CallKeyRecipient,
+} from '../services/callCryptoService';
+import { getDeviceKeysForIdentity, decryptDeviceKeys } from '../services/deviceKeyStorage';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+export class CallSessionError extends Error {
+  readonly code?: string;
+
+  constructor(message: string, code?: string) {
+    super(message);
+    this.name = 'CallSessionError';
+    this.code = code;
+  }
+}
 
 export type CallSessionPhase = 'idle' | 'device-setup' | 'connecting' | 'active';
 
@@ -37,6 +56,7 @@ interface CallSession {
   livekitToken?: string;
   livekitUrl?: string;
   streamQualityCaps?: StreamQualityCaps;
+  callE2EEKey?: Uint8Array;
 }
 
 export interface CallSessionContextValue {
@@ -53,6 +73,10 @@ export interface CallSessionContextValue {
   livekitToken: string | null;
   /** Per-user streaming resolution caps (camera + screenshare). */
   streamQualityCaps: StreamQualityCaps | null;
+  /** Call E2EE symmetric key (32 bytes) for LiveKit Insertable Streams. Null when E2EE is unavailable. */
+  callE2EEKey: Uint8Array | null;
+  /** Whether the browser supports LiveKit E2EE (Insertable Streams). */
+  e2eeSupported: boolean;
 
   requestStartCall: (conversationId: string, media: CallMediaOptions) => void;
   requestJoinCall: (conversationId: string, callId: string, media: CallMediaOptions) => void;
@@ -84,14 +108,17 @@ export function useCallSession(): CallSessionContextValue {
 
 export function CallSessionProvider({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
-  const { identity } = useIdentity();
+  const { identity, getCurrentDeviceId, getWrappingKey } = useIdentity();
   const { apiBaseUrl } = useAppConfig();
   const { subscribe } = useChatSocket();
 
-  const client = useMemo(
-    () => createApiClient({ baseUrl: apiBaseUrl }).client,
+  const e2eeSupported = useMemo(() => isE2EESupported(), []);
+
+  const apiBundle = useMemo(
+    () => createApiClient({ baseUrl: apiBaseUrl }),
     [apiBaseUrl],
   );
+  const client = apiBundle.client;
 
   const [session, setSession] = useState<CallSession | null>(null);
   const [phase, setPhase] = useState<CallSessionPhase>('idle');
@@ -139,6 +166,74 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
     setPhase('idle');
   }, []);
 
+  // ---- Load device private keys for E2EE unwrapping ----
+
+  const loadDevicePrivateKeys = useCallback(async (): Promise<{
+    ecdhPrivateKey: Uint8Array;
+    kemPrivateKey: Uint8Array;
+  } | null> => {
+    if (!identity) return null;
+    const deviceId = getCurrentDeviceId();
+    const wrappingKey = getWrappingKey();
+    if (!deviceId || !wrappingKey) return null;
+
+    try {
+      const storedKeys = await getDeviceKeysForIdentity(identity.id);
+      const myDeviceKeys = storedKeys.find((k) => k.deviceId === deviceId);
+      if (!myDeviceKeys) return null;
+
+      const decrypted = await decryptDeviceKeys(myDeviceKeys, wrappingKey);
+      return {
+        ecdhPrivateKey: decrypted.ecdhPrivateKey,
+        kemPrivateKey: decrypted.kemPrivateKey,
+      };
+    } catch (err) {
+      console.error('[CallSession] Failed to load device keys for E2EE:', err);
+      return null;
+    }
+  }, [identity, getCurrentDeviceId, getWrappingKey]);
+
+  // ---- Build CallKeyRecipient[] from conversation participant devices ----
+
+  const buildCallKeyRecipients = useCallback(async (
+    conversationId: string
+  ): Promise<CallKeyRecipient[]> => {
+    try {
+      const convResp = await apiBundle.conversations.get(conversationId);
+      if (!convResp.data) return [];
+
+      const participantIds: string[] = convResp.data.participants;
+      const recipients: CallKeyRecipient[] = [];
+
+      for (const participantId of participantIds) {
+        try {
+          const keysResp = await apiBundle.identity.getPublicKeys(participantId);
+          if (!keysResp.data) continue;
+
+          const { signingPublicKey, preferredCryptoProfile, devices } = keysResp.data;
+
+          for (const device of devices) {
+            if (!device.kemPublicKey) continue;
+            recipients.push({
+              identityId: participantId,
+              ecdhPublicKey: device.ecdhPublicKey,
+              kemPublicKey: device.kemPublicKey,
+              signingPublicKey,
+              preferredCryptoProfile: (preferredCryptoProfile ?? 'default') as 'default' | 'cnsa2',
+            });
+          }
+        } catch {
+          console.warn('[CallSession] Failed to fetch keys for participant:', participantId);
+        }
+      }
+
+      return recipients;
+    } catch (err) {
+      console.error('[CallSession] Failed to build call key recipients:', err);
+      return [];
+    }
+  }, [apiBundle]);
+
   // ---- Confirm device setup -> initiate or join ----
 
   const confirmDeviceSetup = useCallback(
@@ -155,19 +250,71 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
         let livekitToken: string | undefined;
         let livekitUrl: string | undefined;
         let streamQualityCaps: StreamQualityCaps | undefined;
+        let callE2EEKey: Uint8Array | undefined;
 
         if (pendingIsJoin && pendingCallId) {
           const resp = await apiJoinCall(client, pendingConversationId, pendingCallId, pendingCallType);
           if (!resp.success || !resp.data) {
-            throw new Error(resp.error?.message ?? t('call.callJoinFailed'));
+            if (resp.error?.code === 'ALREADY_IN_CALL') {
+              throw new CallSessionError(t('call.alreadyJoinedCall'), 'ALREADY_IN_CALL');
+            }
+            throw new CallSessionError(
+              resp.error?.message ?? t('call.callJoinFailed'),
+              resp.error?.code,
+            );
           }
           call = resp.data.call;
           livekitToken = resp.data.livekitToken;
           livekitUrl = resp.data.livekitUrl;
           streamQualityCaps = resp.data.streamQualityCaps;
+
+          if (e2eeSupported && call.wrappedE2EEKeys && call.wrappedE2EEKeys.length > 0) {
+            try {
+              const deviceKeys = await loadDevicePrivateKeys();
+              if (!deviceKeys) {
+                throw new Error(t('call.e2eeFailed'));
+              }
+
+              const unwrapped = deserializeAndUnwrapCallKey(
+                call.wrappedE2EEKeys,
+                identity.id,
+                deviceKeys.ecdhPrivateKey,
+                deviceKeys.kemPrivateKey,
+              );
+              if (!unwrapped) {
+                throw new Error(t('call.e2eeFailed'));
+              }
+              callE2EEKey = unwrapped;
+            } catch (e2eeErr) {
+              try {
+                await apiLeaveCall(client, pendingConversationId, call.id);
+              } catch {
+                /* Best-effort rollback so a failed unwrap does not leave a ghost participant */
+              }
+              throw e2eeErr;
+            }
+          }
         } else {
-          const resp = await apiInitiateCall(client, pendingConversationId, pendingCallType);
+          let wrappedE2EEKeys: SerializedWrappedCallKey[] | undefined;
+
+          if (e2eeSupported) {
+            callE2EEKey = generateCallE2EEKey();
+            const recipients = await buildCallKeyRecipients(pendingConversationId);
+            if (recipients.length > 0) {
+              wrappedE2EEKeys = wrapAndSerializeCallKey(callE2EEKey, recipients);
+            } else {
+              console.warn('[CallSession] No recipients for E2EE key wrapping; call will proceed without E2EE.');
+              zeroCallKey(callE2EEKey);
+              callE2EEKey = undefined;
+            }
+          }
+
+          const resp = await apiInitiateCall(client, pendingConversationId, pendingCallType, wrappedE2EEKeys);
           if (!resp.success || !resp.data) {
+            if (callE2EEKey) {
+              zeroCallKey(callE2EEKey);
+              callE2EEKey = undefined;
+            }
             const errorCode = resp.error?.code;
             if (errorCode === 'RATE_LIMITED') {
               const retryAfterSeconds = parseRetryAfterSeconds(resp.error?.details) ?? 30;
@@ -198,6 +345,7 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
           livekitToken,
           livekitUrl,
           streamQualityCaps,
+          callE2EEKey,
         };
         setSession(newSession);
         setPhase('active');
@@ -221,41 +369,54 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
       identity,
       client,
       t,
+      e2eeSupported,
       cancelDeviceSetup,
+      loadDevicePrivateKeys,
+      buildCallKeyRecipients,
     ],
   );
 
   // ---- Leave / End ----
 
   const cleanup = useCallback(() => {
+    const currentSession = sessionRef.current;
+    if (currentSession?.callE2EEKey) {
+      zeroCallKey(currentSession.callE2EEKey);
+    }
     setSession(null);
     setPhase('idle');
   }, []);
 
   const leaveCallAction = useCallback(async () => {
     const currentSession = sessionRef.current;
-    if (!currentSession) return;
+    if (!currentSession) {
+      cleanup();
+      return;
+    }
+
+    cleanup();
 
     try {
       await apiLeaveCall(client, currentSession.conversationId, currentSession.call.id);
     } catch {
-      // Best-effort server notification
+      // Best-effort server notification; session already cleaned up above
     }
-
-    cleanup();
   }, [client, cleanup]);
 
   const endCallAction = useCallback(async () => {
     const currentSession = sessionRef.current;
-    if (!currentSession) return;
+    if (!currentSession) {
+      cleanup();
+      return;
+    }
+
+    cleanup();
 
     try {
       await apiEndCall(client, currentSession.conversationId, currentSession.call.id);
     } catch {
-      // Best-effort server notification
+      // Best-effort server notification; session already cleaned up above
     }
-
-    cleanup();
   }, [client, cleanup]);
 
   // ---- Listen for WS events to update session call state ----
@@ -317,6 +478,8 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
       livekitUrl: session?.livekitUrl ?? null,
       livekitToken: session?.livekitToken ?? null,
       streamQualityCaps: session?.streamQualityCaps ?? null,
+      callE2EEKey: session?.callE2EEKey ?? null,
+      e2eeSupported,
       requestStartCall,
       requestJoinCall,
       confirmDeviceSetup,
@@ -331,6 +494,7 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
       pendingConversationId,
       pendingIsJoin,
       pendingCallId,
+      e2eeSupported,
       requestStartCall,
       requestJoinCall,
       confirmDeviceSetup,

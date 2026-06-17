@@ -218,6 +218,10 @@ router.post('/conversations/:id/calls/:callId/end', async (ctx) => {
   return conversationRespond(ctx, await callsController.endCallCtrl(ctx));
 });
 
+router.post('/conversations/:id/calls/:callId/force-end', async (ctx) => {
+  return conversationRespond(ctx, await callsController.forceEndCallCtrl(ctx));
+});
+
 router.patch('/conversations/:id/calls/:callId/media', async (ctx) => {
   return conversationRespond(ctx, await callsController.updateMediaStateCtrl(ctx));
 });

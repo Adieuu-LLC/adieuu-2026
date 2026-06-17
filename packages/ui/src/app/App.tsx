@@ -45,7 +45,6 @@ import { MediaOutboxProvider } from '../services/mediaOutbox';
 import { ConversationPreferencesProvider } from '../hooks/useConversationPreferences';
 import { usePreKeys } from '../hooks/usePreKeys';
 import { KeyStorageBanner } from '../components/KeyStorageBanner';
-import { WebSecurityBanner } from '../components/WebSecurityBanner';
 import { UpdateOverlay } from '../components/UpdateOverlay';
 import { AchievementListener } from '../components/AchievementListener';
 import { SubscriptionChangeListener } from '../components/SubscriptionChangeListener';
@@ -150,7 +149,6 @@ function ProtectedLayoutContent({ children }: { children?: ReactNode }) {
       <IdentityModalProvider>
         <AppLayout sidebar={<AppSidebar />}>
           <KeyStorageBanner />
-          <WebSecurityBanner />
           {children ?? <Outlet />}
         </AppLayout>
       </IdentityModalProvider>

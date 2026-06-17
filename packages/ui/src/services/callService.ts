@@ -10,7 +10,7 @@
  * @module services/callService
  */
 
-import type { HttpClient, ApiResponse, PublicConversation, StreamQualityCaps } from '@adieuu/shared';
+import type { HttpClient, ApiResponse, PublicConversation, StreamQualityCaps, SerializedWrappedCallKey } from '@adieuu/shared';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -38,6 +38,7 @@ export interface PublicCall {
   participants: PublicCallParticipant[];
   roomName: string;
   e2eeKeyId?: string;
+  wrappedE2EEKeys?: SerializedWrappedCallKey[];
   startedAt?: string;
   endedAt?: string;
   createdAt: string;
@@ -61,9 +62,14 @@ function enc(id: string): string {
 export async function initiateCall(
   client: HttpClient,
   conversationId: string,
-  media: CallMediaOptions
+  media: CallMediaOptions,
+  wrappedE2EEKeys?: SerializedWrappedCallKey[]
 ): Promise<ApiResponse<{ call: PublicCall; livekitToken?: string; livekitUrl?: string; streamQualityCaps?: StreamQualityCaps }>> {
-  return client.post(`/api/conversations/${enc(conversationId)}/calls`, { media });
+  const body: Record<string, unknown> = { media };
+  if (wrappedE2EEKeys && wrappedE2EEKeys.length > 0) {
+    body.wrappedE2EEKeys = wrappedE2EEKeys;
+  }
+  return client.post(`/api/conversations/${enc(conversationId)}/calls`, body);
 }
 
 export async function joinCall(
@@ -98,11 +104,46 @@ export async function endCall(
   );
 }
 
+export async function forceEndCall(
+  client: HttpClient,
+  conversationId: string,
+  callId: string
+): Promise<ApiResponse<{ call: PublicCall }>> {
+  return client.post(
+    `/api/conversations/${enc(conversationId)}/calls/${enc(callId)}/force-end`
+  );
+}
+
 export async function getActiveCall(
   client: HttpClient,
   conversationId: string
 ): Promise<ApiResponse<{ call: PublicCall | null }>> {
   return client.get(`/api/conversations/${enc(conversationId)}/calls/active`);
+}
+
+/** Fetch active call IDs for many conversations (e.g. sidebar sync after reconnect). */
+export async function fetchActiveCallIdsByConversation(
+  client: HttpClient,
+  conversationIds: string[],
+): Promise<Map<string, string>> {
+  const results = await Promise.all(
+    conversationIds.map(async (conversationId) => {
+      try {
+        const resp = await getActiveCall(client, conversationId);
+        const call = resp.success ? resp.data?.call : null;
+        if (call && call.status !== 'ended') {
+          return [conversationId, call.id] as const;
+        }
+      } catch {
+        // Best-effort per conversation.
+      }
+      return null;
+    }),
+  );
+
+  return new Map(
+    results.filter((entry): entry is readonly [string, string] => entry !== null),
+  );
 }
 
 export async function updateMediaState(

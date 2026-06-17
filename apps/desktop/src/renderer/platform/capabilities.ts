@@ -214,6 +214,12 @@ export const desktopCapabilities: PlatformCapabilities = {
     setBadgeCount(count: number, accentColorHex?: string) {
       window.electron.window.setBadgeCount(count, accentColorHex);
     },
+    setFullScreen(fullScreen: boolean) {
+      return window.electron.window.setFullScreen(fullScreen);
+    },
+    isFullScreen() {
+      return window.electron.window.isFullScreen();
+    },
   },
 
   exitApplication: async () => {

@@ -13,7 +13,7 @@ const TERMS_OF_SERVICE_SECTIONS: LegalPolicySection[] = [
         </p>
         <p>
           <strong>Welcome!</strong>&nbsp;
-          Adieuu is a privacy-focused social platform that aims to make online conversation more human, accountable, and transparent without compromising on individual privacy. Please read these Terms of Service ("Terms") carefully, as they are a legally binding contract between you and us. They apply to your use of our services.
+          Adieuu is a privacy-focused social platform that aims to make online conversation more human, accountable, and transparent without compromising on individual privacy. Please read these Terms of Service ("Terms", "terms") carefully, as they are a legally binding contract between you and us. They apply to your use of our services.
         </p>
         <p>
           As part of these Terms, you agree to comply with the most recent versions of our <a href='/legal-policies/privacy' target='_blank' rel='noopener noreferrer'>Privacy Policy</a>, <a href='/legal-policies/acceptable-use' target='_blank' rel='noopener noreferrer'>Acceptable Use Policy</a>, <a href='/legal-policies/paid-services' target='_blank' rel='noopener noreferrer'>Paid Services Terms</a>, and other policies (as listed <a href='/legal-policies' target='_blank' rel='noopener noreferrer'>here</a> or as otherwise made available to you), which are incorporated by reference into these Terms. If you use our services, or continue accessing or using the Services after being notified of a change to our Terms or any incorporated policies, you confirm that you have read, understand, and agree to be bound by these Terms and all incoporated policies.
@@ -26,7 +26,7 @@ const TERMS_OF_SERVICE_SECTIONS: LegalPolicySection[] = [
         <p>When we say "services" in these terms, we mean Adieuu's services, apps, websites, and other products.</p>
         <p>When we say "you" or "your" in these terms, we mean you. If you're accessing our services on behalf of a legal entity, you agree that you have the authority to bind that entity to these terms, and "you" and "your" will refer to that entity.</p>
         <h4>Modifications</h4>
-        <p>We may make changes to these Terms as we grow for legal or regulatory reasons, to prevent abuse of our services, better protect or serve users of our services, or to better reflect changes to our service or business. If we make a material change to the Terms, we will do our best to provide you with reasonable advance notice either by emailing the email address associated with your account or by messaging you through our services (we may not be able to include advance notice for urgent changes).</p>
+        <p>We may make changes to these Terms as we grow for legal or regulatory reasons, to prevent abuse of our services, to better protect or serve users of our services, or to better reflect changes to our service or business. If we make a material change to the Terms, we will do our best to provide you with reasonable advance notice either by emailing the email address associated with your account or by messaging you through our services (we may not be able to provide advance notice for urgent changes). Any material revisions to our Terms will become effective on the date set forth in our notice, and all other changes will become effective on the date we publish the change. If you use our services after the effective date of any changes, that use will constitute your acceptance of the revised terms and conditions.</p>
       </>
     ),
   },
@@ -71,36 +71,43 @@ const TERMS_OF_SERVICE_SECTIONS: LegalPolicySection[] = [
     ),
   },
   {
-    id: 'termination',
-    title: 'Termination',
+    id: 'general-provisions',
+    title: 'General Provisions',
     content: (
-      <p>
-        We may suspend or terminate access to the service for violations of these Terms or where
-        required by law. You may stop using the service at any time. This section will describe
-        what happens to your data upon termination.
-      </p>
-    ),
-  },
-  {
-    id: 'limitation-of-liability',
-    title: 'Limitation of Liability',
-    content: (
-      <p>
-        To the fullest extent permitted by applicable law, Adieuu and its operators will not be
-        liable for indirect, incidental, or consequential damages arising from your use of the
-        service. Full liability limitations will be set out in the final terms.
-      </p>
-    ),
-  },
-  {
-    id: 'changes',
-    title: 'Changes to These Terms',
-    content: (
-      <p>
-        We may update these Terms from time to time. Material changes will be communicated through
-        the service or by other appropriate means. Continued use after changes take effect
-        constitutes acceptance of the revised Terms.
-      </p>
+      <>
+        <blockquote>
+          <p>This section gives us the flexibility we need to protect our rights and the platform. TLDR: we'll enforce these Terms the best we can, you can't assign your rights or obligations to someone else, and in the event of a merger, sale, etc we'll attempt to notify you beforehand so you can make the appropriate choices about your data.</p>
+        </blockquote>
+        <h4>Waiver</h4>
+        <p>
+          No failure or delay by either you or us in exercising any right under the Terms, including other incorporated policies, will constitute a waiver of that right. No waiver under the Terms will be effective unless made in writing and signed by an authorized representative of the party being deemed to have granted the waiver.
+        </p>
+        <h4>Severability</h4>
+        <p>
+          The Terms, including incorporated policies, will be enforced to the fullest extent permitted under applicable law. If any provision of the Terms is held by a court of competent jurisdiction to be contrary to law, the provision will be modified by the court and interpreted so as best to accomplish the objectives of the original provision to the fullest extent permitted by law, and the remaining provisions of the Terms will remain in effect.
+        </p>
+        <h4>Assignment</h4>
+        <p>
+          You may not assign any of your rights or delegate your obligations under these Terms, whether by operation of law or otherwise, without the prior written consent of us (not to be unreasonably witheld). We may assign these Terms in their entirety (including all terms and conditions incorporated in these Terms), without your consent, to a corporate affiliate or in connection with a merger, acquisition, corporate reorganization, or sale of all or substantially all of our assets. In such an event, we will attempt to provide advance notice you via our services and/or the contact information you've provided to us (such as your email).
+        </p>
+        <h4>Governing Law; Venue; Fees</h4>
+        <p>
+          Except where prohibited by law, these Terms and incorporated policies, and any disputes arising out of or related hereto, whether in arbitration or court, shall be governed by the laws of Texas and the United States, without regard to the conflicts of laws rules or the United Nations Convention on the International Sale of Goods. You hereby consent and submit to the exclusive jurisdiction of courts in the United States and Texas. In any action or proceeding to enforce rights under the Terms, Adieuu will be entitled to recover its reasonable costs and attorney's fees.
+        </p>
+        <h4>Entire Agreement</h4>
+        <p>
+          These Terms cover the entire agreement between you and Adieuu for your use of our services and supersede all prior and contemporaneous agreements, proposals, or representations, written or oral, concerning its subject matter. Where incorporated or referenced policies or pages, or additional terms, apply to our services, the additional terms will control with respect to your use of that service to the extent of any conflict with these Terms.
+        </p>
+        <h4>Submission of Legal and Abuse Notices</h4>
+        <p>
+          Notices to Adieuu should be sent to <a href='mailto:say@adieuu.com' target='_blank' rel='noopener noreferrer'>say@adieuu.com</a>, except for <strong>legal notices</strong> (which must be sent to <a href='mailto:legal@adieuu.com' target='_blank' rel='noopener noreferrer'>legal@adieuu.com</a>), <strong>security disclosures</strong> (which must be sent to <a href='mailto:security@adieuu.com' target='_blank' rel='noopener noreferrer'>security@adieuu.com</a> and filed and handled responsibly in accordance with our Security Practices), <strong>DMCA notices</strong> (which must be submitted in accordance with our DMCA policy to <a href='mailto:dmca@adieuu.com' target='_blank' rel='noopener noreferrer'>dmca@adieuu.com</a>), or <strong>abuse notices</strong> (which must be sent to <a href='mailto:abuse@adieuu.com' target='_blank' rel='noopener noreferrer'>abuse@adieuu.com</a> or otherwise submitted via the content reporting mechanisms provided in our services).
+        </p>
+        <p>When submitting any legal, DMCA, or platform abuse notice ("Notice") to Adieuu, you represent that you are authorized to act on behalf of the relevant rightsholder and that all information provided is accurate, truthful, and submitted in good faith. Please be advised that under applicable laws, including 17 U.S.C. § 512(f) of the Digital Millennium Copyright Act (DMCA), any person who knowingly materially misrepresents that material or activity is infringing, or that it was removed by mistake, may be subject to liability for significant damages, including costs and attorneys' fees incurred by Adieuu or our users.</p>
+        <p>To be considered valid, a Notice must strictly comply with all applicable statutory requirements and Adieuu’s reporting procedures. Adieuu will not process Notices that are incomplete, unattributed, unverifiable, or that otherwise fail to meet legal standards. We reserve the right to take no action on deficient Notices and assume no obligation to notify the sender of such deficiencies or to request corrections. Furthermore, for Adieuu account holders, the repeated submission of false, frivolous, or bad-faith Notices constitutes a violation of these Terms and may result in the immediate suspension or termination of your account.</p>
+        <blockquote>
+          <p>TLDR: Don't submit fake or incomplete notices. We can't process them, and making false claims can result in legal consequences.</p>
+        </blockquote>
+      </>
     ),
   },
 ];

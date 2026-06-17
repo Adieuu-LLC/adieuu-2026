@@ -16,6 +16,7 @@ import { createApiClient, type PublicAchievementDefinition } from '@adieuu/share
 import { Button } from './Button';
 import { Icon } from '../icons/Icon';
 import type { AppIconName } from '../icons/appIcons';
+import { isAppIconName } from '../icons/appIcons';
 import { useAppConfig } from '../config';
 import type { NotificationSoundId } from '../constants/notificationSoundPreferenceShared';
 import { previewNotificationSound } from '../utils/notificationSound';
@@ -150,7 +151,7 @@ export function AchievementUnlockedModal({
     };
   }, [open, achievementId, api, playSound]);
 
-  const iconName = definition.icon as AppIconName;
+  const iconName: AppIconName = isAppIconName(definition.icon) ? definition.icon : 'trophy';
   const glowHsl = hexToHsl(theme.primary);
 
   const dismissKey = useMemo(

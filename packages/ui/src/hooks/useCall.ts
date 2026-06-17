@@ -253,10 +253,31 @@ export function useCall(conversationId: string | null): UseCallReturn {
         case 'call_participant_left':
         case 'call_ended':
         case 'call_media_state_changed': {
-          setState((prev) => {
-            const next = applyCallSocketMessage(prev, message, convId);
-            return next ?? prev;
-          });
+          if (process.env.NODE_ENV !== 'production') {
+            console.debug('[useCall] WS event:', message.type, {
+              convId,
+              hasActiveCall: !!activeCallRef.current,
+              eventData: message.data,
+            });
+          }
+
+          const next = applyCallSocketMessage(
+            { activeCall: activeCallRef.current, loading: false },
+            message,
+            convId
+          );
+
+          if (next) {
+            setState(next);
+          } else if (
+            !activeCallRef.current &&
+            (message.type === 'call_initiated' ||
+              message.type === 'call_participant_joined' ||
+              message.type === 'call_media_state_changed')
+          ) {
+            console.debug('[useCall] No active call tracked, refetching from server');
+            fetchActiveCallRef.current();
+          }
           break;
         }
       }

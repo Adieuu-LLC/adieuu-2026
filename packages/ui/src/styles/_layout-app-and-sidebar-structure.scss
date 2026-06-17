@@ -33,6 +33,11 @@
   display: flex;
   flex-direction: column;
   min-height: 100%;
+
+  &:has(> .conversation-page),
+  &:has(> .new-conversation) {
+    height: 100%;
+  }
 }
 
 // App layout orientation
@@ -85,22 +90,12 @@
   &-left {
     border-right: 1px solid var(--color-border);
     border-left: none;
-
-    .sidebar-toggle {
-      right: -12px;
-      left: auto;
-    }
   }
 
   // Right sidebar
   &-right {
     border-left: 1px solid var(--color-border);
     border-right: none;
-
-    .sidebar-toggle {
-      left: -12px;
-      right: auto;
-    }
   }
 }
 
@@ -180,6 +175,34 @@
 // Home page tabs
 .home-tabs {
   margin-top: var(--spacing-lg);
+}
+
+// Learn page header
+.learn-page-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.page-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  margin: 0 0 var(--spacing-sm);
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--color-accent-primary);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color var(--transition-fast);
+
+  &:hover {
+    color: var(--color-accent-secondary);
+    text-decoration: underline;
+  }
 }
 
 // Learn page tabs and search
@@ -1035,14 +1058,15 @@
 }
 
 // Sidebar Toggle Button
+// Rendered outside <aside> so sidebar scroll/overflow cannot clip it.
+// Sits above the sidebar shell (z-sidebar) but below hover flyouts (--z-dropdown).
 .sidebar-toggle {
-  position: absolute;
+  position: fixed;
   top: 50%;
-  right: -12px;
   transform: translateY(-50%);
   width: 24px;
   height: 24px;
-  background: var(--color-bg-tertiary);
+  background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-full);
   display: flex;
@@ -1050,9 +1074,12 @@
   justify-content: center;
   cursor: pointer;
   color: var(--color-text-secondary);
-  transition: all var(--transition-fast);
-  // Above sidebar nav content but below flyouts/popovers/tooltips rendered within the sidebar
-  z-index: 5;
+  z-index: calc(var(--z-dropdown) - 1);
+  transition:
+    left var(--transition-slow),
+    background var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast);
 
   &:hover {
     background: var(--color-bg-hover);
@@ -1063,6 +1090,22 @@
   &-icon {
     transition: transform var(--transition-fast);
   }
+}
+
+.sidebar-toggle--left:not(.sidebar-toggle--collapsed) {
+  left: calc(min(#{$sidebar-width}, #{$sidebar-width-max}) - 12px);
+}
+
+.sidebar-toggle--left.sidebar-toggle--collapsed {
+  left: calc(#{$sidebar-width-collapsed} - 12px);
+}
+
+.sidebar-toggle--right:not(.sidebar-toggle--collapsed) {
+  left: calc(100vw - min(#{$sidebar-width}, #{$sidebar-width-max}) - 12px);
+}
+
+.sidebar-toggle--right.sidebar-toggle--collapsed {
+  left: calc(100vw - #{$sidebar-width-collapsed} - 12px);
 }
 
 // ============================================================================
