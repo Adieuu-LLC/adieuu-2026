@@ -1,4 +1,3 @@
-import { type MouseEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -7,6 +6,7 @@ import {
   truncateRoadmapExcerpt,
   type PublicFeedbackPost,
 } from '@adieuu/shared';
+import { Icon } from '../../icons/Icon';
 
 export function RoadmapTimelineCard({
   post,
@@ -28,20 +28,9 @@ export function RoadmapTimelineCard({
   const body = expanded ? post.description : excerpt;
   const showBody = body.length > 0;
 
-  const handleToggleClick = (e: MouseEvent) => {
-    if ((e.target as HTMLElement).closest('a')) return;
-    onToggle();
-  };
-
-  const handleToggleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onToggle();
-    }
-  };
-
   return (
-    <article
+    <Link
+      to={`/feedback/${post.postId}`}
       className={[
         'roadmap-timeline-card',
         isCommunityIdea ? 'roadmap-timeline-card--community' : '',
@@ -49,15 +38,17 @@ export function RoadmapTimelineCard({
         highlighted ? 'roadmap-timeline-card--highlighted' : '',
         isFocused ? 'roadmap-timeline-card--focused' : '',
       ].filter(Boolean).join(' ')}
+      onClick={(e) => {
+        if (isTruncated && !(e.metaKey || e.ctrlKey)) {
+          const target = e.target as HTMLElement;
+          if (!target.closest('.roadmap-timeline-card-footer')) {
+            e.preventDefault();
+            onToggle();
+          }
+        }
+      }}
     >
-      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
-      <div
-        className="roadmap-timeline-card-toggle"
-        role="button"
-        tabIndex={0}
-        onClick={handleToggleClick}
-        onKeyDown={handleToggleKeyDown}
-      >
+      <div className="roadmap-timeline-card-body-area">
         <div className="roadmap-timeline-card-header">
           {isCommunityIdea && (
             <span className="roadmap-timeline-card-badge roadmap-timeline-card-badge--community">
@@ -67,6 +58,12 @@ export function RoadmapTimelineCard({
           <span className={`feedback-status-badge feedback-status-${post.status}`}>
             {t(`feedback.statuses.${post.status}`)}
           </span>
+          {isCommunityIdea && post.upvoteCount > 0 && (
+            <span className="roadmap-timeline-card-upvotes">
+              <Icon name="thumbsUp" size="xs" />
+              {post.upvoteCount}
+            </span>
+          )}
         </div>
         <h3 className="roadmap-timeline-card-title">{post.title}</h3>
         {showBody && (
@@ -81,10 +78,13 @@ export function RoadmapTimelineCard({
         )}
       </div>
       <div className="roadmap-timeline-card-footer">
-        <Link to={`/feedback/${post.postId}`} className="roadmap-timeline-card-comments-link">
-          {t('about.roadmap.viewComments', { count: post.commentCount })}
-        </Link>
+        <span className="roadmap-timeline-card-comments-count">
+          {t('about.roadmap.commentCount', { count: post.commentCount })}
+        </span>
       </div>
-    </article>
+      <span className="roadmap-timeline-card-see-more" aria-hidden>
+        {t('about.roadmap.seeMore')}
+      </span>
+    </Link>
   );
 }

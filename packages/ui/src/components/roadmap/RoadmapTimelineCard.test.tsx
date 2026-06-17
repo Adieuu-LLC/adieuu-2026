@@ -1,15 +1,20 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, mock, test } from 'bun:test';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { PublicFeedbackPost } from '@adieuu/shared';
 import { setMockTranslate } from '../../test/react-i18next-mock';
 import '../../test/react-router-dom-mock';
 
+mock.module('../../icons/Icon', () => ({
+  Icon: ({ name }: { name: string }) => <span data-icon={name} />,
+}));
+
 setMockTranslate((key, options) => {
-  if (key === 'about.roadmap.viewComments') {
-    return `Comments (${(options as { count?: number })?.count ?? 0})`;
+  if (key === 'about.roadmap.commentCount') {
+    return `${(options as { count?: number })?.count ?? 0} comments and feedback`;
   }
   const labels: Record<string, string> = {
     'about.roadmap.communityIdea': 'Community Idea',
+    'about.roadmap.seeMore': 'See More',
     'about.roadmap.readMore': 'Read more',
     'about.roadmap.showLess': 'Show less',
     'feedback.statuses.planned': 'Planned',
@@ -48,10 +53,10 @@ function makePost(overrides: Partial<PublicFeedbackPost> = {}): PublicFeedbackPo
 }
 
 describe('RoadmapTimelineCard', () => {
-  test('community posts show "Community Idea" badge', () => {
+  test('community posts show badge and upvote count', () => {
     const html = renderToStaticMarkup(
       <RoadmapTimelineCard
-        post={makePost()}
+        post={makePost({ upvoteCount: 12 })}
         expanded={false}
         onToggle={() => {}}
       />,
@@ -59,10 +64,11 @@ describe('RoadmapTimelineCard', () => {
 
     expect(html).toContain('roadmap-timeline-card--community');
     expect(html).toContain('Community Idea');
-    expect(html).toContain('roadmap-timeline-card-badge--community');
+    expect(html).toContain('roadmap-timeline-card-upvotes');
+    expect(html).toContain('12');
   });
 
-  test('official posts do not show community badge or team label', () => {
+  test('official posts do not show community badge or upvotes', () => {
     const html = renderToStaticMarkup(
       <RoadmapTimelineCard
         post={makePost({ isRoadmapOfficial: true, status: 'released' })}
@@ -73,6 +79,7 @@ describe('RoadmapTimelineCard', () => {
 
     expect(html).not.toContain('roadmap-timeline-card--community');
     expect(html).not.toContain('Community Idea');
+    expect(html).not.toContain('roadmap-timeline-card-upvotes');
     expect(html).toContain('feedback-status-released');
   });
 
@@ -90,19 +97,42 @@ describe('RoadmapTimelineCard', () => {
     expect(html).not.toContain(longDescription);
   });
 
-  test('expanded cards show full description and comment link', () => {
-    const description = 'Full roadmap description text.';
+  test('card links to feedback detail page', () => {
     const html = renderToStaticMarkup(
       <RoadmapTimelineCard
-        post={makePost({ description, postId: 'FB-comments' })}
-        expanded
+        post={makePost({ postId: 'FB-link1' })}
+        expanded={false}
         onToggle={() => {}}
       />,
     );
 
-    expect(html).toContain(description);
-    expect(html).toContain('href="/feedback/FB-comments"');
-    expect(html).toContain('Comments (5)');
+    expect(html).toContain('href="/feedback/FB-link1"');
+  });
+
+  test('footer shows comment count text (not a link)', () => {
+    const html = renderToStaticMarkup(
+      <RoadmapTimelineCard
+        post={makePost()}
+        expanded={false}
+        onToggle={() => {}}
+      />,
+    );
+
+    expect(html).toContain('5 comments and feedback');
+    expect(html).toContain('roadmap-timeline-card-comments-count');
+  });
+
+  test('shows "See More" badge', () => {
+    const html = renderToStaticMarkup(
+      <RoadmapTimelineCard
+        post={makePost()}
+        expanded={false}
+        onToggle={() => {}}
+      />,
+    );
+
+    expect(html).toContain('See More');
+    expect(html).toContain('roadmap-timeline-card-see-more');
   });
 
   test('staff-authored posts do not show community badge', () => {

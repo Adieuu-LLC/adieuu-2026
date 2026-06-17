@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../components/Button';
+import { Tooltip } from '../../components/Tooltip';
 import { RoadmapTimeline, type RoadmapTimelineNav } from '../../components/roadmap/RoadmapTimeline';
 import { Icon } from '../../icons/Icon';
 import { useAuth } from '../../hooks/useAuth';
@@ -27,31 +28,37 @@ export function AboutRoadmap() {
             </div>
             <div className="roadmap-header-controls">
               <div className="roadmap-header-nav">
-                <button
-                  type="button"
-                  className="roadmap-timeline-arrow"
-                  onClick={() => nav?.navigateUp()}
-                  disabled={!nav?.canNavigateUp}
-                  aria-label={t('about.roadmap.navigateUp')}
-                >
-                  <Icon name="chevronUp" />
-                </button>
-                <button
-                  type="button"
-                  className="roadmap-timeline-arrow"
-                  onClick={() => nav?.navigateDown()}
-                  disabled={!nav?.canNavigateDown}
-                  aria-label={t('about.roadmap.navigateDown')}
-                >
-                  <Icon name="chevronDown" />
-                </button>
-                <button
-                  type="button"
-                  className="roadmap-header-today-btn"
-                  onClick={() => nav?.jumpToLatest()}
-                >
-                  {t('about.roadmap.latestRelease')}
-                </button>
+                <Tooltip content={t('about.roadmap.navigateUp')} position="bottom">
+                  <button
+                    type="button"
+                    className="roadmap-nav-btn roadmap-nav-btn--icon"
+                    onClick={() => nav?.navigateUp()}
+                    disabled={!nav?.canNavigateUp}
+                    aria-label={t('about.roadmap.navigateUp')}
+                  >
+                    <Icon name="chevronUp" />
+                  </button>
+                </Tooltip>
+                <Tooltip content={t('about.roadmap.navigateDown')} position="bottom">
+                  <button
+                    type="button"
+                    className="roadmap-nav-btn roadmap-nav-btn--icon"
+                    onClick={() => nav?.navigateDown()}
+                    disabled={!nav?.canNavigateDown}
+                    aria-label={t('about.roadmap.navigateDown')}
+                  >
+                    <Icon name="chevronDown" />
+                  </button>
+                </Tooltip>
+                <Tooltip content={t('about.roadmap.jumpToLatest')} position="bottom">
+                  <button
+                    type="button"
+                    className="roadmap-nav-btn roadmap-nav-btn--latest"
+                    onClick={() => nav?.jumpToLatest()}
+                  >
+                    {t('about.roadmap.latestRelease')}
+                  </button>
+                </Tooltip>
               </div>
               {isStaff && (
                 <Link to="/feedback/new?returnTo=/about/roadmap">
