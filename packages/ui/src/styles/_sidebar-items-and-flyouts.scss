@@ -143,7 +143,7 @@
   gap: var(--spacing-xs);
 
   // Ensure links wrapping sidebar items are block-level
-  > a {
+  > a:not(.sidebar-item) {
     display: block;
     text-decoration: none;
   }

@@ -4,7 +4,6 @@ import { Portal } from '@ark-ui/react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useSidebar } from '../../components/Sidebar';
-import { Button } from '../../components/Button';
 import { Icon } from '../../icons/Icon';
 import { useAppConfig } from '../../config';
 import { useIsMobile } from '../../hooks/useIsMobile';
@@ -128,21 +127,22 @@ export function AboutFlyout() {
   );
 
   const triggerButton = (
-    <Button
-      variant="ghost"
-      size="sm"
-      className={`sidebar-account-btn ${isSectionActive ? 'sidebar-account-btn-active' : ''}`}
+    <button
+      type="button"
+      className={`sidebar-item ${isSectionActive ? 'sidebar-item-active' : ''}`}
       {...(isMobile ? { onClick: () => setDrawerOpen(true) } : {})}
     >
-      <Icon name="info" />
-      <span className="sidebar-account-label">{t('nav.about')}</span>
+      <span className="sidebar-item-icon">
+        <Icon name="info" />
+      </span>
+      <span className="sidebar-item-label">{t('nav.about')}</span>
       <svg
         width="12"
         height="12"
         viewBox="0 0 12 12"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        className="sidebar-account-chevron"
+        className="sidebar-item-chevron"
       >
         <path
           d="M4.5 3L7.5 6L4.5 9"
@@ -152,7 +152,7 @@ export function AboutFlyout() {
           strokeLinejoin="round"
         />
       </svg>
-    </Button>
+    </button>
   );
 
   if (isMobile) {
