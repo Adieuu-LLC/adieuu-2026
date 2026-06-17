@@ -85,6 +85,8 @@ export const APP_ICON_NAMES = {
   locationPin: 'location-pin',
   rotateRight: 'arrow-rotate-right',
   handshake: 'handshake',
+  personPregnant: 'person-pregnant',
+  creditCard: 'credit-card',
   phone: 'phone',
   phoneHangup: 'phone-hangup',
   video: 'video',

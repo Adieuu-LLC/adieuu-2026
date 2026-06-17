@@ -117,3 +117,6 @@ export function getBuiltinNotificationSoundSrc(
 export function isBuiltinNotificationSoundId(id: string): id is BuiltinNotificationSoundId {
   return BUILTIN_NOTIFICATION_SOUND_ID_SET.has(id);
 }
+
+/** Hidden easter-egg sound; not listed in notification settings. */
+export const WILHELM_SCREAM_SOUND_SRC = '/sounds/wilhelm.mp3';

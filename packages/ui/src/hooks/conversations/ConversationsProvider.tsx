@@ -35,6 +35,7 @@ import {
   useTtlNotificationSoundPreference,
   useMentionNotificationSoundPreference,
 } from '../useNotificationSoundPreference';
+import { useClaimAchievement } from '../useClaimAchievement';
 import { fireConversationNotification } from '../../utils/conversationNotifications';
 import {
   decryptGroupName,
@@ -81,6 +82,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const soundPref = useNotificationSoundPreference();
   const ttlSoundPref = useTtlNotificationSoundPreference();
   const mentionSoundPref = useMentionNotificationSoundPreference();
+  const claimAchievement = useClaimAchievement();
   const navigate = useNavigate();
 
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
@@ -426,10 +428,10 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           expiresAt: opts?.expiresAt,
           isMention: opts?.isMention,
         },
-        { toast, soundPref, ttlSoundPref, mentionSoundPref, notifications, audio }
+        { toast, soundPref, ttlSoundPref, mentionSoundPref, notifications, audio, onWilhelmScream: () => claimAchievement('wilhelm_scream') }
       );
     },
-    [toast, soundPref, ttlSoundPref, mentionSoundPref, audio, notifications]
+    [toast, soundPref, ttlSoundPref, mentionSoundPref, audio, notifications, claimAchievement]
   );
 
   // -------------------------------------------------------------------------

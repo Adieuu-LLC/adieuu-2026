@@ -23,6 +23,7 @@ import { mintLiveKitToken, generateRoomName } from './livekit-auth.service';
 import { removeParticipant as livekitRemoveParticipant, deleteRoom as livekitDeleteRoom } from './livekit-room.service';
 import { publishToParticipants, publishConversationEvent } from './conversation/redis-events';
 import { createNotification } from './notification.service';
+import { checkAndAward } from './achievement.service';
 import { checkRateLimit, getCallInitiateConfig } from './rate-limit.service';
 import { resolveStreamQualityCaps } from '@adieuu/shared';
 import type { StreamQualityCaps, SubscriptionTierId } from '@adieuu/shared';
@@ -196,6 +197,8 @@ export async function initiateCall(
       });
     }
   });
+
+  checkAndAward(initiatorObjId, 'call_started').catch(() => {});
 
   return {
     success: true,
@@ -373,6 +376,7 @@ export async function leaveCall(
     if (conversation) {
       await notifyCallEnded(conversation.participants, callId, identityId);
     }
+    checkAndAward(identityObjId, 'call_left').catch(() => {});
     return { success: true, call: toPublicCall(ended) };
   }
 
@@ -382,6 +386,8 @@ export async function leaveCall(
       data: { callId, identityId },
     });
   }
+
+  checkAndAward(identityObjId, 'call_left').catch(() => {});
 
   return { success: true, call: toPublicCall(updated) };
 }

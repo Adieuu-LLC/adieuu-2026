@@ -34,6 +34,7 @@ export interface ConversationNotificationDeps {
   notifications: NotificationPlatformLike;
   audio?: { loadSoundFromPath?: (path: string) => Promise<ArrayBuffer | null> };
   nativeEnabled?: () => boolean;
+  onWilhelmScream?: () => void;
 }
 
 export interface ConversationNotificationOptions {
@@ -86,6 +87,7 @@ export function fireConversationNotification(
     snapshot,
     volume: effectivePref.volume,
     loadCustomSound: deps.audio?.loadSoundFromPath,
+    onWilhelmScream: deps.onWilhelmScream,
   });
 
   const nativeEnabled = deps.nativeEnabled ?? getNativeNotificationsEnabled;

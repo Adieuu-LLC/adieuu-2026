@@ -80,5 +80,69 @@ export const achievements = {
     allCaps: { name: 'Indoor Voice, Please', description: 'We can hear you just fine.' },
     laughingOutLoud: { name: 'Laughing Out Loud', description: 'Classic internet laughter.' },
     shrug: { name: 'It Is What It Is', description: "Sometimes words just aren't enough." },
+    viennaCalling: { name: 'Vienna Calling', description: 'Start a call for the first time.' },
+    kthxbye: { name: 'kthxbye', description: 'Leave a call for the first time.' },
+    oneInAMillion: {
+      name: 'One in a Million',
+      description: 'Man getting bit by an alligator, and he screams.',
+    },
+    imHelping: { name: "I'm Helping!", description: 'Upvote a feature or feedback report for the first time.' },
+    bigBrain: { name: 'Big Brain', description: 'Submit a feature or feedback report that gets at least 10 upvotes.' },
+    whyDidntIThink: {
+      name: "Why Didn't I Think of That?",
+      description: 'Have a suggested feature accepted by Adieuu staff.',
+    },
+    pushedToProd: {
+      name: 'Just Ship It!',
+      description: 'Have a suggested feature fully implemented and released by Adieuu.',
+    },
+    itsAllConnected: {
+      name: "It's all connected!",
+      description: 'Link a feedback item to another for the first time.',
+    },
+    howIsPrangentFormed: {
+      name: 'how is prangent formed',
+      description: 'Comedy gold until May 4, 2021.',
+    },
+    priceless: {
+      name: 'Priceless',
+      description: "For everything else, there's a trademark dispute we'd rather avoid.",
+    },
+    corporateJargonBingo: {
+      name: 'Corporate Jargon Bingo',
+      description: 'You actually used the word "synergy." We are both impressed and disappointed.',
+    },
+    doorClosingSound: {
+      name: '*Door Closing Sound*',
+      description: 'Put up an angsty away message. Mom needs to use the landline.',
+    },
+    writingAMessage: {
+      name: "It Looks Like You're Writing a Message!",
+      description: 'Would you like some unsolicited, incredibly annoying help with that?',
+    },
+    enteringChatRoom: {
+      name: 'Entering the Chat Room',
+      description: "18/f/cali. Just kidding, I'm a chat app!",
+    },
+    atLeastIHaveChicken: {
+      name: "At least I have Chicken",
+      description: "Time's up, let's do this!",
+    },
+    walkIntoMordor: {
+      name: 'Walk Into Mordor',
+      description: 'Its black gates are guarded by more than just orcs!',
+    },
+    ahAhAh: {
+      name: 'Ah Ah Ah!',
+      description: "You didn't say the magic word!",
+    },
+    ughAsIf: {
+      name: 'Ugh, As If!',
+      description: "You are totally buggin' right now.",
+    },
+    downTheRabbitHole: {
+      name: 'Down the Rabbit Hole',
+      description: "Whoa. You're beginning to believe.",
+    },
     sponsor: { name: 'Patron of the Arts', description: 'Sponsored another user\'s subscription.' },
 } as const;

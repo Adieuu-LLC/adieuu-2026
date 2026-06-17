@@ -33,6 +33,7 @@ import { getPlatformCapabilities } from './platform-capabilities.service';
 import { checkRateLimit, type RateLimitConfig } from './rate-limit.service';
 import { sanitizeString } from '../utils/sanitize';
 import { createNotification } from './notification.service';
+import { checkAndAward } from './achievement.service';
 import { getFeedbackNotificationPrefsRepository } from '../repositories/feedback-notification-prefs.repository';
 import { FEEDBACK_NOTIFICATION_PREFS_DEFAULTS } from '../models/feedback-notification-prefs';
 import { withTransaction } from '../db';
@@ -47,6 +48,44 @@ const FEEDBACK_COMMENT_RATE_LIMIT: RateLimitConfig = {
   limit: 20,
   windowSeconds: 600,
 };
+
+const FEEDBACK_SUGGESTION_CATEGORIES: readonly FeedbackCategory[] = [
+  'feature',
+  'improvement',
+  'other',
+];
+
+function isFeedbackSuggestionCategory(category: FeedbackCategory): boolean {
+  return FEEDBACK_SUGGESTION_CATEGORIES.includes(category);
+}
+
+const FEEDBACK_SUGGESTION_ACCEPTED_STATUSES = new Set<FeedbackStatus>([
+  'planned',
+  'roadmapped',
+  'in_progress',
+  'internal_testing',
+  'public_testing',
+  'released',
+]);
+
+function isFeedbackSuggestionAcceptedStatus(status: FeedbackStatus): boolean {
+  return FEEDBACK_SUGGESTION_ACCEPTED_STATUSES.has(status);
+}
+
+function awardFeedbackSuggestionAchievements(
+  authorIdentityId: ObjectId,
+  category: FeedbackCategory,
+  status: FeedbackStatus,
+): void {
+  if (!isFeedbackSuggestionCategory(category)) return;
+
+  if (isFeedbackSuggestionAcceptedStatus(status)) {
+    checkAndAward(authorIdentityId, 'feedback_suggestion_accepted').catch(() => {});
+  }
+  if (status === 'released') {
+    checkAndAward(authorIdentityId, 'feedback_suggestion_released').catch(() => {});
+  }
+}
 
 export const ADIEUU_DEV_ENTITLEMENT = 'adieuu-dev';
 
@@ -383,10 +422,17 @@ export async function upvoteFeedbackPost(
   });
 
   const updated = await postRepo.findByPostId(postId);
+  const upvoteCount = updated?.upvoteCount ?? post.upvoteCount + 1;
+
+  checkAndAward(new ObjectId(identityId), 'feedback_upvoted').catch(() => {});
+  if (upvoteCount >= 10) {
+    checkAndAward(post.identityId, 'feedback_post_10_upvotes').catch(() => {});
+  }
+
   return {
     success: true,
     data: {
-      upvoteCount: updated?.upvoteCount ?? post.upvoteCount + 1,
+      upvoteCount,
       hasUpvoted: true,
     },
   };
@@ -547,6 +593,10 @@ export async function addFeedbackComment(
     resolvedParentCommentId ?? undefined,
   );
 
+  if (isLinkComment) {
+    checkAndAward(identity._id, 'feedback_post_linked').catch(() => {});
+  }
+
   return { success: true, data: comment };
 }
 
@@ -630,6 +680,11 @@ export async function updateFeedbackStatus(
   }
 
   await postRepo.updateStatus(postId, newStatus as FeedbackStatus, identity._id.toHexString());
+  awardFeedbackSuggestionAchievements(
+    post.identityId,
+    post.category,
+    newStatus as FeedbackStatus,
+  );
   return { success: true, data: undefined };
 }
 

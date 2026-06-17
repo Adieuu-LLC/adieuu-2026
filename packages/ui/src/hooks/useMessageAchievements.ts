@@ -21,6 +21,61 @@ const UWU_RE = /\b(uwu|owo)\b/i;
 const LOL_RE = /\b(lol|lmao|rofl|lmfao)\b/i;
 const ALL_CAPS_MIN_ALPHA = 10;
 
+/*
+* AD: wife and I still make jokes about this video, lol
+* https://www.youtube.com/watch?v=EShUeudtaFg
+* Is this a useless achievement? Absolutely.
+* Did it amuse me and make my wife giggle? Absolutely.
+* Worth it.
+*/
+const PRANGENT_WORDS = [
+  'pregant',
+  'pragnent',
+  'pargant',
+  'gregnant',
+  'pegnate',
+  'pegrent',
+  'pregegnant',
+  'pregonate',
+  'prengan',
+  'prregnant',
+  'pregante',
+  'pergert',
+  'pegnat',
+  'pragnet',
+  'pergenat',
+  'prangnet',
+  'pragnan',
+  'pregnart',
+  'bregant',
+  'pregarnt',
+  'pregat',
+  'fregnant',
+  'pargnet',
+  'peegnant',
+  'pergnut',
+  'pgrenant',
+  'praganant',
+  'prangent',
+  'prefnat',
+  'pregananant',
+  'pregernet',
+  'prengt',
+  'prognant',
+  'pretnet',
+] as const;
+
+const PRANGENT_RE = new RegExp(`\\b(?:${PRANGENT_WORDS.join('|')})\\b`, 'i');
+const PRICELESS_RE = /\bpriceless\b/i;
+const SYNERGY_RE = /\bsynergy\b/i;
+const AWAY_MESSAGE_RE = /\b(?:brb|g2g)\b/i;
+const CLIPPY_RE = /looks like you|trying to/i;
+const ASL_RE = /a\/s\/l/i;
+const LEEROY_JENKINS_RE = /\b(?:leeroy|jenkins)\b/i;
+const MORDOR_RE = /one does not simply/i;
+const MAGIC_WORD_RE = /magic word/i;
+const RABBIT_HOLE_RE = /there is no spoon|red pill/i;
+
 const GIF_STICKER_THRESHOLD = 25;
 
 function getLocalCount(key: string): number {
@@ -60,6 +115,10 @@ function isPressF(text: string): boolean {
 
 function containsShrug(text: string): boolean {
   return text.includes('_(ツ)_/') || text.includes(':shrug:');
+}
+
+function isExactMessage(text: string, expected: string): boolean {
+  return text.trim().toLowerCase() === expected.toLowerCase();
 }
 
 export function useMessageAchievements() {
@@ -127,6 +186,39 @@ export function useMessageAchievements() {
       }
       if (containsShrug(plaintext)) {
         claim('shrug_sent');
+      }
+      if (PRANGENT_RE.test(plaintext)) {
+        claim('prangent_message_sent');
+      }
+      if (PRICELESS_RE.test(plaintext)) {
+        claim('priceless_message_sent');
+      }
+      if (SYNERGY_RE.test(plaintext)) {
+        claim('synergy_message_sent');
+      }
+      if (AWAY_MESSAGE_RE.test(plaintext)) {
+        claim('brb_message_sent');
+      }
+      if (CLIPPY_RE.test(plaintext)) {
+        claim('clippy_message_sent');
+      }
+      if (ASL_RE.test(plaintext)) {
+        claim('asl_message_sent');
+      }
+      if (LEEROY_JENKINS_RE.test(plaintext)) {
+        claim('leeroy_jenkins_message_sent');
+      }
+      if (MORDOR_RE.test(plaintext)) {
+        claim('mordor_message_sent');
+      }
+      if (MAGIC_WORD_RE.test(plaintext)) {
+        claim('magic_word_message_sent');
+      }
+      if (isExactMessage(plaintext, 'as if')) {
+        claim('as_if_message_sent');
+      }
+      if (RABBIT_HOLE_RE.test(plaintext)) {
+        claim('rabbit_hole_message_sent');
       }
     },
     [claim, identity],

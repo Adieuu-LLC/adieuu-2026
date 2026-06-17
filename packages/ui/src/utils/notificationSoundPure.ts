@@ -170,3 +170,10 @@ export function shouldPlayNotificationSound(
   }
   return true;
 }
+
+/** 1-in-1,000,000 easter-egg chance when notification sounds are enabled. */
+export const WILHELM_SCREAM_PROBABILITY = 1 / 1_000_000;
+
+export function shouldPlayWilhelmScream(random: () => number = Math.random): boolean {
+  return random() < WILHELM_SCREAM_PROBABILITY;
+}

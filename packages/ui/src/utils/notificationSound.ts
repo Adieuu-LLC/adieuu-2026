@@ -12,8 +12,10 @@ import {
 import {
   computeNormalizationGain,
   shouldPlayNotificationSound as shouldPlayNotificationSoundPure,
+  shouldPlayWilhelmScream,
   type FocusVisibilitySnapshot,
 } from './notificationSoundPure';
+import { WILHELM_SCREAM_SOUND_SRC } from '../constants/builtinNotificationSounds';
 
 export type { FocusVisibilitySnapshot } from './notificationSoundPure';
 export { computeNormalizationGain } from './notificationSoundPure';
@@ -41,6 +43,7 @@ export function shouldPlayNotificationSound(
 
 /** Decoded built-in asset (Web Audio gain can exceed 1; fetch+decode avoids HTMLAudio volume cap). */
 let cachedBuiltinDecoded: { src: string; buffer: AudioBuffer; normGain: number } | null = null;
+let cachedWilhelmDecoded: { buffer: AudioBuffer; normGain: number } | null = null;
 
 let cachedCustomPath: string | null = null;
 let cachedCustomUrl: string | null = null;
@@ -114,6 +117,40 @@ function mimeTypeForAudioPath(filePath: string): string {
 
 function getBuiltinSrc(id: Exclude<NotificationSoundId, 'none' | 'custom'>): string {
   return getBuiltinNotificationSoundSrc(id);
+}
+
+async function playWilhelmScream(gain: number): Promise<void> {
+  const ctx = await ensureAudioContextRunning();
+  if (ctx) {
+    try {
+      if (!cachedWilhelmDecoded) {
+        const res = await fetch(WILHELM_SCREAM_SOUND_SRC);
+        if (!res.ok) {
+          console.warn(`[notificationSound] Wilhelm scream fetch failed: ${res.status}`);
+        } else {
+          const ab = await res.arrayBuffer();
+          const buffer = await ctx.decodeAudioData(ab);
+          const normGain = computeNormalizationGain(buffer);
+          cachedWilhelmDecoded = { buffer, normGain };
+          playDecodedBuffer(ctx, buffer, gain * normGain);
+          return;
+        }
+      } else {
+        playDecodedBuffer(ctx, cachedWilhelmDecoded.buffer, gain * cachedWilhelmDecoded.normGain);
+        return;
+      }
+    } catch (err) {
+      console.warn('[notificationSound] Web Audio playback failed for Wilhelm scream:', err);
+    }
+  }
+
+  try {
+    const audio = new Audio(WILHELM_SCREAM_SOUND_SRC);
+    audio.volume = Math.min(1, gain);
+    await audio.play();
+  } catch (err) {
+    console.warn('[notificationSound] HTMLAudio fallback failed for Wilhelm scream:', err);
+  }
 }
 
 async function playBuiltin(
@@ -286,6 +323,8 @@ export interface PlayNotificationSoundOptions {
   volume: number;
   /** Required when soundId is 'custom' and path is set */
   loadCustomSound?: (path: string) => Promise<ArrayBuffer | null>;
+  /** Called when the 1-in-1,000,000 Wilhelm scream easter egg triggers. */
+  onWilhelmScream?: () => void;
 }
 
 /**
@@ -301,6 +340,7 @@ export async function playNotificationSound(options: PlayNotificationSoundOption
     snapshot,
     loadCustomSound,
     volume,
+    onWilhelmScream,
   } = options;
 
   if (
@@ -320,6 +360,12 @@ export async function playNotificationSound(options: PlayNotificationSoundOption
     ? Math.min(MAX_NOTIFICATION_GAIN, Math.max(0, volume))
     : 1;
   if (v <= 0) {
+    return;
+  }
+
+  if (shouldPlayWilhelmScream()) {
+    await playWilhelmScream(v);
+    onWilhelmScream?.();
     return;
   }
 
