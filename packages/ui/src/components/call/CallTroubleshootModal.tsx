@@ -5,7 +5,7 @@ import { ConfirmDialog } from '../ConfirmDialog';
 export interface CallTroubleshootModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onForceEnd: () => Promise<void>;
+  onForceEnd: () => Promise<boolean>;
 }
 
 export function CallTroubleshootModal({
@@ -19,8 +19,10 @@ export function CallTroubleshootModal({
   const handleForceEnd = useCallback(async () => {
     setLoading(true);
     try {
-      await onForceEnd();
-      onOpenChange(false);
+      const success = await onForceEnd();
+      if (success) {
+        onOpenChange(false);
+      }
     } finally {
       setLoading(false);
     }

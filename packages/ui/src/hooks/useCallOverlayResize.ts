@@ -18,9 +18,8 @@ export interface CallOverlayResizeHandleProps {
 
 export function useCallOverlayResize(options: UseCallOverlayResizeOptions = {}) {
   const { disabled = false } = options;
-  const initialHeight = resolveInitialCallOverlayHeight();
-  const [heightPx, setHeightPx] = useState(initialHeight);
-  const [committedHeightPx, setCommittedHeightPx] = useState(initialHeight);
+  const [heightPx, setHeightPx] = useState(resolveInitialCallOverlayHeight);
+  const [committedHeightPx, setCommittedHeightPx] = useState(resolveInitialCallOverlayHeight);
   const dragRef = useRef<{ startY: number; startHeight: number; pointerId: number } | null>(null);
 
   useEffect(() => {

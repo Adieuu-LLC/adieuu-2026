@@ -37,20 +37,15 @@ export function FeedbackSidebarLink() {
       title={!isExpanded ? label : undefined}
       aria-label={label}
       data-tour="feedback-nav"
+      className={`sidebar-account-btn ${isActive ? 'sidebar-account-btn-active' : ''}`}
     >
-      <Button
-        variant="ghost"
-        size="sm"
-        className={`sidebar-account-btn ${isActive ? 'sidebar-account-btn-active' : ''}`}
-      >
-        <span style={{ position: 'relative', display: 'inline-flex' }}>
-          <Icon name="ballotCheck" />
-          {feedbackUnreadCount > 0 && (
-            <FeedbackUnreadBadge count={feedbackUnreadCount} />
-          )}
-        </span>
-        <span className="sidebar-account-label">{label}</span>
-      </Button>
+      <span style={{ position: 'relative', display: 'inline-flex' }}>
+        <Icon name="ballotCheck" />
+        {feedbackUnreadCount > 0 && (
+          <FeedbackUnreadBadge count={feedbackUnreadCount} />
+        )}
+      </span>
+      <span className="sidebar-account-label">{label}</span>
     </Link>
   );
 }

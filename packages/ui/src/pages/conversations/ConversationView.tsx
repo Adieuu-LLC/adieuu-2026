@@ -413,13 +413,15 @@ export function ConversationView() {
 
   const handleForceEndCall = useCallback(async () => {
     const callId = conversationCall.activeCall?.id;
-    if (!id || !callId) return;
+    if (!id || !callId) return false;
     const result = await apiForceEndCall(api.client, id, callId);
     if (result.success) {
       toast.success(t('call.forceEndSuccess'));
       conversationCall.refetch();
+      return true;
     } else {
       toast.error(t('call.forceEndFailed'));
+      return false;
     }
   }, [id, conversationCall.activeCall?.id, api.client, toast, t, conversationCall.refetch]);
 

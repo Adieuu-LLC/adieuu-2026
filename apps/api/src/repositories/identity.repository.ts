@@ -602,7 +602,7 @@ export class IdentityRepository
       { returnDocument: 'after', projection: { emptyBioSaveCount: 1 } },
     );
 
-    return result?.emptyBioSaveCount ?? 1;
+    return result?.emptyBioSaveCount ?? 0;
   }
 
   async findActivityStatsProjection(
