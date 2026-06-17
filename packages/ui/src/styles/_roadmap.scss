@@ -25,10 +25,22 @@
 .roadmap-header-controls {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--spacing-md);
+  max-width: 100%;
+
+  @media (max-width: 767px) {
+    width: 100%;
+  }
 
   @media (min-width: 768px) {
     align-self: center;
+    justify-content: flex-end;
+  }
+
+  .btn {
+    white-space: normal;
+    text-align: center;
   }
 }
 
@@ -36,7 +48,6 @@
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   text-decoration: none;
-  white-space: nowrap;
 
   &:hover {
     color: var(--color-accent-primary);
