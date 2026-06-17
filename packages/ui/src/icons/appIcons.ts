@@ -110,6 +110,20 @@ export const APP_ICON_NAMES = {
   pizzaSlice: 'pizza-slice',
   award: 'award',
   handcuffs: 'handcuffs',
+  hatChef: 'hat-chef',
+  temperatureFull: 'temperature-full',
+  snowflake: 'snowflake',
+  dragon: 'dragon',
+  skull: 'skull',
+  wineGlass: 'wine-glass',
+  utensils: 'utensils',
+  lamp: 'lamp',
+  boxBallot: 'box-ballot',
+  ballotCheck: 'ballot-check',
+  tooth: 'tooth',
+  bottleWater: 'bottle-water',
+  crab: 'crab',
+  leaf: 'leaf',
   phone: 'phone',
   phoneHangup: 'phone-hangup',
   video: 'video',
@@ -127,3 +141,7 @@ export const APP_ICON_NAMES = {
 } as const;
 
 export type AppIconName = keyof typeof APP_ICON_NAMES;
+
+export function isAppIconName(value: string): value is AppIconName {
+  return Object.prototype.hasOwnProperty.call(APP_ICON_NAMES, value);
+}

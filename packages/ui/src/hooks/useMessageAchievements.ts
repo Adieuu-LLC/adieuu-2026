@@ -12,7 +12,7 @@
  */
 
 import { useCallback } from 'react';
-import { getPopCultureTextAchievementActions, getTvReferenceBioOrMessageAchievementActions } from '@adieuu/shared';
+import { getPopCultureTextAchievementActions, getTvReferenceBioOrMessageAchievementActions, ACHIEVEMENT_MESSAGE_SCAN_MAX_LENGTH, textForAchievementScan } from '@adieuu/shared';
 import { useClaimAchievement } from './useClaimAchievement';
 import { useIdentity } from './useIdentity';
 import { containsProfanity } from '../utils/profanityCheck';
@@ -135,8 +135,11 @@ export function useMessageAchievements() {
     (plaintext: string) => {
       if (!identity) return;
 
+      const bounded = textForAchievementScan(plaintext, ACHIEVEMENT_MESSAGE_SCAN_MAX_LENGTH);
+      if (!bounded) return;
+
       // -- GIF / Sticker --
-      const mediaType = detectGifOrSticker(plaintext);
+      const mediaType = detectGifOrSticker(bounded);
       if (mediaType === 'gif') {
         claim('gif_sent');
         const next = getLocalCount(`ach_gif_${identity.id}`) + 1;
@@ -154,15 +157,15 @@ export function useMessageAchievements() {
       }
 
       // -- Number easter eggs --
-      if (CONTAINS_42_RE.test(plaintext)) {
+      if (CONTAINS_42_RE.test(bounded)) {
         claim('message_contains_42');
       }
-      if (CONTAINS_420_RE.test(plaintext)) {
+      if (CONTAINS_420_RE.test(bounded)) {
         claim('message_contains_420');
       }
 
       // -- Profanity --
-      if (containsProfanity(plaintext)) {
+      if (containsProfanity(bounded)) {
         claim('curse_word_message_sent');
         const next = getLocalCount(`ach_curse_${identity.id}`) + 1;
         setLocalCount(`ach_curse_${identity.id}`, next);
@@ -172,66 +175,66 @@ export function useMessageAchievements() {
       }
 
       // -- Memes & phrases --
-      if (RICKROLL_RE.test(plaintext)) {
+      if (RICKROLL_RE.test(bounded)) {
         claim('rickroll_sent');
       }
-      if (isPressF(plaintext)) {
+      if (isPressF(bounded)) {
         claim('press_f_sent');
       }
-      if (OVER_9000_RE.test(plaintext)) {
+      if (OVER_9000_RE.test(bounded)) {
         claim('over_9000_sent');
       }
-      if (UWU_RE.test(plaintext)) {
+      if (UWU_RE.test(bounded)) {
         claim('uwu_sent');
       }
-      if (isAllCaps(plaintext)) {
+      if (isAllCaps(bounded)) {
         claim('all_caps_sent');
       }
-      if (LOL_RE.test(plaintext)) {
+      if (LOL_RE.test(bounded)) {
         claim('lol_sent');
       }
-      if (containsShrug(plaintext)) {
+      if (containsShrug(bounded)) {
         claim('shrug_sent');
       }
-      if (PRANGENT_RE.test(plaintext)) {
+      if (PRANGENT_RE.test(bounded)) {
         claim('prangent_message_sent');
       }
-      if (PRICELESS_RE.test(plaintext)) {
+      if (PRICELESS_RE.test(bounded)) {
         claim('priceless_message_sent');
       }
-      if (SYNERGY_RE.test(plaintext)) {
+      if (SYNERGY_RE.test(bounded)) {
         claim('synergy_message_sent');
       }
-      if (AWAY_MESSAGE_RE.test(plaintext)) {
+      if (AWAY_MESSAGE_RE.test(bounded)) {
         claim('brb_message_sent');
       }
-      if (CLIPPY_RE.test(plaintext)) {
+      if (CLIPPY_RE.test(bounded)) {
         claim('clippy_message_sent');
       }
-      if (ASL_RE.test(plaintext)) {
+      if (ASL_RE.test(bounded)) {
         claim('asl_message_sent');
       }
-      if (LEEROY_JENKINS_RE.test(plaintext)) {
+      if (LEEROY_JENKINS_RE.test(bounded)) {
         claim('leeroy_jenkins_message_sent');
       }
-      if (MORDOR_RE.test(plaintext)) {
+      if (MORDOR_RE.test(bounded)) {
         claim('mordor_message_sent');
       }
-      if (MAGIC_WORD_RE.test(plaintext)) {
+      if (MAGIC_WORD_RE.test(bounded)) {
         claim('magic_word_message_sent');
       }
-      if (isExactMessage(plaintext, 'as if')) {
+      if (isExactMessage(bounded, 'as if')) {
         claim('as_if_message_sent');
       }
-      if (RABBIT_HOLE_RE.test(plaintext)) {
+      if (RABBIT_HOLE_RE.test(bounded)) {
         claim('rabbit_hole_message_sent');
       }
 
-      for (const action of getPopCultureTextAchievementActions(plaintext)) {
+      for (const action of getPopCultureTextAchievementActions(bounded)) {
         claim(action);
       }
 
-      for (const action of getTvReferenceBioOrMessageAchievementActions(plaintext)) {
+      for (const action of getTvReferenceBioOrMessageAchievementActions(bounded)) {
         claim(action);
       }
     },

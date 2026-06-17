@@ -1,7 +1,15 @@
 /**
  * Pop-culture text patterns shared between profile fields (server) and
  * encrypted messages (client claim).
+ *
+ * Security: all patterns are static literals; user text is never interpolated
+ * into RegExp. Scanning is bounded via {@link ACHIEVEMENT_MESSAGE_SCAN_MAX_LENGTH}.
  */
+
+import {
+  ACHIEVEMENT_MESSAGE_SCAN_MAX_LENGTH,
+  textForAchievementScan,
+} from './safe-achievement-text-scan';
 
 export const TEXT_BEDAZZLER_EMOJI_THRESHOLD = 10;
 
@@ -78,19 +86,22 @@ export function containsIAmYourFather(text: string): boolean {
 
 /** Returns achievement action ids that apply to the given text. */
 export function getPopCultureTextAchievementActions(text: string): string[] {
+  const bounded = textForAchievementScan(text, ACHIEVEMENT_MESSAGE_SCAN_MAX_LENGTH);
+  if (bounded === null) return [];
+
   const actions: string[] = [];
 
-  if (containsSk8r(text)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.sk8r);
-  if (isReginaGeorge(text)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.reginaGeorge);
-  if (isChuckNorris(text)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.chuckNorris);
-  if (isZoltan(text)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.zoltan);
-  if (isJamesBond(text)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.jamesBond);
-  if (containsMuggle(text)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.muggle);
-  if (containsBeTheVeryBest(text)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.pokemon);
-  if (containsBearsAndBeets(text)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.bearsBeets);
-  if (containsWakeMeUpInside(text)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.wakeMeUpInside);
-  if (usesManyEmojis(text)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.emojiBedazzler);
-  if (containsIAmYourFather(text)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.iAmYourFather);
+  if (containsSk8r(bounded)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.sk8r);
+  if (isReginaGeorge(bounded)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.reginaGeorge);
+  if (isChuckNorris(bounded)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.chuckNorris);
+  if (isZoltan(bounded)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.zoltan);
+  if (isJamesBond(bounded)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.jamesBond);
+  if (containsMuggle(bounded)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.muggle);
+  if (containsBeTheVeryBest(bounded)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.pokemon);
+  if (containsBearsAndBeets(bounded)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.bearsBeets);
+  if (containsWakeMeUpInside(bounded)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.wakeMeUpInside);
+  if (usesManyEmojis(bounded)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.emojiBedazzler);
+  if (containsIAmYourFather(bounded)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.iAmYourFather);
 
   return actions;
 }

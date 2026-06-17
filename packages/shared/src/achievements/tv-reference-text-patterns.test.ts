@@ -24,6 +24,12 @@ describe('tv reference display name achievements', () => {
     expect(getTvReferenceDisplayNameAchievementActions('Prison Mike')).toContain(
       TV_REFERENCE_DISPLAY_NAME_ACTIONS.prisonMike,
     );
+    expect(getTvReferenceDisplayNameAchievementActions('Daenerys Targaryen')).toContain(
+      TV_REFERENCE_DISPLAY_NAME_ACTIONS.khaleesiDaenerys,
+    );
+    expect(getTvReferenceDisplayNameAchievementActions('Krusty Krab')).toContain(
+      TV_REFERENCE_DISPLAY_NAME_ACTIONS.krustyKrab,
+    );
   });
 });
 
@@ -43,6 +49,30 @@ describe('tv reference bio achievements', () => {
     );
     expect(getTvReferenceBioAchievementActions('my corkboard')).toContain(
       TV_REFERENCE_BIO_ACTIONS.redStringCorkboard,
+    );
+  });
+
+  test('detects meme bio phrases', () => {
+    expect(getTvReferenceBioAchievementActions('welcome to flavortown')).toContain(
+      TV_REFERENCE_BIO_ACTIONS.flavortown,
+    );
+    expect(getTvReferenceBioAchievementActions('not today')).toContain(
+      TV_REFERENCE_BIO_ACTIONS.notToday,
+    );
+    expect(getTvReferenceBioAchievementActions('I drink and I know things')).toContain(
+      TV_REFERENCE_BIO_ACTIONS.drinkAndKnowThings,
+    );
+    expect(getTvReferenceBioAchievementActions('vote for Pedro')).toContain(
+      TV_REFERENCE_BIO_ACTIONS.voteForPedro,
+    );
+    expect(getTvReferenceBioAchievementActions('charlie bit me')).toContain(
+      TV_REFERENCE_BIO_ACTIONS.charlieBitMe,
+    );
+    expect(getTvReferenceBioAchievementActions("ain't nobody got time for that")).toContain(
+      TV_REFERENCE_BIO_ACTIONS.aintNobodyGotTime,
+    );
+    expect(getTvReferenceBioAchievementActions('my cabbages!')).toContain(
+      TV_REFERENCE_BIO_ACTIONS.myCabbages,
     );
   });
 });
@@ -95,6 +125,21 @@ describe('tv reference bio or message achievements', () => {
     );
     expect(getTvReferenceBioOrMessageAchievementActions("that's what she said")).toContain(
       TV_REFERENCE_BIO_OR_MESSAGE_ACTIONS.thatsWhatSheSaid,
+    );
+    expect(getTvReferenceBioOrMessageAchievementActions('idiot sandwich')).toContain(
+      TV_REFERENCE_BIO_OR_MESSAGE_ACTIONS.idiotSandwich,
+    );
+    expect(getTvReferenceBioOrMessageAchievementActions('where is the lamb sauce')).toContain(
+      TV_REFERENCE_BIO_OR_MESSAGE_ACTIONS.lambSauce,
+    );
+    expect(getTvReferenceBioOrMessageAchievementActions('winter is coming')).toContain(
+      TV_REFERENCE_BIO_OR_MESSAGE_ACTIONS.winterIsComing,
+    );
+    expect(getTvReferenceBioOrMessageAchievementActions('you fat lard')).toContain(
+      TV_REFERENCE_BIO_OR_MESSAGE_ACTIONS.youFatLard,
+    );
+    expect(getTvReferenceBioOrMessageAchievementActions('glass case of emotion')).toContain(
+      TV_REFERENCE_BIO_OR_MESSAGE_ACTIONS.glassCaseOfEmotion,
     );
   });
 });

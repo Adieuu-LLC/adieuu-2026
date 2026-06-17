@@ -17,6 +17,7 @@ export const achievements = {
     notYetEarned: 'Not yet earned',
     youDontHaveThis: "You don't have this yet!",
     yourAchievements: 'Achievements',
+    progressCountAria: '{{earned}} of {{total}} achievements earned',
     holderCount_one: '{{count}} other person has earned this',
     holderCount_other: '{{count}} other people have earned this',
 
@@ -323,6 +324,62 @@ export const achievements = {
     theDundieAward: {
       name: 'The Dundie Award',
       description: 'You really left us no choice but to give you this.',
+    },
+    whatAreYou: {
+      name: 'WHAT ARE YOU?!',
+      description: 'An idiot sandwich, Chef.',
+    },
+    itsRaw: {
+      name: "IT'S RAW!",
+      description: "Look at it! It's still moving!",
+    },
+    welcomeMayorsOffice: {
+      name: "Welcome to the Mayor's Office",
+      description: 'That bio is totally out of bounds.',
+    },
+    houseStark: {
+      name: 'House Stark',
+      description: 'The North remembers.',
+    },
+    motherOfDragons: {
+      name: 'Mother of Dragons',
+      description: 'Breaker of Chains, Saver of Profiles.',
+    },
+    godOfDeath: {
+      name: 'The God of Death',
+      description: 'A user has no name.',
+    },
+    handOfKing: {
+      name: 'The Hand of the King',
+      description: "It's what I do.",
+    },
+    eatTheFoodTina: {
+      name: 'Eat the Food, Tina!',
+      description: 'Make sure to feed your pet llama.',
+    },
+    stayClassy: {
+      name: 'Stay Classy',
+      description: 'I love lamp.',
+    },
+    freakinIdiot: {
+      name: "Freakin' Idiot!",
+      description: 'You can always just make yourself a dang quesadilla.',
+    },
+    ouchCharlie: {
+      name: 'Ouch, Charlie!',
+      description: 'And that really hurt, Charlie!',
+    },
+    coldPop: {
+      name: 'Cold Pop',
+      description: "I didn't grab no shoes or nothin' Jesus.",
+    },
+    noThisIsPatrick: {
+      name: 'No, This Is Patrick!',
+      description: 'I am not a Krusty Krab.',
+    },
+    earthKingdom: {
+      name: 'The Earth Kingdom',
+      description: 'This place is worse than Omashu!',
     },
     sponsor: { name: 'Patron of the Arts', description: 'Sponsored another user\'s subscription.' },
 } as const;

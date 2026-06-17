@@ -21,14 +21,46 @@ function FeedbackUnreadBadge({ count }: { count: number }) {
   );
 }
 
+export function FeedbackSidebarLink() {
+  const { t } = useTranslation();
+  const location = useLocation();
+  const { isExpanded, closeMobile } = useSidebar();
+  const { status: identityStatus } = useIdentity();
+  const feedbackUnreadCount = useFeedbackUnreadCount(identityStatus === 'logged_in');
+  const isActive = location.pathname.startsWith('/feedback');
+  const label = t('feedback.title');
+
+  return (
+    <Link
+      to="/feedback"
+      onClick={closeMobile}
+      title={!isExpanded ? label : undefined}
+      aria-label={label}
+      data-tour="feedback-nav"
+    >
+      <Button
+        variant="ghost"
+        size="sm"
+        className={`sidebar-account-btn ${isActive ? 'sidebar-account-btn-active' : ''}`}
+      >
+        <span style={{ position: 'relative', display: 'inline-flex' }}>
+          <Icon name="ballotCheck" />
+          {feedbackUnreadCount > 0 && (
+            <FeedbackUnreadBadge count={feedbackUnreadCount} />
+          )}
+        </span>
+        <span className="sidebar-account-label">{label}</span>
+      </Button>
+    </Link>
+  );
+}
+
 export function AboutFlyout() {
   const { t } = useTranslation();
   const location = useLocation();
   const { platform } = useAppConfig();
   const { isExpanded, closeMobile } = useSidebar();
   const isMobile = useIsMobile();
-  const { status: identityStatus } = useIdentity();
-  const feedbackUnreadCount = useFeedbackUnreadCount(identityStatus === 'logged_in');
   const [isDrawerOpen, setDrawerOpen] = useState(false);
 
   const isActive = (path: string) => location.pathname === path;
@@ -36,7 +68,6 @@ export function AboutFlyout() {
   const isSectionActive =
     location.pathname === '/about'
     || location.pathname.startsWith('/about/')
-    || location.pathname.startsWith('/feedback')
     || isLegalPoliciesActive;
 
   const handleNavClick = () => {
@@ -69,22 +100,6 @@ export function AboutFlyout() {
         className={`sidebar-flyout-item ${isActive('/about/learn') ? 'sidebar-flyout-item-active' : ''}`}
       >
         {t('home.learn.navLabel')}
-      </Link>
-      <Link
-        to="/feedback"
-        onClick={handleNavClick}
-        className={`sidebar-flyout-item ${location.pathname.startsWith('/feedback') ? 'sidebar-flyout-item-active' : ''}`}
-      >
-        {t('feedback.title')}
-        {feedbackUnreadCount > 0 && (
-          <span
-            className="sidebar-tab-badge"
-            style={{ marginLeft: 'auto', position: 'static' }}
-            aria-label={`${feedbackUnreadCount} unread feedback notifications`}
-          >
-            {feedbackUnreadCount > 99 ? '99+' : feedbackUnreadCount}
-          </span>
-        )}
       </Link>
       {platform === 'web' ? (
         <Link
@@ -132,12 +147,7 @@ export function AboutFlyout() {
       className={`sidebar-account-btn ${isSectionActive ? 'sidebar-account-btn-active' : ''}`}
       {...(isMobile ? { onClick: () => setDrawerOpen(true) } : {})}
     >
-      <span style={{ position: 'relative', display: 'inline-flex' }}>
-        <Icon name="info" />
-        {feedbackUnreadCount > 0 && (
-          <FeedbackUnreadBadge count={feedbackUnreadCount} />
-        )}
-      </span>
+      <Icon name="info" />
       <span className="sidebar-account-label">{t('nav.about')}</span>
       <svg
         width="12"
