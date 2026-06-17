@@ -343,13 +343,6 @@ export const identity = {
         dismiss: 'Dismiss',
       },
 
-      // Web platform security recommendation (banner)
-      webSecurityBanner: {
-        message: 'For stronger security, consider using the Adieuu desktop app. It can protect your encryption keys with your operating system\'s secure keychain, adding a layer of protection beyond your password alone.',
-        openInDesktop: 'Open in Desktop',
-        dismiss: 'Dismiss',
-      },
-
       // App update notification (banner)
       updateBanner: {
         message: 'A new version of Adieuu is available.',

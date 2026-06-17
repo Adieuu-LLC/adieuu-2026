@@ -53,6 +53,8 @@ import {
   faArrowsToEye as fasArrowsToEye,
   faPhoneArrowDownLeft as fasPhoneArrowDownLeft,
   faEyeSlash as fasEyeSlash,
+  faSignalBars as fasSignalBars, faSignalBarsGood as fasSignalBarsGood,
+  faSignalBarsFair as fasSignalBarsFair, faSignalBarsWeak as fasSignalBarsWeak,
 } from '@adieuu-llc/fa-pro-solid-svg-icons';
 
 // ---------------------------------------------------------------------------
@@ -97,6 +99,8 @@ import {
   faArrowsToEye as fadArrowsToEye,
   faPhoneArrowDownLeft as fadPhoneArrowDownLeft,
   faEyeSlash as fadEyeSlash,
+  faSignalBars as fadSignalBars, faSignalBarsGood as fadSignalBarsGood,
+  faSignalBarsFair as fadSignalBarsFair, faSignalBarsWeak as fadSignalBarsWeak,
 } from '@adieuu-llc/fa-pro-duotone-svg-icons';
 
 // ---------------------------------------------------------------------------
@@ -139,6 +143,8 @@ import {
   faMicrophoneSlash as fadtMicrophoneSlash, faScreenUsers as fadtScreenUsers,
   faPhoneArrowDownLeft as fadtPhoneArrowDownLeft,
   faEyeSlash as fadtEyeSlash,
+  faSignalBars as fadtSignalBars, faSignalBarsGood as fadtSignalBarsGood,
+  faSignalBarsFair as fadtSignalBarsFair, faSignalBarsWeak as fadtSignalBarsWeak,
 } from '@adieuu-llc/fa-duotone-thin-svg-icons';
 
 // ---------------------------------------------------------------------------
@@ -183,6 +189,8 @@ import {
   faArrowsToEye as fasdsArrowsToEye,
   faPhoneArrowDownLeft as fasdsPhoneArrowDownLeft,
   faEyeSlash as fasdsEyeSlash,
+  faSignalBars as fasdsSignalBars, faSignalBarsGood as fasdsSignalBarsGood,
+  faSignalBarsFair as fasdsSignalBarsFair, faSignalBarsWeak as fasdsSignalBarsWeak,
 } from '@adieuu-llc/fa-sharp-duotone-solid-svg-icons';
 
 // ---------------------------------------------------------------------------
@@ -227,6 +235,8 @@ import {
   faArrowsToEye as fasdtArrowsToEye,
   faPhoneArrowDownLeft as fasdtPhoneArrowDownLeft,
   faEyeSlash as fasdtEyeSlash,
+  faSignalBars as fasdtSignalBars, faSignalBarsGood as fasdtSignalBarsGood,
+  faSignalBarsFair as fasdtSignalBarsFair, faSignalBarsWeak as fasdtSignalBarsWeak,
 } from '@adieuu-llc/fa-sharp-duotone-thin-svg-icons';
 
 // ---------------------------------------------------------------------------
@@ -250,6 +260,7 @@ const allIcons: IconDefinition[] = [
   fasPhone, fasPhoneHangup, fasVideo, fasVideoSlash, fasMicrophone,
   fasMicrophoneSlash, fasScreenUsers, fasPhoneArrowDownLeft, fasEyeSlash,
   fasMaximize, fasCompress, fasArrowsToEye,
+  fasSignalBars, fasSignalBarsGood, fasSignalBarsFair, fasSignalBarsWeak,
 
   // DuoTone Solid
   fadHouse, fadMessage, fadReply, fadUsers, fadGear, fadCircleInfo, fadDownload,
@@ -267,6 +278,7 @@ const allIcons: IconDefinition[] = [
   fadPhone, fadPhoneHangup, fadVideo, fadVideoSlash, fadMicrophone,
   fadMicrophoneSlash, fadScreenUsers, fadPhoneArrowDownLeft, fadEyeSlash,
   fadMaximize, fadCompress, fadArrowsToEye,
+  fadSignalBars, fadSignalBarsGood, fadSignalBarsFair, fadSignalBarsWeak,
 
   // DuoTone Thin
   fadtHouse, fadtMessage, fadtReply, fadtUsers, fadtGear, fadtCircleInfo, fadtDownload,
@@ -283,6 +295,7 @@ const allIcons: IconDefinition[] = [
   fadtCopy, fadtFiles, fadtBorderAll, fadtLink, fadtExternalLink, fadtArrowUpFromBracket, fadtFilm,
   fadtPhone, fadtPhoneHangup, fadtVideo, fadtVideoSlash, fadtMicrophone,
   fadtMicrophoneSlash, fadtScreenUsers, fadtPhoneArrowDownLeft, fadtEyeSlash,
+  fadtSignalBars, fadtSignalBarsGood, fadtSignalBarsFair, fadtSignalBarsWeak,
 
   // Sharp DuoTone Solid
   fasdsHouse, fasdsMessage, fasdsReply, fasdsUsers, fasdsGear, fasdsCircleInfo, fasdsDownload,
@@ -300,6 +313,7 @@ const allIcons: IconDefinition[] = [
   fasdsPhone, fasdsPhoneHangup, fasdsVideo, fasdsVideoSlash, fasdsMicrophone,
   fasdsMicrophoneSlash, fasdsScreenUsers, fasdsPhoneArrowDownLeft, fasdsEyeSlash,
   fasdsMaximize, fasdsCompress, fasdsArrowsToEye,
+  fasdsSignalBars, fasdsSignalBarsGood, fasdsSignalBarsFair, fasdsSignalBarsWeak,
 
   // Sharp DuoTone Thin
   fasdtHouse, fasdtMessage, fasdtReply, fasdtUsers, fasdtGear, fasdtCircleInfo, fasdtDownload,
@@ -317,6 +331,7 @@ const allIcons: IconDefinition[] = [
   fasdtPhone, fasdtPhoneHangup, fasdtVideo, fasdtVideoSlash, fasdtMicrophone,
   fasdtMicrophoneSlash, fasdtScreenUsers, fasdtPhoneArrowDownLeft, fasdtEyeSlash,
   fasdtMaximize, fasdtCompress, fasdtArrowsToEye,
+  fasdtSignalBars, fasdtSignalBarsGood, fasdtSignalBarsFair, fasdtSignalBarsWeak,
 ];
 
 library.add(...allIcons);

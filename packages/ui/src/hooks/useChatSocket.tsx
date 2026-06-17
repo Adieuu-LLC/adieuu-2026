@@ -42,6 +42,9 @@ export interface ChatSocketContextValue {
   /** Reactive connection state (for UI indicators). */
   connectionState: ChatConnectionState;
 
+  /** Round-trip time of the most recent chat heartbeat (ms), or null if none yet. */
+  lastHeartbeatRttMs: number | null;
+
   /**
    * Subscribe to incoming WebSocket messages.
    * Returns an unsubscribe function -- call it in the effect cleanup.
@@ -74,6 +77,7 @@ export function ChatSocketProvider({ children }: ChatSocketProviderProps) {
   const isLoggedIn = identityStatus === 'logged_in';
 
   const [connectionState, setConnectionState] = useState<ChatConnectionState>('disconnected');
+  const [lastHeartbeatRttMs, setLastHeartbeatRttMs] = useState<number | null>(null);
   const connectionStateRef = useRef<ChatConnectionState>('disconnected');
 
   const messageHandlers = useRef(new Set<ChatMessageHandler>());
@@ -99,6 +103,7 @@ export function ChatSocketProvider({ children }: ChatSocketProviderProps) {
     if (!isLoggedIn || !chatWsUrl) {
       connectionStateRef.current = 'disconnected';
       setConnectionState('disconnected');
+      setLastHeartbeatRttMs(null);
       return;
     }
 
@@ -124,6 +129,9 @@ export function ChatSocketProvider({ children }: ChatSocketProviderProps) {
       onStateChange: (state) => {
         connectionStateRef.current = state;
         setConnectionState(state);
+        if (state !== 'connected') {
+          setLastHeartbeatRttMs(null);
+        }
         for (const handler of stateHandlers.current) {
           try {
             handler(state);
@@ -131,6 +139,9 @@ export function ChatSocketProvider({ children }: ChatSocketProviderProps) {
             console.error('[ChatSocket] State subscriber error:', err);
           }
         }
+      },
+      onHeartbeatRtt: (rttMs) => {
+        setLastHeartbeatRttMs(rttMs);
       },
     });
 
@@ -161,8 +172,8 @@ export function ChatSocketProvider({ children }: ChatSocketProviderProps) {
   }, [isLoggedIn, chatWsUrl]);
 
   const value = useMemo<ChatSocketContextValue>(
-    () => ({ connectionState, subscribe, onStateChange }),
-    [connectionState, subscribe, onStateChange]
+    () => ({ connectionState, lastHeartbeatRttMs, subscribe, onStateChange }),
+    [connectionState, lastHeartbeatRttMs, subscribe, onStateChange]
   );
 
   return (

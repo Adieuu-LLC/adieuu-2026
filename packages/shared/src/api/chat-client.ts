@@ -420,6 +420,8 @@ export interface ChatClientEvents {
   onStateChange?: (state: ChatConnectionState) => void;
   onMessage?: (message: ChatIncomingMessage) => void;
   onError?: (error: Error) => void;
+  /** Fired when a pong is received and round-trip time is computed. */
+  onHeartbeatRtt?: (rttMs: number) => void;
 }
 
 // ============================================================================
@@ -438,6 +440,8 @@ export class ChatClient {
   private reconnectAttempts = 0;
   private intentionalClose = false;
   private visibilityHandler: (() => void) | null = null;
+  private lastPingSentAt: number | null = null;
+  private lastHeartbeatRttMs: number | null = null;
 
   constructor(config: ChatClientConfig, events: ChatClientEvents = {}) {
     this.config = {
@@ -465,6 +469,13 @@ export class ChatClient {
    */
   isConnected(): boolean {
     return this.state === 'connected';
+  }
+
+  /**
+   * Round-trip time of the most recent successful chat heartbeat (ms), or null if none yet.
+   */
+  getLastHeartbeatRttMs(): number | null {
+    return this.lastHeartbeatRttMs;
   }
 
   /**
@@ -613,6 +624,12 @@ export class ChatClient {
       const message = JSON.parse(text) as ChatIncomingMessage;
 
       if (message.type === 'pong') {
+        if (this.lastPingSentAt !== null) {
+          const rttMs = Math.max(0, Math.round(performance.now() - this.lastPingSentAt));
+          this.lastPingSentAt = null;
+          this.lastHeartbeatRttMs = rttMs;
+          this.events.onHeartbeatRtt?.(rttMs);
+        }
         this.clearPongTimeout();
       }
 
@@ -633,10 +650,10 @@ export class ChatClient {
       ? this.config.backgroundHeartbeatInterval
       : this.config.heartbeatInterval;
 
+    this.sendHeartbeatPing();
+
     this.heartbeatTimer = setInterval(() => {
-      if (this.send({ type: 'ping' })) {
-        this.startPongTimeout();
-      }
+      this.sendHeartbeatPing();
     }, interval);
 
     this.startVisibilityTracking();
@@ -670,15 +687,11 @@ export class ChatClient {
         : this.config.heartbeatInterval;
 
       if (!document.hidden) {
-        if (this.send({ type: 'ping' })) {
-          this.startPongTimeout();
-        }
+        this.sendHeartbeatPing();
       }
 
       this.heartbeatTimer = setInterval(() => {
-        if (this.send({ type: 'ping' })) {
-          this.startPongTimeout();
-        }
+        this.sendHeartbeatPing();
       }, interval);
     };
 
@@ -729,11 +742,21 @@ export class ChatClient {
     }
   }
 
+  // -- Heartbeat ping --------------------------------------------------------
+
+  private sendHeartbeatPing(): void {
+    if (this.send({ type: 'ping' })) {
+      this.lastPingSentAt = performance.now();
+      this.startPongTimeout();
+    }
+  }
+
   // -- Pong timeout ----------------------------------------------------------
 
   private startPongTimeout(): void {
     this.clearPongTimeout();
     this.pongTimeoutTimer = setTimeout(() => {
+      this.lastPingSentAt = null;
       if (this.ws && this.state === 'connected') {
         this.handleError(new Error('Heartbeat timeout: no pong received'));
         this.detachAndCloseSocket();

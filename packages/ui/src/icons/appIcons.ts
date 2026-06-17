@@ -95,6 +95,10 @@ export const APP_ICON_NAMES = {
   phoneIncoming: 'phone-arrow-down-left',
   expand: 'maximize',
   compress: 'compress',
+  signalBars: 'signal-bars',
+  signalBarsGood: 'signal-bars-good',
+  signalBarsFair: 'signal-bars-fair',
+  signalBarsWeak: 'signal-bars-weak',
 } as const;
 
 export type AppIconName = keyof typeof APP_ICON_NAMES;

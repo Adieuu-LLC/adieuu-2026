@@ -24,6 +24,7 @@ import { CallFrameThumbnail } from './CallFrameThumbnail';
 import { CallFrameTile } from './CallFrameTile';
 import { CallConferenceControlBar } from './CallConferenceControlBar';
 import { CallOverlayChrome } from './CallOverlayChrome';
+import { CallConnectionIndicator } from './CallConnectionIndicator';
 import { useCallFrameLayout } from './useCallFrameLayout';
 import { useCallFrames } from './useCallFrames';
 
@@ -118,6 +119,8 @@ function E2EEStatusBanner({
         {e2eeActive ? <LockIcon /> : <UnlockIcon />}
         <span>{statusMessage}</span>
         <E2EEStatusInfoTip />
+        <CallConnectionIndicator />
+        
       </div>
       {onTroubleshoot && (
         <button

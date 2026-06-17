@@ -177,6 +177,34 @@
   margin-top: var(--spacing-lg);
 }
 
+// Learn page header
+.learn-page-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.page-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  margin: 0 0 var(--spacing-sm);
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--color-accent-primary);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color var(--transition-fast);
+
+  &:hover {
+    color: var(--color-accent-secondary);
+    text-decoration: underline;
+  }
+}
+
 // Learn page tabs and search
 .learn-tabs {
   margin-top: var(--spacing-md);
