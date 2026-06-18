@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import type { AppConfig, PlatformCapabilities, PlatformContextValue } from './types';
 
 // ============================================================================
@@ -27,14 +27,12 @@ export function usePlatformContext(): PlatformContextValue {
  * Access just the app configuration.
  */
 export function useAppConfig(): AppConfig {
-  const ctx = usePlatformContext();
-  return {
-    apiBaseUrl: ctx.apiBaseUrl,
-    chatWsUrl: ctx.chatWsUrl,
-    externalLinkBase: ctx.externalLinkBase,
-    platform: ctx.platform,
-    livekitUrl: ctx.livekitUrl,
-  };
+  const { apiBaseUrl, chatWsUrl, externalLinkBase, platform, livekitUrl } =
+    usePlatformContext();
+  return useMemo(
+    () => ({ apiBaseUrl, chatWsUrl, externalLinkBase, platform, livekitUrl }),
+    [apiBaseUrl, chatWsUrl, externalLinkBase, platform, livekitUrl],
+  );
 }
 
 /**
@@ -88,10 +86,10 @@ export function PlatformProvider({
   capabilities,
   children,
 }: PlatformProviderProps) {
-  const value: PlatformContextValue = {
-    ...config,
-    capabilities,
-  };
+  const value = useMemo<PlatformContextValue>(
+    () => ({ ...config, capabilities }),
+    [config, capabilities],
+  );
 
   return (
     <PlatformContext.Provider value={value}>

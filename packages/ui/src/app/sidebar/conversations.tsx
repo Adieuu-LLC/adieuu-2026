@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, memo } from 'react';
+import type { PublicIdentity } from '@adieuu/shared';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Menu, Portal, Switch } from '@ark-ui/react';
@@ -137,72 +138,124 @@ function ConversationFilterPopover({
 // Conversation List Item (with context menu)
 // ============================================================================
 
-function ConversationListItem({
-  conversation,
-  displayName,
-  isArchived,
-  isFavorited,
-  hasActiveCall,
-  isUserInCall,
-  onLeave,
-}: {
+interface ConversationListItemProps {
   conversation: DecryptedConversation;
   displayName: string;
+  isActive: boolean;
   isArchived: boolean;
   isFavorited: boolean;
   hasActiveCall: boolean;
   isUserInCall: boolean;
+  selfId: string | undefined;
+  participantProfiles: Record<string, PublicIdentity>;
+  onSelect: (conversationId: string) => void;
+  onEdit: (conversationId: string) => void;
+  onArchive: (conversationId: string, archived: boolean, keepArchived?: boolean) => void;
+  onFavorite: (conversationId: string, favorited: boolean) => void;
   onLeave: (conversationId: string) => void;
-}) {
-  const { t } = useTranslation();
-  const { identity } = useIdentity();
-  const { activeConversationId, setActiveConversation, participantProfiles } = useConversations();
-  const { toggleArchive, toggleFavorite } = useConversationPreferences();
-  const navigate = useNavigate();
-  const { closeMobile } = useSidebar();
+}
 
-  const isActive = activeConversationId === conversation.id;
+/**
+ * Compares only the fields the row actually renders. This lets a single
+ * conversation update (e.g. an unread bump from a websocket message) re-render
+ * just the affected row instead of every row in the sidebar list. The action
+ * callbacks are stabilized by the parent, so identity comparison is enough.
+ */
+function conversationRowPropsEqual(
+  prev: ConversationListItemProps,
+  next: ConversationListItemProps,
+): boolean {
+  if (
+    prev.displayName !== next.displayName ||
+    prev.isActive !== next.isActive ||
+    prev.isArchived !== next.isArchived ||
+    prev.isFavorited !== next.isFavorited ||
+    prev.hasActiveCall !== next.hasActiveCall ||
+    prev.isUserInCall !== next.isUserInCall ||
+    prev.selfId !== next.selfId ||
+    prev.participantProfiles !== next.participantProfiles ||
+    prev.onSelect !== next.onSelect ||
+    prev.onEdit !== next.onEdit ||
+    prev.onArchive !== next.onArchive ||
+    prev.onFavorite !== next.onFavorite ||
+    prev.onLeave !== next.onLeave
+  ) {
+    return false;
+  }
+  const a = prev.conversation;
+  const b = next.conversation;
+  if (a === b) return true;
+  if (
+    a.id !== b.id ||
+    a.type !== b.type ||
+    a.unreadCount !== b.unreadCount ||
+    a.hasUnread !== b.hasUnread ||
+    a.decryptedName !== b.decryptedName ||
+    a.participants.length !== b.participants.length
+  ) {
+    return false;
+  }
+  for (let i = 0; i < a.participants.length; i++) {
+    if (a.participants[i] !== b.participants[i]) return false;
+  }
+  return true;
+}
+
+const ConversationListItem = memo(function ConversationListItem({
+  conversation,
+  displayName,
+  isActive,
+  isArchived,
+  isFavorited,
+  hasActiveCall,
+  isUserInCall,
+  selfId,
+  participantProfiles,
+  onSelect,
+  onEdit,
+  onArchive,
+  onFavorite,
+  onLeave,
+}: ConversationListItemProps) {
+  const { t } = useTranslation();
+
   const otherParticipants = conversation.participants.filter(
-    (pid) => pid !== identity?.id,
+    (pid) => pid !== selfId,
   );
   const isDm = conversation.type === 'dm';
   const isGroup = conversation.type === 'group';
 
   const handleClick = () => {
-    setActiveConversation(conversation.id);
-    navigate(`/conversations/${conversation.id}`);
-    closeMobile();
+    onSelect(conversation.id);
   };
 
   const handleContextAction = useCallback(
     (details: { value: string }) => {
       switch (details.value) {
         case 'archive':
-          toggleArchive(conversation.id, true, false);
+          onArchive(conversation.id, true, false);
           break;
         case 'unarchive':
-          toggleArchive(conversation.id, false);
+          onArchive(conversation.id, false);
           break;
         case 'keep-archived':
-          toggleArchive(conversation.id, true, true);
+          onArchive(conversation.id, true, true);
           break;
         case 'favorite':
-          toggleFavorite(conversation.id, true);
+          onFavorite(conversation.id, true);
           break;
         case 'unfavorite':
-          toggleFavorite(conversation.id, false);
+          onFavorite(conversation.id, false);
           break;
         case 'leave':
           onLeave(conversation.id);
           break;
         case 'edit':
-          setActiveConversation(conversation.id);
-          navigate(`/conversations/${conversation.id}?showSettings=true`);
-          closeMobile();
+          onEdit(conversation.id);
           break;
       }
     },
-    [conversation.id, toggleArchive, toggleFavorite, onLeave, setActiveConversation, navigate, closeMobile],
+    [conversation.id, onArchive, onFavorite, onLeave, onEdit],
   );
 
   const resolveDisplay = (pid: string) => {
@@ -213,7 +266,7 @@ function ConversationListItem({
   const listAvatarPids = getSidebarListAvatarMemberIds(
     isGroup,
     conversation.participants,
-    identity?.id,
+    selfId,
   );
 
   const singleLargeAvatar = (opts: { withDmBadge: boolean }) => (
@@ -387,7 +440,7 @@ function ConversationListItem({
       {contextMenu}
     </Menu.Root>
   );
-}
+}, conversationRowPropsEqual);
 
 // ============================================================================
 // Helpers
@@ -426,13 +479,22 @@ export function ConversationsSidebarSection({
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { conversations, loading, leaveGroup, participantProfiles } = useConversations();
-  const { preferences } = useConversationPreferences();
+  const {
+    conversations,
+    loading,
+    leaveGroup,
+    participantProfiles,
+    activeConversationId,
+    setActiveConversation,
+  } = useConversations();
+  const { preferences, toggleArchive, toggleFavorite } = useConversationPreferences();
   const { identity } = useIdentity();
   const { activeCallConversationIds } = useGlobalCallEvents();
   const { activeSession } = useCallSession();
   const { closeMobile } = useSidebar();
   const [activeTab, setActiveTab] = useState('conversations');
+
+  const selfId = identity?.id;
 
   // Filter state
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
@@ -480,6 +542,51 @@ export function ConversationsSidebarSection({
   const handleLeaveRequest = useCallback((conversationId: string) => {
     setLeaveTargetId(conversationId);
   }, []);
+
+  // Stable callback identities for the memoized rows. The underlying context
+  // functions (setActiveConversation, toggleArchive/Favorite, closeMobile)
+  // change reference whenever conversations/preferences update, so we route
+  // through refs to keep the props passed to ConversationListItem stable.
+  const setActiveConversationRef = useRef(setActiveConversation);
+  setActiveConversationRef.current = setActiveConversation;
+  const closeMobileRef = useRef(closeMobile);
+  closeMobileRef.current = closeMobile;
+  const toggleArchiveRef = useRef(toggleArchive);
+  toggleArchiveRef.current = toggleArchive;
+  const toggleFavoriteRef = useRef(toggleFavorite);
+  toggleFavoriteRef.current = toggleFavorite;
+
+  const handleSelect = useCallback(
+    (conversationId: string) => {
+      setActiveConversationRef.current(conversationId);
+      navigate(`/conversations/${conversationId}`);
+      closeMobileRef.current();
+    },
+    [navigate],
+  );
+
+  const handleEdit = useCallback(
+    (conversationId: string) => {
+      setActiveConversationRef.current(conversationId);
+      navigate(`/conversations/${conversationId}?showSettings=true`);
+      closeMobileRef.current();
+    },
+    [navigate],
+  );
+
+  const handleArchive = useCallback(
+    (conversationId: string, archived: boolean, keepArchived?: boolean) => {
+      void toggleArchiveRef.current(conversationId, archived, keepArchived);
+    },
+    [],
+  );
+
+  const handleFavorite = useCallback(
+    (conversationId: string, favorited: boolean) => {
+      void toggleFavoriteRef.current(conversationId, favorited);
+    },
+    [],
+  );
 
   const handleLeaveConfirm = useCallback(async () => {
     if (!leaveTargetId) return;
@@ -557,10 +664,17 @@ export function ConversationsSidebarSection({
       key={item.conversation.id}
       conversation={item.conversation}
       displayName={item.displayName}
+      isActive={activeConversationId === item.conversation.id}
       isArchived={!!item.pref?.archived}
       isFavorited={!!item.pref?.favorited}
       hasActiveCall={activeCallConversationIds.has(item.conversation.id)}
       isUserInCall={activeSession?.conversationId === item.conversation.id}
+      selfId={selfId}
+      participantProfiles={participantProfiles}
+      onSelect={handleSelect}
+      onEdit={handleEdit}
+      onArchive={handleArchive}
+      onFavorite={handleFavorite}
       onLeave={handleLeaveRequest}
     />
   );

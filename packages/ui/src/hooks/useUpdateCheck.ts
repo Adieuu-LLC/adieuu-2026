@@ -8,7 +8,7 @@
  * On mobile: no-op (updates are handled by app stores).
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { usePlatform } from './usePlatform';
 
 const POLL_INTERVAL_MS = 60_000;
@@ -233,15 +233,28 @@ export function useUpdateCheck(): UseUpdateCheckResult {
     electron.invoke('download-update');
   }, [platform]);
 
-  return {
-    status,
-    newVersion,
-    errorMessage,
-    downloadProgress,
-    installing,
-    dismiss,
-    applyUpdate,
-    checkForUpdates,
-    downloadUpdate,
-  };
+  return useMemo<UseUpdateCheckResult>(
+    () => ({
+      status,
+      newVersion,
+      errorMessage,
+      downloadProgress,
+      installing,
+      dismiss,
+      applyUpdate,
+      checkForUpdates,
+      downloadUpdate,
+    }),
+    [
+      status,
+      newVersion,
+      errorMessage,
+      downloadProgress,
+      installing,
+      dismiss,
+      applyUpdate,
+      checkForUpdates,
+      downloadUpdate,
+    ],
+  );
 }
