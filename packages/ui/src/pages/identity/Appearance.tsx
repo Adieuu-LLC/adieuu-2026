@@ -28,6 +28,7 @@ import { useEmbedPreference, type EmbedVisibilityMode, type EmbedPreference, typ
 import { useClaimAchievement } from '../../hooks/useClaimAchievement';
 import { useMySharedThemeChecksums } from '../../hooks/useMySharedThemeChecksums';
 import { CustomThemeShareButton } from '../../components/CustomThemeShareButton';
+import { ComposerControlsEditor } from '../../components/ComposerControlsEditor';
 import { ICON_PACKS, DEFAULT_ICON_PACK_ID } from '../../icons/packs';
 import type { IconPackId } from '../../icons/packs';
 import type { ThemeDefinition, ThemeColorTokens } from '@adieuu/shared';
@@ -179,6 +180,7 @@ export function IdentityAppearance() {
     const list: AppearanceSection[] = [
       { id: 'language', label: t('account.appearance.languageTitle') },
       { id: 'message-layout', label: t('account.appearance.messageLayoutTitle') },
+      { id: 'composer-controls', label: t('composerControls.title', 'Composer controls') },
       { id: 'preset-themes', label: t('account.appearance.presetsTitle') },
     ];
     if (customThemes.length > 0) {
@@ -473,6 +475,18 @@ export function IdentityAppearance() {
               <RadioGroup.ItemHiddenInput />
             </RadioGroup.Item>
           </RadioGroup.Root>
+        </Card>
+
+        {/* Composer Controls */}
+        <Card variant="elevated" className="slide-up app-settings-card" ref={(el) => setSectionRef('composer-controls', el)} data-section="composer-controls">
+          <h2 className="app-settings-section-title">{t('composerControls.title', 'Composer controls')}</h2>
+          <p className="app-settings-section-desc">
+            {t(
+              'composerControls.description',
+              'Customize which controls appear in the message composer, where they sit, and in what order.',
+            )}
+          </p>
+          <ComposerControlsEditor />
         </Card>
 
         {/* Preset Themes */}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
@@ -116,13 +116,6 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
     }
   }, [view]);
 
-  // Refocus the unlock passphrase input after a failed attempt
-  useEffect(() => {
-    if (view === 'unlock' && error && !loading) {
-      unlockInputRef.current?.focus();
-    }
-  }, [view, error, loading]);
-
   // Form fields
   const [passphrase, setPassphrase] = useState('');
   const [passphraseConfirm, setPassphraseConfirm] = useState('');
@@ -136,8 +129,28 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
   // Login status for progress display
   const [loginStatus, setLoginStatus] = useState<LoginStatus>('authenticating');
 
-  // Ref for refocusing the unlock passphrase input after a failed attempt
+  const loginInputRef = useRef<HTMLInputElement>(null);
   const unlockInputRef = useRef<HTMLInputElement>(null);
+
+  /** autoFocus alone is unreliable after modal mount (see GifPicker). */
+  const focusPasswordInput = useCallback((inputRef: RefObject<HTMLInputElement | null>) => {
+    const el = inputRef.current;
+    if (!el) return () => {};
+    const focus = () => el.focus({ preventScroll: true });
+    focus();
+    const timer = window.setTimeout(focus, 0);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!isOpen || view !== 'unlock' || loading) return;
+    return focusPasswordInput(unlockInputRef);
+  }, [isOpen, view, loading, error, focusPasswordInput]);
+
+  useLayoutEffect(() => {
+    if (!isOpen || view !== 'login' || loading) return;
+    return focusPasswordInput(loginInputRef);
+  }, [isOpen, view, loading, error, focusPasswordInput]);
 
   const [passwordVisible, setPasswordVisible] = useState(false);
 
@@ -521,12 +534,12 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
               }}
             >
               <Input
+                ref={loginInputRef}
                 type={passwordVisible ? 'text' : 'password'}
                 placeholder={t('identity.login.passwordPlaceholder')}
                 value={passphrase}
                 onChange={(e) => setPassphrase(e.target.value)}
                 disabled={loading}
-                autoFocus
                 autoComplete="current-password"
                 rightIcon={passwordVisibilityToggle}
               />
@@ -592,7 +605,6 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
                 value={passphrase}
                 onChange={(e) => setPassphrase(e.target.value)}
                 disabled={loading}
-                autoFocus
                 autoComplete="current-password"
                 rightIcon={passwordVisibilityToggle}
               />

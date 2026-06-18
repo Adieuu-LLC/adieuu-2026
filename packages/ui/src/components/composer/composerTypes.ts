@@ -35,6 +35,22 @@ export interface MentionableUser {
 export interface MentionSource {
   users: MentionableUser[];
   resolveMentionDisplay: (id: string) => string;
+  /** When true, @here and @everyone are offered in mention autocomplete. */
+  isGroup?: boolean;
+}
+
+/** Sentinel IDs for group-wide mentions stored in encrypted MentionEntity payloads. */
+export const MENTION_HERE_ID = '__HERE__';
+export const MENTION_EVERYONE_ID = '__EVERYONE__';
+
+export function isGroupMentionId(id: string): boolean {
+  return id === MENTION_HERE_ID || id === MENTION_EVERYONE_ID;
+}
+
+export function groupMentionDisplayText(id: string): string | null {
+  if (id === MENTION_HERE_ID) return 'here';
+  if (id === MENTION_EVERYONE_ID) return 'everyone';
+  return null;
 }
 
 export type AttachmentUploadStatus = 'pending' | 'encrypting' | 'uploading' | 'scanning' | 'done' | 'error';
@@ -113,3 +129,30 @@ export const TTL_OPTIONS: { label: string; seconds: number }[] = [
   { label: '1 week', seconds: 604800 },
   { label: '2 weeks', seconds: 1209600 },
 ];
+
+export type ComposerControlId =
+  | 'forwardSecrecy'
+  | 'timedMessage'
+  | 'upload'
+  | 'gif'
+  | 'emoji'
+  | 'send';
+
+export type ComposerControlSide = 'left' | 'right';
+
+export type ComposerSendIconId =
+  | 'paper-plane'
+  | 'mailbox'
+  | 'arrow-right'
+  | 'message-arrow-up'
+  | 'message-arrow-up-right';
+
+export interface ComposerControlConfig {
+  id: ComposerControlId;
+  enabled: boolean;
+  side: ComposerControlSide;
+  order: number;
+  sendIcon?: ComposerSendIconId;
+  /** When true, the send control shows a "Send" label beside the icon. */
+  sendShowText?: boolean;
+}

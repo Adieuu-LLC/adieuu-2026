@@ -19,14 +19,18 @@ import { Icon } from '../../icons/Icon';
 import { copyPlainTextToClipboard, readPlainTextFromClipboard } from '../../utils/contextMenuClipboard';
 import { useAppConfig } from '../../config';
 import { useAuth } from '../../hooks/useAuth';
+import { useIdentity } from '../../hooks/useIdentity';
 import type {
   ComposerSendFn,
   ComposerReplyContext,
   MentionSource,
   PendingAttachment,
   TrackedMention,
+  ComposerControlConfig,
 } from './composerTypes';
 import {
+  MENTION_EVERYONE_ID,
+  MENTION_HERE_ID,
   resolveConversationComposerMediaMaxBytes,
   MAX_ATTACHMENTS,
   PLACEHOLDER_VERB_KEYS,
@@ -38,11 +42,16 @@ import {
   shouldInterceptPasteForMediaInspection,
   clipboardPasteSuggestsNonPlainMedia,
 } from './conversationMediaFromClipboard';
-import { detectShortcodeQuery, detectMentionQuery, updateMentionOffsets } from './composerUtils';
+import { detectShortcodeQuery, detectMentionQuery, updateMentionOffsets, resolveMentionedIdentityIds } from './composerUtils';
 import { ComposerAttachments } from './ComposerAttachments';
-import { ComposerShortcodeAutocomplete, ComposerMentionAutocomplete } from './ComposerAutocomplete';
+import { ComposerShortcodeAutocomplete, ComposerMentionAutocomplete, type MentionSuggestion } from './ComposerAutocomplete';
 import { ComposerTTLMenu } from './ComposerTTLMenu';
+import { ComposerSendIcon } from './ComposerSendIcon';
 import { useMediaOutbox } from '../../services/mediaOutbox';
+import {
+  getComposerControlsBySide,
+  useComposerControlsPreference,
+} from '../../hooks/useComposerControlsPreference';
 
 type ShortcodeSuggestion = [string, string] | { type: 'custom'; emoji: PublicCustomEmoji };
 
@@ -115,6 +124,8 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   const { warning: toastWarning, error: toastError } = useToast();
   const { apiBaseUrl } = useAppConfig();
   const { status: authStatus, session: authSession } = useAuth();
+  const { status: identityStatus } = useIdentity();
+  const skipComposerFocus = identityStatus === 'locked';
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
 
   const conversationMediaMaxBytes = useMemo(
@@ -217,20 +228,34 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   const mentionAcSelectedIdxRef = useRef(mentionAcSelectedIdx);
   mentionAcSelectedIdxRef.current = mentionAcSelectedIdx;
 
-  const mentionSuggestions = useMemo(() => {
+  const mentionSuggestions = useMemo((): MentionSuggestion[] => {
     if (!mentionAC || !mentionSource) return [];
     const q = mentionAC.query.toLowerCase();
-    const prefix: { id: string; user: typeof mentionSource.users[number]; displayText: string }[] = [];
-    const substring: typeof prefix = [];
+    const groupMatches: MentionSuggestion[] = [];
+    if (mentionSource.isGroup && q.length > 0) {
+      for (const opt of [
+        { id: MENTION_HERE_ID, displayText: 'here' },
+        { id: MENTION_EVERYONE_ID, displayText: 'everyone' },
+      ]) {
+        if (opt.displayText.startsWith(q)) {
+          groupMatches.push({ kind: 'group', id: opt.id, displayText: opt.displayText });
+        }
+      }
+    }
+    const prefix: MentionSuggestion[] = [];
+    const substring: MentionSuggestion[] = [];
     for (const user of mentionSource.users) {
       const uname = user.username?.toLowerCase() ?? '';
       const dname = user.displayName.toLowerCase();
       const displayText = mentionSource.resolveMentionDisplay(user.id);
       const fields = [uname, dname].filter(Boolean);
-      if (fields.some((f) => f.startsWith(q))) prefix.push({ id: user.id, user, displayText });
-      else if (fields.some((f) => f.includes(q))) substring.push({ id: user.id, user, displayText });
+      if (fields.some((f) => f.startsWith(q))) {
+        prefix.push({ kind: 'user', id: user.id, user, displayText });
+      } else if (fields.some((f) => f.includes(q))) {
+        substring.push({ kind: 'user', id: user.id, user, displayText });
+      }
     }
-    return [...prefix, ...substring].slice(0, 3);
+    return [...groupMatches, ...prefix, ...substring].slice(0, 5);
   }, [mentionAC, mentionSource]);
 
   const mentionSuggestionsRef = useRef(mentionSuggestions);
@@ -392,24 +417,27 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   }, []);
 
   useEffect(() => {
+    if (skipComposerFocus) return;
     const id = window.requestAnimationFrame(() => {
       inputRef.current?.focus();
     });
     return () => window.cancelAnimationFrame(id);
-  }, [channelId]);
+  }, [channelId, skipComposerFocus]);
 
   useEffect(() => {
+    if (skipComposerFocus) return;
     if (!sending) {
       inputRef.current?.focus();
     }
-  }, [sending]);
+  }, [sending, skipComposerFocus]);
 
   useEffect(() => {
+    if (skipComposerFocus) return;
     const id = window.requestAnimationFrame(() => {
       inputRef.current?.focus();
     });
     return () => window.cancelAnimationFrame(id);
-  }, [replyContext]);
+  }, [replyContext, skipComposerFocus]);
 
   const prevEditKey = useRef<string | null>(null);
   useEffect(() => {
@@ -427,7 +455,9 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
           }
         });
       }
-    } else {
+    } else if (prevEditKey.current !== null) {
+      setMessageText('', 0);
+      mentionEntriesRef.current = [];
       prevEditKey.current = null;
     }
   }, [editContext, editingMessageKey, editingInitialPlaintext, setMessageText]);
@@ -487,9 +517,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       payload.senderDeviceId = getOrCreateDeviceId();
       const plaintext = serializePayload(payload);
 
-      const mentionedIdentityIds = mentions.length > 0
-        ? [...new Set(mentions.map((m) => m.id))]
-        : undefined;
+      const mentionedIdentityIds = resolveMentionedIdentityIds(mentions, mentionSource);
 
       api.klipy.share({
         slug: currentPendingGif.slug,
@@ -517,6 +545,10 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
           conversationId: channelId,
           caption: text,
           mentions: currentMentions,
+          mentionedIdentityIds: resolveMentionedIdentityIds(
+            currentMentions.map((m) => ({ id: m.identityId, offset: m.offset, length: m.length })),
+            mentionSource,
+          ),
           replyToMessageId: replyContext?.messageId,
           ttlSeconds,
           useForwardSecrecy: forwardSecrecy?.enabled ?? false,
@@ -547,9 +579,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     } else {
       const convertedText = convertShortcodes(text);
       const mentions: MentionEntity[] = currentMentions.map((m) => ({ id: m.identityId, offset: m.offset, length: m.length }));
-      const mentionedIdentityIds = mentions.length > 0
-        ? [...new Set(mentions.map((m) => m.id))]
-        : undefined;
+      const mentionedIdentityIds = resolveMentionedIdentityIds(mentions, mentionSource);
       const senderDeviceId = getOrCreateDeviceId();
 
       const customEmojiMap = buildCustomEmojiPayloadMap(
@@ -609,6 +639,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     enqueueMediaSend,
     customEmojis,
     customEmojisDisabled,
+    mentionSource,
   ]);
 
   const handleCopy = useCallback(() => {
@@ -864,6 +895,12 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
         }
       }
 
+      if (e.key === 'Escape' && editContext) {
+        e.preventDefault();
+        editContext.onCancel();
+        return;
+      }
+
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         void handleSend();
@@ -897,7 +934,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
         return;
       }
     },
-    [handleSend, setMessageText, acceptMention]
+    [handleSend, setMessageText, acceptMention, editContext]
   );
 
   const handleGifSelect = useCallback((gif: GifAttachment) => {
@@ -944,6 +981,188 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       textarea.setSelectionRange(newPos, newPos);
     });
   }, [setMessageText]);
+
+  const composerControls = useComposerControlsPreference();
+  const leftControls = useMemo(
+    () => getComposerControlsBySide(composerControls, 'left'),
+    [composerControls],
+  );
+  const rightControls = useMemo(
+    () => getComposerControlsBySide(composerControls, 'right'),
+    [composerControls],
+  );
+  const canSendMessage =
+    !!channelId &&
+    !disabled &&
+    !sending &&
+    (!!messageText.trim() || attachments.length > 0 || !!pendingGif);
+
+  const renderComposerControl = useCallback(
+    (control: ComposerControlConfig) => {
+      switch (control.id) {
+        case 'forwardSecrecy':
+          if (!forwardSecrecy) return null;
+          return (
+            <Tooltip
+              key={control.id}
+              content={
+                forwardSecrecy.enabled
+                  ? t('conversations.fsEnabled', 'Forward secrecy is on for this message')
+                  : t('conversations.fsDisabled', 'Forward secrecy is off for this message')
+              }
+              position="top"
+            >
+              <button
+                type="button"
+                className={`conversation-fs-toggle${forwardSecrecy.enabled ? ' conversation-fs-toggle--active' : ''}`}
+                onClick={() => {
+                  forwardSecrecy.onToggle();
+                  requestAnimationFrame(() => inputRef.current?.focus());
+                }}
+              >
+                FS
+              </button>
+            </Tooltip>
+          );
+        case 'timedMessage':
+          return (
+            <ComposerTTLMenu
+              key={control.id}
+              ttlSeconds={ttlSeconds}
+              onSelect={setTtlSeconds}
+              onAfterSelect={() => requestAnimationFrame(() => inputRef.current?.focus())}
+            />
+          );
+        case 'upload':
+          return (
+            <Tooltip key={control.id} content={t('conversations.attachMedia')} position="top">
+              <button
+                type="button"
+                className="conversation-attach-btn"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={sending || attachments.length >= MAX_ATTACHMENTS}
+              >
+                <Icon name="upload" />
+              </button>
+            </Tooltip>
+          );
+        case 'gif':
+          if (gifsDisabled) return null;
+          return (
+            <Popover.Root
+              key={control.id}
+              open={showMediaPicker}
+              onOpenChange={(e) => setShowMediaPicker(e.open)}
+              positioning={{ placement: 'top-end' }}
+              lazyMount
+              unmountOnExit
+            >
+              <Popover.Anchor asChild>
+                <span className="composer-popover-anchor">
+                  <Tooltip content={t('gif.composerButtonCombined', 'GIFs and Stickers')} position="top">
+                    <Popover.Trigger asChild>
+                      <button
+                        type="button"
+                        className="conversation-media-btn"
+                        disabled={sending}
+                      >
+                        <span className="conversation-media-btn__label">GIF</span>
+                      </button>
+                    </Popover.Trigger>
+                  </Tooltip>
+                </span>
+              </Popover.Anchor>
+              <Portal>
+                <Popover.Positioner>
+                  <Popover.Content className="gif-picker-popover">
+                    <GifPicker
+                      onGifSelect={handleGifSelect}
+                      initialTab={lastMediaTab}
+                      onTabChange={setLastMediaTab}
+                      lastMessageText={lastMessageText}
+                      conversationId={channelId}
+                    />
+                  </Popover.Content>
+                </Popover.Positioner>
+              </Portal>
+            </Popover.Root>
+          );
+        case 'emoji':
+          return (
+            <Popover.Root
+              key={control.id}
+              open={showEmojiPicker}
+              onOpenChange={(e) => setShowEmojiPicker(e.open)}
+              positioning={{ placement: 'top-end' }}
+              lazyMount
+              unmountOnExit
+            >
+              <Popover.Anchor asChild>
+                <span className="composer-popover-anchor">
+                  <Tooltip content={t('conversations.emojiButton', 'Emoji')} position="top">
+                    <Popover.Trigger asChild>
+                      <button type="button" className="message-composer-emoji-btn">
+                        <Icon name="smile" className="message-composer-emoji-icon" />
+                      </button>
+                    </Popover.Trigger>
+                  </Tooltip>
+                </span>
+              </Popover.Anchor>
+              <Portal>
+                <Popover.Positioner>
+                  <Popover.Content className="emoji-picker-popover">
+                    <EmojiPicker
+                      onEmojiSelect={handleEmojiSelect}
+                      customEmojis={!customEmojisDisabled ? customEmojis : undefined}
+                    />
+                  </Popover.Content>
+                </Popover.Positioner>
+              </Portal>
+            </Popover.Root>
+          );
+        case 'send':
+          return (
+            <Tooltip key={control.id} content={t('conversations.send', 'Send')} position="top">
+              <button
+                type="button"
+                className="conversation-composer-send-btn"
+                onClick={() => void handleSend()}
+                disabled={!canSendMessage}
+                aria-label={t('conversations.send', 'Send')}
+              >
+                {control.sendShowText && (
+                  <span className="conversation-composer-send-btn__label">
+                    {t('conversations.send', 'Send')}
+                  </span>
+                )}
+                <ComposerSendIcon icon={control.sendIcon ?? 'paper-plane'} />
+              </button>
+            </Tooltip>
+          );
+        default:
+          return null;
+      }
+    },
+    [
+      forwardSecrecy,
+      t,
+      ttlSeconds,
+      sending,
+      attachments.length,
+      gifsDisabled,
+      showMediaPicker,
+      handleGifSelect,
+      lastMediaTab,
+      lastMessageText,
+      channelId,
+      showEmojiPicker,
+      handleEmojiSelect,
+      customEmojisDisabled,
+      customEmojis,
+      handleSend,
+      canSendMessage,
+    ],
+  );
 
   return (
     <Menu.Root
@@ -1047,28 +1266,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
           style={{ display: 'none' }}
         />
         <div className="conversation-composer-row__left">
-          {forwardSecrecy && (
-            <Tooltip
-              content={forwardSecrecy.enabled
-                ? t('conversations.fsEnabled', 'Forward secrecy is on for this message')
-                : t('conversations.fsDisabled', 'Forward secrecy is off for this message')
-              }
-              position="top"
-            >
-              <button
-                type="button"
-                className={`conversation-fs-toggle${forwardSecrecy.enabled ? ' conversation-fs-toggle--active' : ''}`}
-                onClick={() => { forwardSecrecy.onToggle(); requestAnimationFrame(() => inputRef.current?.focus()); }}
-              >
-                FS
-              </button>
-            </Tooltip>
-          )}
-          <ComposerTTLMenu
-            ttlSeconds={ttlSeconds}
-            onSelect={setTtlSeconds}
-            onAfterSelect={() => requestAnimationFrame(() => inputRef.current?.focus())}
-          />
+          {leftControls.map((control) => renderComposerControl(control))}
         </div>
         <textarea
           ref={inputRef}
@@ -1124,89 +1322,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
           disabled={disabled || sending}
         />
         <div className="conversation-composer-row__right" style={disabled ? { display: 'none' } : undefined}>
-          <Tooltip
-            content={t('conversations.attachMedia')}
-            position="top"
-          >
-            <button
-              type="button"
-              className="conversation-attach-btn"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={sending || attachments.length >= MAX_ATTACHMENTS}
-            >
-              <Icon name="upload" />
-            </button>
-          </Tooltip>
-          {!gifsDisabled && (
-            <Popover.Root
-              open={showMediaPicker}
-              onOpenChange={(e) => setShowMediaPicker(e.open)}
-              positioning={{ placement: 'top-end' }}
-              lazyMount
-              unmountOnExit
-            >
-              <Popover.Anchor asChild>
-                <span className="composer-popover-anchor">
-                  <Tooltip content={t('gif.composerButtonCombined', 'GIFs and Stickers')} position="top">
-                    <Popover.Trigger asChild>
-                      <button
-                        type="button"
-                        className="conversation-media-btn"
-                        disabled={sending}
-                      >
-                        <span className="conversation-media-btn__label">GIF</span>
-                      </button>
-                    </Popover.Trigger>
-                  </Tooltip>
-                </span>
-              </Popover.Anchor>
-              <Portal>
-                <Popover.Positioner>
-                  <Popover.Content className="gif-picker-popover">
-                    <GifPicker
-                      onGifSelect={handleGifSelect}
-                      initialTab={lastMediaTab}
-                      onTabChange={setLastMediaTab}
-                      lastMessageText={lastMessageText}
-                      conversationId={channelId}
-                    />
-                  </Popover.Content>
-                </Popover.Positioner>
-              </Portal>
-            </Popover.Root>
-          )}
-          <Popover.Root
-            open={showEmojiPicker}
-            onOpenChange={(e) => setShowEmojiPicker(e.open)}
-            positioning={{ placement: 'top-end' }}
-            lazyMount
-            unmountOnExit
-          >
-            <Popover.Anchor asChild>
-              <span className="composer-popover-anchor">
-                <Tooltip content={t('conversations.emojiButton', 'Emoji')} position="top">
-                  <Popover.Trigger asChild>
-                    <button
-                      type="button"
-                      className="message-composer-emoji-btn"
-                    >
-                      <Icon name="smile" className="message-composer-emoji-icon" />
-                    </button>
-                  </Popover.Trigger>
-                </Tooltip>
-              </span>
-            </Popover.Anchor>
-            <Portal>
-              <Popover.Positioner>
-                <Popover.Content className="emoji-picker-popover">
-                  <EmojiPicker
-                    onEmojiSelect={handleEmojiSelect}
-                    customEmojis={!customEmojisDisabled ? customEmojis : undefined}
-                  />
-                </Popover.Content>
-              </Popover.Positioner>
-            </Portal>
-          </Popover.Root>
+          {rightControls.map((control) => renderComposerControl(control))}
         </div>
       </div>
     </div>

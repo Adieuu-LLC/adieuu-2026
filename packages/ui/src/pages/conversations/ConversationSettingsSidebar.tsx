@@ -4,6 +4,7 @@ import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Icon } from '../../icons/Icon';
 import { InfoTip } from '../../components/InfoTip';
+import { ComposerControlsEditor } from '../../components/ComposerControlsEditor';
 import { setMemberColorDisplay, type MemberColorDisplay } from '../../hooks/useMemberColorPreference';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import type { GifContentFilter } from '@adieuu/shared';
@@ -170,6 +171,16 @@ export function ConversationSettingsSidebar({
           </span>
         </label>
       )}
+
+      <div className="conversation-settings-composer-controls">
+        <span className="app-settings-toggle-title">
+          {t('composerControls.title', 'Composer controls')}
+        </span>
+        <span className="app-settings-toggle-hint">
+          {t('composerControls.conversationHint', 'Customize your composer toolbar for all conversations on this device.')}
+        </span>
+        <ComposerControlsEditor />
+      </div>
     </>
   );
 

@@ -47,6 +47,8 @@ export interface MediaOutboxJobRecord {
   updatedAt: number;
   caption: string;
   mentionsJson: string;
+  /** Pre-expanded participant IDs for notification routing (includes @here/@everyone expansion). */
+  mentionedIdentityIdsJson?: string;
   replyToMessageId?: string;
   ttlSeconds?: number;
   useForwardSecrecy: boolean;
@@ -75,6 +77,8 @@ export interface MediaOutboxEnqueueInput {
   conversationId: string;
   caption: string;
   mentions: MediaOutboxMention[];
+  /** Expanded participant IDs for @mention notifications (optional; derived from mentions when omitted). */
+  mentionedIdentityIds?: string[];
   replyToMessageId?: string;
   ttlSeconds?: number;
   useForwardSecrecy: boolean;

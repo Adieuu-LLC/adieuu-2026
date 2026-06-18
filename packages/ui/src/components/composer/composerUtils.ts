@@ -1,4 +1,6 @@
-import type { TrackedMention } from './composerTypes';
+import type { TrackedMention, MentionSource } from './composerTypes';
+import { isGroupMentionId } from './composerTypes';
+import type { MentionEntity } from '../../services/messagePayload';
 
 export function detectShortcodeQuery(
   text: string,
@@ -47,4 +49,23 @@ export function updateMentionOffsets(
     if (cursorPos - Math.max(delta, 0) >= mEnd) return true;
     return false;
   });
+}
+
+/** Expand group mention sentinels to all participant IDs for notification routing. */
+export function resolveMentionedIdentityIds(
+  mentions: Pick<MentionEntity, 'id'>[],
+  mentionSource?: MentionSource,
+): string[] | undefined {
+  if (mentions.length === 0) return undefined;
+  const ids = new Set<string>();
+  for (const mention of mentions) {
+    if (isGroupMentionId(mention.id)) {
+      for (const user of mentionSource?.users ?? []) {
+        ids.add(user.id);
+      }
+    } else {
+      ids.add(mention.id);
+    }
+  }
+  return ids.size > 0 ? [...ids] : undefined;
 }
