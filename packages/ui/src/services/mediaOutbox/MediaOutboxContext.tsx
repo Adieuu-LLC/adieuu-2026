@@ -244,6 +244,9 @@ export function MediaOutboxProvider({ children }: { children: ReactNode }) {
         updatedAt: now,
         caption: input.caption,
         mentionsJson,
+        ...(input.mentionedIdentityIds?.length
+          ? { mentionedIdentityIdsJson: JSON.stringify(input.mentionedIdentityIds) }
+          : {}),
         replyToMessageId: input.replyToMessageId,
         ttlSeconds: input.ttlSeconds,
         useForwardSecrecy: input.useForwardSecrecy,

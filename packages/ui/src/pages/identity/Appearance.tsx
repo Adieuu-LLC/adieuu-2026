@@ -6,7 +6,7 @@
  * import/export, and per-identity display toggles — live here.
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { RadioGroup } from '@ark-ui/react';
@@ -28,6 +28,7 @@ import { useEmbedPreference, type EmbedVisibilityMode, type EmbedPreference, typ
 import { useClaimAchievement } from '../../hooks/useClaimAchievement';
 import { useMySharedThemeChecksums } from '../../hooks/useMySharedThemeChecksums';
 import { CustomThemeShareButton } from '../../components/CustomThemeShareButton';
+import { ComposerControlsEditor } from '../../components/ComposerControlsEditor';
 import { ICON_PACKS, DEFAULT_ICON_PACK_ID } from '../../icons/packs';
 import type { IconPackId } from '../../icons/packs';
 import type { ThemeDefinition, ThemeColorTokens } from '@adieuu/shared';
@@ -179,6 +180,7 @@ export function IdentityAppearance() {
     const list: AppearanceSection[] = [
       { id: 'language', label: t('account.appearance.languageTitle') },
       { id: 'message-layout', label: t('account.appearance.messageLayoutTitle') },
+      { id: 'composer-controls', label: t('composerControls.title', 'Composer controls') },
       { id: 'preset-themes', label: t('account.appearance.presetsTitle') },
     ];
     if (customThemes.length > 0) {
@@ -199,6 +201,15 @@ export function IdentityAppearance() {
     } else {
       sectionRefs.current.delete(id);
     }
+  }, []);
+
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    const timer = window.setTimeout(() => {
+      sectionRefs.current.get(hash)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const handleLanguageChange = useCallback((code: LanguageCode) => {
@@ -473,6 +484,18 @@ export function IdentityAppearance() {
               <RadioGroup.ItemHiddenInput />
             </RadioGroup.Item>
           </RadioGroup.Root>
+        </Card>
+
+        {/* Composer Controls */}
+        <Card variant="elevated" className="slide-up app-settings-card" ref={(el) => setSectionRef('composer-controls', el)} data-section="composer-controls">
+          <h2 className="app-settings-section-title">{t('composerControls.title', 'Composer controls')}</h2>
+          <p className="app-settings-section-desc">
+            {t(
+              'composerControls.description',
+              'Customize which controls appear in the message composer, where they sit, and in what order.',
+            )}
+          </p>
+          <ComposerControlsEditor />
         </Card>
 
         {/* Preset Themes */}

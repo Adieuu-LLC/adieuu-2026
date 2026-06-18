@@ -1,6 +1,10 @@
 import type { PublicCustomEmoji } from '@adieuu/shared';
 import type { MentionableUser } from './composerTypes';
 
+export type MentionSuggestion =
+  | { kind: 'user'; id: string; user: MentionableUser; displayText: string }
+  | { kind: 'group'; id: string; displayText: string };
+
 export type ShortcodeSuggestion =
   | [code: string, emoji: string]
   | { type: 'custom'; emoji: PublicCustomEmoji };
@@ -59,7 +63,7 @@ export function ComposerMentionAutocomplete({
   selectedIdx,
   onSelect,
 }: {
-  suggestions: { id: string; user: MentionableUser; displayText: string }[];
+  suggestions: MentionSuggestion[];
   selectedIdx: number;
   onSelect: (id: string, displayText: string) => void;
 }) {
@@ -73,13 +77,17 @@ export function ComposerMentionAutocomplete({
           id={`mention-ac-option-${s.id}`}
           role="option"
           aria-selected={i === selectedIdx}
-          className={`conversation-composer-mention-ac-item${i === selectedIdx ? ' conversation-composer-mention-ac-item--selected' : ''}`}
+          className={`conversation-composer-mention-ac-item${i === selectedIdx ? ' conversation-composer-mention-ac-item--selected' : ''}${s.kind === 'group' ? ' conversation-composer-mention-ac-item--group' : ''}`}
           onMouseDown={(ev) => {
             ev.preventDefault();
             onSelect(s.id, s.displayText);
           }}
         >
-          {s.user.avatarUrl ? (
+          {s.kind === 'group' ? (
+            <span className="conversation-composer-mention-ac-avatar conversation-composer-mention-ac-avatar--group" aria-hidden>
+              @
+            </span>
+          ) : s.user.avatarUrl ? (
             <img src={s.user.avatarUrl} alt="" className="conversation-composer-mention-ac-avatar" />
           ) : (
             <span className="conversation-composer-mention-ac-avatar conversation-composer-mention-ac-avatar--placeholder">
@@ -87,9 +95,11 @@ export function ComposerMentionAutocomplete({
             </span>
           )}
           <span className="conversation-composer-mention-ac-name">{s.displayText}</span>
-          {s.user.username && (
+          {s.kind === 'group' ? (
+            <span className="conversation-composer-mention-ac-username">@{s.displayText}</span>
+          ) : s.user.username ? (
             <span className="conversation-composer-mention-ac-username">@{s.user.username}</span>
-          )}
+          ) : null}
         </li>
       ))}
     </ul>

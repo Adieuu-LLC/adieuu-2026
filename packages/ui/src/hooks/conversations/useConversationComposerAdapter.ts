@@ -168,6 +168,7 @@ export function useConversationComposerAdapter(params: {
       });
     return {
       users,
+      isGroup: conversation.type === 'group',
       resolveMentionDisplay: (uid: string) => {
         const nickname = memberSettings[uid]?.nickname;
         if (nickname) return nickname;

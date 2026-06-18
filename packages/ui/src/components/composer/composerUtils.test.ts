@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import { detectShortcodeQuery, detectMentionQuery, updateMentionOffsets } from './composerUtils';
+import { detectShortcodeQuery, detectMentionQuery, updateMentionOffsets, resolveMentionedIdentityIds } from './composerUtils';
 import type { TrackedMention } from './composerTypes';
+import { MENTION_EVERYONE_ID, MENTION_HERE_ID, isGroupMentionId } from './composerTypes';
 
 describe('detectShortcodeQuery', () => {
   test('returns null when no colon present', () => {
@@ -83,5 +84,49 @@ describe('updateMentionOffsets', () => {
     const entries: TrackedMention[] = [{ identityId: 'a', offset: 10, length: 4 }];
     const result = updateMentionOffsets(entries, 'hello world', 'helloworld', 5);
     expect(result[0]!.offset).toBe(9);
+  });
+});
+
+describe('resolveMentionedIdentityIds', () => {
+  const mentionSource = {
+    users: [
+      { id: 'user-a', displayName: 'Alice' },
+      { id: 'user-b', displayName: 'Bob' },
+    ],
+    resolveMentionDisplay: (id: string) => id,
+    isGroup: true,
+  };
+
+  test('returns undefined for empty mentions', () => {
+    expect(resolveMentionedIdentityIds([], mentionSource)).toBeUndefined();
+  });
+
+  test('expands @here to all participants', () => {
+    expect(
+      resolveMentionedIdentityIds([{ id: MENTION_HERE_ID, offset: 0, length: 5 }], mentionSource),
+    ).toEqual(['user-a', 'user-b']);
+  });
+
+  test('expands @everyone to all participants', () => {
+    expect(
+      resolveMentionedIdentityIds([{ id: MENTION_EVERYONE_ID, offset: 0, length: 9 }], mentionSource),
+    ).toEqual(['user-a', 'user-b']);
+  });
+
+  test('keeps individual mention ids', () => {
+    expect(
+      resolveMentionedIdentityIds([{ id: 'user-a', offset: 0, length: 5 }], mentionSource),
+    ).toEqual(['user-a']);
+  });
+
+  test('dedupes group and individual mentions', () => {
+    const ids = resolveMentionedIdentityIds(
+      [
+        { id: MENTION_HERE_ID, offset: 0, length: 5 },
+        { id: 'user-a', offset: 6, length: 5 },
+      ],
+      mentionSource,
+    );
+    expect(ids?.sort()).toEqual(['user-a', 'user-b']);
   });
 });

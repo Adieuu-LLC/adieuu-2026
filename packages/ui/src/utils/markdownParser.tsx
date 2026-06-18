@@ -16,6 +16,7 @@
 import { type ReactNode, type ReactElement, createElement, cloneElement, isValidElement } from 'react';
 import { createCustomEmojiColonTokenRegex, type PublicIdentity, type CustomEmojiPayloadEntry } from '@adieuu/shared';
 import type { MentionEntity } from '../services/messagePayload';
+import { groupMentionDisplayText, isGroupMentionId } from '../components/composer/composerTypes';
 import type { MemberSettingsMap } from '../services/conversationCryptoService';
 import { IdentityHoverCard } from '../components/IdentityHoverCard';
 import { Tooltip } from '../components/Tooltip';
@@ -306,6 +307,8 @@ function resolveMentionDisplayName(
   identityId: string,
   mCtx: MentionRenderContext,
 ): string {
+  const groupLabel = groupMentionDisplayText(identityId);
+  if (groupLabel) return groupLabel;
   const nickname = mCtx.memberSettings[identityId]?.nickname;
   if (nickname) return nickname;
   const p = mCtx.profiles[identityId];
@@ -314,24 +317,37 @@ function resolveMentionDisplayName(
 
 function renderMentionNode(identityId: string, ctx: RenderCtx): ReactNode {
   const mCtx = ctx.mentionCtx;
+  const isGroupMention = isGroupMentionId(identityId);
   const displayName = mCtx
     ? resolveMentionDisplayName(identityId, mCtx)
-    : 'Unknown';
-  const profile = mCtx?.profiles[identityId];
+    : isGroupMention
+      ? groupMentionDisplayText(identityId) ?? 'everyone'
+      : 'Unknown';
+  const profile = isGroupMention ? undefined : mCtx?.profiles[identityId];
 
   const mentionSpan = (
     <span
       key={ctx.k++}
-      className={profile ? 'dm-mention' : 'dm-mention dm-mention--unknown'}
-      role="link"
-      tabIndex={0}
-      onClick={() => mCtx?.onMentionClick?.(identityId)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          mCtx?.onMentionClick?.(identityId);
-        }
-      }}
+      className={
+        isGroupMention
+          ? 'dm-mention dm-mention--group'
+          : profile
+            ? 'dm-mention'
+            : 'dm-mention dm-mention--unknown'
+      }
+      role={isGroupMention ? undefined : 'link'}
+      tabIndex={isGroupMention ? undefined : 0}
+      onClick={isGroupMention ? undefined : () => mCtx?.onMentionClick?.(identityId)}
+      onKeyDown={
+        isGroupMention
+          ? undefined
+          : (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                mCtx?.onMentionClick?.(identityId);
+              }
+            }
+      }
     >
       @{displayName}
     </span>

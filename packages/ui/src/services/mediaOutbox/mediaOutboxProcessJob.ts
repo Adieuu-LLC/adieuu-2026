@@ -13,6 +13,7 @@ import {
   type ModerationScanPayload,
 } from '../conversationMediaUploadFlow';
 import type { MediaOutboxE2eSnapshotItem, MediaOutboxJobRecord, MediaOutboxPersistedScanPart } from './mediaOutboxTypes';
+import { isGroupMentionId } from '../../components/composer/composerTypes';
 import {
   MEDIA_OUTBOX_ATTACHMENT_PIPELINE_TIMEOUT_MS,
   MEDIA_OUTBOX_PREPARE_TIMEOUT_MS,
@@ -189,8 +190,11 @@ async function sendMessageForJob(job: MediaOutboxJobRecord, deps: MediaOutboxPro
   payload.senderDeviceId = getOrCreateDeviceId();
   const plaintext = serializePayload(payload);
   const e2eMediaIds = snap.map((m) => m.e2eMediaId);
-  const mentionedIdentityIds =
-    mentions.length > 0 ? [...new Set(mentions.map((m) => m.id))] : undefined;
+  const mentionedIdentityIds = job.mentionedIdentityIdsJson
+    ? (JSON.parse(job.mentionedIdentityIdsJson) as string[])
+    : mentions.length > 0
+      ? [...new Set(mentions.map((m) => m.id).filter((id) => !isGroupMentionId(id)))]
+      : undefined;
 
   throwIfAborted(deps.abortSignal);
 
