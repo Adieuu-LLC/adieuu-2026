@@ -18,7 +18,6 @@ import { Icon } from '../../icons/Icon';
 import { useToast } from '../../components/Toast';
 import { useTheme } from '../../hooks/useTheme';
 import { useIdentity } from '../../hooks/useIdentity';
-import { useIconPack } from '../../hooks/useIconPack';
 import { useMessageLayoutPreference, setMessageLayout, type MessageLayout } from '../../hooks/useMessageLayoutPreference';
 import { DEFAULT_THEME_ID } from '../../constants/builtinThemes';
 import { sanitizeImportedTheme } from '../../utils/themeSanitizer';
@@ -29,8 +28,6 @@ import { useClaimAchievement } from '../../hooks/useClaimAchievement';
 import { useMySharedThemeChecksums } from '../../hooks/useMySharedThemeChecksums';
 import { CustomThemeShareButton } from '../../components/CustomThemeShareButton';
 import { ComposerControlsEditor } from '../../components/ComposerControlsEditor';
-import { ICON_PACKS, DEFAULT_ICON_PACK_ID } from '../../icons/packs';
-import type { IconPackId } from '../../icons/packs';
 import type { ThemeDefinition, ThemeColorTokens } from '@adieuu/shared';
 import { TOKEN_TO_CSS_VAR } from '@adieuu/shared';
 import { i18n, availableLanguages } from '../../i18n';
@@ -111,7 +108,6 @@ export function IdentityAppearance() {
     customThemes,
   } = useTheme();
   const { status: identityStatus, identity } = useIdentity();
-  const { packId, setIconPack } = useIconPack();
   const messageLayout = useMessageLayoutPreference();
   const claimAchievement = useClaimAchievement();
   const { sharedChecksums, refresh: refreshSharedThemeChecksums } = useMySharedThemeChecksums();
@@ -172,7 +168,6 @@ export function IdentityAppearance() {
   const [editColors, setEditColors] = useState<ThemeColorTokens | null>(null);
   const [saveName, setSaveName] = useState('');
   const [saveDesc, setSaveDesc] = useState('');
-  const [iconPackOpen, setIconPackOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
 
@@ -188,7 +183,6 @@ export function IdentityAppearance() {
     }
     list.push(
       { id: 'theme-editor', label: t('account.appearance.editorTitle') },
-      { id: 'icon-pack', label: t('account.appearance.iconPackTitle') },
       { id: 'import-export', label: t('account.appearance.importExportTitle') },
       { id: 'message-display', label: t('identity.appearance.messageDisplayTitle', 'Message Display') },
     );
@@ -333,30 +327,6 @@ export function IdentityAppearance() {
       toast.error(t('identity.appearance.importFailed'));
     }
   }, [saveCustomTheme, setIdentityTheme, toast, t]);
-
-  const handleSelectIconPack = useCallback(async (id: IconPackId) => {
-    await setIconPack(id);
-    toast.success(t('account.appearance.iconPackApplied'));
-  }, [setIconPack, toast, t]);
-
-  const iconPackFamilies = useMemo(() => {
-    const families = new Map<string, typeof ICON_PACKS>();
-    const order = ['DuoTone', 'Sharp DuoTone', 'Classic', 'Curated'];
-    for (const pack of ICON_PACKS) {
-      const list = families.get(pack.family) ?? [];
-      list.push(pack);
-      families.set(pack.family, list);
-    }
-    const sorted = new Map<string, typeof ICON_PACKS>();
-    for (const key of order) {
-      const packs = families.get(key);
-      if (packs) sorted.set(key, packs);
-    }
-    for (const [key, packs] of families) {
-      if (!sorted.has(key)) sorted.set(key, packs);
-    }
-    return sorted;
-  }, []);
 
   const fieldsByCategory = useMemo(() => {
     const map = new Map<ColorCategory, ColorField[]>();
@@ -648,59 +618,6 @@ export function IdentityAppearance() {
                   {t('account.appearance.saveTheme')}
                 </Button>
               </div>
-            </div>
-          )}
-        </Card>
-
-        {/* Icon Pack (collapsible) */}
-        <Card variant="elevated" className="slide-up app-settings-card" ref={(el) => setSectionRef('icon-pack', el)} data-section="icon-pack">
-          <button
-            type="button"
-            className="app-settings-section-header app-settings-section-header--collapsible"
-            onClick={() => setIconPackOpen((prev) => !prev)}
-            aria-expanded={iconPackOpen}
-          >
-            <div>
-              <h2 className="app-settings-section-title">{t('account.appearance.iconPackTitle')}</h2>
-              <p className="app-settings-section-desc">{t('account.appearance.iconPackDescription')}</p>
-            </div>
-            <Icon
-              name={iconPackOpen ? 'chevronUp' : 'chevronDown'}
-              className="app-settings-section-chevron"
-            />
-          </button>
-
-          {iconPackOpen && (
-            <div className="icon-pack-families">
-              {Array.from(iconPackFamilies.entries()).map(([family, packs]) => (
-                <div key={family} className="icon-pack-family">
-                  <h3 className="icon-pack-family-name">{family}</h3>
-                  <div className="icon-pack-grid">
-                    {packs.map((pack) => (
-                      <button
-                        key={pack.id}
-                        type="button"
-                        className={`icon-pack-card${packId === pack.id ? ' icon-pack-card--active' : ''}`}
-                        onClick={() => void handleSelectIconPack(pack.id as IconPackId)}
-                      >
-                        <span className="icon-pack-card-label">
-                          {family === 'Curated' ? pack.label : pack.weight}
-                          {pack.id === DEFAULT_ICON_PACK_ID && (
-                            <span className="icon-pack-card-default">{t('account.appearance.iconPackDefault')}</span>
-                          )}
-                        </span>
-                        <div className="icon-pack-card-preview">
-                          <Icon name="home" packOverride={pack.id} />
-                          <Icon name="message" packOverride={pack.id} />
-                          <Icon name="settings" packOverride={pack.id} />
-                          <Icon name="search" packOverride={pack.id} />
-                          <Icon name="bell" packOverride={pack.id} />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
             </div>
           )}
         </Card>

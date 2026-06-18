@@ -124,12 +124,15 @@
   position: absolute;
   left: var(--roadmap-track-x);
   top: 0;
+  bottom: 0;
   width: 2px;
-  height: 0;
   background: var(--color-accent-primary);
   pointer-events: none;
   z-index: 1;
-  transition: none;
+  // Driven via transform: scaleY() on scroll (compositor-only, no layout).
+  transform: scaleY(0);
+  transform-origin: top;
+  will-change: transform;
 }
 
 .roadmap-timeline-loading,
@@ -163,7 +166,10 @@
   border: 2px solid var(--color-bg, var(--color-bg-primary));
   background: var(--color-text-muted);
   box-sizing: border-box;
-  transition: background 0.25s ease, width 0.25s ease, height 0.25s ease, left 0.25s ease, top 0.25s ease, box-shadow 0.25s ease;
+  // Grow on focus via transform: scale() (compositor-only) instead of animating
+  // width/height/left/top, which forced layout on every scroll-driven focus change.
+  transform-origin: center;
+  transition: background 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
   z-index: 2;
 
   &--latest {
@@ -177,10 +183,8 @@
 }
 
 .roadmap-timeline-group--focused > .roadmap-timeline-marker {
-  width: 14px;
-  height: 14px;
-  left: calc(-1 * (var(--spacing-xl) + 16px) + var(--roadmap-track-x) - 7px);
-  top: calc(0.35em - 2px);
+  // 14px / 10px = 1.4; scales around its center so it stays aligned to the track.
+  transform: scale(1.4);
   background: var(--color-accent-primary);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent-primary) 20%, transparent);
 }
@@ -256,17 +260,12 @@
 
 // ---------------------------------------------------------------------------
 // Card glow animation
+//
+// The focused-card glow uses a static conic-gradient ring with a compositor-only
+// opacity pulse. We deliberately avoid animating the gradient angle (via an
+// animated @property) because that repaints the conic-gradient every frame on
+// every focused card (a whole group at once), which tanked the framerate.
 // ---------------------------------------------------------------------------
-
-@property --roadmap-glow-angle {
-  syntax: '<angle>';
-  initial-value: 0deg;
-  inherits: false;
-}
-
-@keyframes roadmap-card-glow-rotate {
-  to { --roadmap-glow-angle: 360deg; }
-}
 
 @keyframes roadmap-card-glow-pulse {
   0%, 100% {
@@ -319,14 +318,15 @@
     transform: scale(1.015);
     box-shadow: 0 0 16px 0 color-mix(in srgb, var(--color-accent-primary) 20%, transparent);
 
-    // Rotating gradient — fills 2px larger than the card on every side
+    // Static gradient ring — fills 2px larger than the card on every side.
+    // Only the opacity pulses (compositor-only); the gradient itself never repaints.
     &::before {
       content: '';
       position: absolute;
       inset: -2px;
       border-radius: inherit;
       background: conic-gradient(
-        from var(--roadmap-glow-angle),
+        from 0deg,
         #38bdf8,
         color-mix(in srgb, var(--color-accent-primary) 30%, transparent) 25%,
         #c084fc 50%,
@@ -334,9 +334,8 @@
         #38bdf8
       );
       z-index: -1;
-      animation:
-        roadmap-card-glow-rotate 3s linear infinite,
-        roadmap-card-glow-pulse 2.5s ease-in-out infinite;
+      animation: roadmap-card-glow-pulse 2.5s ease-in-out infinite;
+      will-change: opacity;
       pointer-events: none;
     }
 

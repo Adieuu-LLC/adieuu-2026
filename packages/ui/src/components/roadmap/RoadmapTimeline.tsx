@@ -129,6 +129,7 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
       const prog = progressRef.current;
       if (!prog) return;
 
+      // --- Reads first (batched) to avoid layout thrash ---
       const scrollTop = getScrollTop();
       const totalScrollable = getTotalScrollable();
       const timelineHeight = el.offsetHeight;
@@ -142,20 +143,25 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
         const ratio = timelineHeight / totalScrollable;
         blueHeight = Math.max(0, Math.min(relativeScrollTop * ratio, timelineHeight));
       }
-      prog.style.height = `${blueHeight}px`;
-      blueHeightRef.current = blueHeight;
 
       const groups = el.querySelectorAll<HTMLElement>('[data-roadmap-group]');
-      let focusedEl: HTMLElement | null = null;
-      let focusedDist = Infinity;
-      let focusedIdx = -1;
-      let idx = 0;
-
+      const groupMeta: { group: HTMLElement; markerTop: number }[] = [];
       groups.forEach((group) => {
         const marker = group.querySelector<HTMLElement>('.roadmap-timeline-marker');
-        if (!marker) { idx++; return; }
+        if (!marker) return;
+        groupMeta.push({ group, markerTop: group.offsetTop + marker.offsetTop });
+      });
 
-        const markerTop = group.offsetTop + marker.offsetTop;
+      // --- Writes ---
+      // Progress line is full-height; scaleY keeps it on the compositor (no layout).
+      prog.style.transform = `scaleY(${timelineHeight > 0 ? blueHeight / timelineHeight : 0})`;
+      blueHeightRef.current = blueHeight;
+
+      let focusedEl: HTMLElement | null = null;
+      let focusedDist = Infinity;
+      let focusedMetaIdx = -1;
+
+      groupMeta.forEach(({ group, markerTop }, metaIdx) => {
         const isPassed = blueHeight >= markerTop;
         const dist = Math.abs(blueHeight - markerTop);
 
@@ -165,9 +171,8 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
         if (dist < focusedDist) {
           focusedDist = dist;
           focusedEl = group;
-          focusedIdx = idx;
+          focusedMetaIdx = metaIdx;
         }
-        idx++;
       });
 
       if (focusedEl) {
@@ -179,9 +184,9 @@ export function RoadmapTimeline({ onNavReady }: { onNavReady?: (nav: RoadmapTime
         }
       }
 
-      const totalGroups = groups.length;
-      const newCanUp = focusedIdx > 0;
-      const newCanDown = focusedIdx >= 0 && focusedIdx < totalGroups - 1;
+      const totalGroups = groupMeta.length;
+      const newCanUp = focusedMetaIdx > 0;
+      const newCanDown = focusedMetaIdx >= 0 && focusedMetaIdx < totalGroups - 1;
       if (canNavRef.current.up !== newCanUp || canNavRef.current.down !== newCanDown) {
         canNavRef.current = { up: newCanUp, down: newCanDown };
         setCanNavigateUp(newCanUp);

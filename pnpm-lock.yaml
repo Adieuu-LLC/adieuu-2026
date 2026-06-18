@@ -392,22 +392,7 @@ importers:
 
   packages/ui:
     dependencies:
-      '@adieuu-llc/fa-duotone-thin-svg-icons':
-        specifier: 7.2.0
-        version: 7.2.0
-      '@adieuu-llc/fa-free-brands-svg-icons':
-        specifier: 7.2.0
-        version: 7.2.0
-      '@adieuu-llc/fa-pro-duotone-svg-icons':
-        specifier: 7.2.0
-        version: 7.2.0
-      '@adieuu-llc/fa-pro-solid-svg-icons':
-        specifier: 7.2.0
-        version: 7.2.0
       '@adieuu-llc/fa-sharp-duotone-solid-svg-icons':
-        specifier: 7.2.0
-        version: 7.2.0
-      '@adieuu-llc/fa-sharp-duotone-thin-svg-icons':
         specifier: 7.2.0
         version: 7.2.0
       '@adieuu/crypto':
@@ -507,32 +492,12 @@ packages:
   7zip-bin@5.2.0:
     resolution: {integrity: sha512-ukTPVhqG4jNzMro2qA9HSCSSVJN3aN7tlb+hfqYCt3ER0yWroeA2VR38MNrOHLQ/cVj+DaIMad0kFCtWWowh/A==}
 
-  '@adieuu-llc/fa-duotone-thin-svg-icons@7.2.0':
-    resolution: {integrity: sha512-bwmtjEgrZ8Qj3iGegGrWBid9Gb7NBE1/2I5eyF8nxd0NVFt8wLfEr3Pblr0Jt7++fcyyYPpZJGwZ34MX99F77g==, tarball: https://npm.pkg.github.com/download/@adieuu-llc/fa-duotone-thin-svg-icons/7.2.0/3ce7db0f5162965077c72eb8c89a91d7af614672}
-    engines: {node: '>=6'}
-
   '@adieuu-llc/fa-fontawesome-svg-core@7.2.0':
     resolution: {integrity: sha512-GTjmWFLilnDqtQTxOVa/mDY8aGeETLCkxcLika/5SwSlSkZTRESTEPM0M/jmUdN7gwB1kgemlCux66dmMHG5FA==, tarball: https://npm.pkg.github.com/download/@adieuu-llc/fa-fontawesome-svg-core/7.2.0/939ebd12cb8b2e97bd2ea747ed3612000fc66203}
     engines: {node: '>=6'}
 
-  '@adieuu-llc/fa-free-brands-svg-icons@7.2.0':
-    resolution: {integrity: sha512-Ui3sGOseAVUU1o/mv4HqJ82SK8N2uD2W8Mef8LR75YqMQNExwXvr/vQ4RRt/uSL9I5Qqn/RLTFhuug6UHnJoUA==, tarball: https://npm.pkg.github.com/download/@adieuu-llc/fa-free-brands-svg-icons/7.2.0/62dedc5c47c41c62b26c125ab8cc754db9a420a0}
-    engines: {node: '>=6'}
-
-  '@adieuu-llc/fa-pro-duotone-svg-icons@7.2.0':
-    resolution: {integrity: sha512-6dr2BOd3QRtycsYhifxulXcpM3oufb3/XIoPdxLw5Z9yvZbXgRyT7CmleO8uZ4961Z42DRtUYQj4exQeoqkoFA==, tarball: https://npm.pkg.github.com/download/@adieuu-llc/fa-pro-duotone-svg-icons/7.2.0/88db01869843527600878664d2ae9d26e016ef2a}
-    engines: {node: '>=6'}
-
-  '@adieuu-llc/fa-pro-solid-svg-icons@7.2.0':
-    resolution: {integrity: sha512-FakpNFqbULpuSmPC4ZqW1oiJ6BPjFYdIZWsz3jZ6wlWYeNyxLCzEx8imxRm8NDifsMHFw37d8OxtkWT6FCe7bA==, tarball: https://npm.pkg.github.com/download/@adieuu-llc/fa-pro-solid-svg-icons/7.2.0/3965b4cbc713d999ac63af1e9b177344624f48fe}
-    engines: {node: '>=6'}
-
   '@adieuu-llc/fa-sharp-duotone-solid-svg-icons@7.2.0':
     resolution: {integrity: sha512-pBiWbFpbxmDGWKzIbNxhTHc0Rar/ULyq/5/1x9bfqMuBqVHzZtWIat9aZU5i3TcrXSZzrGCl+UgSuv0qIuKzOg==, tarball: https://npm.pkg.github.com/download/@adieuu-llc/fa-sharp-duotone-solid-svg-icons/7.2.0/ba35ec61234e7fde8942fdf41f6ed26d634ad3b6}
-    engines: {node: '>=6'}
-
-  '@adieuu-llc/fa-sharp-duotone-thin-svg-icons@7.2.0':
-    resolution: {integrity: sha512-yeUVcnUH+RpD13EiYo3Zo54U2GYAFH+we7sPAFV/xJnAx5aR+T3gpfw/9dJQTAOtOsdVTLEmIbUcjBawP1EXeQ==, tarball: https://npm.pkg.github.com/download/@adieuu-llc/fa-sharp-duotone-thin-svg-icons/7.2.0/e318fedb48c9cf52f90314369da8da5c692407e9}
     engines: {node: '>=6'}
 
   '@ampproject/remapping@2.3.0':
@@ -4952,31 +4917,11 @@ snapshots:
 
   7zip-bin@5.2.0: {}
 
-  '@adieuu-llc/fa-duotone-thin-svg-icons@7.2.0':
-    dependencies:
-      '@fortawesome/fontawesome-common-types': 7.2.0
-
   '@adieuu-llc/fa-fontawesome-svg-core@7.2.0':
     dependencies:
       '@fortawesome/fontawesome-common-types': 7.2.0
 
-  '@adieuu-llc/fa-free-brands-svg-icons@7.2.0':
-    dependencies:
-      '@fortawesome/fontawesome-common-types': 7.2.0
-
-  '@adieuu-llc/fa-pro-duotone-svg-icons@7.2.0':
-    dependencies:
-      '@fortawesome/fontawesome-common-types': 7.2.0
-
-  '@adieuu-llc/fa-pro-solid-svg-icons@7.2.0':
-    dependencies:
-      '@fortawesome/fontawesome-common-types': 7.2.0
-
   '@adieuu-llc/fa-sharp-duotone-solid-svg-icons@7.2.0':
-    dependencies:
-      '@fortawesome/fontawesome-common-types': 7.2.0
-
-  '@adieuu-llc/fa-sharp-duotone-thin-svg-icons@7.2.0':
     dependencies:
       '@fortawesome/fontawesome-common-types': 7.2.0
 
