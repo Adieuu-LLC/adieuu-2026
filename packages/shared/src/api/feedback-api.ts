@@ -8,7 +8,6 @@ import type {
   FeedbackListParams,
   FeedbackListResponse,
   FeedbackNotificationPrefs,
-  FeedbackUnreadSummary,
   PublicFeedbackComment,
   RoadmapTimelineResponseData,
   UpdateFeedbackNotificationPrefsParams,
@@ -88,9 +87,5 @@ export class FeedbackApi {
     params: UpdateFeedbackNotificationPrefsParams,
   ): Promise<ApiResponse<FeedbackNotificationPrefs>> {
     return this.client.put('/api/feedback/notification-prefs', params);
-  }
-
-  async getUnreadSummary(): Promise<ApiResponse<FeedbackUnreadSummary>> {
-    return this.client.get('/api/feedback/unread-summary');
   }
 }

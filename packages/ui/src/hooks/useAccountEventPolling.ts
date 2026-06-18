@@ -45,8 +45,20 @@ export function useAccountEventPolling(
 
     let cancelled = false;
 
+    const isHidden = () =>
+      typeof document !== 'undefined' && document.hidden;
+
+    const scheduleNext = () => {
+      if (cancelled || isHidden()) return;
+      timeoutRef.current = setTimeout(() => void tick(), intervalMs);
+    };
+
     const tick = async () => {
-      if (cancelled) return;
+      // Pause polling while the tab is backgrounded. These events only drive
+      // celebratory subscription-upgrade toasts the user can't act on while
+      // away; security enforcement (bans/suspensions/billing) happens
+      // server-side on every request, independent of this poll.
+      if (cancelled || isHidden()) return;
 
       try {
         const res = await api.accountEvents.getPending();
@@ -60,16 +72,33 @@ export function useAccountEventPolling(
       } catch {
         // Transient errors — keep polling.
       } finally {
-        if (!cancelled) {
-          timeoutRef.current = setTimeout(() => void tick(), intervalMs);
-        }
+        scheduleNext();
       }
     };
 
-    void tick();
+    const handleVisibilityChange = () => {
+      if (isHidden()) {
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+      } else {
+        // Refocused: catch up immediately, then resume the interval.
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+        void tick();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    if (!isHidden()) void tick();
 
     return () => {
       cancelled = true;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;

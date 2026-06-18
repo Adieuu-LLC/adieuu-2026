@@ -485,7 +485,7 @@ export function ConversationView() {
   );
 
   const {
-    fetchedReactionsForRef,
+    fetchedReactionMessageIdsRef,
     handleReact,
     handleToggleReaction,
   } = useConversationReactionHandlers({
@@ -502,7 +502,7 @@ export function ConversationView() {
   useEffect(() => {
     if (id && id !== activeConversationId) {
       setActiveConversation(id);
-      fetchedReactionsForRef.current = null;
+      fetchedReactionMessageIdsRef.current.clear();
     }
   }, [id, activeConversationId, setActiveConversation]);
 

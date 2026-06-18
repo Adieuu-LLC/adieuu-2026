@@ -12,7 +12,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
 } from 'react';
@@ -99,28 +98,10 @@ export function IconPackProvider({ children }: IconPackProviderProps) {
     }
   }, [api, authStatus]);
 
-  useEffect(() => {
-    if (authStatus !== 'authenticated') return;
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const resp = await api.users.getPreferences();
-        if (cancelled || !resp.success || !resp.data) return;
-
-        const serverId = resp.data.iconPackId;
-        if (serverId && isValidPackId(serverId) && serverId !== packId) {
-          setPackIdState(serverId);
-          lsSet(LS_ICON_PACK, serverId);
-        }
-      } catch {
-        // Server unreachable; use cached data
-      }
-    })();
-
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authStatus]);
+  // NOTE: No server `getPreferences` sync here. Only a single icon pack ships
+  // today, so the persisted `iconPackId` can never resolve to anything other
+  // than the default — fetching it would be a redundant request (the theme
+  // sync in useTheme already pulls user preferences once on auth).
 
   const value = useMemo<IconPackContextValue>(() => ({
     packId,

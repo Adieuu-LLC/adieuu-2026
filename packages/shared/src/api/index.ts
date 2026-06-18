@@ -221,7 +221,6 @@ export type {
   CreateFeedbackPostResponse,
   FeedbackNotificationPrefs,
   UpdateFeedbackNotificationPrefsParams,
-  FeedbackUnreadSummary,
   RoadmapTimelineGroupResponse,
   RoadmapTimelineResponseData,
 } from './feedback-types';

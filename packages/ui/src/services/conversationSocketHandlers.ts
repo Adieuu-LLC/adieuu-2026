@@ -4,7 +4,6 @@ import type {
   PublicIdentity,
 } from '@adieuu/shared';
 import { emitAchievementUnlocked } from './achievementEvents';
-import { emitFeedbackUnreadChanged } from './feedbackEvents';
 import {
   emitSupportTicketUpdated,
   emitSupportUnreadChanged,
@@ -757,7 +756,6 @@ export function handleConversationSocketMessage(
         notification.type === 'feedback_post_reply' ||
         notification.type === 'feedback_comment_reply'
       ) {
-        emitFeedbackUnreadChanged();
         const feedbackData = notification.data as {
           postId?: string;
           postTitle?: string;

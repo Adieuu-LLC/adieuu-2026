@@ -44,11 +44,6 @@ const mockUpsertPrefs = mock(async (_id: ObjectId, input: any) => ({
   notifyPostReplies: input.notifyPostReplies ?? true,
   notifyCommentReplies: input.notifyCommentReplies ?? true,
 }));
-const mockCountUnreadByType = mock(async () => ({
-  feedback_post_reply: 2,
-  feedback_comment_reply: 1,
-}));
-
 mock.module('../../repositories/feedback-notification-prefs.repository', () => ({
   getFeedbackNotificationPrefsRepository: () => ({
     findByIdentityId: mockFindByIdentityId,
@@ -56,17 +51,10 @@ mock.module('../../repositories/feedback-notification-prefs.repository', () => (
   }),
 }));
 
-mock.module('../../repositories/notification.repository', () => ({
-  getNotificationRepository: () => ({
-    countUnreadByType: mockCountUnreadByType,
-  }),
-}));
-
 const {
   CreateFeedbackPostSchema,
   createPostResult,
   getRoadmapTimelineResult,
-  getUnreadSummaryResult,
   updateNotificationPrefsResult,
 } = await import('./controller');
 
@@ -88,7 +76,6 @@ describe('feedback/controller', () => {
     mockResolveFeedbackAuthors.mockClear();
     mockFindByIdentityId.mockClear();
     mockUpsertPrefs.mockClear();
-    mockCountUnreadByType.mockClear();
     mockCreateFeedbackPost.mockResolvedValue({ success: true, data: { postId: 'FB-new1234' } });
     mockGetRoadmapTimelinePosts.mockResolvedValue({ success: true, data: { posts: [] } });
     mockResolveFeedbackAuthors.mockResolvedValue(new Map());
@@ -164,24 +151,6 @@ describe('feedback/controller', () => {
     if (result.ok) {
       expect(result.data.past).toEqual([]);
       expect(result.data.future).toEqual([]);
-    }
-  });
-
-  test('getUnreadSummaryResult excludes official post bucket', async () => {
-    mockFindByIdentityId.mockResolvedValueOnce({
-      notifyPostReplies: true,
-      notifyCommentReplies: true,
-    });
-
-    const result = await getUnreadSummaryResult(makeCtx());
-
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.data).toEqual({
-        postReplies: 2,
-        commentReplies: 1,
-      });
-      expect(result.data).not.toHaveProperty('officialPosts');
     }
   });
 

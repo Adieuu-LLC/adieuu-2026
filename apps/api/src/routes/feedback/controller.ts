@@ -33,7 +33,6 @@ import { FEEDBACK_NOTIFICATION_PREFS_DEFAULTS } from '../../models/feedback-noti
 import { getFeedbackCommentRepository } from '../../repositories/feedback-comment.repository';
 import { getFeedbackPostRepository } from '../../repositories/feedback-post.repository';
 import { getFeedbackNotificationPrefsRepository } from '../../repositories/feedback-notification-prefs.repository';
-import { getNotificationRepository } from '../../repositories/notification.repository';
 import {
   addFeedbackComment,
   buildAttachmentList,
@@ -587,37 +586,6 @@ export async function updateNotificationPrefsResult(
     data: {
       notifyPostReplies: doc.notifyPostReplies,
       notifyCommentReplies: doc.notifyCommentReplies,
-    },
-  };
-}
-
-// ============================================================================
-// Unread summary
-// ============================================================================
-
-export async function getUnreadSummaryResult(
-  ctx: IdentityContext,
-): Promise<FeedbackResult<{
-  postReplies: number;
-  commentReplies: number;
-}>> {
-  const prefsRepo = getFeedbackNotificationPrefsRepository();
-  const notifRepo = getNotificationRepository();
-
-  const prefs = await prefsRepo.findByIdentityId(ctx.identity._id);
-
-  const notifyPostReplies = prefs?.notifyPostReplies ?? FEEDBACK_NOTIFICATION_PREFS_DEFAULTS.notifyPostReplies;
-  const notifyCommentReplies = prefs?.notifyCommentReplies ?? FEEDBACK_NOTIFICATION_PREFS_DEFAULTS.notifyCommentReplies;
-
-  const byType = (notifyPostReplies || notifyCommentReplies)
-    ? await notifRepo.countUnreadByType(ctx.identity._id)
-    : ({} as Record<string, number>);
-
-  return {
-    ok: true,
-    data: {
-      postReplies: notifyPostReplies ? (byType['feedback_post_reply'] ?? 0) : 0,
-      commentReplies: notifyCommentReplies ? (byType['feedback_comment_reply'] ?? 0) : 0,
     },
   };
 }
