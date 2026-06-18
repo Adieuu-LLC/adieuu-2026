@@ -1,9 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createApiClient } from '@adieuu/shared';
-import { LiveKitRoom } from '@livekit/components-react';
-import { ExternalE2EEKeyProvider } from 'livekit-client';
-import '@livekit/components-styles';
 import { useAppConfig } from '../../config/PlatformContext';
 import { useCall } from '../../hooks/useCall';
 import { CallSessionError, useCallSession } from '../../hooks/useCallSession';
@@ -14,8 +11,10 @@ import { forceEndCall as apiForceEndCall } from '../../services/callService';
 import { setCallOverlayHeightCssVar } from '../../services/callOverlayPreferences';
 import { useToast } from '../Toast';
 import { CallDeviceSetupModal } from './CallDeviceSetupModal';
-import { CallConferenceView } from './CallConferenceView';
 import { CallTroubleshootModal } from './CallTroubleshootModal';
+
+// The LiveKit room (and its heavy bundle) loads only when a call is active.
+const CallRoom = lazy(() => import('./CallRoom'));
 
 /**
  * AppCallOverlay
@@ -60,68 +59,13 @@ export function AppCallOverlay() {
     disabled: isExpanded,
   });
 
-  // ---- E2EE key provider (stable instance across the session) ----
-
-  const keyProviderRef = useRef<ExternalE2EEKeyProvider | null>(null);
-
-  const e2eeWorker = useMemo(() => {
-    if (!e2eeSupported) return undefined;
-    try {
-      return new Worker(
-        new URL('livekit-client/e2ee-worker', import.meta.url),
-      );
-    } catch {
-      console.warn('[AppCallOverlay] Failed to create E2EE worker — E2EE will be disabled.');
-      return undefined;
-    }
-  }, [e2eeSupported]);
-
-  if (!keyProviderRef.current && e2eeSupported) {
-    keyProviderRef.current = new ExternalE2EEKeyProvider();
-  }
-
+  // Warm the LiveKit chunk as soon as a call is being set up so it's ready by
+  // the time the room mounts (import() is deduped, so this is cheap).
   useEffect(() => {
-    const keyProvider = keyProviderRef.current;
-    if (!keyProvider || !callE2EEKey) return;
-    void keyProvider.setKey(callE2EEKey.buffer.slice(
-      callE2EEKey.byteOffset,
-      callE2EEKey.byteOffset + callE2EEKey.byteLength,
-    ) as ArrayBuffer);
-  }, [callE2EEKey]);
-
-  const roomOptions = useMemo(() => {
-    const opts: Record<string, unknown> = {};
-
-    if (streamQualityCaps) {
-      opts.videoCaptureDefaults = {
-        resolution: {
-          width: streamQualityCaps.camera.width,
-          height: streamQualityCaps.camera.height,
-          frameRate: 30,
-        },
-      };
-      opts.publishDefaults = {
-        videoSimulcastLayers: [],
-        screenShareSimulcastLayers: [],
-      };
-      opts.screenShareCaptureDefaults = {
-        resolution: {
-          width: streamQualityCaps.screenshare.width,
-          height: streamQualityCaps.screenshare.height,
-          frameRate: 15,
-        },
-      };
+    if (phase === 'device-setup' || activeSession) {
+      void import('./CallRoom');
     }
-
-    if (callE2EEKey && keyProviderRef.current && e2eeWorker) {
-      opts.e2ee = {
-        keyProvider: keyProviderRef.current,
-        worker: e2eeWorker,
-      };
-    }
-
-    return Object.keys(opts).length > 0 ? opts : undefined;
-  }, [streamQualityCaps, callE2EEKey, e2eeWorker]);
+  }, [phase, activeSession]);
 
   const handleConfirmDevices = useCallback(
     async (devices: { audioDeviceId?: string }) => {
@@ -230,24 +174,21 @@ export function AppCallOverlay() {
             data-call-visible={isViewingCallConversation}
             data-call-expanded={isExpanded}
           >
-            <LiveKitRoom
-              serverUrl={livekitUrl}
-              token={livekitToken}
-              connect={true}
-              audio={true}
-              video={false}
-              onConnected={handleConnected}
-              onDisconnected={handleDisconnected}
-              options={roomOptions}
-            >
-              <CallConferenceView
-                e2eeActive={!!callE2EEKey}
+            <Suspense fallback={null}>
+              <CallRoom
+                serverUrl={livekitUrl}
+                token={livekitToken}
+                callE2EEKey={callE2EEKey}
+                e2eeSupported={e2eeSupported}
+                streamQualityCaps={streamQualityCaps}
                 isDm={isCallDm}
                 isExpanded={isExpanded}
                 onToggleFullscreen={() => void toggleFullscreen()}
                 onTroubleshoot={() => setTroubleshootOpen(true)}
+                onConnected={handleConnected}
+                onDisconnected={handleDisconnected}
               />
-            </LiveKitRoom>
+            </Suspense>
             {!isExpanded && (
               <div
                 className="call-overlay__resize-handle"

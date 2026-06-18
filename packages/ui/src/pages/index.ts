@@ -27,11 +27,8 @@ export {
 // Utility pages
 export { ServiceStatus } from './ServiceStatus';
 
-// Admin
-export {
-  AdminGate,
-  AdminLayout,
-  AdminDashboard,
-  AdminPlatformAdmins,
-  AdminAuthAllowlist,
-} from './admin';
+// NOTE: Admin pages are intentionally NOT re-exported here. They pull in heavy
+// dependencies (recharts) and are consumed only via App.tsx's lazy
+// `import('../pages/admin')`. Re-exporting them through this barrel (which is
+// transitively reachable from the eager UI entry) would force that bundle into
+// the initial download. Import admin pages directly from '../pages/admin'.

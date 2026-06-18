@@ -287,6 +287,43 @@ a.btn {
   gap: var(--spacing-xl);
 }
 
+.route-loading {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 40vh;
+  align-items: center;
+  justify-content: center;
+}
+
+.route-error-boundary {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-lg);
+  background: var(--color-bg-primary);
+}
+
+.route-error-boundary__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-md);
+  text-align: center;
+  max-width: 24rem;
+}
+
+.route-error-boundary__title {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  color: var(--color-text-primary);
+}
+
+.route-error-boundary__message {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
 .auth-header {
   text-align: center;
 }

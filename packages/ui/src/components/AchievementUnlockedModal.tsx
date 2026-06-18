@@ -9,7 +9,7 @@
  * - Holder count fetched on open (displays "other" holders, excluding self)
  */
 
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import { Dialog, Portal } from '@ark-ui/react';
 import { useTranslation } from 'react-i18next';
 import { createApiClient, type PublicAchievementDefinition } from '@adieuu/shared';
@@ -20,9 +20,11 @@ import { isAppIconName } from '../icons/appIcons';
 import { useAppConfig } from '../config';
 import type { NotificationSoundId } from '../constants/notificationSoundPreferenceShared';
 import { previewNotificationSound } from '../utils/notificationSound';
-import { MagicRings } from './MagicRings';
 import { BorderGlow } from './BorderGlow';
 import { ShinyText } from './ShinyText';
+
+// three.js-backed effect — deferred so the renderer only loads when a modal opens.
+const MagicRings = lazy(() => import('./MagicRings').then((m) => ({ default: m.MagicRings })));
 
 export interface AchievementUnlockedModalProps {
   open: boolean;
@@ -179,20 +181,22 @@ export function AchievementUnlockedModal({
             <Dialog.Content className="confirm-dialog-content achievement-modal">
               <div className="achievement-modal-rings">
                 {open && (
-                  <MagicRings
-                    color={theme.primary}
-                    colorTwo={theme.secondary}
-                    baseRadius={0.100}
-                    ringCount={3}
-                    radiusStep={0.06}
-                    scaleRate={0.05}
-                    lineThickness={2}
-                    attenuation={10}
-                    speed={0.6}
-                    opacity={0.85}
-                    noiseAmount={0.00}
-                    ringGap={1.4}
-                  />
+                  <Suspense fallback={null}>
+                    <MagicRings
+                      color={theme.primary}
+                      colorTwo={theme.secondary}
+                      baseRadius={0.100}
+                      ringCount={3}
+                      radiusStep={0.06}
+                      scaleRate={0.05}
+                      lineThickness={2}
+                      attenuation={10}
+                      speed={0.6}
+                      opacity={0.85}
+                      noiseAmount={0.00}
+                      ringGap={1.4}
+                    />
+                  </Suspense>
                 )}
               </div>
 
