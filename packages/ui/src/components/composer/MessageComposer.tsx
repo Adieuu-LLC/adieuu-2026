@@ -47,6 +47,7 @@ import { ComposerAttachments } from './ComposerAttachments';
 import { ComposerShortcodeAutocomplete, ComposerMentionAutocomplete, type MentionSuggestion } from './ComposerAutocomplete';
 import { ComposerTTLMenu } from './ComposerTTLMenu';
 import { ComposerSendIcon } from './ComposerSendIcon';
+import { useComposerFieldInsets } from './useComposerFieldInsets';
 import { useMediaOutbox } from '../../services/mediaOutbox';
 import {
   getComposerControlsBySide,
@@ -171,6 +172,8 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   const [shortcodeAC, setShortcodeAC] = useState<{ query: string; colonIdx: number } | null>(null);
   const [acSelectedIdx, setAcSelectedIdx] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const leftControlsRef = useRef<HTMLDivElement>(null);
+  const rightControlsRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageTextRef = useRef(messageText);
   messageTextRef.current = messageText;
@@ -991,6 +994,16 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     () => getComposerControlsBySide(composerControls, 'right'),
     [composerControls],
   );
+  const fieldInsetsRemeasureKey = useMemo(
+    () => JSON.stringify({
+      disabled,
+      composerControls,
+      hasForwardSecrecy: !!forwardSecrecy,
+      gifsDisabled: !!gifsDisabled,
+    }),
+    [disabled, composerControls, forwardSecrecy, gifsDisabled],
+  );
+  const fieldInsets = useComposerFieldInsets(leftControlsRef, rightControlsRef, fieldInsetsRemeasureKey);
   const canSendMessage =
     !!channelId &&
     !disabled &&
@@ -1247,7 +1260,13 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
         onToggleModerationEnabled={setModerationEnabled}
         showModerationToggle={allowSkipModeration === true && attachments.length > 0}
       />
-      <div className={`conversation-composer-row${isMultiLine ? ' conversation-composer-row--multiline' : ''}`}>
+      <div
+        className={`conversation-composer-row${isMultiLine ? ' conversation-composer-row--multiline' : ''}`}
+        style={{
+          '--composer-inset-left': `${fieldInsets.left}px`,
+          '--composer-inset-right': `${fieldInsets.right}px`,
+        } as React.CSSProperties}
+      >
         <ComposerShortcodeAutocomplete
           suggestions={acSuggestions}
           selectedIdx={acSelectedIdx}
@@ -1265,7 +1284,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
           onChange={handleFileSelect}
           style={{ display: 'none' }}
         />
-        <div className="conversation-composer-row__left">
+        <div className="conversation-composer-row__left" ref={leftControlsRef}>
           {leftControls.map((control) => renderComposerControl(control))}
         </div>
         <textarea
@@ -1321,7 +1340,11 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
           readOnly={disabled}
           disabled={disabled || sending}
         />
-        <div className="conversation-composer-row__right" style={disabled ? { display: 'none' } : undefined}>
+        <div
+          className="conversation-composer-row__right"
+          ref={rightControlsRef}
+          style={disabled ? { display: 'none' } : undefined}
+        >
           {rightControls.map((control) => renderComposerControl(control))}
         </div>
       </div>
