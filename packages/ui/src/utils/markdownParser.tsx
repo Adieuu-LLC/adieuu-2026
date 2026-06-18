@@ -15,8 +15,10 @@
 
 import { type ReactNode, type ReactElement, createElement, cloneElement, isValidElement } from 'react';
 import { createCustomEmojiColonTokenRegex, type PublicIdentity, type CustomEmojiPayloadEntry } from '@adieuu/shared';
-import type { MentionEntity } from '../services/messagePayload';
+import type { MentionEntity, PageTagEntity } from '../services/messagePayload';
 import { groupMentionDisplayText, isGroupMentionId } from '../components/composer/composerTypes';
+import { getTaggablePage } from '../navigation/taggablePages';
+import type { AppIconName } from '../icons/appIcons';
 import type { MemberSettingsMap } from '../services/conversationCryptoService';
 import { IdentityHoverCard } from '../components/IdentityHoverCard';
 import { Tooltip } from '../components/Tooltip';
@@ -55,7 +57,7 @@ export function isEmojiOnlyMessage(
 
   let remaining = blocks[0]!.content;
 
-  if (remaining.includes(MENTION_START)) return false;
+  if (remaining.includes(MENTION_START) || remaining.includes(PAGE_TAG_START)) return false;
 
   if (customEmojis && Object.keys(customEmojis).length > 0) {
     const pattern = createCustomEmojiColonTokenRegex();
@@ -168,6 +170,8 @@ function parseBlocks(text: string): Block[] {
 
 const MENTION_START = '\uFFF0';
 const MENTION_END = '\uFFF1';
+const PAGE_TAG_START = '\uFFF2';
+const PAGE_TAG_END = '\uFFF3';
 
 /**
  * Context passed to the renderer for resolving and rendering @mentions.
@@ -202,12 +206,35 @@ export function injectMentionMarkers(text: string, mentions: MentionEntity[]): s
   return result;
 }
 
+/**
+ * Context passed to the renderer for resolving and rendering #page-tags.
+ */
+export interface PageTagRenderContext {
+  canAccess: (pageId: string) => boolean;
+  navigate: (path: string) => void;
+}
+
+export function injectPageTagMarkers(text: string, pageTags: PageTagEntity[]): string {
+  if (!pageTags.length) return text;
+
+  const sorted = [...pageTags].sort((a, b) => b.offset - a.offset);
+  let result = text;
+  for (const p of sorted) {
+    if (p.offset < 0 || p.offset + p.length > result.length) continue;
+    result =
+      result.slice(0, p.offset) +
+      PAGE_TAG_START + p.id + PAGE_TAG_END +
+      result.slice(p.offset + p.length);
+  }
+  return result;
+}
+
 // ---------------------------------------------------------------------------
 // Inline parsing
 // ---------------------------------------------------------------------------
 
 interface FormatRule {
-  type: 'bold' | 'italic' | 'underline' | 'strikethrough' | 'code' | 'mention';
+  type: 'bold' | 'italic' | 'underline' | 'strikethrough' | 'code' | 'mention' | 'pageTag';
   pattern: RegExp;
 }
 
@@ -220,8 +247,13 @@ const MENTION_PATTERN = new RegExp(
   MENTION_START + '([a-f0-9]{24})' + MENTION_END,
 );
 
+const PAGE_TAG_PATTERN = new RegExp(
+  PAGE_TAG_START + '([a-z0-9_-]+)' + PAGE_TAG_END,
+);
+
 const FORMAT_RULES: FormatRule[] = [
   { type: 'mention',       pattern: MENTION_PATTERN },
+  { type: 'pageTag',       pattern: PAGE_TAG_PATTERN },
   { type: 'code',          pattern: /`([^`\n]+?)`/ },
   { type: 'bold',          pattern: /\*\*(?!\s)([\s\S]+?)(?<!\s)\*\*/ },
   { type: 'strikethrough', pattern: /~~(?!\s)([\s\S]+?)(?<!\s)~~/ },
@@ -251,6 +283,7 @@ interface RenderCtx {
   k: number;
   onLinkClick: (href: string) => void;
   mentionCtx?: MentionRenderContext;
+  pageTagCtx?: PageTagRenderContext;
   hiddenEmbeds?: Map<string, HiddenEmbedInfo>;
 }
 
@@ -284,6 +317,8 @@ function parseInline(text: string, ctx: RenderCtx): ReactNode[] {
 
   if (rule.type === 'mention') {
     nodes.push(renderMentionNode(inner, ctx));
+  } else if (rule.type === 'pageTag') {
+    nodes.push(renderPageTagNode(inner, ctx));
   } else if (rule.type === 'code') {
     nodes.push(<code key={ctx.k++} className="dm-md-code">{inner}</code>);
   } else {
@@ -362,6 +397,50 @@ function renderMentionNode(identityId: string, ctx: RenderCtx): ReactNode {
   }
 
   return mentionSpan;
+}
+
+// ---------------------------------------------------------------------------
+// Page tag node rendering
+// ---------------------------------------------------------------------------
+
+function renderPageTagNode(pageId: string, ctx: RenderCtx): ReactNode {
+  const page = getTaggablePage(pageId);
+  if (!page) {
+    return <span key={ctx.k++}>#{pageId}</span>;
+  }
+
+  const ptCtx = ctx.pageTagCtx;
+  const hasAccess = ptCtx?.canAccess(pageId) ?? false;
+
+  if (!hasAccess) {
+    return (
+      <Tooltip key={ctx.k++} content="You don't have access to this page" position="top">
+        <span className="dm-page-tag dm-page-tag--no-access">
+          {page.icon && <Icon name={page.icon as AppIconName} />}
+          #{page.labelDefault}
+        </span>
+      </Tooltip>
+    );
+  }
+
+  return (
+    <span
+      key={ctx.k++}
+      className="dm-page-tag"
+      role="link"
+      tabIndex={0}
+      onClick={() => ptCtx?.navigate(page.path)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          ptCtx?.navigate(page.path);
+        }
+      }}
+    >
+      {page.icon && <Icon name={page.icon as AppIconName} />}
+      #{page.labelDefault}
+    </span>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -531,10 +610,11 @@ export function renderFormattedMessage(
   mentionCtx?: MentionRenderContext,
   customEmojis?: Record<string, CustomEmojiPayloadEntry>,
   hiddenEmbeds?: Map<string, HiddenEmbedInfo>,
+  pageTagCtx?: PageTagRenderContext,
 ): ReactNode | null {
   if (!text) return null;
 
-  const ctx: RenderCtx = { k: 0, onLinkClick, mentionCtx, hiddenEmbeds };
+  const ctx: RenderCtx = { k: 0, onLinkClick, mentionCtx, pageTagCtx, hiddenEmbeds };
   const blocks = parseBlocks(text);
   if (blocks.length === 0) return null;
 

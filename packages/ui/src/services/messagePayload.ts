@@ -56,6 +56,19 @@ export interface MentionEntity {
 }
 
 /**
+ * A #page-tag entity embedded in the encrypted payload.
+ * Maps a span of text to a page in the app's navigation.
+ */
+export interface PageTagEntity {
+  /** Page registry ID (e.g. "roadmap", "feedback") */
+  id: string;
+  /** Character offset in the `text` field where the page tag display text starts */
+  offset: number;
+  /** Length of the page tag display text in `text` */
+  length: number;
+}
+
+/**
  * GIF or sticker attachment referenced by a Klipy CDN URL.
  * Embedded in the encrypted payload — the URL reference avoids
  * uploading to S3 while keeping the actual content invisible to the server.
@@ -96,6 +109,8 @@ export interface MessagePayload {
   attachments?: MediaAttachment[];
   /** @mention entities referencing spans within `text` */
   mentions?: MentionEntity[];
+  /** #page-tag entities referencing spans within `text` */
+  pageTags?: PageTagEntity[];
   /** GIF / sticker attachments (URL references, not E2E blobs) */
   gifAttachments?: GifAttachment[];
   /**
@@ -121,6 +136,8 @@ export interface ParsedMessagePayload {
   attachments: MediaAttachment[];
   /** @mention entities (empty array if none) */
   mentions: MentionEntity[];
+  /** #page-tag entities (empty array if none) */
+  pageTags: PageTagEntity[];
   /** GIF/sticker attachments (empty array if none) */
   gifAttachments: GifAttachment[];
   /** Custom emoji map keyed by shortcode (empty object if none) */
@@ -147,6 +164,7 @@ export function serializePayload(payload: MessagePayload): string {
     !!payload.senderDeviceId ||
     !!payload.attachments?.length ||
     !!payload.mentions?.length ||
+    !!payload.pageTags?.length ||
     !!payload.gifAttachments?.length ||
     hasCustomEmojis;
 
@@ -235,11 +253,51 @@ function isValidMention(m: unknown): m is MentionEntity {
   const obj = m as Record<string, unknown>;
   return (
     typeof obj.id === 'string' &&
+    (obj.id as string).length <= 64 &&
     typeof obj.offset === 'number' &&
+    Number.isInteger(obj.offset) &&
     typeof obj.length === 'number' &&
+    Number.isInteger(obj.length) &&
     obj.offset >= 0 &&
     obj.length > 0
   );
+}
+
+function isValidPageTag(p: unknown): p is PageTagEntity {
+  if (typeof p !== 'object' || p === null) return false;
+  const obj = p as Record<string, unknown>;
+  return (
+    typeof obj.id === 'string' &&
+    /^[a-z0-9_-]+$/.test(obj.id as string) &&
+    (obj.id as string).length <= 64 &&
+    typeof obj.offset === 'number' &&
+    Number.isInteger(obj.offset) &&
+    typeof obj.length === 'number' &&
+    Number.isInteger(obj.length) &&
+    obj.offset >= 0 &&
+    obj.length > 0
+  );
+}
+
+/**
+ * Reject entries whose spans overlap or extend beyond text length.
+ * Returns a new array containing only valid, non-overlapping entries
+ * (first entry wins when spans collide).
+ */
+function filterOverlappingSpans<T extends { offset: number; length: number }>(
+  entries: T[],
+  textLength: number,
+): T[] {
+  const sorted = [...entries].sort((a, b) => a.offset - b.offset);
+  const result: T[] = [];
+  let lastEnd = 0;
+  for (const entry of sorted) {
+    if (entry.offset + entry.length > textLength) continue;
+    if (entry.offset < lastEnd) continue;
+    result.push(entry);
+    lastEnd = entry.offset + entry.length;
+  }
+  return result;
 }
 
 function isValidAttachment(a: unknown): a is MediaAttachment {
@@ -308,6 +366,7 @@ export function parsePayload(plaintext: string): ParsedMessagePayload {
     text: plaintext,
     attachments: [],
     mentions: [],
+    pageTags: [],
     gifAttachments: [],
     customEmojis: {},
     isStructured: false,
@@ -325,10 +384,13 @@ export function parsePayload(plaintext: string): ParsedMessagePayload {
     }
 
     const payload = parsed as unknown as MessagePayload;
+    const text = typeof payload.text === 'string' ? payload.text : '';
     const rawAttachments = Array.isArray(payload.attachments) ? payload.attachments : [];
     const validAttachments = rawAttachments.filter(isValidAttachment);
     const rawMentions = Array.isArray(payload.mentions) ? payload.mentions : [];
-    const validMentions = rawMentions.filter(isValidMention);
+    const validMentions = filterOverlappingSpans(rawMentions.filter(isValidMention), text.length);
+    const rawPageTags = Array.isArray(payload.pageTags) ? payload.pageTags : [];
+    const validPageTags = filterOverlappingSpans(rawPageTags.filter(isValidPageTag), text.length);
     const rawGifs = Array.isArray(payload.gifAttachments) ? payload.gifAttachments : [];
     const validGifs = rawGifs.filter(isValidGifAttachment);
     const customEmojis = parseCustomEmojisMap(payload.customEmojis);
@@ -339,9 +401,10 @@ export function parsePayload(plaintext: string): ParsedMessagePayload {
         : undefined;
 
     return {
-      text: typeof payload.text === 'string' ? payload.text : '',
+      text,
       attachments: validAttachments,
       mentions: validMentions,
+      pageTags: validPageTags,
       gifAttachments: validGifs,
       customEmojis,
       isStructured: true,

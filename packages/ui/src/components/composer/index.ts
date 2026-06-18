@@ -6,9 +6,11 @@ export type {
   ComposerReplyContext,
   MentionableUser,
   MentionSource,
+  PageTagSource,
   AttachmentUploadStatus,
   PendingAttachment,
   TrackedMention,
+  TrackedPageTag,
 } from './composerTypes';
 export {
   ACCEPTED_IMAGE_TYPES,

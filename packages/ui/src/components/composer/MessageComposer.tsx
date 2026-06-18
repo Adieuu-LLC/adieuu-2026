@@ -7,6 +7,7 @@ import {
   gifPayload,
   buildCustomEmojiPayloadMap,
   type MentionEntity,
+  type PageTagEntity,
   type GifAttachment,
 } from '../../services/messagePayload';
 import { getOrCreateDeviceId } from '../../services/deviceInfo';
@@ -24,8 +25,10 @@ import type {
   ComposerSendFn,
   ComposerReplyContext,
   MentionSource,
+  PageTagSource,
   PendingAttachment,
   TrackedMention,
+  TrackedPageTag,
   ComposerControlConfig,
 } from './composerTypes';
 import {
@@ -42,9 +45,9 @@ import {
   shouldInterceptPasteForMediaInspection,
   clipboardPasteSuggestsNonPlainMedia,
 } from './conversationMediaFromClipboard';
-import { detectShortcodeQuery, detectMentionQuery, updateMentionOffsets, resolveMentionedIdentityIds } from './composerUtils';
+import { detectShortcodeQuery, detectMentionQuery, detectPageTagQuery, updateMentionOffsets, updatePageTagOffsets, resolveMentionedIdentityIds } from './composerUtils';
 import { ComposerAttachments } from './ComposerAttachments';
-import { ComposerShortcodeAutocomplete, ComposerMentionAutocomplete, type MentionSuggestion } from './ComposerAutocomplete';
+import { ComposerShortcodeAutocomplete, ComposerMentionAutocomplete, ComposerPageTagAutocomplete, type MentionSuggestion, type PageTagSuggestion } from './ComposerAutocomplete';
 import { ComposerTTLMenu } from './ComposerTTLMenu';
 import { ComposerSendIcon } from './ComposerSendIcon';
 import { useComposerFieldInsets } from './useComposerFieldInsets';
@@ -74,6 +77,7 @@ export type MessageComposerProps = {
   replyContext?: ComposerReplyContext | null;
   onSendSucceeded?: () => void;
   mentionSource?: MentionSource;
+  pageTagSource?: PageTagSource;
   placeholder?: string;
   placeholderTarget?: string;
   mentionInsertRef?: React.MutableRefObject<((identityId: string) => void) | null>;
@@ -106,6 +110,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   replyContext,
   onSendSucceeded,
   mentionSource,
+  pageTagSource,
   placeholder: placeholderOverride,
   placeholderTarget,
   mentionInsertRef,
@@ -273,7 +278,45 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
 
   const handleUpdateMentionOffsets = useCallback((oldText: string, newText: string, cursorPos: number) => {
     mentionEntriesRef.current = updateMentionOffsets(mentionEntriesRef.current, oldText, newText, cursorPos);
+    pageTagEntriesRef.current = updatePageTagOffsets(pageTagEntriesRef.current, oldText, newText, cursorPos);
   }, []);
+
+  // --- #page-tag autocomplete ---
+  const [pageTagAC, setPageTagAC] = useState<{ query: string; hashIdx: number } | null>(null);
+  const [pageTagAcSelectedIdx, setPageTagAcSelectedIdx] = useState(0);
+  const pageTagEntriesRef = useRef<TrackedPageTag[]>([]);
+
+  const pageTagACRef = useRef(pageTagAC);
+  pageTagACRef.current = pageTagAC;
+  const pageTagAcSelectedIdxRef = useRef(pageTagAcSelectedIdx);
+  pageTagAcSelectedIdxRef.current = pageTagAcSelectedIdx;
+
+  const pageTagSuggestions = useMemo((): PageTagSuggestion[] => {
+    if (!pageTagAC || !pageTagSource) return [];
+    const q = pageTagAC.query.toLowerCase();
+    const prefix: PageTagSuggestion[] = [];
+    const substring: PageTagSuggestion[] = [];
+    for (const page of pageTagSource.pages) {
+      const displayText = pageTagSource.resolvePageDisplay(page.id);
+      const fields = [page.id, displayText.toLowerCase(), ...(page.aliases ?? []).map((a) => a.toLowerCase())];
+      if (fields.some((f) => f.startsWith(q))) {
+        prefix.push({ id: page.id, displayText, icon: page.icon as PageTagSuggestion['icon'] });
+      } else if (fields.some((f) => f.includes(q))) {
+        substring.push({ id: page.id, displayText, icon: page.icon as PageTagSuggestion['icon'] });
+      }
+    }
+    return [...prefix, ...substring].slice(0, 5);
+  }, [pageTagAC, pageTagSource]);
+
+  const pageTagSuggestionsRef = useRef(pageTagSuggestions);
+  pageTagSuggestionsRef.current = pageTagSuggestions;
+
+  const handlePageTagDetect = useCallback((text: string, cursorPos: number) => {
+    if (!pageTagSource) { setPageTagAC(null); return; }
+    const result = detectPageTagQuery(text, cursorPos);
+    setPageTagAC(result);
+    if (result) setPageTagAcSelectedIdx(0);
+  }, [pageTagSource]);
 
   // --- Undo / redo history ---
   const undoStack = useRef<{ text: string; cursor: number }[]>([{ text: '', cursor: 0 }]);
@@ -311,6 +354,30 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
 
     setMessageText(newText, newPos);
     setMentionAC(null);
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(newPos, newPos);
+    });
+  }, [setMessageText]);
+
+  const acceptPageTag = useCallback((pageId: string, displayText: string) => {
+    const ac = pageTagACRef.current;
+    if (!ac) return;
+    const textarea = inputRef.current!;
+    const text = messageTextRef.current;
+    const cursor = textarea.selectionStart ?? text.length;
+    const insertText = `#${displayText} `;
+    const newText = text.slice(0, ac.hashIdx) + insertText + text.slice(cursor);
+    const newPos = ac.hashIdx + insertText.length;
+
+    pageTagEntriesRef.current.push({
+      pageId,
+      offset: ac.hashIdx,
+      length: insertText.length - 1,
+    });
+
+    setMessageText(newText, newPos);
+    setPageTagAC(null);
     requestAnimationFrame(() => {
       textarea.focus();
       textarea.setSelectionRange(newPos, newPos);
@@ -448,6 +515,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       if (prevEditKey.current !== editingMessageKey) {
         setMessageText(editingInitialPlaintext ?? '', (editingInitialPlaintext ?? '').length);
         mentionEntriesRef.current = [];
+        pageTagEntriesRef.current = [];
         prevEditKey.current = editingMessageKey;
         window.requestAnimationFrame(() => {
           const ta = inputRef.current;
@@ -498,9 +566,11 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     const currentPendingGif = pendingGif;
     const pendingAttachments = [...attachments];
     const currentMentions = [...mentionEntriesRef.current];
+    const currentPageTags = [...pageTagEntriesRef.current];
     setMessageText('');
     setPendingGif(null);
     mentionEntriesRef.current = [];
+    pageTagEntriesRef.current = [];
     undoStack.current = [{ text: '', cursor: 0 }];
     redoStack.current = [];
 
@@ -517,6 +587,8 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       }
       const mentions: MentionEntity[] = currentMentions.map((m) => ({ id: m.identityId, offset: m.offset, length: m.length }));
       if (mentions.length > 0) payload.mentions = mentions;
+      const pageTags: PageTagEntity[] = currentPageTags.map((p) => ({ id: p.pageId, offset: p.offset, length: p.length }));
+      if (pageTags.length > 0) payload.pageTags = pageTags;
       payload.senderDeviceId = getOrCreateDeviceId();
       const plaintext = serializePayload(payload);
 
@@ -548,6 +620,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
           conversationId: channelId,
           caption: text,
           mentions: currentMentions,
+          pageTags: currentPageTags,
           mentionedIdentityIds: resolveMentionedIdentityIds(
             currentMentions.map((m) => ({ id: m.identityId, offset: m.offset, length: m.length })),
             mentionSource,
@@ -582,6 +655,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     } else {
       const convertedText = convertShortcodes(text);
       const mentions: MentionEntity[] = currentMentions.map((m) => ({ id: m.identityId, offset: m.offset, length: m.length }));
+      const pageTags: PageTagEntity[] = currentPageTags.map((p) => ({ id: p.pageId, offset: p.offset, length: p.length }));
       const mentionedIdentityIds = resolveMentionedIdentityIds(mentions, mentionSource);
       const senderDeviceId = getOrCreateDeviceId();
 
@@ -595,6 +669,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
         version: 1,
         text: convertedText,
         ...(mentions.length > 0 ? { mentions } : {}),
+        ...(pageTags.length > 0 ? { pageTags } : {}),
         ...(customEmojiMap ? { customEmojis: customEmojiMap } : {}),
         senderDeviceId,
       });
@@ -664,12 +739,13 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       setMessageText(newText, newPos);
       handleShortcodeDetect(newText, newPos);
       handleMentionDetect(newText, newPos);
+      handlePageTagDetect(newText, newPos);
       requestAnimationFrame(() => {
         ta.focus();
         ta.setSelectionRange(newPos, newPos);
       });
     },
-    [disabled, handleMentionDetect, handleShortcodeDetect, setMessageText, handleUpdateMentionOffsets],
+    [disabled, handleMentionDetect, handlePageTagDetect, handleShortcodeDetect, setMessageText, handleUpdateMentionOffsets],
   );
 
   const handlePaste = useCallback(
@@ -861,6 +937,32 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
         }
       }
 
+      const ptAc = pageTagACRef.current;
+      const ptSuggestions = pageTagSuggestionsRef.current;
+      if (ptAc && ptSuggestions.length > 0) {
+        if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
+          e.preventDefault();
+          const s = ptSuggestions[pageTagAcSelectedIdxRef.current]!;
+          acceptPageTag(s.id, s.displayText);
+          return;
+        }
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setPageTagAcSelectedIdx((prev) => (prev + 1) % ptSuggestions.length);
+          return;
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setPageTagAcSelectedIdx((prev) => (prev - 1 + ptSuggestions.length) % ptSuggestions.length);
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setPageTagAC(null);
+          return;
+        }
+      }
+
       const ac = shortcodeACRef.current;
       const suggestions = acSuggestionsRef.current;
       if (ac && suggestions.length > 0) {
@@ -937,7 +1039,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
         return;
       }
     },
-    [handleSend, setMessageText, acceptMention, editContext]
+    [handleSend, setMessageText, acceptMention, acceptPageTag, editContext]
   );
 
   const handleGifSelect = useCallback((gif: GifAttachment) => {
@@ -1277,6 +1379,11 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
           selectedIdx={mentionAcSelectedIdx}
           onSelect={acceptMention}
         />
+        <ComposerPageTagAutocomplete
+          suggestions={pageTagSuggestions}
+          selectedIdx={pageTagAcSelectedIdx}
+          onSelect={acceptPageTag}
+        />
         <input
           ref={fileInputRef}
           type="file"
@@ -1296,20 +1403,24 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
           value={messageText}
           role="combobox"
           aria-autocomplete="list"
-          aria-expanded={acSuggestions.length > 0 || mentionSuggestions.length > 0}
+          aria-expanded={acSuggestions.length > 0 || mentionSuggestions.length > 0 || pageTagSuggestions.length > 0}
           aria-controls={
             mentionSuggestions.length > 0
               ? 'mention-ac-listbox'
-              : acSuggestions.length > 0
-                ? 'emoji-ac-listbox'
-                : undefined
+              : pageTagSuggestions.length > 0
+                ? 'pagetag-ac-listbox'
+                : acSuggestions.length > 0
+                  ? 'emoji-ac-listbox'
+                  : undefined
           }
           aria-activedescendant={
             mentionSuggestions.length > 0
               ? `mention-ac-option-${mentionSuggestions[mentionAcSelectedIdx]?.id}`
-              : acSuggestions.length > 0
-                ? `emoji-ac-option-${acSuggestionKey(acSuggestions[acSelectedIdx])}`
-                : undefined
+              : pageTagSuggestions.length > 0
+                ? `pagetag-ac-option-${pageTagSuggestions[pageTagAcSelectedIdx]?.id}`
+                : acSuggestions.length > 0
+                  ? `emoji-ac-option-${acSuggestionKey(acSuggestions[acSelectedIdx])}`
+                  : undefined
           }
           onChange={(e) => {
             const raw = e.target.value;
@@ -1322,6 +1433,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
               setMessageText(converted, newCursorPos);
               handleShortcodeDetect(converted, newCursorPos);
               handleMentionDetect(converted, newCursorPos);
+              handlePageTagDetect(converted, newCursorPos);
               requestAnimationFrame(() => {
                 inputRef.current?.setSelectionRange(newCursorPos, newCursorPos);
               });
@@ -1331,6 +1443,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
               setMessageText(raw, cursorPos);
               handleShortcodeDetect(raw, cursorPos);
               handleMentionDetect(raw, cursorPos);
+              handlePageTagDetect(raw, cursorPos);
             }
           }}
           onKeyDown={handleKeyDown}

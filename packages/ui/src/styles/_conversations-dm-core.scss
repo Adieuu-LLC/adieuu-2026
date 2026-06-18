@@ -500,6 +500,40 @@
         }
       }
 
+      .dm-page-tag {
+        color: var(--color-accent-secondary, var(--color-accent-primary));
+        cursor: pointer;
+        font-weight: 500;
+        border-radius: var(--radius-xs, 2px);
+        padding: 0 2px;
+        background: color-mix(in srgb, var(--color-accent-secondary, var(--color-accent-primary)) 10%, transparent);
+        transition: background var(--transition-fast), color var(--transition-fast);
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+
+        svg {
+          width: 0.85em;
+          height: 0.85em;
+        }
+
+        &:hover {
+          background: color-mix(in srgb, var(--color-accent-secondary, var(--color-accent-primary)) 20%, transparent);
+        }
+
+        &:focus-visible {
+          outline: 2px solid var(--color-border-focus);
+          outline-offset: 1px;
+        }
+
+        &--no-access {
+          color: var(--color-text-muted);
+          background: none;
+          cursor: default;
+          font-weight: 400;
+        }
+      }
+
       .dm-md-paragraph {
         margin: 0;
         white-space: pre-wrap;

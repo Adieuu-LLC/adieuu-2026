@@ -1,5 +1,7 @@
 import type { PublicCustomEmoji } from '@adieuu/shared';
 import type { MentionableUser } from './composerTypes';
+import type { AppIconName } from '../../icons/appIcons';
+import { Icon } from '../../icons/Icon';
 
 export type MentionSuggestion =
   | { kind: 'user'; id: string; user: MentionableUser; displayText: string }
@@ -100,6 +102,47 @@ export function ComposerMentionAutocomplete({
           ) : s.user.username ? (
             <span className="conversation-composer-mention-ac-username">@{s.user.username}</span>
           ) : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export type PageTagSuggestion = {
+  id: string;
+  displayText: string;
+  icon?: AppIconName;
+};
+
+export function ComposerPageTagAutocomplete({
+  suggestions,
+  selectedIdx,
+  onSelect,
+}: {
+  suggestions: PageTagSuggestion[];
+  selectedIdx: number;
+  onSelect: (id: string, displayText: string) => void;
+}) {
+  if (suggestions.length === 0) return null;
+
+  return (
+    <ul className="conversation-composer-pagetag-ac" role="listbox" id="pagetag-ac-listbox">
+      {suggestions.map((s, i) => (
+        <li
+          key={s.id}
+          id={`pagetag-ac-option-${s.id}`}
+          role="option"
+          aria-selected={i === selectedIdx}
+          className={`conversation-composer-pagetag-ac-item${i === selectedIdx ? ' conversation-composer-pagetag-ac-item--selected' : ''}`}
+          onMouseDown={(ev) => {
+            ev.preventDefault();
+            onSelect(s.id, s.displayText);
+          }}
+        >
+          <span className="conversation-composer-pagetag-ac-icon" aria-hidden>
+            {s.icon ? <Icon name={s.icon} /> : '#'}
+          </span>
+          <span className="conversation-composer-pagetag-ac-name">{s.displayText}</span>
         </li>
       ))}
     </ul>
