@@ -229,6 +229,39 @@ export function injectPageTagMarkers(text: string, pageTags: PageTagEntity[]): s
   return result;
 }
 
+type EntityMarker =
+  | { kind: 'mention'; offset: number; length: number; id: string }
+  | { kind: 'pageTag'; offset: number; length: number; id: string };
+
+/**
+ * Replace mention and page-tag entity spans in `text` with inline markers.
+ * Combines both entity types and processes them in reverse-offset order so
+ * interleaved mentions and page-tags don't invalidate each other's offsets.
+ */
+export function injectEntityMarkers(
+  text: string,
+  mentions: MentionEntity[],
+  pageTags: PageTagEntity[],
+): string {
+  const entities: EntityMarker[] = [
+    ...mentions.map((m) => ({ kind: 'mention' as const, ...m })),
+    ...pageTags.map((p) => ({ kind: 'pageTag' as const, ...p })),
+  ];
+  if (!entities.length) return text;
+
+  const sorted = entities.sort((a, b) => b.offset - a.offset);
+  let result = text;
+  for (const e of sorted) {
+    if (e.offset < 0 || e.offset + e.length > result.length) continue;
+    const marker =
+      e.kind === 'mention'
+        ? MENTION_START + e.id + MENTION_END
+        : PAGE_TAG_START + e.id + PAGE_TAG_END;
+    result = result.slice(0, e.offset) + marker + result.slice(e.offset + e.length);
+  }
+  return result;
+}
+
 // ---------------------------------------------------------------------------
 // Inline parsing
 // ---------------------------------------------------------------------------

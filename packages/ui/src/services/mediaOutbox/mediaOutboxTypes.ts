@@ -54,7 +54,7 @@ export interface MediaOutboxJobRecord {
   updatedAt: number;
   caption: string;
   mentionsJson: string;
-  pageTagsJson: string;
+  pageTagsJson?: string;
   /** Pre-expanded participant IDs for notification routing (includes @here/@everyone expansion). */
   mentionedIdentityIdsJson?: string;
   replyToMessageId?: string;

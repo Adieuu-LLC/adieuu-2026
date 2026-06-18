@@ -10,7 +10,7 @@ import type { MemberColorDisplay } from '../../hooks/useMemberColorPreference';
 import { getDeviceSignatureVerification } from '../../services/deviceSignatureVerificationStorage';
 import { parsePayload } from '../../services/messagePayload';
 import { getSafetyFingerprintDisplayForDevice } from '../../services/safetyFingerprintDisplay';
-import { renderFormattedMessage, injectMentionMarkers, injectPageTagMarkers, type MentionRenderContext, type PageTagRenderContext } from '../../utils/markdownParser';
+import { renderFormattedMessage, injectEntityMarkers, type MentionRenderContext, type PageTagRenderContext } from '../../utils/markdownParser';
 import { IdentityHoverCard } from '../../components/IdentityHoverCard';
 import { useBlockContext } from '../../hooks/useBlockContext';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -341,9 +341,7 @@ export const MessageBubble = memo(function MessageBubble({
 
   const renderedContent = useMemo(() => {
     if (!content) return null;
-    let markedText = content;
-    if (parsed.mentions.length > 0) markedText = injectMentionMarkers(markedText, parsed.mentions);
-    if (parsed.pageTags.length > 0) markedText = injectPageTagMarkers(markedText, parsed.pageTags);
+    const markedText = injectEntityMarkers(content, parsed.mentions, parsed.pageTags);
     return renderFormattedMessage(markedText, onLinkClick, mentionRenderCtx, effectiveCustomEmojis, hiddenEmbedMap, pageTagCtx);
   }, [content, parsed.mentions, parsed.pageTags, effectiveCustomEmojis, onLinkClick, mentionRenderCtx, hiddenEmbedMap, pageTagCtx]);
   const hasDecryptionError = !message.decryptedContent && !message.deleted;
