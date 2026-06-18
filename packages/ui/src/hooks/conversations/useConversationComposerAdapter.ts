@@ -1,7 +1,7 @@
 import { useCallback, useMemo, type MutableRefObject } from 'react';
 import type { TFunction } from 'i18next';
 import type { PublicIdentity } from '@adieuu/shared';
-import type { ComposerSendFn, ComposerReplyContext, MentionSource, MentionableUser } from '../../components/composer';
+import type { ComposerSendFn, ComposerReplyContext, MentionSource, MentionableUser, PageTagSource } from '../../components/composer';
 import { clearConversationScrollCache } from '../useConversationScroll';
 import type { DisplayMessage } from '../useConversations';
 import type { DecryptedConversation } from './types';
@@ -10,6 +10,7 @@ import {
   resolveDisplayName,
   buildReplySnippet,
 } from '../../pages/conversations/conversationUtils';
+import { useTaggablePages, getTaggablePage } from '../../navigation/taggablePages';
 
 export function useConversationComposerAdapter(params: {
   conversationId: string | undefined;
@@ -178,5 +179,23 @@ export function useConversationComposerAdapter(params: {
     };
   }, [conversation, identityId, participantProfiles, memberSettings]);
 
-  return { composerSend, composerReplyContext, composerMentionSource };
+  const { accessiblePages } = useTaggablePages();
+
+  const composerPageTagSource: PageTagSource | undefined = useMemo(() => {
+    if (accessiblePages.length === 0) return undefined;
+    return {
+      pages: accessiblePages.map((p) => ({
+        id: p.id,
+        labelDefault: p.labelDefault,
+        icon: p.icon,
+        aliases: p.aliases,
+      })),
+      resolvePageDisplay: (pageId: string) => {
+        const page = getTaggablePage(pageId);
+        return page?.labelDefault ?? pageId;
+      },
+    };
+  }, [accessiblePages]);
+
+  return { composerSend, composerReplyContext, composerMentionSource, composerPageTagSource };
 }

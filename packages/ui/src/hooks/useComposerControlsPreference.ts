@@ -93,10 +93,15 @@ function normalizeControls(raw: unknown): ComposerControlConfig[] {
     });
   }
 
-  const merged = CONTROL_IDS.map((id, index) => {
+  const merged = CONTROL_IDS.flatMap((id, index) => {
     const existing = byId.get(id);
-    const fallback = DEFAULT_COMPOSER_CONTROLS.find((c) => c.id === id)!;
-    return existing ?? { ...fallback, order: index };
+    if (existing) return [existing];
+    const fallback = DEFAULT_COMPOSER_CONTROLS.find((c) => c.id === id);
+    if (!fallback) {
+      console.warn(`[composerControls] Unknown control id "${id}" — skipping`);
+      return [];
+    }
+    return [{ ...fallback, order: index }];
   });
 
   return merged

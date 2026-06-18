@@ -23,6 +23,9 @@ import {
 import { SystemMessageRow } from './SystemMessageRow';
 import { MessageBubble } from './MessageBubble';
 import { scrollViewportCanScroll } from './conversationScrollUtils';
+import { useTaggablePages } from '../../navigation/taggablePages';
+import { useNavigate } from 'react-router-dom';
+import type { PageTagRenderContext } from '../../utils/markdownParser';
 
 export function ConversationMessageList({
   conversationId,
@@ -142,6 +145,12 @@ export function ConversationMessageList({
   customEmojis?: PublicCustomEmoji[];
 }) {
   const { t: tLocal } = useTranslation();
+  const navigate = useNavigate();
+  const { canAccess } = useTaggablePages();
+  const pageTagCtx: PageTagRenderContext = useMemo(() => ({
+    canAccess,
+    navigate: (path: string) => navigate(path),
+  }), [canAccess, navigate]);
 
   const [gifVisibility] = useGifPreference(identity?.id ?? '');
   const [convGifHidden] = useConversationGifHidden(conversationId ?? '');
@@ -328,6 +337,7 @@ export function ConversationMessageList({
             peerPublicKeysById={peerPublicKeysById}
             verificationRevision={verificationRevision}
             hideUnmoderatedMedia={hideUnmoderatedMedia}
+            pageTagCtx={pageTagCtx}
           />
         </>
       );
@@ -344,6 +354,7 @@ export function ConversationMessageList({
       verificationRevision,
       customEmojisDisabledByAdmin,
       customEmojis,
+      pageTagCtx,
     ],
   );
 

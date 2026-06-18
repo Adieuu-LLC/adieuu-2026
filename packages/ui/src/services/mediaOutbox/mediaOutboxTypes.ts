@@ -5,6 +5,13 @@ export interface MediaOutboxMention {
   length: number;
 }
 
+/** Serializable page tag (composer {@link TrackedPageTag}); maps to payload {@link PageTagEntity}. */
+export interface MediaOutboxPageTag {
+  pageId: string;
+  offset: number;
+  length: number;
+}
+
 /** Serializable moderation scan part for IndexedDB. */
 export interface MediaOutboxPersistedScanPart {
   contentType: 'image/jpeg' | 'video/mp4';
@@ -47,6 +54,7 @@ export interface MediaOutboxJobRecord {
   updatedAt: number;
   caption: string;
   mentionsJson: string;
+  pageTagsJson?: string;
   /** Pre-expanded participant IDs for notification routing (includes @here/@everyone expansion). */
   mentionedIdentityIdsJson?: string;
   replyToMessageId?: string;
@@ -77,6 +85,7 @@ export interface MediaOutboxEnqueueInput {
   conversationId: string;
   caption: string;
   mentions: MediaOutboxMention[];
+  pageTags?: MediaOutboxPageTag[];
   /** Expanded participant IDs for @mention notifications (optional; derived from mentions when omitted). */
   mentionedIdentityIds?: string[];
   replyToMessageId?: string;

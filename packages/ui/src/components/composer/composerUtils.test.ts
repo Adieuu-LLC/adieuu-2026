@@ -129,4 +129,32 @@ describe('resolveMentionedIdentityIds', () => {
     );
     expect(ids?.sort()).toEqual(['user-a', 'user-b']);
   });
+
+  test('returns undefined for group mentions without mentionSource', () => {
+    expect(
+      resolveMentionedIdentityIds([{ id: MENTION_HERE_ID, offset: 0, length: 5 }]),
+    ).toBeUndefined();
+    expect(
+      resolveMentionedIdentityIds([{ id: MENTION_EVERYONE_ID, offset: 0, length: 9 }]),
+    ).toBeUndefined();
+  });
+
+  test('returns undefined for group mentions with empty users', () => {
+    const emptySource = { ...mentionSource, users: [] as typeof mentionSource.users };
+    expect(
+      resolveMentionedIdentityIds([{ id: MENTION_HERE_ID, offset: 0, length: 5 }], emptySource),
+    ).toBeUndefined();
+    expect(
+      resolveMentionedIdentityIds([{ id: MENTION_EVERYONE_ID, offset: 0, length: 9 }], emptySource),
+    ).toBeUndefined();
+  });
+
+  test('returns only individual mention ids when mentionSource is undefined', () => {
+    expect(
+      resolveMentionedIdentityIds([
+        { id: MENTION_HERE_ID, offset: 0, length: 5 },
+        { id: 'user-a', offset: 6, length: 5 },
+      ]),
+    ).toEqual(['user-a']);
+  });
 });

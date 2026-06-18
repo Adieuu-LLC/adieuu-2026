@@ -874,7 +874,7 @@ export function ConversationView() {
     return parsePayload(editingMessage.decryptedContent).text;
   }, [editingMessage]);
 
-  const { composerSend, composerReplyContext, composerMentionSource } = useConversationComposerAdapter({
+  const { composerSend, composerReplyContext, composerMentionSource, composerPageTagSource } = useConversationComposerAdapter({
     conversationId: id,
     identityId: identity?.id,
     conversation,
@@ -1196,6 +1196,7 @@ export function ConversationView() {
               forwardSecrecy={{ enabled: useFs, onToggle: handleToggleFs }}
               replyContext={editingMessage ? null : composerReplyContext}
               mentionSource={composerMentionSource}
+              pageTagSource={composerPageTagSource}
               placeholderTarget={displayName}
               mentionInsertRef={mentionInsertRef}
               gifsDisabled={(conversation.gifsDisabled ?? false) || convGifHidden || gifsGloballyDisabled}

@@ -1,7 +1,7 @@
 import { createApiClient } from '@adieuu/shared';
 import { encrypt as encryptBytes, randomBytes, toBase64 } from '@adieuu/crypto';
 import { convertShortcodes } from '../../utils/emojiShortcodes';
-import { serializePayload, mediaPayload, buildCustomEmojiPayloadMap, parseCustomEmojiComposerSnapshot, type MentionEntity, type MediaAttachment } from '../messagePayload';
+import { serializePayload, mediaPayload, buildCustomEmojiPayloadMap, parseCustomEmojiComposerSnapshot, type MentionEntity, type PageTagEntity, type MediaAttachment } from '../messagePayload';
 import { getOrCreateDeviceId } from '../deviceInfo';
 import { stripExifMetadata } from '../../utils/imageProcessing';
 import { withTimeout } from '../../utils/withTimeout';
@@ -166,6 +166,7 @@ async function sendMessageForJob(job: MediaOutboxJobRecord, deps: MediaOutboxPro
   if (!snap?.length) throw new Error('Missing E2E snapshot');
 
   const mentions: MentionEntity[] = JSON.parse(job.mentionsJson) as MentionEntity[];
+  const pageTags: PageTagEntity[] = job.pageTagsJson ? (JSON.parse(job.pageTagsJson) as PageTagEntity[]) : [];
   const mediaAttachments: MediaAttachment[] = snap.map((m) => ({
     e2eMediaId: m.e2eMediaId,
     scanHash: m.scanHash,
@@ -184,6 +185,7 @@ async function sendMessageForJob(job: MediaOutboxJobRecord, deps: MediaOutboxPro
   const customEmojiMap = buildCustomEmojiPayloadMap(mediaText ?? '', snapshotList, false);
   const payload = mediaPayload(mediaText, mediaAttachments);
   if (mentions.length > 0) payload.mentions = mentions;
+  if (pageTags.length > 0) payload.pageTags = pageTags;
   if (customEmojiMap && Object.keys(customEmojiMap).length > 0) {
     payload.customEmojis = customEmojiMap;
   }

@@ -18,7 +18,7 @@ mock.module('../icons/Icon', () => ({
   Icon: ({ name }: { name: string }) => <span data-icon={name} />,
 }));
 
-const { injectMentionMarkers, renderFormattedMessage } = await import('./markdownParser');
+const { injectMentionMarkers, injectEntityMarkers, renderFormattedMessage } = await import('./markdownParser');
 
 const ID_A = 'aaa111222333444555666777';
 const ID_B = 'bbb111222333444555666777';
@@ -88,6 +88,25 @@ describe('injectMentionMarkers', () => {
       { id: ID_A, offset: 3, length: 10 },
     ]);
     expect(result).toBe('Hi @A');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// injectEntityMarkers
+// ---------------------------------------------------------------------------
+
+describe('injectEntityMarkers', () => {
+  test('returns text unchanged when both arrays are empty', () => {
+    expect(injectEntityMarkers('hello', [], [])).toBe('hello');
+  });
+
+  test('replaces interleaved mention and page-tag using original offsets', () => {
+    const result = injectEntityMarkers('Hey @Alice see #roadmap', [
+      { id: ID_A, offset: 4, length: 6 },
+    ], [
+      { id: 'roadmap', offset: 15, length: 8 },
+    ]);
+    expect(result).toBe(`Hey \uFFF0${ID_A}\uFFF1 see \uFFF2roadmap\uFFF3`);
   });
 });
 

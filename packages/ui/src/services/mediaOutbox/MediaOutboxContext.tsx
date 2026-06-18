@@ -229,6 +229,9 @@ export function MediaOutboxProvider({ children }: { children: ReactNode }) {
       const mentionsJson = JSON.stringify(
         input.mentions.map((m) => ({ id: m.identityId, offset: m.offset, length: m.length }))
       );
+      const pageTagsJson = JSON.stringify(
+        (input.pageTags ?? []).map((p) => ({ id: p.pageId, offset: p.offset, length: p.length }))
+      );
       const attachmentBlobs = await Promise.all(
         input.files.map(async (f) => ({
           name: f.name,
@@ -244,6 +247,7 @@ export function MediaOutboxProvider({ children }: { children: ReactNode }) {
         updatedAt: now,
         caption: input.caption,
         mentionsJson,
+        pageTagsJson,
         ...(input.mentionedIdentityIds?.length
           ? { mentionedIdentityIdsJson: JSON.stringify(input.mentionedIdentityIds) }
           : {}),

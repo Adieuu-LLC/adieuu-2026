@@ -69,6 +69,17 @@ export interface TrackedMention {
   length: number;
 }
 
+export interface TrackedPageTag {
+  pageId: string;
+  offset: number;
+  length: number;
+}
+
+export interface PageTagSource {
+  pages: { id: string; labelDefault: string; icon?: string; aliases?: string[] }[];
+  resolvePageDisplay: (pageId: string) => string;
+}
+
 export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;
 /** Video types accepted for E2E conversation uploads (frame is scanned as JPEG). */
 export const ACCEPTED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'] as const;
