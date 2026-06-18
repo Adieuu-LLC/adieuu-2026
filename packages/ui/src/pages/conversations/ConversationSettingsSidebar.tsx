@@ -176,10 +176,7 @@ export function ConversationSettingsSidebar({
         <span className="app-settings-toggle-title">
           {t('composerControls.title', 'Composer controls')}
         </span>
-        <span className="app-settings-toggle-hint">
-          {t('composerControls.conversationHint', 'Customize your composer toolbar for all conversations on this device.')}
-        </span>
-        <ComposerControlsEditor />
+        <ComposerControlsEditor variant="compact" />
       </div>
     </>
   );

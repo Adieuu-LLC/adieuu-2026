@@ -6,7 +6,7 @@
  * import/export, and per-identity display toggles — live here.
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { RadioGroup } from '@ark-ui/react';
@@ -201,6 +201,15 @@ export function IdentityAppearance() {
     } else {
       sectionRefs.current.delete(id);
     }
+  }, []);
+
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    const timer = window.setTimeout(() => {
+      sectionRefs.current.get(hash)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const handleLanguageChange = useCallback((code: LanguageCode) => {

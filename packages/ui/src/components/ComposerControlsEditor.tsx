@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { Popover, Portal, SegmentGroup, Switch, usePopoverContext } from '@ark-ui/react';
 import { Icon } from '../icons/Icon';
 import { Tooltip } from './Tooltip';
@@ -212,8 +213,11 @@ function SendIconPreview({
   );
 }
 
-export function ComposerControlsEditor() {
+export type ComposerControlsEditorVariant = 'full' | 'compact';
+
+export function ComposerControlsEditor({ variant = 'full' }: { variant?: ComposerControlsEditorVariant }) {
   const { t } = useTranslation();
+  const isCompact = variant === 'compact';
   const controls = useComposerControlsPreference();
   const [draggingId, setDraggingId] = useState<ComposerControlId | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -292,15 +296,47 @@ export function ComposerControlsEditor() {
   }, []);
 
   return (
-    <div className="composer-controls-editor">
-      <p className="composer-controls-editor__hint">
-        {t(
-          'composerControls.hint',
-          'Choose which composer controls appear, which side they sit on, and their order. These settings apply only on this device.',
-        )}
-      </p>
-      <div className="composer-controls-editor__list" ref={listRef}>
+    <div className={`composer-controls-editor${isCompact ? ' composer-controls-editor--compact' : ''}`}>
+      {isCompact ? (
+        <>
+          <p className="composer-controls-editor__compact-note">
+            {t(
+              'composerControls.compactHint',
+              'Toggle which controls appear in your composer. Order, side placement, and send icon can be customized in Appearance settings.',
+            )}
+          </p>
+          <Link
+            to="/identity/appearance#composer-controls"
+            className="composer-controls-editor__appearance-link"
+          >
+            {t('composerControls.openAppearanceSettings', 'Open composer controls in Appearance')}
+            <Icon name="arrowRight" size="sm" />
+          </Link>
+        </>
+      ) : (
+        <p className="composer-controls-editor__hint">
+          {t(
+            'composerControls.hint',
+            'Choose which composer controls appear, which side they sit on, and their order. These settings apply only on this device.',
+          )}
+        </p>
+      )}
+      <div className="composer-controls-editor__list" ref={isCompact ? undefined : listRef}>
         {sortedControls.map((control) => (
+          isCompact ? (
+            <div
+              key={control.id}
+              className={`composer-controls-editor__row composer-controls-editor__row--compact${!control.enabled ? ' composer-controls-editor__row--disabled' : ''}`}
+            >
+              <span className="composer-controls-editor__title">
+                {t(CONTROL_LABEL_KEYS[control.id] as never, CONTROL_DEFAULT_LABELS[control.id])}
+              </span>
+              <ComposerControlSwitch
+                checked={control.enabled}
+                onCheckedChange={(enabled) => handleToggle(control.id, enabled)}
+              />
+            </div>
+          ) : (
           <div
             key={control.id}
             data-control-id={control.id}
@@ -366,6 +402,7 @@ export function ComposerControlsEditor() {
               </div>
             </Tooltip>
           </div>
+          )
         ))}
       </div>
     </div>
