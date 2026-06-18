@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { useIdentity } from '../hooks/useIdentity';
 import { AppLayout } from '../components/AppLayout';
@@ -83,10 +82,13 @@ import { FeedbackList, FeedbackDetail, SubmitFeedback } from '../pages/feedback'
 import { LegalPoliciesPage, LegalPolicyPage } from '../legal';
 
 /**
- * Protected route wrapper - redirects to login if not authenticated.
- * When authenticated, renders the app layout with sidebar.
+ * Unified app shell that sits above both public and protected route groups.
+ * Authenticated users get the full provider stack + sidebar once, so navigating
+ * between public pages (Roadmap, Search) and protected pages (Conversations,
+ * Account) no longer remounts providers or refetches data.
+ * Unauthenticated users get a lightweight public sidebar with no provider overhead.
  */
-function ProtectedLayout({ children }: { children?: ReactNode }) {
+function AuthenticatedShell() {
   const { status } = useAuth();
 
   if (status === 'loading') {
@@ -97,49 +99,48 @@ function ProtectedLayout({ children }: { children?: ReactNode }) {
     );
   }
 
-  // Allow access for both account sessions and identity sessions.
-  // 'identity_mode' means the cookie holds a valid identity session.
-  if (status === 'unauthenticated') {
-    return <Navigate to="/auth/login" replace />;
+  if (status === 'authenticated' || status === 'identity_mode') {
+    return (
+      <TourProvider>
+        <CipherStoreProvider>
+          <ChatSocketProvider>
+            <FriendsProvider>
+              <BlockProvider>
+                <ConversationPreferencesProvider>
+                  <ConversationsProvider>
+                    <MediaOutboxProvider>
+                      <CallSessionProvider>
+                        <GlobalCallEventsProvider>
+                          <AuthenticatedShellContent />
+                        </GlobalCallEventsProvider>
+                      </CallSessionProvider>
+                    </MediaOutboxProvider>
+                  </ConversationsProvider>
+                </ConversationPreferencesProvider>
+              </BlockProvider>
+            </FriendsProvider>
+          </ChatSocketProvider>
+        </CipherStoreProvider>
+      </TourProvider>
+    );
   }
 
   return (
-    <TourProvider>
-      <CipherStoreProvider>
-        <ChatSocketProvider>
-          <FriendsProvider>
-            <BlockProvider>
-              <ConversationPreferencesProvider>
-                <ConversationsProvider>
-                  <MediaOutboxProvider>
-                    <CallSessionProvider>
-                      <GlobalCallEventsProvider>
-                        <ProtectedLayoutContent>{children}</ProtectedLayoutContent>
-                      </GlobalCallEventsProvider>
-                    </CallSessionProvider>
-                  </MediaOutboxProvider>
-                </ConversationsProvider>
-              </ConversationPreferencesProvider>
-            </BlockProvider>
-          </FriendsProvider>
-        </ChatSocketProvider>
-      </CipherStoreProvider>
-    </TourProvider>
+    <AppLayout sidebar={<AppSidebar variant="public" />}>
+      <Outlet />
+    </AppLayout>
   );
 }
 
 /**
- * Inner layout component that has access to tour context.
- * Also sets up global DM notifications for incoming messages.
+ * Inner layout for authenticated users. Has access to tour context and sets up
+ * pre-key management, incoming call ringtones, and global overlays.
  */
-function ProtectedLayoutContent({ children }: { children?: ReactNode }) {
+function AuthenticatedShellContent() {
   const tour = useTourContext();
   const appearanceTour = useAppearanceTour();
 
-  // Mount pre-key lifecycle management once for authenticated app runtime.
-  // This enables automatic SPK rotation + cleanup and OTPK replenishment checks.
   usePreKeys();
-
   useIncomingCallRinger();
 
   return (
@@ -149,7 +150,7 @@ function ProtectedLayoutContent({ children }: { children?: ReactNode }) {
       <IdentityModalProvider>
         <AppLayout sidebar={<AppSidebar />}>
           <KeyStorageBanner />
-          {children ?? <Outlet />}
+          <Outlet />
         </AppLayout>
       </IdentityModalProvider>
       <AppCallOverlay />
@@ -162,36 +163,15 @@ function ProtectedLayoutContent({ children }: { children?: ReactNode }) {
 }
 
 /**
- * Public route wrapper - no auth required.
- * Renders the app layout with a public sidebar variant (search, about, download, login prompt).
- * When the user is already authenticated, delegates to the full ProtectedLayout
- * so they get the complete sidebar experience.
+ * Thin guard for protected routes — redirects unauthenticated users to login.
+ * Does not mount any providers or layout; the parent AuthenticatedShell handles that.
  */
-function PublicLayout() {
+function ProtectedGuard() {
   const { status } = useAuth();
-
-  if (status === 'loading') {
-    return (
-      <div className="auth-layout">
-        <div className="spinner spinner-lg" />
-      </div>
-    );
+  if (status === 'unauthenticated') {
+    return <Navigate to="/auth/login" replace />;
   }
-
-  if (status === 'authenticated' || status === 'identity_mode') {
-    // Keep rendering this branch's matched public route; only the shell is "protected".
-    return (
-      <ProtectedLayout>
-        <Outlet />
-      </ProtectedLayout>
-    );
-  }
-
-  return (
-    <AppLayout sidebar={<AppSidebar variant="public" />}>
-      <Outlet />
-    </AppLayout>
-  );
+  return <Outlet />;
 }
 
 /**
@@ -283,8 +263,10 @@ export function App() {
         }
       />
 
-      {/* Public Routes with Sidebar Layout (no auth required) */}
-      <Route element={<PublicLayout />}>
+      {/* Unified shell: single provider tree for authenticated users, public sidebar for guests */}
+      <Route element={<AuthenticatedShell />}>
+
+        {/* Public Routes (no auth required) */}
         <Route path="/" element={<RootRedirect />} />
         <Route path="/about" element={<About />} />
         <Route path="/about/learn" element={<AboutLearn />} />
@@ -298,77 +280,77 @@ export function App() {
         <Route path="/legal-policies/:slug" element={<LegalPolicyPage />} />
         <Route path="/feedback" element={<FeedbackList />} />
         <Route path="/feedback/:postId" element={<FeedbackDetail />} />
-      </Route>
 
-      {/* Protected Routes with Sidebar Layout */}
-      <Route element={<ProtectedLayout />}>
+        {/* Protected Routes (auth required — ProtectedGuard redirects guests to login) */}
+        <Route element={<ProtectedGuard />}>
 
-        {/* Account Routes (not available while alias session is unlocked) */}
-        <Route element={<AccountSessionOnlyOutlet />}>
-          <Route path="/account" element={<Navigate to="/account/overview" replace />} />
-          <Route path="/account/overview" element={<AccountOverview />} />
-          <Route path="/account/security" element={<Navigate to="/account/security/authentication" replace />} />
-          <Route path="/account/security/:tab" element={<AccountSecurity />} />
-          <Route path="/account/subscription" element={<Navigate to="/account/subscription/manage" replace />} />
-          <Route path="/account/subscription/:tab" element={<AccountSubscription />} />
-          <Route path="/account/referrals" element={<ReferralPage />} />
-          <Route path="/account/settings" element={<Navigate to="/identity/notifications" replace />} />
-          <Route path="/account/appearance" element={<Navigate to="/identity/appearance" replace />} />
-          <Route path="/account/appearance/community" element={<ThemeBrowser />} />
-          <Route path="/sponsorship/request" element={<RequestSponsorshipPage />} />
-          <Route path="/sponsorship/directory" element={<SponsorshipDirectoryPage />} />
-        </Route>
-
-        {/* Support tickets (account or identity session) */}
-        <Route path="/support" element={<MyTickets />} />
-        <Route path="/support/new" element={<SubmitTicket />} />
-        <Route path="/support/:ticketId" element={<TicketDetail />} />
-
-        {/* Community feedback — submit requires identity session */}
-        <Route path="/feedback/new" element={<SubmitFeedback />} />
-
-        {/* Identity Routes */}
-        <Route path="/identity" element={<Navigate to="/identity/profile" replace />} />
-        <Route path="/identity/profile" element={<IdentityProfile />} />
-        {/* Longer static path before `/identity/appearance` so routers never prefer a dynamic match. */}
-        <Route path="/identity/appearance/community" element={<ThemeBrowser />} />
-        <Route path="/identity/appearance" element={<IdentityAppearance />} />
-        <Route path="/identity/notifications" element={<IdentityNotifications />} />
-        <Route path="/identity/privacy" element={<IdentityPrivacy />} />
-        <Route path="/identity/devices" element={<IdentityDevices />} />
-        <Route path="/identity/ciphers" element={<IdentityCiphers />} />
-        <Route path="/identity/emojis" element={<IdentityCustomEmojis />} />
-        <Route path="/identity/subscription" element={<Navigate to="/identity/subscription/manage" replace />} />
-        <Route path="/identity/subscription/:tab" element={<AccountSubscription />} />
-
-        {/* Conversation Routes */}
-        <Route path="/conversations/new" element={<NewConversation />} />
-        <Route path="/conversations/:id" element={<ConversationView />} />
-
-        {/* Platform admin (nested layout + guard) */}
-        <Route element={<AdminGate />}>
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<Navigate to="dashboard" replace />} />
-            <Route path="dashboard" element={<AdminDashboard />} />
-            <Route path="platform-admins" element={<AdminPlatformAdmins />} />
-            <Route path="auth-allowlist" element={<AdminAuthAllowlist />} />
-            <Route path="age-verification" element={<AdminAgeVerification />} />
-            <Route path="users" element={<AdminUserSearch />} />
-            <Route path="users/:id" element={<AdminUserProfile />} />
-            <Route path="identities" element={<AdminIdentitySearch />} />
-            <Route path="identities/:id" element={<AdminIdentityProfile />} />
-            <Route path="promo-codes" element={<AdminPromoCodes />} />
+          {/* Account Routes (not available while alias session is unlocked) */}
+          <Route element={<AccountSessionOnlyOutlet />}>
+            <Route path="/account" element={<Navigate to="/account/overview" replace />} />
+            <Route path="/account/overview" element={<AccountOverview />} />
+            <Route path="/account/security" element={<Navigate to="/account/security/authentication" replace />} />
+            <Route path="/account/security/:tab" element={<AccountSecurity />} />
+            <Route path="/account/subscription" element={<Navigate to="/account/subscription/manage" replace />} />
+            <Route path="/account/subscription/:tab" element={<AccountSubscription />} />
+            <Route path="/account/referrals" element={<ReferralPage />} />
+            <Route path="/account/settings" element={<Navigate to="/identity/notifications" replace />} />
+            <Route path="/account/appearance" element={<Navigate to="/identity/appearance" replace />} />
+            <Route path="/account/appearance/community" element={<ThemeBrowser />} />
+            <Route path="/sponsorship/request" element={<RequestSponsorshipPage />} />
+            <Route path="/sponsorship/directory" element={<SponsorshipDirectoryPage />} />
           </Route>
-        </Route>
 
-        {/* Platform moderation (moderator + admin guard) */}
-        <Route element={<ModeratorGate />}>
-          <Route path="/moderation" element={<ModeratorLayout />}>
-            <Route index element={<Navigate to="tickets" replace />} />
-            <Route path="reports" element={<ReportList />} />
-            <Route path="reports/:id" element={<ReportDetail />} />
-            <Route path="tickets" element={<TicketList />} />
-            <Route path="tickets/:id" element={<ModerationTicketDetail />} />
+          {/* Support tickets (account or identity session) */}
+          <Route path="/support" element={<MyTickets />} />
+          <Route path="/support/new" element={<SubmitTicket />} />
+          <Route path="/support/:ticketId" element={<TicketDetail />} />
+
+          {/* Community feedback — submit requires identity session */}
+          <Route path="/feedback/new" element={<SubmitFeedback />} />
+
+          {/* Identity Routes */}
+          <Route path="/identity" element={<Navigate to="/identity/profile" replace />} />
+          <Route path="/identity/profile" element={<IdentityProfile />} />
+          {/* Longer static path before `/identity/appearance` so routers never prefer a dynamic match. */}
+          <Route path="/identity/appearance/community" element={<ThemeBrowser />} />
+          <Route path="/identity/appearance" element={<IdentityAppearance />} />
+          <Route path="/identity/notifications" element={<IdentityNotifications />} />
+          <Route path="/identity/privacy" element={<IdentityPrivacy />} />
+          <Route path="/identity/devices" element={<IdentityDevices />} />
+          <Route path="/identity/ciphers" element={<IdentityCiphers />} />
+          <Route path="/identity/emojis" element={<IdentityCustomEmojis />} />
+          <Route path="/identity/subscription" element={<Navigate to="/identity/subscription/manage" replace />} />
+          <Route path="/identity/subscription/:tab" element={<AccountSubscription />} />
+
+          {/* Conversation Routes */}
+          <Route path="/conversations/new" element={<NewConversation />} />
+          <Route path="/conversations/:id" element={<ConversationView />} />
+
+          {/* Platform admin (nested layout + guard) */}
+          <Route element={<AdminGate />}>
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<AdminDashboard />} />
+              <Route path="platform-admins" element={<AdminPlatformAdmins />} />
+              <Route path="auth-allowlist" element={<AdminAuthAllowlist />} />
+              <Route path="age-verification" element={<AdminAgeVerification />} />
+              <Route path="users" element={<AdminUserSearch />} />
+              <Route path="users/:id" element={<AdminUserProfile />} />
+              <Route path="identities" element={<AdminIdentitySearch />} />
+              <Route path="identities/:id" element={<AdminIdentityProfile />} />
+              <Route path="promo-codes" element={<AdminPromoCodes />} />
+            </Route>
+          </Route>
+
+          {/* Platform moderation (moderator + admin guard) */}
+          <Route element={<ModeratorGate />}>
+            <Route path="/moderation" element={<ModeratorLayout />}>
+              <Route index element={<Navigate to="tickets" replace />} />
+              <Route path="reports" element={<ReportList />} />
+              <Route path="reports/:id" element={<ReportDetail />} />
+              <Route path="tickets" element={<TicketList />} />
+              <Route path="tickets/:id" element={<ModerationTicketDetail />} />
+            </Route>
           </Route>
         </Route>
       </Route>
