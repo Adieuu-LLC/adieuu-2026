@@ -47,14 +47,19 @@ export function AgeVerificationPage() {
     let cancelled = false;
     setJreqLoading(true);
     void (async () => {
-      const res = await api.geo.getJurisdictionRequirements(codes);
-      if (cancelled) return;
-      if (res.success && res.data) {
-        setJurisdictionReqs(res.data);
-      } else {
-        setJurisdictionReqs([]);
+      try {
+        const res = await api.geo.getJurisdictionRequirements(codes);
+        if (cancelled) return;
+        if (res.success && res.data) {
+          setJurisdictionReqs(res.data);
+        } else {
+          setJurisdictionReqs([]);
+        }
+      } catch {
+        if (!cancelled) setJurisdictionReqs([]);
+      } finally {
+        if (!cancelled) setJreqLoading(false);
       }
-      setJreqLoading(false);
     })();
     return () => { cancelled = true; };
   }, [api, geo]);

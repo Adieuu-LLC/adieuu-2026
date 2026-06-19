@@ -94,7 +94,7 @@ export async function startVerification(
         providerVerificationId: candidate.providerVerificationId,
         status: candidate.status,
         redirectUrl: candidate.redirectUrl,
-        backgroundCheckAttempted: !!candidate.redirectUrl && !!user.email,
+        backgroundCheckAttempted: candidate.backgroundCheckAttempted ?? false,
       };
     }
   }
@@ -157,6 +157,7 @@ export async function startVerification(
     startedAt: new Date(),
     redirectUrl: providerResult.redirectUrl,
     optedIn: opts.optedIn ?? false,
+    backgroundCheckAttempted: !!input.userInfo?.email,
   });
 
   if (providerResult.status === 'approved') {

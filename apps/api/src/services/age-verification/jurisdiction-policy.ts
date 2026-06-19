@@ -135,13 +135,15 @@ async function isAdminOverrideJurisdiction(jurisdiction: string): Promise<boolea
 export async function resolveBusinessSettingsId(
   jurisdictionId: string | undefined,
 ): Promise<string | undefined> {
-  if (jurisdictionId) return jurisdictionId;
+  const trimmedJurisdictionId = jurisdictionId?.trim();
+  if (trimmedJurisdictionId) return trimmedJurisdictionId;
 
   try {
     const repo = getPlatformSettingsRepository();
     const doc = await repo.findByKey(PLATFORM_SETTING_KEYS.AGE_VERIFICATION_VERIFYMY_DEFAULT_BUSINESS_SETTINGS_ID);
-    if (doc?.valueType === 'string' && typeof doc.value === 'string' && doc.value.length > 0) {
-      return doc.value;
+    if (doc?.valueType === 'string' && typeof doc.value === 'string') {
+      const trimmedValue = doc.value.trim();
+      if (trimmedValue.length > 0) return trimmedValue;
     }
   } catch (err) {
     elog.warn('Failed to read default VerifyMy business settings ID', { error: err });
