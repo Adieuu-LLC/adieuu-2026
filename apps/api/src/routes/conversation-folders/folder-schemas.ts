@@ -1,0 +1,43 @@
+/**
+ * Zod request shapes for conversation folder routes.
+ *
+ * @module routes/conversation-folders/folder-schemas
+ */
+
+import { z } from '@adieuu/shared/schemas';
+
+const FOLDER_ICON_NAMES = [
+  'folder',
+  'folders',
+  'layer-group',
+  'ball-pile',
+  'building',
+  'family',
+  'sportsball',
+  'dice',
+  'dice-d10',
+  'dice-d12',
+  'game-board',
+  'game-console-handheld',
+] as const;
+
+export const CreateFolderSchema = z.object({
+  name: z.string().min(1).max(100),
+  conversationIds: z.array(z.string().length(24)).min(1).max(50),
+  iconType: z.enum(['dynamic', 'icon']).optional(),
+  iconName: z.enum(FOLDER_ICON_NAMES).optional(),
+  iconColor: z.string().max(20).optional(),
+});
+
+export const UpdateFolderSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  iconType: z.enum(['dynamic', 'icon']).optional(),
+  iconName: z.enum(FOLDER_ICON_NAMES).optional(),
+  iconColor: z.string().max(20).nullable().optional(),
+  favorited: z.boolean().optional(),
+  sortOrder: z.number().int().min(0).optional(),
+});
+
+export const AddConversationToFolderSchema = z.object({
+  conversationId: z.string().length(24),
+});

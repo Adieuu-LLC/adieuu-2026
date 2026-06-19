@@ -98,6 +98,18 @@ import {
   faBottleWater as fasdsBottleWater,
   faCrab as fasdsCrab,
   faLeaf as fasdsLeaf,
+  faFolder as fasdsFolder,
+  faFolders as fasdsFolders,
+  faLayerGroup as fasdsLayerGroup,
+  faBallPile as fasdsBallPile,
+  faBuilding as fasdsBuilding,
+  faFamily as fasdsFamily,
+  faSportsball as fasdsSportsball,
+  faDice as fasdsDice,
+  faDiceD10 as fasdsDiceD10,
+  faDiceD12 as fasdsDiceD12,
+  faGameBoard as fasdsGameBoard,
+  faGameConsoleHandheld as fasdsGameConsoleHandheld,
 } from '@adieuu-llc/fa-sharp-duotone-solid-svg-icons';
 
 // ---------------------------------------------------------------------------
@@ -160,6 +172,18 @@ const allIcons: IconDefinition[] = [
   fasdsBottleWater,
   fasdsCrab,
   fasdsLeaf,
+  fasdsFolder,
+  fasdsFolders,
+  fasdsLayerGroup,
+  fasdsBallPile,
+  fasdsBuilding,
+  fasdsFamily,
+  fasdsSportsball,
+  fasdsDice,
+  fasdsDiceD10,
+  fasdsDiceD12,
+  fasdsGameBoard,
+  fasdsGameConsoleHandheld,
 ];
 
 library.add(...allIcons);

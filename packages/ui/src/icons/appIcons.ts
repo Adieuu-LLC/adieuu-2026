@@ -141,6 +141,18 @@ export const APP_ICON_NAMES = {
   signalBarsWeak: 'signal-bars-weak',
   cake: 'cake-candles',
   envelope: 'envelope',
+  folder: 'folder',
+  folders: 'folders',
+  layerGroup: 'layer-group',
+  ballPile: 'ball-pile',
+  building: 'building',
+  family: 'family',
+  sportsball: 'sportsball',
+  dice: 'dice',
+  diceD10: 'dice-d10',
+  diceD12: 'dice-d12',
+  gameboard: 'game-board',
+  gameConsoleHandheld: 'game-console-handheld',
 } as const;
 
 export type AppIconName = keyof typeof APP_ICON_NAMES;

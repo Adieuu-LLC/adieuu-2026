@@ -509,4 +509,28 @@ export const conversations = {
         'Control whether media that skipped moderation scanning is automatically displayed or hidden behind a placeholder.',
     unmoderatedMediaAllow: 'Display all media (including unmoderated)',
     unmoderatedMediaHide: 'Hide unmoderated media behind a placeholder',
+
+    // Conversation folders
+    folders: {
+        newFolder: 'New Folder',
+        rename: 'Edit Folder',
+        removeFolder: 'Remove Folder',
+        addFavorite: 'Add to Favorites',
+        removeFavorite: 'Remove from Favorites',
+        removeFromFolder: 'Remove from Folder',
+        iconDynamic: 'Dynamic',
+        iconCustom: 'Custom Icon',
+        colorLabel: 'Icon Color',
+        nameLabel: 'Folder Name',
+        namePlaceholder: 'Enter a name…',
+        save: 'Save',
+        cancel: 'Cancel',
+        folderCreatedToast: 'Folder created',
+        folderDeletedToast: 'Folder removed',
+        folderUpdatedToast: 'Folder updated',
+        favoriteAddedToast: 'Folder added to favorites',
+        favoriteRemovedToast: 'Folder removed from favorites',
+        close: 'Close folder panel',
+        emptyFolder: 'No conversations in this folder',
+    },
 } as const;

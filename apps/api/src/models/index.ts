@@ -16,3 +16,4 @@ export * from './conversation';
 export * from './message';
 export * from './group-invite';
 export * from './conversation-preferences';
+export * from './conversation-folder';

@@ -293,6 +293,15 @@ export {
 
 export { ConversationsApi } from './conversations-api';
 
+export { ConversationFoldersApi } from './conversation-folders-api';
+export {
+  type FolderIconType,
+  type FolderIconName,
+  type ConversationFolder,
+  type CreateConversationFolderParams,
+  type UpdateConversationFolderParams,
+} from './conversation-folder-types';
+
 export { CustomEmojiApi } from './custom-emoji-api';
 export {
   type PublicCustomEmoji,

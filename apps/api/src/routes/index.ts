@@ -24,6 +24,7 @@ import { uploadRoutes } from './uploads';
 import { e2eUploadRoutes } from './uploads/e2e';
 import { friendRoutes } from './friends';
 import { conversationRoutes } from './conversations';
+import { conversationFolderRoutes } from './conversation-folders';
 import { moderationRoutes } from './moderation';
 import { reportRoutes } from './reports';
 import { klipyRoutes } from './klipy';
@@ -118,6 +119,9 @@ export function registerRoutes(app: Router): void {
 
   // DM and group conversations
   app.merge(conversationRoutes, '/api');
+
+  // Conversation folders (sidebar grouping)
+  app.merge(conversationFolderRoutes, '/api');
 
   // Platform moderation (reports, actions, enforcement)
   app.merge(moderationRoutes, '/api');

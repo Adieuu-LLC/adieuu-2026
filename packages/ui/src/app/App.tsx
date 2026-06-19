@@ -13,6 +13,7 @@ import { BlockProvider } from '../hooks/useBlockContext';
 import { ConversationsProvider } from '../hooks/useConversations';
 import { MediaOutboxProvider } from '../services/mediaOutbox';
 import { ConversationPreferencesProvider } from '../hooks/useConversationPreferences';
+import { ConversationFoldersProvider } from '../hooks/useConversationFolders';
 import { usePreKeys } from '../hooks/usePreKeys';
 import { KeyStorageBanner } from '../components/KeyStorageBanner';
 import { UpdateOverlay } from '../components/UpdateOverlay';
@@ -139,15 +140,17 @@ function AuthenticatedShell() {
             <FriendsProvider>
               <BlockProvider>
                 <ConversationPreferencesProvider>
-                  <ConversationsProvider>
-                    <MediaOutboxProvider>
+                  <ConversationFoldersProvider>
+                    <ConversationsProvider>
+                      <MediaOutboxProvider>
                       <CallSessionProvider>
                         <GlobalCallEventsProvider>
                           <AuthenticatedShellContent />
                         </GlobalCallEventsProvider>
                       </CallSessionProvider>
-                    </MediaOutboxProvider>
-                  </ConversationsProvider>
+                      </MediaOutboxProvider>
+                    </ConversationsProvider>
+                  </ConversationFoldersProvider>
                 </ConversationPreferencesProvider>
               </BlockProvider>
             </FriendsProvider>

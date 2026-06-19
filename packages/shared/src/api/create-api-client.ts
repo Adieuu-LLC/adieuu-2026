@@ -26,6 +26,7 @@ import { ComplianceApi } from './compliance-api';
 import { PromoCodeApi } from './promo-code-api';
 import { ReferralApi } from './referral-api';
 import { AccountEventsApi } from './account-events-api';
+import { ConversationFoldersApi } from './conversation-folders-api';
 import { FeedbackApi } from './feedback-api';
 
 /**
@@ -52,6 +53,7 @@ export function createApiClient(config: ApiClientConfig) {
     uploads: new UploadApi(client),
     e2eUploads: new E2EUploadApi(client),
     conversations: new ConversationsApi(client),
+    conversationFolders: new ConversationFoldersApi(client),
     customEmojis: new CustomEmojiApi(client),
     reactions: new ReactionsApi(client),
     klipy: new KlipyApi(client),

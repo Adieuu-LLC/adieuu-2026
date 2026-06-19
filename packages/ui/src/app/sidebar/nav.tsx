@@ -44,14 +44,17 @@ export function SidebarTopNavContent({
 export function SidebarNavContent({
   isChatInvitesPanelOpen,
   onToggleChatInvitesPanel,
+  onOpenFolder,
 }: {
   isChatInvitesPanelOpen: boolean;
   onToggleChatInvitesPanel: () => void;
+  onOpenFolder?: (folderId: string) => void;
 }) {
   return (
     <ConversationsSidebarSection
       isChatInvitesPanelOpen={isChatInvitesPanelOpen}
       onToggleChatInvitesPanel={onToggleChatInvitesPanel}
+      onOpenFolder={onOpenFolder}
     />
   );
 }
