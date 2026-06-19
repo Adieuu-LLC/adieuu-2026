@@ -252,6 +252,19 @@ export function AgeVerificationPage() {
           </div>
         )}
 
+        {/* Background email check in progress */}
+        {av.status === 'checking_email' && (
+          <div className="age-verification-status">
+            <Spinner size="md" />
+            <p>{t('compliance.ageVerification.checkingEmail')}</p>
+            {av.secondsUntilNextPoll != null && (
+              <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
+                {t('compliance.ageVerification.nextCheckIn', { seconds: av.secondsUntilNextPoll })}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Approved */}
         {av.status === 'approved' && (
           <>

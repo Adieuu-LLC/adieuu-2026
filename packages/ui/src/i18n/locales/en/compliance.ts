@@ -41,13 +41,13 @@ export const compliance = {
     emailConsentPageTitle: 'Verify your age with your email address',
     emailConsentEmailLabel: 'Email address:',
     emailConsentInfoShareIntro: 'Your jurisdiction requires we verify your age.',
-    emailConsentInfoShareIntroBody: "Like a bouncer at a bar, we only care that you're above a certain age. To protect your privacy, we do the least invasive method possible that satisfies requirements. In any case, we keep the data in your Account (private info like your email, etc) separate from your Alias (who you post or message as): even a breach of our database should not make it possible for someone to trace your Alias back to your Account.",
+    emailConsentInfoShareIntroBody: "Like a bouncer at a bar, we only care that you're above a certain age. To protect your privacy, we use the least invasive method possible that satisfies requirements. In any case, we keep the data in your Account (private info like your email, etc) separate from your Alias (who you post or message as): even a breach of our database should not make it possible for someone to trace your Alias back to your Account.",
     emailConsentInfoShareTitle: 'What gets shared:',
     emailConsentInfoShareBody:
       "Adieuu will share your email address with our partner, VerifyMy. VerifyMy will share your email address with its third-party partners to review sites and apps where you've previously used this email address, in accordance with their privacy policy, to determine if you're over 18.",
     emailConsentInfoAgeTitle: 'What we use and store:',
     emailConsentInfoAgeBody:
-      "Adieuu will use the info from VerifyMy to enable access to the platform. We can not see any of your identity information (no name, no DOB, no anything), and we can't even see how old VerifyMy believes you are. All they tell us is that the check completed, and whether or not you passed the age check (true/false): all we store is basic confirmation metadata and your jurisdiction.",
+      "Adieuu will use the info from VerifyMy to enable access to the platform. We can not see any of your identity information (no name, no DOB, not even age). All they tell us is that the check completed, and whether or not you are over 18 (true/false): all we store is basic metadata and your jurisdiction.",
     emailConsentInfoInstantTitle: 'Email is the least invasive option.',
     emailConsentInfoInstantBody:
       "VerifyMy's email check uses information already on the open web to estimate your age. Not all jurisdictions view email checks as sufficient proof of age; if VerifyMy can't confirm that you're 18 or older, or your jurisdiction requires additional checks, VerifyMy may prompt you for more information. We (Adieuu) have no way of knowing what information VerifyMy asks for, or what you provide: no such data is shared with us.",
@@ -57,7 +57,8 @@ export const compliance = {
       'Your jurisdiction requires age verification. Since your account uses a phone number, you will be directed to our verification partner to complete the process.',
     goToDashboard: 'Go to Dashboard',
     emailCheckInconclusive:
-      'Sorry, we were not able to verify your age via email. You can continue with other verification methods.',
+      "Sorry, we were not able to verify your age via email alone. There may be other verification methods available through VerifyMy. We geolocate based on IP, so as long as your jurisdiction requires you to verify age, we'll be unable to offer further access until you verify.",
+    checkingEmail: 'Checking your email address\u2026',
     continueOtherMethods: 'Continue with Other Methods',
   },
   vpn: {

@@ -11,7 +11,7 @@ import type { AgeVerificationDocument } from '../../models/age-verification';
 import { getAgeVerificationRepository } from '../../repositories/age-verification.repository';
 import { getUserRepository } from '../../repositories/user.repository';
 import { getActiveProvider } from './providers';
-import { getAgeVerificationPolicy } from './jurisdiction-policy';
+import { getAgeVerificationPolicy, resolveBusinessSettingsId } from './jurisdiction-policy';
 import type { StartVerificationResult, VerificationStatusResult } from './provider';
 import elog from '../../utils/adieuuLogger';
 
@@ -113,7 +113,7 @@ export async function startVerification(
     country: countryCode,
     externalUserId: user._id.toHexString(),
     method: leastInvasive,
-    businessSettingsId: policy?.vmyBusinessSettingsId,
+    businessSettingsId: await resolveBusinessSettingsId(policy?.vmyBusinessSettingsId),
   };
 
   if (user.email) {
@@ -129,7 +129,7 @@ export async function startVerification(
     hasPolicy: !!policy,
     compatibleMethods: policy?.compatibleMethods ?? [],
     leastInvasive: leastInvasive ?? null,
-    businessSettingsId: policy?.vmyBusinessSettingsId ?? null,
+    businessSettingsId: input.businessSettingsId ?? null,
     userHasEmail: !!user.email,
     userHasPhone: !!user.phone,
     willSendUserInfo: !!user.email,

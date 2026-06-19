@@ -126,3 +126,25 @@ async function isAdminOverrideJurisdiction(jurisdiction: string): Promise<boolea
   }
   return false;
 }
+
+/**
+ * Resolves the VerifyMy business_settings_id for a verification request.
+ * Returns the jurisdiction-specific ID if configured, otherwise the
+ * platform-level default, or undefined if neither is set.
+ */
+export async function resolveBusinessSettingsId(
+  jurisdictionId: string | undefined,
+): Promise<string | undefined> {
+  if (jurisdictionId) return jurisdictionId;
+
+  try {
+    const repo = getPlatformSettingsRepository();
+    const doc = await repo.findByKey(PLATFORM_SETTING_KEYS.AGE_VERIFICATION_VERIFYMY_DEFAULT_BUSINESS_SETTINGS_ID);
+    if (doc?.valueType === 'string' && typeof doc.value === 'string' && doc.value.length > 0) {
+      return doc.value;
+    }
+  } catch (err) {
+    elog.warn('Failed to read default VerifyMy business settings ID', { error: err });
+  }
+  return undefined;
+}

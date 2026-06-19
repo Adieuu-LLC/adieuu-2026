@@ -14,6 +14,7 @@ import { openVerificationUrl } from '../services/openVerificationUrl';
 export type AgeVerificationUIStatus =
   | 'idle'
   | 'starting'
+  | 'checking_email'
   | 'email_check_inconclusive'
   | 'awaiting_user'
   | 'polling'
@@ -45,6 +46,10 @@ export interface UseAgeVerificationReturn {
 
 const POLL_INTERVAL_MS = 15000;
 const MAX_POLL_INTERVAL_MS = 30000;
+/** Short interval used while waiting for a background check to resolve. */
+const BG_CHECK_POLL_INTERVAL_MS = 3000;
+/** Max attempts before declaring background check inconclusive. */
+const BG_CHECK_MAX_POLLS = 4;
 
 export function useAgeVerification(): UseAgeVerificationReturn {
   const { apiBaseUrl } = useAppConfig();
@@ -163,6 +168,58 @@ export function useAgeVerification(): UseAgeVerificationReturn {
     [apiBaseUrl, refreshSession, startCountdown, stopPolling],
   );
 
+  const pollBackgroundCheck = useCallback(
+    async (pvId: string, attempt: number) => {
+      if (cancelledRef.current) return;
+
+      try {
+        const response = await fetch(`${apiBaseUrl}/api/age-verification/status?id=${encodeURIComponent(pvId)}`, {
+          credentials: 'include',
+        });
+
+        if (response.ok) {
+          const json = (await response.json()) as {
+            data?: { status: string; methodAttempts?: Record<string, MethodAttemptInfo> };
+          };
+          const data = json.data;
+
+          if (data?.status === 'approved') {
+            setStatus('approved');
+            stopPolling();
+            await refreshSession();
+            return;
+          }
+          if (data?.status === 'failed') {
+            setStatus('failed');
+            stopPolling();
+            await refreshSession();
+            return;
+          }
+          if (data?.methodAttempts) {
+            setAgeGate(data.methodAttempts);
+          }
+        }
+      } catch {
+        // Network error — treat as inconclusive after retries
+      }
+
+      if (attempt + 1 >= BG_CHECK_MAX_POLLS) {
+        stopPolling();
+        setStatus('email_check_inconclusive');
+        return;
+      }
+
+      if (!cancelledRef.current) {
+        startCountdown(BG_CHECK_POLL_INTERVAL_MS);
+        pollingRef.current = setTimeout(
+          () => pollBackgroundCheck(pvId, attempt + 1),
+          BG_CHECK_POLL_INTERVAL_MS,
+        );
+      }
+    },
+    [apiBaseUrl, refreshSession, startCountdown, stopPolling],
+  );
+
   const startFlow = useCallback(
     async (endpoint: string, body?: Record<string, unknown>) => {
       cancelledRef.current = false;
@@ -216,7 +273,12 @@ export function useAgeVerification(): UseAgeVerificationReturn {
 
         if (data.backgroundCheckAttempted && data.redirectUrl) {
           pendingRedirectUrlRef.current = data.redirectUrl;
-          setStatus('email_check_inconclusive');
+          setStatus('checking_email');
+          startCountdown(BG_CHECK_POLL_INTERVAL_MS);
+          pollingRef.current = setTimeout(
+            () => pollBackgroundCheck(data.providerVerificationId, 0),
+            BG_CHECK_POLL_INTERVAL_MS,
+          );
         } else if (data.redirectUrl) {
           setStatus('awaiting_user');
           await openVerificationUrl(data.redirectUrl, platform);
@@ -237,7 +299,7 @@ export function useAgeVerification(): UseAgeVerificationReturn {
         setStatus('failed');
       }
     },
-    [apiBaseUrl, platform, pollStatus, refreshSession, startCountdown],
+    [apiBaseUrl, platform, pollBackgroundCheck, pollStatus, refreshSession, startCountdown],
   );
 
   const start = useCallback(() => startFlow('age-verification/start'), [startFlow]);

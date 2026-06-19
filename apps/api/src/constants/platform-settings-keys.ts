@@ -18,6 +18,8 @@ export const PLATFORM_SETTING_KEYS = {
   AGE_VERIFICATION_ACTIVE_PROVIDER: 'platform-age-verification-active-provider',
   /** VerifyMy environment override ('sandbox' | 'production'). */
   AGE_VERIFICATION_VERIFYMY_ENV: 'platform-age-verification-verifymy-env',
+  /** Default VerifyMy business_settings_id when jurisdiction has none configured. */
+  AGE_VERIFICATION_VERIFYMY_DEFAULT_BUSINESS_SETTINGS_ID: 'platform-age-verification-verifymy-default-business-settings-id',
   /** Enforcement mode: 'jurisdictions' (seed-data-driven) or 'all' (every account). */
   AGE_VERIFICATION_REQUIRED_MODE: 'platform-age-verification-required-mode',
   /** Additional jurisdictions that require AV (additive to seed data). */

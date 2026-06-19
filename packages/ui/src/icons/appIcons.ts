@@ -52,6 +52,7 @@ export const APP_ICON_NAMES = {
   image: 'image',
   globe: 'globe',
   desktop: 'desktop',
+  server: 'server',
   bars: 'bars',
   eye: 'eye',
   eyeSlash: 'eye-slash',
