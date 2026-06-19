@@ -29,7 +29,11 @@ export function useConversationReactionHandlers(params: {
     scrollToBottomIfPinned,
   } = params;
 
-  const fetchedReactionsForRef = useRef<string | null>(null);
+  // Message IDs whose reactions have already been fetched for the current
+  // conversation. Once fetched, realtime add/remove is handled by useReactions'
+  // own WebSocket subscription, so we never need to re-fetch the whole window.
+  const fetchedReactionMessageIdsRef = useRef<Set<string>>(new Set());
+  const fetchedConversationIdRef = useRef<string | undefined>(undefined);
   const pendingReactionsRef = useRef<Set<string>>(new Set());
   const activeMessagesRef = useRef(activeMessages);
   activeMessagesRef.current = activeMessages;
@@ -39,12 +43,31 @@ export function useConversationReactionHandlers(params: {
   useEffect(() => {
     if (!conversationId || activeMessages.length === 0) return;
 
-    const key = `${conversationId}:${activeMessages.length}`;
-    if (fetchedReactionsForRef.current === key) return;
-    fetchedReactionsForRef.current = key;
+    // Reset the dedup set whenever the active conversation changes; the
+    // reaction store (useReactions) is cleared on conversation change too.
+    if (fetchedConversationIdRef.current !== conversationId) {
+      fetchedConversationIdRef.current = conversationId;
+      fetchedReactionMessageIdsRef.current = new Set();
+    }
 
-    const messageIds = activeMessages.map((m) => m.id);
-    void fetchReactions(messageIds);
+    const fetched = fetchedReactionMessageIdsRef.current;
+    const newIds: string[] = [];
+    for (const m of activeMessages) {
+      if (!fetched.has(m.id)) {
+        newIds.push(m.id);
+      }
+    }
+
+    if (newIds.length === 0) return;
+    // Only mark IDs as fetched once the request succeeds; on failure they stay
+    // unmarked so a subsequent effect run retries them. (Adding to `fetched`
+    // here is safe even across conversation switches, since a switch swaps in a
+    // fresh Set and leaves this captured reference orphaned.)
+    Promise.resolve(fetchReactions(newIds))
+      .then(() => {
+        for (const id of newIds) fetched.add(id);
+      })
+      .catch(() => {});
   }, [conversationId, activeMessages, fetchReactions]);
 
   const handleReact = useCallback(
@@ -92,8 +115,8 @@ export function useConversationReactionHandlers(params: {
   );
 
   return {
-    /** Cleared when switching active conversation (see ConversationView). */
-    fetchedReactionsForRef,
+    /** Reset when switching active conversation (see ConversationView). */
+    fetchedReactionMessageIdsRef,
     handleReact,
     handleToggleReaction,
   };

@@ -3,8 +3,13 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import fs from 'fs';
 import pkg from './package.json';
+import { visualizer } from 'rollup-plugin-visualizer';
 import { cspPlugin } from '../../packages/shared/src/csp/vite-plugin-csp';
 import { cspManifest } from './src/csp';
+
+// Opt-in bundle analysis: `ANALYZE=true pnpm --filter @adieuu/web build`
+// emits dist/stats.html. Off by default so normal builds are unaffected.
+const analyze = process.env.ANALYZE === 'true';
 
 // Vite 6's CSP-aware dev server re-processes the meta tag after plugin hooks,
 // which can drop devExtras additions.  Moving dev origins into a manifest
@@ -38,6 +43,16 @@ export default defineConfig({
       },
     }),
     versionJsonPlugin(),
+    ...(analyze
+      ? [
+          visualizer({
+            filename: 'dist/stats.html',
+            gzipSize: true,
+            brotliSize: true,
+            template: 'treemap',
+          }) as Plugin,
+        ]
+      : []),
   ],
   publicDir: path.resolve(__dirname, '../../packages/ui/public'),
   resolve: {

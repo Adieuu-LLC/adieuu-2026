@@ -255,11 +255,6 @@ export const account = {
       messageLayoutBubbleDesc: 'Your messages on the right, theirs on the left.',
       messageLayoutApplied: 'Message layout updated.',
 
-      iconPackTitle: 'Icon Pack',
-      iconPackDescription: 'Choose your preferred icon style (more to be added later, likely as part of Community Themes!).',
-      iconPackApplied: 'Icon pack applied.',
-      iconPackDefault: 'Default',
-
       importExportTitle: 'Import & Export',
       importExportDescription: 'Export your current theme as a file, or import a theme from someone else. Imported themes are validated and sanitised, but always be wary of random files from others..',
       exportTheme: 'Export Theme',

@@ -26,6 +26,18 @@ const MOUNT_RETRY_DELAY_MS = 750;
 /** Periodic session refresh while authenticated (compliance IP re-check). */
 const SESSION_POLL_INTERVAL_MS = 10 * 60 * 1000;
 
+/**
+ * Structural equality for auth state. Used to skip no-op setState calls
+ * (e.g. the 10-minute compliance poll) so the auth context reference stays
+ * stable and consumers don't re-render when nothing actually changed.
+ */
+function authStateEqual(a: AuthState, b: AuthState): boolean {
+  if (a.status !== b.status) return false;
+  if (a.session === b.session) return true;
+  if (!a.session || !b.session) return false;
+  return JSON.stringify(a.session) === JSON.stringify(b.session);
+}
+
 // ============================================================================
 // Auth State Types
 // ============================================================================
@@ -145,7 +157,8 @@ function useAuthState(): AuthContextValue {
             entitlements: (data.entitlements as string[]) ?? [],
             isLifetime: (data.isLifetime as boolean) ?? false,
           };
-          setState({ status: 'identity_mode', session: identitySession });
+          const nextIdentityState: AuthState = { status: 'identity_mode', session: identitySession };
+          setState((prev) => (authStateEqual(prev, nextIdentityState) ? prev : nextIdentityState));
           return identitySession;
         }
 
@@ -156,7 +169,8 @@ function useAuthState(): AuthContextValue {
           isPlatformSupportAgent: false,
           platformPermissions: [],
         };
-        setState({ status: 'authenticated', session: accountSession });
+        const nextAccountState: AuthState = { status: 'authenticated', session: accountSession };
+        setState((prev) => (authStateEqual(prev, nextAccountState) ? prev : nextAccountState));
         return accountSession;
       } else {
         const code = response.error?.code;
@@ -331,17 +345,30 @@ function useAuthState(): AuthContextValue {
     setAbusiveIpNotice(null);
   }, [api]);
 
-  return {
-    ...state,
-    requestOtp,
-    verifyOtp,
-    completeMfaTotp,
-    completeMfaWebAuthn,
-    logout,
-    refreshSession,
-    abusiveIpNotice,
-    clearAbusiveIpNotice,
-  };
+  return useMemo<AuthContextValue>(
+    () => ({
+      ...state,
+      requestOtp,
+      verifyOtp,
+      completeMfaTotp,
+      completeMfaWebAuthn,
+      logout,
+      refreshSession,
+      abusiveIpNotice,
+      clearAbusiveIpNotice,
+    }),
+    [
+      state,
+      requestOtp,
+      verifyOtp,
+      completeMfaTotp,
+      completeMfaWebAuthn,
+      logout,
+      refreshSession,
+      abusiveIpNotice,
+      clearAbusiveIpNotice,
+    ],
+  );
 }
 
 // ============================================================================

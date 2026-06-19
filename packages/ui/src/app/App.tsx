@@ -1,37 +1,8 @@
+import { lazy, Suspense, type ComponentType, type ReactNode } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { useIdentity } from '../hooks/useIdentity';
 import { AppLayout } from '../components/AppLayout';
 import { TourRoot } from '../components/Tour';
-import { Home } from '../pages/Home';
-import { PublicHome } from '../pages/PublicHome';
-import { About } from '../pages/About';
-import { AboutLearn, AboutUpdates, AboutRoadmap } from '../pages/about';
-import { Download } from '../pages/Download';
-import { Search } from '../pages/Search';
-import { PublicSpaces } from '../pages/spaces';
-import { Login, Verify, MfaVerify } from '../pages/auth';
-import {
-  AccountOverview,
-  AccountSecurity,
-  AccountSubscription,
-  ThemeBrowser,
-  ReferralPage,
-} from '../pages/account';
-import { CheckoutComplete } from '../pages/checkout/CheckoutComplete';
-import { RequestSponsorshipPage, SponsorshipDirectoryPage } from '../pages/sponsorship';
-import {
-  IdentityAppearance,
-  IdentityCiphers,
-  IdentityCustomEmojis,
-  IdentityDevices,
-  IdentityNotifications,
-  IdentityPrivacy,
-  IdentityProfile,
-  IdentityProfileView,
-} from '../pages/identity';
-import { ServiceStatus } from '../pages/ServiceStatus';
-import { ReferralLanding } from '../pages/public/ReferralLanding';
-import { ConversationView, NewConversation } from '../pages/conversations';
 import { useAuth } from '../hooks/useAuth';
 import { isAccountSidebarHidden } from './sidebar/identity';
 import { TourProvider, useTourContext, useAppearanceTour } from '../hooks/useTourContext';
@@ -56,30 +27,90 @@ import { GlobalCallEventsProvider } from '../hooks/useGlobalCallEvents';
 import { AppCallOverlay } from '../components/call/AppCallOverlay';
 import { useIncomingCallRinger } from '../hooks/useIncomingCallRinger';
 import { AppSidebar } from './AppSidebar';
-import {
-  AdminAuthAllowlist,
-  AdminAgeVerification,
-  AdminDashboard,
-  AdminGate,
-  AdminLayout,
-  AdminPlatformAdmins,
-  AdminUserSearch,
-  AdminUserProfile,
-  AdminIdentitySearch,
-  AdminIdentityProfile,
-  AdminPromoCodes,
-} from '../pages/admin';
-import {
-  ModeratorGate,
-  ModeratorLayout,
-  ReportList,
-  ReportDetail,
-  TicketList,
-  TicketDetail as ModerationTicketDetail,
-} from '../pages/moderation';
-import { MyTickets, SubmitTicket, TicketDetail } from '../pages/support';
-import { FeedbackList, FeedbackDetail, SubmitFeedback } from '../pages/feedback';
-import { LegalPoliciesPage, LegalPolicyPage } from '../legal';
+import { RouteErrorBoundary } from '../components/RouteErrorBoundary';
+
+// ============================================================================
+// Lazily-loaded route pages
+// ============================================================================
+// Route components are code-split so heavy/rare areas (admin → recharts,
+// conversations, moderation, identity, legal) stay out of the initial bundle.
+// Each lazy() points at a concrete module or a feature barrel (one chunk per
+// feature). All providers/layout/overlays above remain eager so context and
+// persistent UI (sidebar, call audio) survive navigation.
+
+function lazyRoute<M, K extends keyof M>(loader: () => Promise<M>, key: K) {
+  return lazy(async () => {
+    const mod = await loader();
+    return { default: mod[key] as ComponentType };
+  });
+}
+
+const Home = lazyRoute(() => import('../pages/Home'), 'Home');
+const PublicHome = lazyRoute(() => import('../pages/PublicHome'), 'PublicHome');
+const About = lazyRoute(() => import('../pages/About'), 'About');
+const AboutLearn = lazyRoute(() => import('../pages/about'), 'AboutLearn');
+const AboutUpdates = lazyRoute(() => import('../pages/about'), 'AboutUpdates');
+const AboutRoadmap = lazyRoute(() => import('../pages/about'), 'AboutRoadmap');
+const Download = lazyRoute(() => import('../pages/Download'), 'Download');
+const Search = lazyRoute(() => import('../pages/Search'), 'Search');
+const PublicSpaces = lazyRoute(() => import('../pages/spaces'), 'PublicSpaces');
+const Login = lazyRoute(() => import('../pages/auth'), 'Login');
+const Verify = lazyRoute(() => import('../pages/auth'), 'Verify');
+const MfaVerify = lazyRoute(() => import('../pages/auth'), 'MfaVerify');
+const AccountOverview = lazyRoute(() => import('../pages/account'), 'AccountOverview');
+const AccountSecurity = lazyRoute(() => import('../pages/account'), 'AccountSecurity');
+const AccountSubscription = lazyRoute(() => import('../pages/account'), 'AccountSubscription');
+const ThemeBrowser = lazyRoute(() => import('../pages/account'), 'ThemeBrowser');
+const ReferralPage = lazyRoute(() => import('../pages/account'), 'ReferralPage');
+const CheckoutComplete = lazyRoute(() => import('../pages/checkout/CheckoutComplete'), 'CheckoutComplete');
+const RequestSponsorshipPage = lazyRoute(() => import('../pages/sponsorship'), 'RequestSponsorshipPage');
+const SponsorshipDirectoryPage = lazyRoute(() => import('../pages/sponsorship'), 'SponsorshipDirectoryPage');
+const IdentityAppearance = lazyRoute(() => import('../pages/identity'), 'IdentityAppearance');
+const IdentityCiphers = lazyRoute(() => import('../pages/identity'), 'IdentityCiphers');
+const IdentityCustomEmojis = lazyRoute(() => import('../pages/identity'), 'IdentityCustomEmojis');
+const IdentityDevices = lazyRoute(() => import('../pages/identity'), 'IdentityDevices');
+const IdentityNotifications = lazyRoute(() => import('../pages/identity'), 'IdentityNotifications');
+const IdentityPrivacy = lazyRoute(() => import('../pages/identity'), 'IdentityPrivacy');
+const IdentityProfile = lazyRoute(() => import('../pages/identity'), 'IdentityProfile');
+const IdentityProfileView = lazyRoute(() => import('../pages/identity'), 'IdentityProfileView');
+const ServiceStatus = lazyRoute(() => import('../pages/ServiceStatus'), 'ServiceStatus');
+const ReferralLanding = lazyRoute(() => import('../pages/public/ReferralLanding'), 'ReferralLanding');
+const ConversationView = lazyRoute(() => import('../pages/conversations/ConversationView'), 'ConversationView');
+const NewConversation = lazyRoute(() => import('../pages/conversations/NewConversation'), 'NewConversation');
+const AdminAuthAllowlist = lazyRoute(() => import('../pages/admin'), 'AdminAuthAllowlist');
+const AdminAgeVerification = lazyRoute(() => import('../pages/admin'), 'AdminAgeVerification');
+const AdminDashboard = lazyRoute(() => import('../pages/admin'), 'AdminDashboard');
+const AdminGate = lazyRoute(() => import('../pages/admin'), 'AdminGate');
+const AdminLayout = lazyRoute(() => import('../pages/admin'), 'AdminLayout');
+const AdminPlatformAdmins = lazyRoute(() => import('../pages/admin'), 'AdminPlatformAdmins');
+const AdminUserSearch = lazyRoute(() => import('../pages/admin'), 'AdminUserSearch');
+const AdminUserProfile = lazyRoute(() => import('../pages/admin'), 'AdminUserProfile');
+const AdminIdentitySearch = lazyRoute(() => import('../pages/admin'), 'AdminIdentitySearch');
+const AdminIdentityProfile = lazyRoute(() => import('../pages/admin'), 'AdminIdentityProfile');
+const AdminPromoCodes = lazyRoute(() => import('../pages/admin'), 'AdminPromoCodes');
+const ModeratorGate = lazyRoute(() => import('../pages/moderation'), 'ModeratorGate');
+const ModeratorLayout = lazyRoute(() => import('../pages/moderation'), 'ModeratorLayout');
+const ReportList = lazyRoute(() => import('../pages/moderation'), 'ReportList');
+const ReportDetail = lazyRoute(() => import('../pages/moderation'), 'ReportDetail');
+const TicketList = lazyRoute(() => import('../pages/moderation'), 'TicketList');
+const ModerationTicketDetail = lazyRoute(() => import('../pages/moderation'), 'TicketDetail');
+const MyTickets = lazyRoute(() => import('../pages/support'), 'MyTickets');
+const SubmitTicket = lazyRoute(() => import('../pages/support'), 'SubmitTicket');
+const TicketDetail = lazyRoute(() => import('../pages/support'), 'TicketDetail');
+const FeedbackList = lazyRoute(() => import('../pages/feedback'), 'FeedbackList');
+const FeedbackDetail = lazyRoute(() => import('../pages/feedback'), 'FeedbackDetail');
+const SubmitFeedback = lazyRoute(() => import('../pages/feedback'), 'SubmitFeedback');
+const LegalPoliciesPage = lazyRoute(() => import('../legal'), 'LegalPoliciesPage');
+const LegalPolicyPage = lazyRoute(() => import('../legal'), 'LegalPolicyPage');
+
+/** Fallback shown in the content area while a lazy route chunk loads. */
+function RouteFallback() {
+  return (
+    <div className="route-loading">
+      <div className="spinner spinner-lg" />
+    </div>
+  );
+}
 
 /**
  * Unified app shell that sits above both public and protected route groups.
@@ -127,7 +158,9 @@ function AuthenticatedShell() {
 
   return (
     <AppLayout sidebar={<AppSidebar variant="public" />}>
-      <Outlet />
+      <Suspense fallback={<RouteFallback />}>
+        <Outlet />
+      </Suspense>
     </AppLayout>
   );
 }
@@ -150,7 +183,9 @@ function AuthenticatedShellContent() {
       <IdentityModalProvider>
         <AppLayout sidebar={<AppSidebar />}>
           <KeyStorageBanner />
-          <Outlet />
+          <Suspense fallback={<RouteFallback />}>
+            <Outlet />
+          </Suspense>
         </AppLayout>
       </IdentityModalProvider>
       <AppCallOverlay />
@@ -210,7 +245,7 @@ function AccountSessionOnlyOutlet() {
   return <Outlet />;
 }
 
-function AuthRoute({ children }: { children: React.ReactNode }) {
+function AuthRoute({ children }: { children: ReactNode }) {
   const { status } = useAuth();
 
   if (status === 'loading') {
@@ -236,6 +271,8 @@ export function App() {
   return (
     <UpdateProvider>
     <ToasterOutlet />
+    <RouteErrorBoundary>
+    <Suspense fallback={<RouteFallback />}>
     <Routes>
       {/* Auth Routes */}
       <Route
@@ -363,6 +400,8 @@ export function App() {
       {/* Catch-all redirect */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
+    </RouteErrorBoundary>
     </UpdateProvider>
   );
 }

@@ -1,9 +1,10 @@
-import type { ComponentType } from 'react';
-import { TermsOfServiceContent } from './content/tos';
-import { PrivacyPolicyContent } from './content/privacy';
-import { IdeaSubmissionTermsContent } from './content/idea-submission-terms';
-import { AcceptableUsePolicyContent } from './content/acceptable-use';
-import { PaidServicesTermsContent } from './content/paid-services';
+/**
+ * Policy *metadata* only. Deliberately free of any reference to the heavy policy
+ * content components so that footer links, agreement notices, and the policy
+ * directory (all of which only need slug/title/path) don't pull the full legal
+ * text into their bundles. The content components are loaded lazily via
+ * `./policy-content`.
+ */
 
 export interface LegalPolicyContentProps {
   highContrast?: boolean;
@@ -15,7 +16,6 @@ export interface LegalPolicyDefinition {
   title: string;
   description?: string;
   showInFooter?: boolean;
-  Content: ComponentType<LegalPolicyContentProps>;
 }
 
 export const LEGAL_POLICIES: LegalPolicyDefinition[] = [
@@ -24,35 +24,30 @@ export const LEGAL_POLICIES: LegalPolicyDefinition[] = [
     title: 'Terms of Service',
     description: 'The rules and guidelines for using Adieuu.',
     showInFooter: true,
-    Content: TermsOfServiceContent,
   },
   {
     slug: 'privacy',
     title: 'Privacy Policy',
     description: 'How we collect, use, and protect your information.',
     showInFooter: true,
-    Content: PrivacyPolicyContent,
   },
   {
     slug: 'idea-submission-terms',
     title: 'Idea Submission Terms',
     description: 'Terms governing feature requests and feedback submissions.',
     showInFooter: false,
-    Content: IdeaSubmissionTermsContent,
   },
   {
     slug: 'acceptable-use',
     title: 'Acceptable Use Policy',
     description: 'Rules for acceptable conduct on Adieuu.',
     showInFooter: false,
-    Content: AcceptableUsePolicyContent,
   },
   {
     slug: 'paid-services',
     title: 'Paid Services Terms',
     description: 'Terms for subscriptions and other paid features.',
     showInFooter: false,
-    Content: PaidServicesTermsContent,
   },
 ];
 

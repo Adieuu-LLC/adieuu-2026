@@ -15,7 +15,6 @@ import {
   updateStatusResult,
   getNotificationPrefsResult,
   updateNotificationPrefsResult,
-  getUnreadSummaryResult,
   getRoadmapTimelineResult,
   type FeedbackResult,
 } from './controller';
@@ -89,15 +88,6 @@ router.put('/feedback/notification-prefs', async (ctx) => {
 
 router.get('/feedback/roadmap', async (ctx) => {
   const result = await getRoadmapTimelineResult();
-  if (!result.ok) return mapFeedbackFailure(ctx, result);
-  return success(result.data);
-});
-
-router.get('/feedback/unread-summary', async (ctx) => {
-  const auth = requireIdentity(ctx);
-  if (!auth.ok) return auth.response;
-
-  const result = await getUnreadSummaryResult(auth.identitySession);
   if (!result.ok) return mapFeedbackFailure(ctx, result);
   return success(result.data);
 });

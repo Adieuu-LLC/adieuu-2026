@@ -138,7 +138,13 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
     if (!el) return () => {};
     const focus = () => el.focus({ preventScroll: true });
     focus();
-    const timer = window.setTimeout(focus, 0);
+    // Re-assert focus after the modal slideUp animation (200ms) completes.
+    // Focusing mid-CSS-animation can produce "phantom focus" in Chromium/Electron
+    // where the caret blinks but keystrokes are silently dropped.
+    const timer = window.setTimeout(() => {
+      el.blur();
+      focus();
+    }, 250);
     return () => clearTimeout(timer);
   }, []);
 

@@ -558,20 +558,36 @@ function useCipherStoreState(): CipherStoreContextValue {
     [state.ciphers]
   );
 
-  return {
-    ...state,
-    createCipher,
-    deleteCipher: deleteCipherAction,
-    renameCipher,
-    updateCipher,
-    duplicateCipher,
-    getCipherById: getCipherByIdFromState,
-    getCipherKey,
-    touchCipher,
-    verifyCipherById,
-    refresh: loadCiphers,
-    encryptionAvailable,
-  };
+  return useMemo<CipherStoreContextValue>(
+    () => ({
+      ...state,
+      createCipher,
+      deleteCipher: deleteCipherAction,
+      renameCipher,
+      updateCipher,
+      duplicateCipher,
+      getCipherById: getCipherByIdFromState,
+      getCipherKey,
+      touchCipher,
+      verifyCipherById,
+      refresh: loadCiphers,
+      encryptionAvailable,
+    }),
+    [
+      state,
+      createCipher,
+      deleteCipherAction,
+      renameCipher,
+      updateCipher,
+      duplicateCipher,
+      getCipherByIdFromState,
+      getCipherKey,
+      touchCipher,
+      verifyCipherById,
+      loadCiphers,
+      encryptionAvailable,
+    ],
+  );
 }
 
 // ============================================================================

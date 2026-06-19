@@ -139,10 +139,5 @@ export interface UpdateFeedbackNotificationPrefsParams {
   notifyCommentReplies?: boolean;
 }
 
-export interface FeedbackUnreadSummary {
-  postReplies: number;
-  commentReplies: number;
-}
-
 export type RoadmapTimelineGroupResponse = RoadmapTimelineGroup<PublicFeedbackPost>;
 export type RoadmapTimelineResponseData = RoadmapTimelineResponse<PublicFeedbackPost>;

@@ -17,7 +17,7 @@
     },
     "apps/api": {
       "name": "@adieuu/api",
-      "version": "0.2.4",
+      "version": "0.2.20",
       "dependencies": {
         "@adieuu/crypto": "workspace:*",
         "@adieuu/shared": "workspace:*",
@@ -41,7 +41,7 @@
     },
     "apps/chat": {
       "name": "@adieuu/chat",
-      "version": "0.2.4",
+      "version": "0.2.20",
       "dependencies": {
         "ioredis": "5.9.3",
         "mongodb": "6.21.0",
@@ -61,7 +61,7 @@
     },
     "apps/desktop": {
       "name": "@adieuu/desktop",
-      "version": "0.2.4",
+      "version": "0.2.20",
       "dependencies": {
         "@adieuu/shared": "workspace:*",
         "@adieuu/ui": "workspace:*",
@@ -89,7 +89,7 @@
     },
     "apps/mobile": {
       "name": "@adieuu/mobile",
-      "version": "0.2.4",
+      "version": "0.2.20",
       "dependencies": {
         "@capacitor/android": "6.2.1",
         "@capacitor/app": "6.0.3",
@@ -106,7 +106,7 @@
     },
     "apps/web": {
       "name": "@adieuu/web",
-      "version": "0.2.4",
+      "version": "0.2.20",
       "dependencies": {
         "@adieuu/shared": "workspace:*",
         "@adieuu/ui": "workspace:*",
@@ -183,7 +183,7 @@
     },
     "packages/shared": {
       "name": "@adieuu/shared",
-      "version": "0.2.4",
+      "version": "0.2.20",
       "dependencies": {
         "zod": "3.25.76",
       },
@@ -199,14 +199,9 @@
     },
     "packages/ui": {
       "name": "@adieuu/ui",
-      "version": "0.2.4",
+      "version": "0.2.20",
       "dependencies": {
-        "@adieuu-llc/fa-duotone-thin-svg-icons": "7.2.0",
-        "@adieuu-llc/fa-free-brands-svg-icons": "7.2.0",
-        "@adieuu-llc/fa-pro-duotone-svg-icons": "7.2.0",
-        "@adieuu-llc/fa-pro-solid-svg-icons": "7.2.0",
         "@adieuu-llc/fa-sharp-duotone-solid-svg-icons": "7.2.0",
-        "@adieuu-llc/fa-sharp-duotone-thin-svg-icons": "7.2.0",
         "@adieuu/crypto": "workspace:*",
         "@adieuu/shared": "workspace:*",
         "@ark-ui/react": "5.31.0",
@@ -271,17 +266,7 @@
   "packages": {
     "7zip-bin": ["7zip-bin@5.2.0", "", {}, "sha512-ukTPVhqG4jNzMro2qA9HSCSSVJN3aN7tlb+hfqYCt3ER0yWroeA2VR38MNrOHLQ/cVj+DaIMad0kFCtWWowh/A=="],
 
-    "@adieuu-llc/fa-duotone-thin-svg-icons": ["@adieuu-llc/fa-duotone-thin-svg-icons@7.2.0", "https://npm.pkg.github.com/@adieuu-llc/fa-duotone-thin-svg-icons/-/fa-duotone-thin-svg-icons-7.2.0.tgz", { "dependencies": { "@fortawesome/fontawesome-common-types": "7.2.0" } }, "sha512-bwmtjEgrZ8Qj3iGegGrWBid9Gb7NBE1/2I5eyF8nxd0NVFt8wLfEr3Pblr0Jt7++fcyyYPpZJGwZ34MX99F77g=="],
-
-    "@adieuu-llc/fa-free-brands-svg-icons": ["@adieuu-llc/fa-free-brands-svg-icons@7.2.0", "https://npm.pkg.github.com/@adieuu-llc/fa-free-brands-svg-icons/-/fa-free-brands-svg-icons-7.2.0.tgz", { "dependencies": { "@fortawesome/fontawesome-common-types": "7.2.0" } }, "sha512-Ui3sGOseAVUU1o/mv4HqJ82SK8N2uD2W8Mef8LR75YqMQNExwXvr/vQ4RRt/uSL9I5Qqn/RLTFhuug6UHnJoUA=="],
-
-    "@adieuu-llc/fa-pro-duotone-svg-icons": ["@adieuu-llc/fa-pro-duotone-svg-icons@7.2.0", "https://npm.pkg.github.com/@adieuu-llc/fa-pro-duotone-svg-icons/-/fa-pro-duotone-svg-icons-7.2.0.tgz", { "dependencies": { "@fortawesome/fontawesome-common-types": "7.2.0" } }, "sha512-6dr2BOd3QRtycsYhifxulXcpM3oufb3/XIoPdxLw5Z9yvZbXgRyT7CmleO8uZ4961Z42DRtUYQj4exQeoqkoFA=="],
-
-    "@adieuu-llc/fa-pro-solid-svg-icons": ["@adieuu-llc/fa-pro-solid-svg-icons@7.2.0", "https://npm.pkg.github.com/@adieuu-llc/fa-pro-solid-svg-icons/-/fa-pro-solid-svg-icons-7.2.0.tgz", { "dependencies": { "@fortawesome/fontawesome-common-types": "7.2.0" } }, "sha512-FakpNFqbULpuSmPC4ZqW1oiJ6BPjFYdIZWsz3jZ6wlWYeNyxLCzEx8imxRm8NDifsMHFw37d8OxtkWT6FCe7bA=="],
-
     "@adieuu-llc/fa-sharp-duotone-solid-svg-icons": ["@adieuu-llc/fa-sharp-duotone-solid-svg-icons@7.2.0", "https://npm.pkg.github.com/@adieuu-llc/fa-sharp-duotone-solid-svg-icons/-/fa-sharp-duotone-solid-svg-icons-7.2.0.tgz", { "dependencies": { "@fortawesome/fontawesome-common-types": "7.2.0" } }, "sha512-pBiWbFpbxmDGWKzIbNxhTHc0Rar/ULyq/5/1x9bfqMuBqVHzZtWIat9aZU5i3TcrXSZzrGCl+UgSuv0qIuKzOg=="],
-
-    "@adieuu-llc/fa-sharp-duotone-thin-svg-icons": ["@adieuu-llc/fa-sharp-duotone-thin-svg-icons@7.2.0", "https://npm.pkg.github.com/@adieuu-llc/fa-sharp-duotone-thin-svg-icons/-/fa-sharp-duotone-thin-svg-icons-7.2.0.tgz", { "dependencies": { "@fortawesome/fontawesome-common-types": "7.2.0" } }, "sha512-yeUVcnUH+RpD13EiYo3Zo54U2GYAFH+we7sPAFV/xJnAx5aR+T3gpfw/9dJQTAOtOsdVTLEmIbUcjBawP1EXeQ=="],
 
     "@adieuu/api": ["@adieuu/api@workspace:apps/api"],
 

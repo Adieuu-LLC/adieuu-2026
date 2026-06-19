@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Toaster, Toast as ArkToast, createToaster } from '@ark-ui/react';
 import { Icon } from '../icons/Icon';
 
@@ -91,7 +91,7 @@ export interface ToastProviderProps {
  * ```
  */
 export function ToastProvider({ children }: ToastProviderProps) {
-  const toast = (options: ToastOptions) => {
+  const toast = useCallback((options: ToastOptions) => {
     const meta: Record<string, unknown> = {};
     if (options.action) meta.action = options.action;
     if (options.onClick) meta.onClick = options.onClick;
@@ -104,25 +104,25 @@ export function ToastProvider({ children }: ToastProviderProps) {
       duration: options.duration ?? 5000,
       meta: Object.keys(meta).length > 0 ? meta : undefined,
     });
-  };
+  }, []);
 
-  const success = (title: string, description?: string) => {
+  const success = useCallback((title: string, description?: string) => {
     toast({ title, description, variant: 'success' });
-  };
+  }, [toast]);
 
-  const error = (title: string, description?: string) => {
+  const error = useCallback((title: string, description?: string) => {
     toast({ title, description, variant: 'error' });
-  };
+  }, [toast]);
 
-  const info = (title: string, description?: string, onClick?: () => void) => {
+  const info = useCallback((title: string, description?: string, onClick?: () => void) => {
     toast({ title, description, variant: 'info', onClick });
-  };
+  }, [toast]);
 
-  const warning = (title: string, description?: string) => {
+  const warning = useCallback((title: string, description?: string) => {
     toast({ title, description, variant: 'warning' });
-  };
+  }, [toast]);
 
-  const message = (senderName: string, preview: string, onView: () => void) => {
+  const message = useCallback((senderName: string, preview: string, onView: () => void) => {
     toast({
       title: senderName,
       description: preview,
@@ -130,16 +130,12 @@ export function ToastProvider({ children }: ToastProviderProps) {
       duration: 8000,
       action: { label: 'View', onClick: onView },
     });
-  };
+  }, [toast]);
 
-  const value: ToastContextValue = {
-    toast,
-    success,
-    error,
-    info,
-    warning,
-    message,
-  };
+  const value = useMemo<ToastContextValue>(
+    () => ({ toast, success, error, info, warning, message }),
+    [toast, success, error, info, warning, message],
+  );
 
   return (
     <ToastContext.Provider value={value}>

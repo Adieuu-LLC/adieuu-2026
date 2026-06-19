@@ -15,17 +15,12 @@ export interface IconPackDefinition {
   prefix: IconPrefix;
 }
 
+// The app ships a single icon pack (Sharp DuoTone Solid). The pack list and
+// `IconPackId` type are retained so the `Icon` component and `IconPackProvider`
+// need no changes; any previously-stored selection of a removed pack falls back
+// to the default via `isValidPackId` in `useIconPack`.
 export const ICON_PACKS: IconPackDefinition[] = [
-  // DuoTone
-  { id: 'duotone-solid', family: 'DuoTone', weight: 'Solid', label: 'DuoTone Solid', prefix: 'fad' as IconPrefix },
-  { id: 'duotone-thin', family: 'DuoTone', weight: 'Thin', label: 'DuoTone Thin', prefix: 'fadt' as IconPrefix },
-
-  // Sharp DuoTone
   { id: 'sharp-duotone-solid', family: 'Sharp DuoTone', weight: 'Solid', label: 'Sharp DuoTone Solid', prefix: 'fasds' as IconPrefix },
-  { id: 'sharp-duotone-thin', family: 'Sharp DuoTone', weight: 'Thin', label: 'Sharp DuoTone Thin', prefix: 'fasdt' as IconPrefix },
-
-  // Classic
-  { id: 'classic-solid', family: 'Classic', weight: 'Solid', label: 'Classic Solid', prefix: 'fas' as IconPrefix },
 ];
 
 export type IconPackId = (typeof ICON_PACKS)[number]['id'];
