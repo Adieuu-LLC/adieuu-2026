@@ -14,6 +14,7 @@ import { openVerificationUrl } from '../services/openVerificationUrl';
 export type AgeVerificationUIStatus =
   | 'idle'
   | 'starting'
+  | 'email_check_inconclusive'
   | 'awaiting_user'
   | 'polling'
   | 'approved'
@@ -37,6 +38,8 @@ export interface UseAgeVerificationReturn {
   billingCode?: string;
   start: () => Promise<void>;
   optIn: (country?: string) => Promise<void>;
+  /** Opens the stored VerifyMy interactive flow URL after an inconclusive email check. */
+  continueInteractive: () => Promise<void>;
   cancel: () => void;
 }
 
@@ -57,6 +60,7 @@ export function useAgeVerification(): UseAgeVerificationReturn {
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cancelledRef = useRef(false);
   const providerVerificationIdRef = useRef<string>();
+  const pendingRedirectUrlRef = useRef<string>();
 
   const stopCountdown = useCallback(() => {
     if (countdownRef.current) {
@@ -92,6 +96,7 @@ export function useAgeVerification(): UseAgeVerificationReturn {
     setVerificationId(undefined);
     setAgeGate(undefined);
     setBillingCode(undefined);
+    pendingRedirectUrlRef.current = undefined;
   }, [stopPolling]);
 
   const pollStatus = useCallback(
@@ -190,6 +195,7 @@ export function useAgeVerification(): UseAgeVerificationReturn {
             providerVerificationId: string;
             status: string;
             redirectUrl?: string;
+            backgroundCheckAttempted?: boolean;
           };
         };
 
@@ -208,7 +214,10 @@ export function useAgeVerification(): UseAgeVerificationReturn {
           return;
         }
 
-        if (data.redirectUrl) {
+        if (data.backgroundCheckAttempted && data.redirectUrl) {
+          pendingRedirectUrlRef.current = data.redirectUrl;
+          setStatus('email_check_inconclusive');
+        } else if (data.redirectUrl) {
           setStatus('awaiting_user');
           await openVerificationUrl(data.redirectUrl, platform);
           startCountdown(POLL_INTERVAL_MS);
@@ -238,6 +247,21 @@ export function useAgeVerification(): UseAgeVerificationReturn {
     [startFlow],
   );
 
+  const continueInteractive = useCallback(async () => {
+    const url = pendingRedirectUrlRef.current;
+    const pvId = providerVerificationIdRef.current;
+    if (!url || !pvId) return;
+
+    pendingRedirectUrlRef.current = undefined;
+    setStatus('awaiting_user');
+    await openVerificationUrl(url, platform);
+    startCountdown(POLL_INTERVAL_MS);
+    pollingRef.current = setTimeout(
+      () => pollStatus(pvId, POLL_INTERVAL_MS),
+      POLL_INTERVAL_MS,
+    );
+  }, [platform, pollStatus, startCountdown]);
+
   // Listen for postMessage from callback page (origin-checked)
   useEffect(() => {
     const expectedOrigin = apiBaseUrl || window.location.origin;
@@ -259,5 +283,5 @@ export function useAgeVerification(): UseAgeVerificationReturn {
   // Cleanup on unmount
   useEffect(() => () => stopPolling(), [stopPolling]);
 
-  return { status, verificationId, ageGate, billingCode, secondsUntilNextPoll, start, optIn, cancel };
+  return { status, verificationId, ageGate, billingCode, secondsUntilNextPoll, start, optIn, continueInteractive, cancel };
 }

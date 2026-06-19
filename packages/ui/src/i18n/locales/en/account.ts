@@ -91,6 +91,7 @@ export const account = {
       },
       ageVerification: {
         title: 'Age Verification',
+        pageTitle: 'Age Verification',
         subtitle: 'Where required, your age verification status for compliance with applicable regulations.',
         statusNotRequired: 'Not required',
         statusRequired: 'Required',

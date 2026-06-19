@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Card } from './Card';
 import { Button } from './Button';
 import { Spinner } from './Spinner';
@@ -67,6 +67,7 @@ function PrimaryStepAction({
   progress: AccountProgress;
 }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { openIdentityModal } = useIdentityModal();
 
   if (step.completed) return null;
@@ -103,7 +104,7 @@ function PrimaryStepAction({
         );
       }
       return (
-        <Button variant="primary" size="sm" type="button" onClick={() => openIdentityModal()}>
+        <Button variant="primary" size="sm" type="button" onClick={() => navigate('/account/age-verification')}>
           {t('home.account.steps.verifyAge.action')}
         </Button>
       );

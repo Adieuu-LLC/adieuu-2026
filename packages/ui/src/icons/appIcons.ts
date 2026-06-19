@@ -138,6 +138,8 @@ export const APP_ICON_NAMES = {
   signalBarsGood: 'signal-bars-good',
   signalBarsFair: 'signal-bars-fair',
   signalBarsWeak: 'signal-bars-weak',
+  cake: 'cake-candles',
+  envelope: 'envelope',
 } as const;
 
 export type AppIconName = keyof typeof APP_ICON_NAMES;

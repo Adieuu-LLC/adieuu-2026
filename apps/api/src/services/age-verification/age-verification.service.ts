@@ -20,6 +20,8 @@ export interface StartResult {
   providerVerificationId: string;
   status: string;
   redirectUrl?: string;
+  /** True when user_info was sent to the provider (email background check attempted). */
+  backgroundCheckAttempted: boolean;
 }
 
 export interface StatusResult {
@@ -92,6 +94,7 @@ export async function startVerification(
         providerVerificationId: candidate.providerVerificationId,
         status: candidate.status,
         redirectUrl: candidate.redirectUrl,
+        backgroundCheckAttempted: !!candidate.redirectUrl && !!user.email,
       };
     }
   }
@@ -189,6 +192,7 @@ export async function startVerification(
     providerVerificationId: providerResult.verificationId,
     status: providerResult.status,
     redirectUrl: providerResult.redirectUrl,
+    backgroundCheckAttempted: !!input.userInfo?.email,
   };
 }
 
