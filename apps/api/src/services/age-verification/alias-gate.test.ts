@@ -23,6 +23,7 @@ mock.module('./av-settings', () => ({
 mock.module('./jurisdiction-policy', () => ({
   requiresAgeVerification: mockRequiresAgeVerification,
   getAgeVerificationPolicy: mockGetAgeVerificationPolicy,
+  resolveBusinessSettingsId: (id: string | undefined) => Promise.resolve(id),
 }));
 
 const { evaluateAliasGate } = await import('./alias-gate');

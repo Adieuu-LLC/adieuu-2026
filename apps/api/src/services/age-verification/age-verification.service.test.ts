@@ -28,8 +28,10 @@ const mockGetAgeVerificationPolicy = mock((_j: string) => Promise.resolve({
   leastInvasiveMethod: 'Email',
   legislation: [],
 }));
+const mockResolveBusinessSettingsId = mock((id: string | undefined) => Promise.resolve(id));
 mock.module('./jurisdiction-policy', () => ({
   getAgeVerificationPolicy: mockGetAgeVerificationPolicy,
+  resolveBusinessSettingsId: mockResolveBusinessSettingsId,
 }));
 
 const mockCreateVerification = mock(async (input: unknown) => ({
