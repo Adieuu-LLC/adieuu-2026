@@ -771,12 +771,16 @@ export function AdminPromoCodes() {
                               <td>
                                 {[
                                   row.subscriptionOverrideApplied
-                                    ? t('admin.promoCodes.redemptions.subscriptionGrant', {
-                                        tier: row.subscriptionOverrideApplied.tier,
-                                        date: formatDateTime(
-                                          row.subscriptionOverrideApplied.expiresAt,
-                                        ),
-                                      })
+                                    ? row.subscriptionOverrideApplied.expiresAt
+                                      ? t('admin.promoCodes.redemptions.subscriptionGrant', {
+                                          tier: row.subscriptionOverrideApplied.tier,
+                                          date: formatDateTime(
+                                            row.subscriptionOverrideApplied.expiresAt,
+                                          ),
+                                        })
+                                      : t('admin.promoCodes.redemptions.subscriptionGrantLifetime', {
+                                          tier: row.subscriptionOverrideApplied.tier,
+                                        })
                                     : null,
                                   row.entitlementsApplied.length
                                     ? row.entitlementsApplied.join(', ')

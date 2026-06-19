@@ -411,6 +411,7 @@ export const admin = {
         redeemedAt: 'Redeemed at',
         grantsApplied: 'Grants applied',
         subscriptionGrant: '{{tier}} until {{date}}',
+        subscriptionGrantLifetime: '{{tier}} (lifetime)',
       },
     },
 } as const;
