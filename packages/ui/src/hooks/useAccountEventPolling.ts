@@ -44,12 +44,14 @@ export function useAccountEventPolling(
     if (!enabled || status !== 'authenticated') return;
 
     let cancelled = false;
+    let inFlight = false;
 
     const isHidden = () =>
       typeof document !== 'undefined' && document.hidden;
 
     const scheduleNext = () => {
       if (cancelled || isHidden()) return;
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => void tick(), intervalMs);
     };
 
@@ -58,7 +60,10 @@ export function useAccountEventPolling(
       // celebratory subscription-upgrade toasts the user can't act on while
       // away; security enforcement (bans/suspensions/billing) happens
       // server-side on every request, independent of this poll.
-      if (cancelled || isHidden()) return;
+      // `inFlight` guards against overlapping ticks (e.g. a visibility-change
+      // refocus firing while a poll is already awaiting the network).
+      if (cancelled || isHidden() || inFlight) return;
+      inFlight = true;
 
       try {
         const res = await api.accountEvents.getPending();
@@ -72,6 +77,7 @@ export function useAccountEventPolling(
       } catch {
         // Transient errors — keep polling.
       } finally {
+        inFlight = false;
         scheduleNext();
       }
     };

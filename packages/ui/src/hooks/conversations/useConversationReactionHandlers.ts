@@ -54,13 +54,20 @@ export function useConversationReactionHandlers(params: {
     const newIds: string[] = [];
     for (const m of activeMessages) {
       if (!fetched.has(m.id)) {
-        fetched.add(m.id);
         newIds.push(m.id);
       }
     }
 
     if (newIds.length === 0) return;
-    void fetchReactions(newIds);
+    // Only mark IDs as fetched once the request succeeds; on failure they stay
+    // unmarked so a subsequent effect run retries them. (Adding to `fetched`
+    // here is safe even across conversation switches, since a switch swaps in a
+    // fresh Set and leaves this captured reference orphaned.)
+    Promise.resolve(fetchReactions(newIds))
+      .then(() => {
+        for (const id of newIds) fetched.add(id);
+      })
+      .catch(() => {});
   }, [conversationId, activeMessages, fetchReactions]);
 
   const handleReact = useCallback(
