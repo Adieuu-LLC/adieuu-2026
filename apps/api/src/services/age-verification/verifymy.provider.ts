@@ -103,6 +103,10 @@ function encryptUserInfo(plaintext: string): string {
   return encrypted.toString('base64');
 }
 
+function isRedirectUriRelatedError(errorBody: string): boolean {
+  return /redirect[_\s-]?(uri|url)|redirecturl/i.test(errorBody);
+}
+
 export class VerifyMyProvider implements AgeVerificationProvider {
   readonly id = PROVIDER_ID;
 

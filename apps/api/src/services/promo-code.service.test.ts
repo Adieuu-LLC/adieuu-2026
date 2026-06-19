@@ -737,7 +737,7 @@ describe('return value structure', () => {
     if (result.ok) {
       expect(result.subscriptionApplied).toBeDefined();
       expect(result.subscriptionApplied?.tier).toBe('access');
-      const expiresAt = new Date(result.subscriptionApplied!.expiresAt);
+      const expiresAt = new Date(result.subscriptionApplied!.expiresAt!);
       const threeMonthsFromNow = new Date();
       threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
       expect(Math.abs(expiresAt.getTime() - threeMonthsFromNow.getTime())).toBeLessThan(5000);
@@ -755,10 +755,99 @@ describe('return value structure', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.subscriptionApplied?.tier).toBe('access');
-      const expiresAt = new Date(result.subscriptionApplied!.expiresAt);
+      const expiresAt = new Date(result.subscriptionApplied!.expiresAt!);
       const sixMonthsFromNow = new Date();
       sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6);
       expect(Math.abs(expiresAt.getTime() - sixMonthsFromNow.getTime())).toBeLessThan(5000);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Lifetime subscription grants (durationMonths: null)
+// ---------------------------------------------------------------------------
+
+describe('lifetime subscription grants', () => {
+  test('forces override path even when user has stripeCustomerId', async () => {
+    const user = baseUser({ stripeCustomerId: 'cus_lifetime_user' });
+    mockFindById.mockResolvedValue(user);
+    mockFindByShortcode.mockResolvedValue(
+      baseCode({ subscription: { tier: 'insider', durationMonths: null }, entitlements: ['founder'] }),
+    );
+
+    const result = await redeemPromoCode(USER_ID.toHexString(), 'welcome-access');
+    expect(result.ok).toBe(true);
+    expect(mockSubscriptionsCreate).not.toHaveBeenCalled();
+    expect(mockCreateBalanceTransaction).not.toHaveBeenCalled();
+  });
+
+  test('creates subscription override without expiresAt', async () => {
+    const user = baseUser({ stripeCustomerId: 'cus_lifetime_user' });
+    mockFindById.mockResolvedValue(user);
+    mockFindByShortcode.mockResolvedValue(
+      baseCode({ subscription: { tier: 'insider', durationMonths: null }, entitlements: ['founder'] }),
+    );
+
+    await redeemPromoCode(USER_ID.toHexString(), 'welcome-access');
+    expect(mockAddSubscriptionOverride).toHaveBeenCalledTimes(1);
+
+    const overrideArg = (mockAddSubscriptionOverride.mock.calls as any[][])[0]![1];
+    expect(overrideArg.tier).toBe('insider');
+    expect(overrideArg.expiresAt).toBeUndefined();
+  });
+
+  test('adds entitlement overrides alongside lifetime subscription', async () => {
+    const user = baseUser({ stripeCustomerId: 'cus_lifetime_user' });
+    mockFindById.mockResolvedValue(user);
+    mockFindByShortcode.mockResolvedValue(
+      baseCode({ subscription: { tier: 'insider', durationMonths: null }, entitlements: ['founder'] }),
+    );
+
+    const result = await redeemPromoCode(USER_ID.toHexString(), 'welcome-access');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.entitlementsApplied).toEqual(['founder']);
+    }
+    expect(mockAddEntitlementOverride).toHaveBeenCalledWith(USER_ID.toHexString(), 'founder');
+  });
+
+  test('returns subscriptionApplied without expiresAt for lifetime', async () => {
+    const user = baseUser({ stripeCustomerId: 'cus_lifetime_user' });
+    mockFindById.mockResolvedValue(user);
+    mockFindByShortcode.mockResolvedValue(
+      baseCode({ subscription: { tier: 'insider', durationMonths: null } }),
+    );
+
+    const result = await redeemPromoCode(USER_ID.toHexString(), 'welcome-access');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.subscriptionApplied?.tier).toBe('insider');
+      expect(result.subscriptionApplied?.expiresAt).toBeUndefined();
+    }
+  });
+
+  test('records override stripe action for lifetime grants', async () => {
+    const user = baseUser({ stripeCustomerId: 'cus_lifetime_user' });
+    mockFindById.mockResolvedValue(user);
+    mockFindByShortcode.mockResolvedValue(
+      baseCode({ subscription: { tier: 'insider', durationMonths: null } }),
+    );
+
+    await redeemPromoCode(USER_ID.toHexString(), 'welcome-access');
+
+    const redemptionArg = (mockCreateRedemption.mock.calls as any[][])[0]![0];
+    expect(redemptionArg.stripeAction).toBe('override');
+  });
+
+  test('does not create trial even when user has no active subs', async () => {
+    const user = baseUser({ stripeCustomerId: 'cus_brand_new' });
+    mockFindById.mockResolvedValue(user);
+    mockFindByShortcode.mockResolvedValue(
+      baseCode({ subscription: { tier: 'insider', durationMonths: null } }),
+    );
+
+    await redeemPromoCode(USER_ID.toHexString(), 'welcome-access');
+    expect(mockSubscriptionsCreate).not.toHaveBeenCalled();
+    expect(mockAddSubscriptionOverride).toHaveBeenCalledTimes(1);
   });
 });

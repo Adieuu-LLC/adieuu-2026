@@ -11,6 +11,7 @@ export type PromoCodeFormState = {
   description: string;
   grantSubscription: boolean;
   subscriptionTier: SubscriptionTierId;
+  subscriptionLifetime: boolean;
   subscriptionDurationMonths: string;
   entitlements: string;
   requiredCodes: string;
@@ -28,6 +29,7 @@ export const EMPTY_PROMO_FORM: PromoCodeFormState = {
   description: '',
   grantSubscription: false,
   subscriptionTier: 'access',
+  subscriptionLifetime: false,
   subscriptionDurationMonths: '12',
   entitlements: '',
   requiredCodes: '',
@@ -99,6 +101,7 @@ export function codeToForm(code: PublicPromoCode): PromoCodeFormState {
     description: code.description ?? '',
     grantSubscription: !!code.subscription,
     subscriptionTier: code.subscription?.tier ?? 'access',
+    subscriptionLifetime: code.subscription?.durationMonths == null && !!code.subscription,
     subscriptionDurationMonths: String(code.subscription?.durationMonths ?? 12),
     entitlements: code.entitlements.join(', '),
     requiredCodes: code.requiredCodes.join(', '),
@@ -120,7 +123,9 @@ function buildCommonParams(form: PromoCodeFormState): Omit<CreatePromoCodeParams
     subscription: form.grantSubscription
       ? {
           tier: form.subscriptionTier,
-          durationMonths: Number.isFinite(durationMonths) ? durationMonths : 12,
+          durationMonths: form.subscriptionLifetime
+            ? null
+            : (Number.isFinite(durationMonths) ? durationMonths : 12),
         }
       : undefined,
     entitlements: parseCommaList(form.entitlements),
@@ -146,7 +151,7 @@ export function validatePromoForm(
     if (!isValidShortcode(shortcode)) return 'shortcodeInvalid';
   }
 
-  if (form.grantSubscription) {
+  if (form.grantSubscription && !form.subscriptionLifetime) {
     const months = parseInt(form.subscriptionDurationMonths, 10);
     if (!Number.isFinite(months) || months < 1 || months > 120) {
       return 'durationInvalid';
@@ -186,11 +191,15 @@ export function formToUpdateParams(form: PromoCodeFormState): UpdatePromoCodePar
 
 export function formatGrantsSummary(
   code: PublicPromoCode,
-  labels: { subscription: (tier: string, months: number) => string; none: string },
+  labels: { subscription: (tier: string, months: number) => string; lifetime: (tier: string) => string; none: string },
 ): string {
   const parts: string[] = [];
   if (code.subscription) {
-    parts.push(labels.subscription(code.subscription.tier, code.subscription.durationMonths));
+    if (code.subscription.durationMonths == null) {
+      parts.push(labels.lifetime(code.subscription.tier));
+    } else {
+      parts.push(labels.subscription(code.subscription.tier, code.subscription.durationMonths));
+    }
   }
   if (code.entitlements.length) {
     parts.push(code.entitlements.join(', '));
