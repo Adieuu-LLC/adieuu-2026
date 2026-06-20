@@ -13,6 +13,7 @@ import { BlockProvider } from '../hooks/useBlockContext';
 import { ConversationsProvider } from '../hooks/useConversations';
 import { MediaOutboxProvider } from '../services/mediaOutbox';
 import { ConversationPreferencesProvider } from '../hooks/useConversationPreferences';
+import { ConversationFoldersProvider } from '../hooks/useConversationFolders';
 import { usePreKeys } from '../hooks/usePreKeys';
 import { KeyStorageBanner } from '../components/KeyStorageBanner';
 import { UpdateOverlay } from '../components/UpdateOverlay';
@@ -62,6 +63,7 @@ const AccountSecurity = lazyRoute(() => import('../pages/account'), 'AccountSecu
 const AccountSubscription = lazyRoute(() => import('../pages/account'), 'AccountSubscription');
 const ThemeBrowser = lazyRoute(() => import('../pages/account'), 'ThemeBrowser');
 const ReferralPage = lazyRoute(() => import('../pages/account'), 'ReferralPage');
+const AgeVerificationPage = lazyRoute(() => import('../pages/account'), 'AgeVerificationPage');
 const CheckoutComplete = lazyRoute(() => import('../pages/checkout/CheckoutComplete'), 'CheckoutComplete');
 const RequestSponsorshipPage = lazyRoute(() => import('../pages/sponsorship'), 'RequestSponsorshipPage');
 const SponsorshipDirectoryPage = lazyRoute(() => import('../pages/sponsorship'), 'SponsorshipDirectoryPage');
@@ -138,15 +140,17 @@ function AuthenticatedShell() {
             <FriendsProvider>
               <BlockProvider>
                 <ConversationPreferencesProvider>
-                  <ConversationsProvider>
-                    <MediaOutboxProvider>
+                  <ConversationFoldersProvider>
+                    <ConversationsProvider>
+                      <MediaOutboxProvider>
                       <CallSessionProvider>
                         <GlobalCallEventsProvider>
                           <AuthenticatedShellContent />
                         </GlobalCallEventsProvider>
                       </CallSessionProvider>
-                    </MediaOutboxProvider>
-                  </ConversationsProvider>
+                      </MediaOutboxProvider>
+                    </ConversationsProvider>
+                  </ConversationFoldersProvider>
                 </ConversationPreferencesProvider>
               </BlockProvider>
             </FriendsProvider>
@@ -330,6 +334,7 @@ export function App() {
             <Route path="/account/subscription" element={<Navigate to="/account/subscription/manage" replace />} />
             <Route path="/account/subscription/:tab" element={<AccountSubscription />} />
             <Route path="/account/referrals" element={<ReferralPage />} />
+            <Route path="/account/age-verification" element={<AgeVerificationPage />} />
             <Route path="/account/settings" element={<Navigate to="/identity/notifications" replace />} />
             <Route path="/account/appearance" element={<Navigate to="/identity/appearance" replace />} />
             <Route path="/account/appearance/community" element={<ThemeBrowser />} />

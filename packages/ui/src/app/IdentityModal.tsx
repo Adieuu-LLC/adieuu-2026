@@ -58,8 +58,14 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
 
   // Age verification
   const av = useAgeVerification();
-  const [avOptInMode, setAvOptInMode] = useState(false);
-  const [avOptInCountry, setAvOptInCountry] = useState('');
+
+  // Redirect to standalone age verification page when modal opens with AV required
+  useEffect(() => {
+    if (isOpen && view === 'age_verification_required') {
+      onClose();
+      navigate('/account/age-verification');
+    }
+  }, [isOpen, view, onClose, navigate]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,8 +109,6 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
     } else if (!aliasGate || aliasGate.allowed) {
       if ((view.startsWith('age_verification') || view === 'geofenced') && av.status !== 'approved') {
         av.cancel();
-        setAvOptInMode(false);
-        setAvOptInCountry('');
         setView(unlockMode ? 'unlock' : hasIdentity && !canCreateMore ? 'login' : 'choose');
       }
     }
@@ -240,8 +244,6 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
     if (view === 'unlock' && !allowUnlockDismissRef.current) return;
 
     av.cancel();
-    setAvOptInMode(false);
-    setAvOptInCountry('');
     resetForm();
     setView(unlockMode ? 'unlock' : hasIdentity && !canCreateMore ? 'login' : 'choose');
     onClose();
@@ -853,169 +855,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
           </div>
         )}
 
-        {view === 'age_verification_required' && (
-          <div className="identity-modal-content">
-            <div className="identity-modal-header">
-              <Icon name="lock" className="identity-modal-icon" />
-              <h2>{t('compliance.ageVerification.title')}</h2>
-            </div>
-
-            {av.status === 'idle' && (
-              <>
-                <p className="identity-modal-av-description">
-                  {aliasGate?.requiredReason === 'abusive_ip'
-                    ? t('compliance.ageVerification.abusiveIpReason')
-                    : avOptInMode
-                      ? t('compliance.advisory.optInDescription')
-                      : t('compliance.ageVerification.description')}
-                  {aliasGate?.jurisdiction && (
-                    <span className="identity-modal-av-jurisdiction">
-                      {' '}({aliasGate.jurisdiction})
-                    </span>
-                  )}
-                </p>
-                {avOptInMode && (
-                  <div className="identity-modal-av-opt-in">
-                    <Input
-                      label={t('compliance.advisory.countryLabel')}
-                      placeholder="US"
-                      value={avOptInCountry}
-                      onChange={(e) => setAvOptInCountry(e.target.value)}
-                      maxLength={2}
-                    />
-                  </div>
-                )}
-                <div className="identity-modal-actions">
-                  <Button
-                    variant="primary"
-                    size="lg"
-                    onClick={() => {
-                      if (avOptInMode) {
-                        av.optIn(avOptInCountry.trim().toUpperCase() || undefined);
-                      } else {
-                        av.start();
-                      }
-                    }}
-                    disabled={avOptInMode && avOptInCountry.trim().length !== 2}
-                  >
-                    {session?.ageVerification?.status === 'pending'
-                      ? t('compliance.ageVerification.resumeButton')
-                      : t('compliance.ageVerification.startButton')}
-                  </Button>
-                </div>
-              </>
-            )}
-
-            {av.status === 'starting' && (
-              <div className="identity-modal-creating">
-                <div className="identity-creating-loader">
-                  <Spinner size="md" />
-                  <p>{t('compliance.ageVerification.starting')}</p>
-                </div>
-              </div>
-            )}
-
-            {(av.status === 'awaiting_user' || av.status === 'polling') && (
-              <div className="identity-modal-creating">
-                <div className="identity-creating-loader">
-                  <Spinner size="md" />
-                  <p>
-                    {av.status === 'awaiting_user'
-                      ? t('compliance.ageVerification.awaitingUser')
-                      : t('compliance.ageVerification.processing')}
-                  </p>
-                  {av.secondsUntilNextPoll != null && (
-                    <p className="identity-modal-av-countdown">
-                      {t('compliance.ageVerification.nextCheckIn', { seconds: av.secondsUntilNextPoll })}
-                    </p>
-                  )}
-                  <button
-                    type="button"
-                    className="identity-modal-do-later-link"
-                    onClick={() => { av.cancel(); onClose(); }}
-                  >
-                    {t('compliance.ageVerification.doLater')}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {av.status === 'approved' && (
-              <>
-                <Alert variant="success">
-                  {t('compliance.ageVerification.approved')}
-                </Alert>
-                <div className="identity-modal-actions">
-                  {hasIdentity && (
-                    <Button
-                      variant="primary"
-                      size="lg"
-                      onClick={() => { av.cancel(); setView('login'); }}
-                    >
-                      <Icon name="lock" />
-                      {t('compliance.ageVerification.loginToAlias')}
-                    </Button>
-                  )}
-                  {canCreateMore && (
-                    <Button
-                      variant={hasIdentity ? 'secondary' : 'primary'}
-                      size="lg"
-                      onClick={() => { av.cancel(); setView('create'); }}
-                    >
-                      <Icon name="plus" />
-                      {t('compliance.ageVerification.createAlias')}
-                    </Button>
-                  )}
-                </div>
-              </>
-            )}
-
-            {av.status === 'failed' && (
-              <>
-                <Alert variant="error">
-                  {t('compliance.ageVerification.failedMessage')}
-                </Alert>
-                <div className="identity-modal-actions">
-                  <Button variant="primary" size="lg" onClick={() => av.start()}>
-                    {t('compliance.ageVerification.retryButton')}
-                  </Button>
-                </div>
-              </>
-            )}
-
-            {av.status === 'expired' && (
-              <>
-                <Alert variant="warning">
-                  {t('compliance.ageVerification.expiredMessage')}
-                </Alert>
-                <div className="identity-modal-actions">
-                  <Button variant="primary" size="lg" onClick={() => av.start()}>
-                    {t('compliance.ageVerification.retryButton')}
-                  </Button>
-                </div>
-              </>
-            )}
-
-            {av.status === 'subscription_required' && (
-              <>
-                <Alert variant="warning">
-                  {av.billingCode === 'SUBSCRIPTION_EXPIRED'
-                    ? t('compliance.subscription.expiredDescription')
-                    : t('compliance.subscription.description')}
-                </Alert>
-                <div className="identity-modal-actions">
-                  <Button
-                    variant="primary"
-                    size="lg"
-                    onClick={() => { onClose(); navigate('/account/subscription'); }}
-                  >
-                    {t('compliance.subscription.subscribeCta')}
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+        {/* age_verification_required redirects to /account/age-verification via useEffect */}
 
         {view === 'age_verification_failed' && (
           <div className="identity-modal-content">
@@ -1070,7 +910,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => { setAvOptInMode(true); setView('age_verification_required'); }}
+              onClick={() => { onClose(); navigate('/account/age-verification?optIn=1'); }}
             >
               {t('compliance.advisory.optInButton')}
             </Button>

@@ -35,4 +35,6 @@ export interface AgeVerificationDocument extends BaseDocument {
   optedIn: boolean;
   /** Whether this attempt was a silent background-only check (no interactive redirect). */
   backgroundOnly?: boolean;
+  /** Whether user_info was sent to the provider (background email/phone check attempted). */
+  backgroundCheckAttempted?: boolean;
 }

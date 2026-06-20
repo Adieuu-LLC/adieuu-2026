@@ -37,8 +37,11 @@ const mockGetAgeVerificationPolicy = mock(async (_j: string) => ({
   legislation: [],
 })) as AnyMock;
 
+const mockResolveBusinessSettingsId = mock((id: string | undefined) => Promise.resolve(id)) as AnyMock;
+
 mock.module('./jurisdiction-policy', () => ({
   getAgeVerificationPolicy: mockGetAgeVerificationPolicy,
+  resolveBusinessSettingsId: mockResolveBusinessSettingsId,
 }));
 
 mock.module('./av-settings', () => ({

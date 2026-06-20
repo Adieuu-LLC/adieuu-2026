@@ -28,8 +28,10 @@ const mockGetAgeVerificationPolicy = mock((_j: string) => Promise.resolve({
   leastInvasiveMethod: 'Email',
   legislation: [],
 }));
+const mockResolveBusinessSettingsId = mock((id: string | undefined) => Promise.resolve(id));
 mock.module('./jurisdiction-policy', () => ({
   getAgeVerificationPolicy: mockGetAgeVerificationPolicy,
+  resolveBusinessSettingsId: mockResolveBusinessSettingsId,
 }));
 
 const mockCreateVerification = mock(async (input: unknown) => ({
@@ -132,7 +134,7 @@ beforeEach(() => {
 });
 
 describe('startVerification', () => {
-  test('includes user_info when user has email', async () => {
+  test('includes user_info when user has email and sets backgroundCheckAttempted', async () => {
     const user = makeUser({ email: 'user@example.com' });
 
     const result = await startVerification(user, {
@@ -142,6 +144,7 @@ describe('startVerification', () => {
 
     expect(result.status).toBe('started');
     expect(result.redirectUrl).toBe('https://verify.verifymyage.com/flow/pv-123');
+    expect(result.backgroundCheckAttempted).toBe(true);
 
     const callArgs = mockStartVerification.mock.calls[0]![0] as { userInfo?: { email?: string; phone?: string }; method?: string };
     expect(callArgs.userInfo?.email).toBe('user@example.com');
@@ -167,13 +170,15 @@ describe('startVerification', () => {
     expect(callArgs.userInfo?.email).toBe('user@example.com');
   });
 
-  test('skips user_info when user has no email', async () => {
+  test('skips user_info when user has no email and sets backgroundCheckAttempted false', async () => {
     const user = makeUser({ email: undefined });
 
-    await startVerification(user, {
+    const result = await startVerification(user, {
       jurisdiction: 'US-CA',
       callbackBaseUrl: 'https://api.example.com',
     });
+
+    expect(result.backgroundCheckAttempted).toBe(false);
 
     const callArgs = mockStartVerification.mock.calls[0]![0] as { userInfo?: unknown };
     expect(callArgs.userInfo).toBeUndefined();
@@ -211,6 +216,7 @@ describe('startVerification', () => {
     });
 
     expect(result.status).toBe('approved');
+    expect(result.backgroundCheckAttempted).toBe(true);
     expect(mockCreateVerification).toHaveBeenCalledTimes(1);
     expect(mockUpdateAgeVerification).toHaveBeenCalledTimes(1);
 

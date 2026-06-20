@@ -17,7 +17,7 @@ export type RedeemPromoCodeResponseResult =
       ok: true;
       data: {
         shortcode: string;
-        subscriptionApplied?: { tier: string; expiresAt: string };
+        subscriptionApplied?: { tier: string; expiresAt?: string };
         entitlementsApplied: string[];
         subscriptionStatus: SubscriptionSummaryPayload;
         pendingEvent?: PublicPendingAccountEvent;

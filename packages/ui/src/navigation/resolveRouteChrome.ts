@@ -148,6 +148,9 @@ export function resolveRouteChrome(pathname: string): RouteChromeDescriptor {
   if (pathname.startsWith('/account/appearance/community')) {
     return { icon: 'palette', titleKey: 'account.appearance.title', titleDefault: 'Appearance' };
   }
+  if (pathname.startsWith('/account/age-verification')) {
+    return { icon: 'shield', titleKey: 'account.overview.ageVerification.pageTitle', titleDefault: 'Age Verification' };
+  }
   if (pathname.startsWith('/account/overview')) {
     return { icon: 'user', titleKey: 'account.overview.title', titleDefault: 'Account Overview' };
   }

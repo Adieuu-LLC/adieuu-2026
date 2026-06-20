@@ -23,8 +23,14 @@ mock.module('../../repositories/platform-settings.repository', () => ({
   }),
 }));
 
+const warnCalls: unknown[][] = [];
+
 mock.module('../../utils/adieuuLogger', () => ({
-  default: { warn: () => {}, error: () => {}, info: () => {} },
+  default: {
+    warn: (...args: unknown[]) => { warnCalls.push(args); },
+    error: () => {},
+    info: () => {},
+  },
 }));
 
 const { VerifyMyProvider } = await import('./verifymy.provider');
@@ -40,6 +46,7 @@ const originalFetch = globalThis.fetch;
 
 beforeEach(() => {
   fetchCalls = [];
+  warnCalls.length = 0;
   fetchResponse = { ok: true, status: 200, body: {} };
 
   globalThis.fetch = mock(async (input: string | URL | Request, init?: RequestInit) => {
@@ -195,7 +202,7 @@ describe('VerifyMyProvider', () => {
       expect(sentBody.business_settings_id).toBeUndefined();
     });
 
-    test('includes method parameter when provided', async () => {
+    test('includes method parameter when business_settings_id is provided', async () => {
       fetchResponse.body = {
         verification_id: 'vid-method',
         verification_status: 'started',
@@ -208,10 +215,31 @@ describe('VerifyMyProvider', () => {
         country: 'de',
         externalUserId: 'user-3',
         method: 'AgeEstimation',
+        businessSettingsId: 'bs-de-123',
       });
 
       const sentBody = JSON.parse(fetchCalls[0]!.init.body as string);
       expect(sentBody.method).toBe('AgeEstimation');
+      expect(sentBody.business_settings_id).toBe('bs-de-123');
+    });
+
+    test('omits method parameter when business_settings_id is absent', async () => {
+      fetchResponse.body = {
+        verification_id: 'vid-method-omit',
+        verification_status: 'started',
+        start_verification_url: 'https://verify.verifymyage.com/flow/vid-method-omit',
+      };
+
+      const provider = new VerifyMyProvider();
+      await provider.startVerification({
+        redirectUrl: 'https://api.example.com/callback',
+        country: 'us',
+        externalUserId: 'user-method-omit',
+        method: 'Email',
+      });
+
+      const sentBody = JSON.parse(fetchCalls[0]!.init.body as string);
+      expect(sentBody.method).toBeUndefined();
     });
 
     test('includes webhook params when provided', async () => {
@@ -249,6 +277,70 @@ describe('VerifyMyProvider', () => {
           externalUserId: 'user-err',
         }),
       ).rejects.toThrow('VerifyMy API error: 422');
+
+      expect(warnCalls).toHaveLength(1);
+      expect(warnCalls[0]![1]).toEqual({
+        status: 422,
+        body: JSON.stringify(fetchResponse.body),
+      });
+    });
+
+    test('logs redirectUrl when VerifyMy rejects redirect_uri', async () => {
+      const callbackUrl = 'http://localhost:4000/api/age-verification/callback';
+      fetchResponse = {
+        ok: false,
+        status: 422,
+        body: { error: 'redirect_uri is not whitelisted' },
+      };
+      globalThis.fetch = mock(async () =>
+        new Response(JSON.stringify(fetchResponse.body), { status: 422 }),
+      ) as unknown as typeof fetch;
+
+      const provider = new VerifyMyProvider();
+      await expect(
+        provider.startVerification({
+          redirectUrl: callbackUrl,
+          country: 'us',
+          externalUserId: 'user-redirect-err',
+        }),
+      ).rejects.toThrow('VerifyMy API error: 422');
+
+      expect(warnCalls).toHaveLength(1);
+      expect(warnCalls[0]![1]).toEqual({
+        status: 422,
+        body: JSON.stringify(fetchResponse.body),
+        redirectUrl: callbackUrl,
+      });
+    });
+
+    test('logs requestedMethod when VerifyMy rejects method', async () => {
+      fetchResponse = {
+        ok: false,
+        status: 400,
+        body: { error: 'method not allowed' },
+      };
+      globalThis.fetch = mock(async () =>
+        new Response(JSON.stringify(fetchResponse.body), { status: 400 }),
+      ) as unknown as typeof fetch;
+
+      const provider = new VerifyMyProvider();
+      await expect(
+        provider.startVerification({
+          redirectUrl: 'https://api.example.com/callback',
+          country: 'us',
+          externalUserId: 'user-method-err',
+          method: 'Email',
+          businessSettingsId: 'bs-us-123',
+        }),
+      ).rejects.toThrow('VerifyMy API error: 400');
+
+      expect(warnCalls).toHaveLength(1);
+      expect(warnCalls[0]![1]).toEqual({
+        status: 400,
+        body: JSON.stringify(fetchResponse.body),
+        requestedMethod: 'Email',
+        businessSettingsId: 'bs-us-123',
+      });
     });
   });
 

@@ -112,7 +112,7 @@ function isJurisdictionAllowed(code: PromoCodeDocument, userJurisdiction: string
 
 const PromoSubscriptionGrantSchema = z.object({
   tier: z.enum(SUBSCRIPTION_TIER_IDS as unknown as [string, ...string[]]),
-  durationMonths: z.number().int().min(1).max(120),
+  durationMonths: z.number().int().min(1).max(120).nullable(),
 });
 
 const AUDIENCE_VALUES = ['all', 'first_time', 'unsubscribed'] as const;
@@ -174,7 +174,7 @@ export type RedeemPromoCodeResult =
   | {
       ok: true;
       shortcode: string;
-      subscriptionApplied?: { tier: SubscriptionTierId; expiresAt: string };
+      subscriptionApplied?: { tier: SubscriptionTierId; expiresAt?: string };
       entitlementsApplied: string[];
       pendingEvent?: PublicPendingAccountEvent;
     }
@@ -183,7 +183,7 @@ export type RedeemPromoCodeResult =
 export interface PublicPromoCode {
   shortcode: string;
   description?: string;
-  subscription?: { tier: SubscriptionTierId; durationMonths: number };
+  subscription?: { tier: SubscriptionTierId; durationMonths: number | null };
   entitlements: string[];
   requiredCodes: string[];
   incompatibleCodes: string[];
@@ -202,7 +202,7 @@ export interface PublicPromoRedemption {
   userId: string;
   shortcode: string;
   redeemedAt: string;
-  subscriptionOverrideApplied?: { tier: SubscriptionTierId; expiresAt: string };
+  subscriptionOverrideApplied?: { tier: SubscriptionTierId; expiresAt?: string };
   entitlementsApplied: string[];
   stripeAction?: PromoRedemptionStripeAction;
 }
@@ -235,7 +235,7 @@ function toPublicRedemption(doc: PromoRedemptionDocument): PublicPromoRedemption
     subscriptionOverrideApplied: doc.subscriptionOverrideApplied
       ? {
           tier: doc.subscriptionOverrideApplied.tier,
-          expiresAt: doc.subscriptionOverrideApplied.expiresAt.toISOString(),
+          expiresAt: doc.subscriptionOverrideApplied.expiresAt?.toISOString(),
         }
       : undefined,
     entitlementsApplied: doc.entitlementsApplied,
@@ -367,6 +367,7 @@ function determineStripeAction(
   user: UserDocument,
 ): 'trial' | 'credit' | 'override' {
   if (!code.subscription || !config.stripe?.enabled) return 'override';
+  if (code.subscription.durationMonths === null) return 'override';
 
   const userTiers = user.billing?.activeSubscriptions ?? [];
   const hasMatchingStripeSub =
@@ -461,7 +462,9 @@ export async function redeemPromoCode(
     code.subscription && stripeAction === 'override'
       ? {
           tier: code.subscription.tier as SubscriptionTierId,
-          expiresAt: addMonths(now, code.subscription.durationMonths),
+          ...(code.subscription.durationMonths != null
+            ? { expiresAt: addMonths(now, code.subscription.durationMonths) }
+            : {}),
         }
       : undefined;
 
@@ -521,7 +524,7 @@ export async function redeemPromoCode(
 
   if (code.subscription && stripeAction === 'credit') {
     const tier = code.subscription.tier as SubscriptionTierId;
-    const months = code.subscription.durationMonths;
+    const months = code.subscription.durationMonths!;
     const credited = await applyPromoBalanceCredit(user, tier, months, shortcode);
     if (credited) {
       elog.info('Promo redemption: balance credit applied', { userId, shortcode, tier, months });
@@ -550,7 +553,7 @@ export async function redeemPromoCode(
     }
   } else if (code.subscription && stripeAction === 'trial') {
     const tier = code.subscription.tier as SubscriptionTierId;
-    const months = code.subscription.durationMonths;
+    const months = code.subscription.durationMonths!;
     const trial = await createPromoTrialSubscription(user, tier, months);
     if (trial) {
       try {
@@ -617,7 +620,7 @@ export async function redeemPromoCode(
       pendingEvent = await emitSubscriptionUpgradedEvent(userId, {
         tier,
         source: 'promo_code',
-        isLifetime: false,
+        isLifetime: code.subscription.durationMonths === null,
       });
     } catch (err) {
       elog.warn('Failed to emit promo subscription upgrade event', {
@@ -634,12 +637,14 @@ export async function redeemPromoCode(
     subscriptionApplied: finalSubscriptionOverrideApplied
       ? {
           tier: finalSubscriptionOverrideApplied.tier,
-          expiresAt: finalSubscriptionOverrideApplied.expiresAt.toISOString(),
+          expiresAt: finalSubscriptionOverrideApplied.expiresAt?.toISOString(),
         }
       : code.subscription
         ? {
             tier: code.subscription.tier as SubscriptionTierId,
-            expiresAt: addMonths(now, code.subscription.durationMonths).toISOString(),
+            expiresAt: code.subscription.durationMonths != null
+              ? addMonths(now, code.subscription.durationMonths).toISOString()
+              : undefined,
           }
         : undefined,
     entitlementsApplied,

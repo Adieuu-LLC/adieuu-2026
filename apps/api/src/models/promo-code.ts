@@ -14,8 +14,8 @@ import type { SubscriptionTierId } from '@adieuu/shared';
 /** Subscription tier grant attached to a promo code. */
 export interface PromoCodeSubscriptionGrant {
   tier: SubscriptionTierId;
-  /** Duration in months; applied as a subscription override expiry. */
-  durationMonths: number;
+  /** Duration in months; null = lifetime (no expiry). */
+  durationMonths: number | null;
 }
 
 /** Who can redeem a promo code based on their subscription history. */
@@ -62,7 +62,7 @@ export interface PromoRedemptionDocument extends BaseDocument {
   redeemedAt: Date;
   subscriptionOverrideApplied?: {
     tier: SubscriptionTierId;
-    expiresAt: Date;
+    expiresAt?: Date;
   };
   entitlementsApplied: string[];
   /** Which Stripe integration path was used (if any). */

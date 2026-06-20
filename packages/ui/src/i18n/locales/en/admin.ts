@@ -357,6 +357,7 @@ export const admin = {
       unlimited: 'Unlimited',
       grantsNone: 'None',
       grantSubscriptionSummary: '{{tier}} for {{months}} months',
+      grantLifetimeSummary: '{{tier}} (Lifetime)',
       validityAlways: 'Always valid',
       noStart: 'No start',
       noEnd: 'No end',
@@ -382,6 +383,7 @@ export const admin = {
         description: 'Description',
         grantSubscription: 'Grant subscription tier',
         tier: 'Tier',
+        lifetime: 'Lifetime (no expiry)',
         durationMonths: 'Duration (months)',
         entitlements: 'Entitlements',
         requiredCodes: 'Required codes',
@@ -409,6 +411,7 @@ export const admin = {
         redeemedAt: 'Redeemed at',
         grantsApplied: 'Grants applied',
         subscriptionGrant: '{{tier}} until {{date}}',
+        subscriptionGrantLifetime: '{{tier}} (lifetime)',
       },
     },
 } as const;

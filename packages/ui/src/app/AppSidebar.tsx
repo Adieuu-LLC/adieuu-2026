@@ -1,16 +1,20 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { sidebarActions } from '../utils/sidebarActions';
 import { SidebarLogo } from './sidebar/conversations';
 import { SidebarFooterContent } from './sidebar/footer';
 import { FriendsPanel } from './sidebar/friends';
+import { FolderPanel } from './sidebar/folderPanel';
 import { ChatInvitationsPanel } from './sidebar/invitations';
 import { SidebarTopNavContent, SidebarNavContent, type SidebarVariant } from './sidebar/nav';
+import { useConversationFolders } from '../hooks/useConversationFolders';
 import {
   applySidebarAction,
   closeChatInvitesPanel,
+  closeFolderPanel,
   closeFriendsPanel,
   initialSidebarPanelState,
+  openFolderPanel,
   toggleChatInvitesPanel,
   toggleFriendsPanel,
 } from './sidebar/sidebarPanelState';
@@ -47,6 +51,14 @@ export function AppSidebar({ onExpandedChange, variant = 'full' }: AppSidebarPro
     setPanelState(closeChatInvitesPanel);
   }, []);
 
+  const handleOpenFolder = useCallback((folderId: string) => {
+    setPanelState((s) => openFolderPanel(s, folderId));
+  }, []);
+
+  const handleCloseFolder = useCallback(() => {
+    setPanelState(closeFolderPanel);
+  }, []);
+
   useEffect(() => {
     return sidebarActions.subscribe((action) => {
       setPanelState((prevState) => applySidebarAction(prevState, action));
@@ -75,6 +87,10 @@ export function AppSidebar({ onExpandedChange, variant = 'full' }: AppSidebarPro
               isOpen={panelState.isChatInvitesPanelOpen}
               onClose={handleCloseChatInvitesPanel}
             />
+            <FolderPanelConnector
+              openFolderId={panelState.openFolderId}
+              onClose={handleCloseFolder}
+            />
           </>
         )
       }
@@ -84,8 +100,35 @@ export function AppSidebar({ onExpandedChange, variant = 'full' }: AppSidebarPro
         <SidebarNavContent
           isChatInvitesPanelOpen={panelState.isChatInvitesPanelOpen}
           onToggleChatInvitesPanel={handleToggleChatInvitesPanel}
+          onOpenFolder={handleOpenFolder}
         />
       )}
     </Sidebar>
+  );
+}
+
+/**
+ * Resolves the folder object from the openFolderId and renders FolderPanel.
+ * Separated to avoid calling useConversationFolders in the public variant.
+ */
+function FolderPanelConnector({
+  openFolderId,
+  onClose,
+}: {
+  openFolderId: string | null;
+  onClose: () => void;
+}) {
+  const { folders } = useConversationFolders();
+  const folder = useMemo(
+    () => (openFolderId ? folders.find((f) => f.id === openFolderId) ?? null : null),
+    [openFolderId, folders],
+  );
+
+  return (
+    <FolderPanel
+      isOpen={!!openFolderId}
+      folder={folder}
+      onClose={onClose}
+    />
   );
 }

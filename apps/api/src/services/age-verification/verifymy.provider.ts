@@ -103,6 +103,14 @@ function encryptUserInfo(plaintext: string): string {
   return encrypted.toString('base64');
 }
 
+function isRedirectUriRelatedError(errorBody: string): boolean {
+  return /redirect[_\s-]?(uri|url)|redirecturl/i.test(errorBody);
+}
+
+function isMethodNotAllowedError(errorBody: string): boolean {
+  return /method not allowed/i.test(errorBody);
+}
+
 export class VerifyMyProvider implements AgeVerificationProvider {
   readonly id = PROVIDER_ID;
 
@@ -123,8 +131,17 @@ export class VerifyMyProvider implements AgeVerificationProvider {
       payload.business_settings_id = input.businessSettingsId;
     }
 
-    if (input.method) {
+    // VerifyMy only accepts an explicit method when business_settings_id defines
+    // which methods are enabled. Without it, country defaults apply (sandbox is
+    // permissive; production rejects e.g. Email with "method not allowed").
+    if (input.method && input.businessSettingsId) {
       payload.method = input.method;
+    } else if (input.method && !input.businessSettingsId) {
+      elog.info('VerifyMy omitting method without business_settings_id', {
+        env,
+        method: input.method,
+        country: normalizedCountry,
+      });
     }
 
     if (input.userInfo) {
@@ -180,10 +197,18 @@ export class VerifyMyProvider implements AgeVerificationProvider {
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => '');
-      elog.warn('VerifyMy startVerification failed', {
+      const logContext: Record<string, unknown> = {
         status: response.status,
         body: errorBody.slice(0, 500),
-      });
+      };
+      if (isRedirectUriRelatedError(errorBody)) {
+        logContext.redirectUrl = input.redirectUrl;
+      }
+      if (isMethodNotAllowedError(errorBody)) {
+        logContext.requestedMethod = input.method ?? null;
+        logContext.businessSettingsId = input.businessSettingsId ?? null;
+      }
+      elog.warn('VerifyMy startVerification failed', logContext);
       throw new Error(`VerifyMy API error: ${response.status}`);
     }
 

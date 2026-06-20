@@ -5,3 +5,4 @@ export { AccountSettings } from './Settings';
 export { AccountSubscription } from './subscription';
 export { ThemeBrowser } from './ThemeBrowser';
 export { ReferralPage } from './ReferralPage';
+export { AgeVerificationPage } from './AgeVerificationPage';

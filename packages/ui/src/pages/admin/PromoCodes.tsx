@@ -252,6 +252,8 @@ export function AdminPromoCodes() {
     () => ({
       subscription: (tier: string, months: number) =>
         t('admin.promoCodes.grantSubscriptionSummary', { tier, months }),
+      lifetime: (tier: string) =>
+        t('admin.promoCodes.grantLifetimeSummary', { tier }),
       none: t('admin.promoCodes.grantsNone'),
     }),
     [t],
@@ -502,21 +504,38 @@ export function AdminPromoCodes() {
                       </Select.Root>
                     </div>
 
-                    <Input
-                      type="number"
-                      min={1}
-                      max={120}
-                      label={t('admin.promoCodes.form.durationMonths')}
-                      value={form.subscriptionDurationMonths}
-                      onChange={(e) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          subscriptionDurationMonths: e.target.value,
-                        }))
+                    <Checkbox.Root
+                      checked={form.subscriptionLifetime}
+                      onCheckedChange={(e) =>
+                        setForm((prev) => ({ ...prev, subscriptionLifetime: e.checked === true }))
                       }
                       disabled={saving}
-                      inputSize="sm"
-                    />
+                      className="admin-checkbox"
+                    >
+                      <Checkbox.Control className="admin-checkbox-control" />
+                      <Checkbox.Label className="admin-checkbox-label">
+                        {t('admin.promoCodes.form.lifetime')}
+                      </Checkbox.Label>
+                      <Checkbox.HiddenInput />
+                    </Checkbox.Root>
+
+                    {!form.subscriptionLifetime && (
+                      <Input
+                        type="number"
+                        min={1}
+                        max={120}
+                        label={t('admin.promoCodes.form.durationMonths')}
+                        value={form.subscriptionDurationMonths}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            subscriptionDurationMonths: e.target.value,
+                          }))
+                        }
+                        disabled={saving}
+                        inputSize="sm"
+                      />
+                    )}
                   </div>
                 )}
               </div>
@@ -752,12 +771,16 @@ export function AdminPromoCodes() {
                               <td>
                                 {[
                                   row.subscriptionOverrideApplied
-                                    ? t('admin.promoCodes.redemptions.subscriptionGrant', {
-                                        tier: row.subscriptionOverrideApplied.tier,
-                                        date: formatDateTime(
-                                          row.subscriptionOverrideApplied.expiresAt,
-                                        ),
-                                      })
+                                    ? row.subscriptionOverrideApplied.expiresAt
+                                      ? t('admin.promoCodes.redemptions.subscriptionGrant', {
+                                          tier: row.subscriptionOverrideApplied.tier,
+                                          date: formatDateTime(
+                                            row.subscriptionOverrideApplied.expiresAt,
+                                          ),
+                                        })
+                                      : t('admin.promoCodes.redemptions.subscriptionGrantLifetime', {
+                                          tier: row.subscriptionOverrideApplied.tier,
+                                        })
                                     : null,
                                   row.entitlementsApplied.length
                                     ? row.entitlementsApplied.join(', ')

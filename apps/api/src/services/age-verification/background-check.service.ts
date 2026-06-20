@@ -16,7 +16,7 @@ import type { UserDocument, UserAgeVerification } from '../../models/user';
 import { getAgeVerificationRepository } from '../../repositories/age-verification.repository';
 import { getUserRepository } from '../../repositories/user.repository';
 import { getActiveProvider } from './providers';
-import { getAgeVerificationPolicy } from './jurisdiction-policy';
+import { getAgeVerificationPolicy, resolveBusinessSettingsId } from './jurisdiction-policy';
 import { isAgeVerificationEnabled, isAutoEmailBackgroundCheckEnabled } from './av-settings';
 import { config } from '../../config';
 import elog from '../../utils/adieuuLogger';
@@ -62,7 +62,7 @@ export async function initiateBackgroundCheck(user: UserDocument): Promise<void>
       country: countryCode,
       externalUserId: user._id.toHexString(),
       userInfo: { email: user.email },
-      businessSettingsId: policy?.vmyBusinessSettingsId,
+      businessSettingsId: await resolveBusinessSettingsId(policy?.vmyBusinessSettingsId),
     });
 
     const doc = await repo.createVerification({

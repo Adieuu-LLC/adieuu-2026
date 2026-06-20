@@ -11,7 +11,7 @@ import type { AgeVerificationDocument } from '../../models/age-verification';
 import { getAgeVerificationRepository } from '../../repositories/age-verification.repository';
 import { getUserRepository } from '../../repositories/user.repository';
 import { getActiveProvider } from './providers';
-import { getAgeVerificationPolicy } from './jurisdiction-policy';
+import { getAgeVerificationPolicy, resolveBusinessSettingsId } from './jurisdiction-policy';
 import type { StartVerificationResult, VerificationStatusResult } from './provider';
 import elog from '../../utils/adieuuLogger';
 
@@ -20,6 +20,8 @@ export interface StartResult {
   providerVerificationId: string;
   status: string;
   redirectUrl?: string;
+  /** True when user_info was sent to the provider (email background check attempted). */
+  backgroundCheckAttempted: boolean;
 }
 
 export interface StatusResult {
@@ -92,6 +94,7 @@ export async function startVerification(
         providerVerificationId: candidate.providerVerificationId,
         status: candidate.status,
         redirectUrl: candidate.redirectUrl,
+        backgroundCheckAttempted: candidate.backgroundCheckAttempted ?? false,
       };
     }
   }
@@ -110,7 +113,7 @@ export async function startVerification(
     country: countryCode,
     externalUserId: user._id.toHexString(),
     method: leastInvasive,
-    businessSettingsId: policy?.vmyBusinessSettingsId,
+    businessSettingsId: await resolveBusinessSettingsId(policy?.vmyBusinessSettingsId),
   };
 
   if (user.email) {
@@ -126,7 +129,7 @@ export async function startVerification(
     hasPolicy: !!policy,
     compatibleMethods: policy?.compatibleMethods ?? [],
     leastInvasive: leastInvasive ?? null,
-    businessSettingsId: policy?.vmyBusinessSettingsId ?? null,
+    businessSettingsId: input.businessSettingsId ?? null,
     userHasEmail: !!user.email,
     userHasPhone: !!user.phone,
     willSendUserInfo: !!user.email,
@@ -154,6 +157,7 @@ export async function startVerification(
     startedAt: new Date(),
     redirectUrl: providerResult.redirectUrl,
     optedIn: opts.optedIn ?? false,
+    backgroundCheckAttempted: !!input.userInfo?.email,
   });
 
   if (providerResult.status === 'approved') {
@@ -189,6 +193,7 @@ export async function startVerification(
     providerVerificationId: providerResult.verificationId,
     status: providerResult.status,
     redirectUrl: providerResult.redirectUrl,
+    backgroundCheckAttempted: !!input.userInfo?.email,
   };
 }
 

@@ -385,6 +385,8 @@ export const Collections = {
   IDENTITY_ACHIEVEMENTS: 'identity_achievements',
   /** Per-identity conversation preferences (archive, favorites) */
   CONVERSATION_PREFERENCES: 'conversation_preferences',
+  /** Per-identity conversation folders (sidebar grouping) */
+  CONVERSATION_FOLDERS: 'conversation_folders',
   /** Stripe webhook event idempotency (TTL-indexed by processedAt) */
   STRIPE_PROCESSED_EVENTS: 'stripe_processed_events',
   /** Jurisdiction regulatory matrix (age verification, etc.) */
@@ -703,6 +705,15 @@ export async function createIndexes(): Promise<void> {
     { unique: true },
   );
   await conversationPreferences.createIndex({ identityId: 1 });
+
+  // Conversation folders — per-identity sidebar grouping
+  const conversationFolders = database.collection(Collections.CONVERSATION_FOLDERS);
+  await conversationFolders.createIndex({ identityId: 1 });
+  try { await conversationFolders.dropIndex('identityId_1_conversationIds_1'); } catch { /* index may not exist yet */ }
+  await conversationFolders.createIndex(
+    { identityId: 1, conversationIds: 1 },
+    { unique: true },
+  );
 
   // Stripe webhook idempotency — TTL auto-deletes after 30 days
   const stripeEvents = database.collection(Collections.STRIPE_PROCESSED_EVENTS);

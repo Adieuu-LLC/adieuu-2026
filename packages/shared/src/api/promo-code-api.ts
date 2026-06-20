@@ -31,7 +31,7 @@ export interface RedeemPromoCodeParams {
 
 export interface RedeemPromoCodeResponse {
   shortcode: string;
-  subscriptionApplied?: { tier: SubscriptionTierId; expiresAt: string };
+  subscriptionApplied?: { tier: SubscriptionTierId; expiresAt?: string };
   entitlementsApplied: string[];
   subscriptionStatus: SubscriptionStatus;
   pendingEvent?: PublicPendingAccountEvent;
@@ -43,7 +43,8 @@ export interface RedeemPromoCodeResponse {
 
 export interface PromoCodeSubscriptionGrant {
   tier: SubscriptionTierId;
-  durationMonths: number;
+  /** Duration in months; null = lifetime (no expiry). */
+  durationMonths: number | null;
 }
 
 export interface PublicPromoCode {
@@ -68,7 +69,7 @@ export interface PublicPromoRedemption {
   userId: string;
   shortcode: string;
   redeemedAt: string;
-  subscriptionOverrideApplied?: { tier: SubscriptionTierId; expiresAt: string };
+  subscriptionOverrideApplied?: { tier: SubscriptionTierId; expiresAt?: string };
   entitlementsApplied: string[];
   stripeAction?: 'trial' | 'credit' | 'override';
 }

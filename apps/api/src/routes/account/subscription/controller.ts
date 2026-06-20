@@ -394,7 +394,7 @@ export interface BillingPromoRedemptionEntry {
   shortcode: string;
   description: string | null;
   redeemedAt: string;
-  subscriptionOverride: { tier: string; expiresAt: string } | null;
+  subscriptionOverride: { tier: string; expiresAt?: string } | null;
   entitlements: string[];
 }
 
@@ -541,7 +541,7 @@ async function fetchPromoRedemptions(userId: ObjectId): Promise<BillingPromoRede
     subscriptionOverride: redemption.subscriptionOverrideApplied
       ? {
           tier: redemption.subscriptionOverrideApplied.tier,
-          expiresAt: redemption.subscriptionOverrideApplied.expiresAt.toISOString(),
+          expiresAt: redemption.subscriptionOverrideApplied.expiresAt?.toISOString(),
         }
       : null,
     entitlements: redemption.entitlementsApplied ?? [],

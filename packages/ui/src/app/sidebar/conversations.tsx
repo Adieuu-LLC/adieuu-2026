@@ -1,26 +1,41 @@
 import { useState, useEffect, useMemo, useCallback, useRef, memo } from 'react';
-import type { PublicIdentity } from '@adieuu/shared';
+import type { PublicIdentity, ConversationFolder } from '@adieuu/shared';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Menu, Portal, Switch } from '@ark-ui/react';
+import {
+  DndContext,
+  DragOverlay,
+  useDraggable,
+  useDroppable,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragStartEvent,
+  type DragEndEvent,
+} from '@dnd-kit/core';
 import { SidebarItem, useSidebar } from '../../components/Sidebar';
 import { SidebarTabs, type SidebarTab } from '../../components/SidebarTabs';
 import { Popover } from '../../components/Popover';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { FolderEditModal } from '../../components/FolderEditModal';
 import { Logo } from '../../components/Logo';
 import { Icon } from '../../icons/Icon';
+import type { AppIconName } from '../../icons/appIcons';
 import { SidebarConversationDmHoverCard } from './SidebarConversationDmHoverCard';
 import { GroupConversationSidebarHoverCard } from './GroupConversationSidebarHoverCard';
 import { ChatConnectionBanner } from '../../components/ChatConnectionBanner';
 import { useConversations, type DecryptedConversation } from '../../hooks/useConversations';
 import { getSidebarListAvatarMemberIds } from '../../pages/conversations/conversationViewModel';
 import { useConversationPreferences } from '../../hooks/useConversationPreferences';
+import { useConversationFolders } from '../../hooks/useConversationFolders';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useGlobalCallEvents } from '../../hooks/useGlobalCallEvents';
 import { useCallSession } from '../../hooks/useCallSession';
 import { useTheme } from '../../hooks/useTheme';
 import { usePlatformCapabilities } from '../../config';
 import { ChatInvitationsSidebarButton } from './invitations';
+import type { FolderIconName, FolderIconType } from '@adieuu/shared';
 
 // ============================================================================
 // Types
@@ -325,7 +340,7 @@ const ConversationListItem = memo(function ConversationListItem({
         <span className="conversation-list-item-title">{displayName}</span>
         {isGroup && (
           <span className="conversation-list-item-members">
-            {conversation.participants.length} members
+            {t('conversations.invites.memberCount', { count: conversation.participants.length })}
           </span>
         )}
       </div>
@@ -443,6 +458,247 @@ const ConversationListItem = memo(function ConversationListItem({
 }, conversationRowPropsEqual);
 
 // ============================================================================
+// Draggable Conversation Wrapper
+// ============================================================================
+
+function DraggableConversation({
+  id,
+  children,
+}: {
+  id: string;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      className={isDragging ? 'conversation-dragging' : undefined}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ============================================================================
+// Droppable Conversation Wrapper
+// ============================================================================
+
+function DroppableTarget({
+  id,
+  children,
+}: {
+  id: string;
+  children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={isOver ? 'conversation-drop-over' : undefined}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ============================================================================
+// Folder List Item (with context menu)
+// ============================================================================
+
+const FOLDER_ICON_MAP: Record<string, AppIconName> = {
+  'folder': 'folder',
+  'folders': 'folders',
+  'layer-group': 'layerGroup',
+  'ball-pile': 'ballPile',
+  'building': 'building',
+  'family': 'family',
+  'sportsball': 'sportsball',
+  'dice': 'dice',
+  'dice-d10': 'diceD10',
+  'dice-d12': 'diceD12',
+  'game-board': 'gameboard',
+  'game-console-handheld': 'gameConsoleHandheld',
+};
+
+function FolderListItem({
+  folder,
+  conversations,
+  participantProfiles,
+  selfId,
+  onOpen,
+  onRename,
+  onDelete,
+  onToggleFavorite,
+}: {
+  folder: ConversationFolder;
+  conversations: DecryptedConversation[];
+  participantProfiles: Record<string, PublicIdentity>;
+  selfId: string | undefined;
+  onOpen: (folderId: string) => void;
+  onRename: (folderId: string) => void;
+  onDelete: (folderId: string) => void;
+  onToggleFavorite: (folderId: string, favorited: boolean) => void;
+}) {
+  const { t } = useTranslation();
+
+  const folderConversations = folder.conversationIds
+    .map((cid) => conversations.find((c) => c.id === cid))
+    .filter(Boolean) as DecryptedConversation[];
+
+  const dmCount = folderConversations.filter((c) => c.type === 'dm').length;
+  const groupCount = folderConversations.filter((c) => c.type === 'group').length;
+
+  const hasUnread = folderConversations.some(
+    (c) => c.unreadCount > 0 || c.hasUnread,
+  );
+
+  const handleContextAction = useCallback(
+    (details: { value: string }) => {
+      switch (details.value) {
+        case 'rename':
+          onRename(folder.id);
+          break;
+        case 'remove':
+          onDelete(folder.id);
+          break;
+        case 'favorite':
+          onToggleFavorite(folder.id, true);
+          break;
+        case 'unfavorite':
+          onToggleFavorite(folder.id, false);
+          break;
+      }
+    },
+    [folder.id, onRename, onDelete, onToggleFavorite],
+  );
+
+  const resolveDisplay = (pid: string) => {
+    const p = participantProfiles[pid];
+    return p?.displayName ?? p?.username ?? pid;
+  };
+
+  // Build avatar element
+  let avatarEl: React.ReactNode;
+  if (folder.iconType === 'icon' && folder.iconName && FOLDER_ICON_MAP[folder.iconName]) {
+    avatarEl = (
+      <div
+        className="conversation-list-item-avatar folder-list-item-icon"
+        style={folder.iconColor ? { color: folder.iconColor } : undefined}
+      >
+        <Icon name={FOLDER_ICON_MAP[folder.iconName]!} />
+      </div>
+    );
+  } else {
+    // Dynamic: show up to 3 overlapping conversation avatars
+    const avatarPids: string[] = [];
+    for (const conv of folderConversations) {
+      const pids = getSidebarListAvatarMemberIds(
+        conv.type === 'group',
+        conv.participants,
+        selfId,
+      );
+      for (const pid of pids) {
+        if (!avatarPids.includes(pid)) avatarPids.push(pid);
+        if (avatarPids.length >= 3) break;
+      }
+      if (avatarPids.length >= 3) break;
+    }
+
+    if (avatarPids.length > 1) {
+      avatarEl = (
+        <div className="conversation-list-item-avatar-stack">
+          {avatarPids.map((pid) => {
+            const p = participantProfiles[pid];
+            const initial = resolveDisplay(pid).charAt(0).toUpperCase();
+            return (
+              <span key={pid} className="conversation-list-item-avatar-stack-item">
+                {p?.avatarUrl ? (
+                  <img src={p.avatarUrl} alt="" className="conversation-list-item-avatar-stack-item-img" />
+                ) : (
+                  <span className="conversation-list-item-avatar-stack-item-placeholder">
+                    {initial}
+                  </span>
+                )}
+              </span>
+            );
+          })}
+        </div>
+      );
+    } else {
+      avatarEl = (
+        <div className="conversation-list-item-avatar">
+          <span className="conversation-list-item-avatar-placeholder">
+            <Icon name="folder" />
+          </span>
+        </div>
+      );
+    }
+  }
+
+  const row = (
+    <button
+      type="button"
+      className="conversation-list-item folder-list-item"
+      onClick={() => onOpen(folder.id)}
+    >
+      {avatarEl}
+      <div className="conversation-list-item-info">
+        <span className="conversation-list-item-title">{folder.name}</span>
+        <span className="conversation-list-item-members">
+          {[
+            dmCount > 0 ? t('conversations.folders.dmCount', { count: dmCount }) : null,
+            groupCount > 0 ? t('conversations.folders.groupCount', { count: groupCount }) : null,
+          ]
+            .filter(Boolean)
+            .join(', ') || t('conversations.folders.emptyCount')}
+        </span>
+      </div>
+      <div className="conversation-list-item-badges">
+        {folder.favorited && <Icon name="star" className="conversation-list-item-star" />}
+        {hasUnread && <span className="conversation-list-item-unread-dot" />}
+      </div>
+    </button>
+  );
+
+  return (
+    <Menu.Root onSelect={handleContextAction}>
+      <Menu.ContextTrigger asChild>
+        <div className="conversation-list-item-context-anchor">{row}</div>
+      </Menu.ContextTrigger>
+      <Portal>
+        <Menu.Positioner>
+          <Menu.Content className="conversation-context-menu">
+            <Menu.Item value="rename" className="conversation-context-menu-item">
+              <Icon name="pen" className="conversation-context-menu-item-icon" />
+              {t('conversations.folders.rename')}
+            </Menu.Item>
+            {!folder.favorited ? (
+              <Menu.Item value="favorite" className="conversation-context-menu-item">
+                <Icon name="star" className="conversation-context-menu-item-icon" />
+                {t('conversations.folders.addFavorite')}
+              </Menu.Item>
+            ) : (
+              <Menu.Item value="unfavorite" className="conversation-context-menu-item">
+                <Icon name="star" className="conversation-context-menu-item-icon" />
+                {t('conversations.folders.removeFavorite')}
+              </Menu.Item>
+            )}
+            <Menu.Item value="remove" className="conversation-context-menu-item conversation-context-menu-item--danger">
+              <Icon name="x" className="conversation-context-menu-item-icon" />
+              {t('conversations.folders.removeFolder')}
+            </Menu.Item>
+          </Menu.Content>
+        </Menu.Positioner>
+      </Portal>
+    </Menu.Root>
+  );
+}
+
+// ============================================================================
 // Helpers
 // ============================================================================
 
@@ -473,9 +729,11 @@ function resolveConversationDisplayName(
 export function ConversationsSidebarSection({
   isChatInvitesPanelOpen,
   onToggleChatInvitesPanel,
+  onOpenFolder,
 }: {
   isChatInvitesPanelOpen: boolean;
   onToggleChatInvitesPanel: () => void;
+  onOpenFolder?: (folderId: string) => void;
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -488,6 +746,15 @@ export function ConversationsSidebarSection({
     setActiveConversation,
   } = useConversations();
   const { preferences, toggleArchive, toggleFavorite } = useConversationPreferences();
+  const {
+    folders,
+    folderedConversationIds,
+    createFolder,
+    deleteFolder,
+    updateFolder,
+    addConversationToFolder,
+    toggleFolderFavorite,
+  } = useConversationFolders();
   const { identity } = useIdentity();
   const { activeCallConversationIds } = useGlobalCallEvents();
   const { activeSession } = useCallSession();
@@ -504,6 +771,15 @@ export function ConversationsSidebarSection({
   // Leave dialog state
   const [leaveTargetId, setLeaveTargetId] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
+
+  // Drag-and-drop state
+  const [dragActiveId, setDragActiveId] = useState<string | null>(null);
+
+  // Folder edit modal state
+  const [editFolderId, setEditFolderId] = useState<string | null>(null);
+  const editFolder = editFolderId
+    ? folders.find((f) => f.id === editFolderId) ?? null
+    : null;
 
   const isFiltered = typeFilter !== 'all' || sortMode !== 'recent' || showArchived;
 
@@ -543,10 +819,7 @@ export function ConversationsSidebarSection({
     setLeaveTargetId(conversationId);
   }, []);
 
-  // Stable callback identities for the memoized rows. The underlying context
-  // functions (setActiveConversation, toggleArchive/Favorite, closeMobile)
-  // change reference whenever conversations/preferences update, so we route
-  // through refs to keep the props passed to ConversationListItem stable.
+  // Stable callback identities for the memoized rows.
   const setActiveConversationRef = useRef(setActiveConversation);
   setActiveConversationRef.current = setActiveConversation;
   const closeMobileRef = useRef(closeMobile);
@@ -605,17 +878,98 @@ export function ConversationsSidebarSection({
   const isSoleMember =
     leaveTargetConversation?.participants.length === 1;
 
-  // Derive filtered + sorted conversation lists
-  const { favoritesList, mainList } = useMemo(() => {
-    const withNames = conversations.map((c) => ({
-      conversation: c,
-      displayName: resolveConversationDisplayName(
-        c,
-        identity?.id,
-        participantProfiles,
-      ),
-      pref: preferences[c.id],
-    }));
+  // --- Drag-and-drop ---
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+  );
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setDragActiveId(String(event.active.id));
+  }, []);
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      setDragActiveId(null);
+      const { active, over } = event;
+      if (!over) return;
+
+      const draggedId = String(active.id);
+      const overId = String(over.id);
+
+      if (draggedId === overId) return;
+
+      // If dropped onto a folder, add to that folder
+      if (overId.startsWith('folder:')) {
+        const folderId = overId.slice(7);
+        if (!folderedConversationIds.has(draggedId)) {
+          void addConversationToFolder(folderId, draggedId);
+        }
+        return;
+      }
+
+      // If dropped onto another conversation, create a new folder
+      if (!folderedConversationIds.has(draggedId) && !folderedConversationIds.has(overId)) {
+        void createFolder({
+          name: t('conversations.folders.newFolder'),
+          conversationIds: [overId, draggedId],
+        });
+      }
+    },
+    [folderedConversationIds, addConversationToFolder, createFolder, t],
+  );
+
+  const handleFolderRename = useCallback((folderId: string) => {
+    setEditFolderId(folderId);
+  }, []);
+
+  const handleFolderEditSave = useCallback(
+    (data: {
+      name: string;
+      iconType: FolderIconType;
+      iconName?: FolderIconName;
+      iconColor?: string | null;
+    }) => {
+      if (!editFolderId) return;
+      void updateFolder(editFolderId, data);
+      setEditFolderId(null);
+    },
+    [editFolderId, updateFolder],
+  );
+
+  const handleFolderDelete = useCallback(
+    (folderId: string) => {
+      void deleteFolder(folderId);
+    },
+    [deleteFolder],
+  );
+
+  const handleFolderToggleFavorite = useCallback(
+    (folderId: string, favorited: boolean) => {
+      void toggleFolderFavorite(folderId, favorited);
+    },
+    [toggleFolderFavorite],
+  );
+
+  const handleFolderOpen = useCallback(
+    (folderId: string) => {
+      onOpenFolder?.(folderId);
+    },
+    [onOpenFolder],
+  );
+
+  // Derive filtered + sorted conversation lists, excluding foldered conversations
+  const { favoritesList, mainList, favoritedFolders, mainFolders } = useMemo(() => {
+    const withNames = conversations
+      .filter((c) => !folderedConversationIds.has(c.id))
+      .map((c) => ({
+        conversation: c,
+        displayName: resolveConversationDisplayName(
+          c,
+          identity?.id,
+          participantProfiles,
+        ),
+        pref: preferences[c.id],
+      }));
 
     // Apply type filter
     let filtered = withNames;
@@ -638,16 +992,29 @@ export function ConversationsSidebarSection({
         }),
       );
     }
-    // 'recent' preserves the server ordering (already by lastMessageAt desc)
 
-    // Split favorites from the rest (only when no active filters)
+    // Split folders into favorited/main
+    const favFolders = folders.filter((f) => f.favorited);
+    const restFolders = folders.filter((f) => !f.favorited);
+
+    // Split conversations into favorites and the rest (only when no active filters)
     if (!isFiltered) {
       const favs = filtered.filter((x) => x.pref?.favorited);
       const rest = filtered.filter((x) => !x.pref?.favorited);
-      return { favoritesList: favs, mainList: rest };
+      return {
+        favoritesList: favs,
+        mainList: rest,
+        favoritedFolders: favFolders,
+        mainFolders: restFolders,
+      };
     }
 
-    return { favoritesList: [], mainList: filtered };
+    return {
+      favoritesList: [],
+      mainList: filtered,
+      favoritedFolders: [],
+      mainFolders: typeFilter === 'all' ? folders : [],
+    };
   }, [
     conversations,
     identity?.id,
@@ -657,26 +1024,53 @@ export function ConversationsSidebarSection({
     sortMode,
     showArchived,
     isFiltered,
+    folderedConversationIds,
+    folders,
   ]);
 
+  const draggedConversation = dragActiveId
+    ? conversations.find((c) => c.id === dragActiveId)
+    : null;
+  const draggedDisplayName = draggedConversation
+    ? resolveConversationDisplayName(draggedConversation, selfId, participantProfiles)
+    : '';
+
   const renderItem = (item: (typeof mainList)[number]) => (
-    <ConversationListItem
-      key={item.conversation.id}
-      conversation={item.conversation}
-      displayName={item.displayName}
-      isActive={activeConversationId === item.conversation.id}
-      isArchived={!!item.pref?.archived}
-      isFavorited={!!item.pref?.favorited}
-      hasActiveCall={activeCallConversationIds.has(item.conversation.id)}
-      isUserInCall={activeSession?.conversationId === item.conversation.id}
-      selfId={selfId}
-      participantProfiles={participantProfiles}
-      onSelect={handleSelect}
-      onEdit={handleEdit}
-      onArchive={handleArchive}
-      onFavorite={handleFavorite}
-      onLeave={handleLeaveRequest}
-    />
+    <DraggableConversation key={item.conversation.id} id={item.conversation.id}>
+      <DroppableTarget id={item.conversation.id}>
+        <ConversationListItem
+          conversation={item.conversation}
+          displayName={item.displayName}
+          isActive={activeConversationId === item.conversation.id}
+          isArchived={!!item.pref?.archived}
+          isFavorited={!!item.pref?.favorited}
+          hasActiveCall={activeCallConversationIds.has(item.conversation.id)}
+          isUserInCall={activeSession?.conversationId === item.conversation.id}
+          selfId={selfId}
+          participantProfiles={participantProfiles}
+          onSelect={handleSelect}
+          onEdit={handleEdit}
+          onArchive={handleArchive}
+          onFavorite={handleFavorite}
+          onLeave={handleLeaveRequest}
+        />
+      </DroppableTarget>
+    </DraggableConversation>
+  );
+
+  const renderFolderItem = (folder: ConversationFolder) => (
+    <DroppableTarget key={folder.id} id={`folder:${folder.id}`}>
+      <FolderListItem
+        folder={folder}
+        conversations={conversations}
+        participantProfiles={participantProfiles}
+        selfId={selfId}
+        onOpen={handleFolderOpen}
+        onRename={handleFolderRename}
+        onDelete={handleFolderDelete}
+        onToggleFavorite={handleFolderToggleFavorite}
+      />
+    </DroppableTarget>
   );
 
   return (
@@ -706,7 +1100,6 @@ export function ConversationsSidebarSection({
                 label={t('sidebar.newConversation', 'New')}
                 onClick={handleNewConversation}
               />
-              
             </div>
 
             {loading && conversations.length === 0 && (
@@ -715,27 +1108,44 @@ export function ConversationsSidebarSection({
               </div>
             )}
 
-            <div className="sidebar-conversations-list">
-              {favoritesList.length > 0 && (
-                <>
-                  {/* <div className="sidebar-conversations-section-header">
-                    <Icon name="star" className="sidebar-conversations-section-icon" />
-                    <span>{t('conversations.favorites.section')}</span>
-                  </div> */}
-                  {favoritesList.map(renderItem)}
-                </>
-              )}
+            <DndContext
+              sensors={sensors}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+              <div className="sidebar-conversations-list">
+                {favoritedFolders.map(renderFolderItem)}
 
-              {mainList.map(renderItem)}
-
-              {!loading &&
-                favoritesList.length === 0 &&
-                mainList.length === 0 && (
-                  <div className="sidebar-conversations-empty">
-                    {t('sidebar.noConversations', 'No conversations yet')}
-                  </div>
+                {favoritesList.length > 0 && (
+                  <>
+                    {favoritesList.map(renderItem)}
+                  </>
                 )}
-            </div>
+
+                {mainFolders.map(renderFolderItem)}
+
+                {mainList.map(renderItem)}
+
+                {!loading &&
+                  favoritesList.length === 0 &&
+                  mainList.length === 0 &&
+                  folders.length === 0 && (
+                    <div className="sidebar-conversations-empty">
+                      {t('sidebar.noConversations', 'No conversations yet')}
+                    </div>
+                  )}
+              </div>
+
+              <DragOverlay>
+                {draggedConversation ? (
+                  <div className="conversation-drag-overlay">
+                    <span className="conversation-drag-overlay-name">
+                      {draggedDisplayName}
+                    </span>
+                  </div>
+                ) : null}
+              </DragOverlay>
+            </DndContext>
 
             <ConfirmDialog
               open={!!leaveTargetId}
@@ -758,6 +1168,18 @@ export function ConversationsSidebarSection({
               variant={isSoleMember ? 'danger' : 'warning'}
               loading={leaving}
               onConfirm={handleLeaveConfirm}
+            />
+
+            <FolderEditModal
+              open={!!editFolderId}
+              onOpenChange={(open) => {
+                if (!open) setEditFolderId(null);
+              }}
+              initialName={editFolder?.name ?? ''}
+              initialIconType={editFolder?.iconType ?? 'dynamic'}
+              initialIconName={editFolder?.iconName}
+              initialIconColor={editFolder?.iconColor}
+              onSave={handleFolderEditSave}
             />
           </>
         )}

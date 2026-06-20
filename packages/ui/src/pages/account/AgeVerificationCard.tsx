@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '../../components/Card';
-import { useIdentityModal } from '../../hooks/useIdentityModal';
 import { Alert } from '../../components/Alert';
 import { Button } from '../../components/Button';
 import { JurisdictionRequirementCard } from '../../components/compliance/JurisdictionRequirementCard';
@@ -27,7 +27,7 @@ export function AgeVerificationCard({
   jurisdictionReqs,
 }: AgeVerificationCardProps) {
   const { t } = useTranslation();
-  const { openIdentityModal } = useIdentityModal();
+  const navigate = useNavigate();
   const [urlCopied, setUrlCopied] = useState(false);
 
   const status = ageVerification?.status;
@@ -93,7 +93,7 @@ export function AgeVerificationCard({
 
       {showAction && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.75rem' }}>
-          <Button variant="primary" size="md" onClick={() => openIdentityModal()}>
+          <Button variant="primary" size="md" onClick={() => navigate('/account/age-verification')}>
             {isPending
               ? t('account.overview.ageVerification.resumeButton')
               : t('account.overview.ageVerification.startButton')}
