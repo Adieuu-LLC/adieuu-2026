@@ -17,13 +17,15 @@ import {
   extractDomain,
 } from '../utils/urlParsing';
 import { trustDomain, setTrustAllLinks } from '../hooks/useExternalLinkPreferences';
+import { loadEmbedPreference, saveEmbedPreference } from '../hooks/useEmbedPreference';
 
 export interface ExternalLinkModalProps {
   href: string | null;
   onClose: () => void;
+  identityId?: string;
 }
 
-export function ExternalLinkModal({ href, onClose }: ExternalLinkModalProps) {
+export function ExternalLinkModal({ href, onClose, identityId }: ExternalLinkModalProps) {
   const { t } = useTranslation();
   const [hideDomain, setHideDomain] = useState(false);
   const [hideAll, setHideAll] = useState(false);
@@ -40,6 +42,18 @@ export function ExternalLinkModal({ href, onClose }: ExternalLinkModalProps) {
       setTrustAllLinks(true);
     } else if (hideDomain && domain) {
       trustDomain(domain);
+      if (identityId) {
+        const pref = loadEmbedPreference(identityId);
+        if (pref.mode === 'allowlist') {
+          const normalized = domain.replace(/^www\./, '').toLowerCase();
+          if (!pref.allowlist.includes(normalized)) {
+            saveEmbedPreference(identityId, {
+              ...pref,
+              allowlist: [...pref.allowlist, normalized],
+            });
+          }
+        }
+      }
     }
     window.open(url, '_blank', 'noopener,noreferrer');
     onClose();

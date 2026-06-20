@@ -88,6 +88,12 @@ describe('desktop app CSP', () => {
   });
 
   describe('img-src', () => {
+    it("includes 'https:' for third-party link embed images", () => {
+      const directives = parseDirectives(csp);
+      const imgSrc = directives.get('img-src') ?? [];
+      expect(imgSrc).toContain('https:');
+    });
+
     it("includes 'data:' for deterministic avatars", () => {
       const directives = parseDirectives(csp);
       const imgSrc = directives.get('img-src') ?? [];

@@ -1,4 +1,5 @@
 import { memo, useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { YouTubeEmbed } from './YouTubeEmbed';
 import { GenericLinkEmbed, type LinkMetadata } from './GenericLinkEmbed';
 import {
@@ -14,6 +15,7 @@ export interface MessageEmbedsProps {
   preference: EmbedPreference;
   fetchMetadata: (url: string) => Promise<LinkMetadata | null>;
   overrides?: Record<string, boolean>;
+  onAddToAllowlist?: (domain: string) => void;
 }
 
 export const MessageEmbeds = memo(function MessageEmbeds({
@@ -21,7 +23,9 @@ export const MessageEmbeds = memo(function MessageEmbeds({
   preference,
   fetchMetadata,
   overrides,
+  onAddToAllowlist,
 }: MessageEmbedsProps) {
+  const { t } = useTranslation();
   const embeds = useMemo(() => detectEmbeds(text), [text]);
   const heroMode = useMemo(() => isUrlOnlyMessage(text), [text]);
 
@@ -35,6 +39,19 @@ export const MessageEmbeds = memo(function MessageEmbeds({
       return isDomainAllowed(domain, preference);
     });
   }, [embeds, preference, overrides]);
+
+  const overriddenUrls = useMemo(() => {
+    if (preference.mode !== 'allowlist' || !onAddToAllowlist) return new Set<string>();
+    return new Set(
+      allowedEmbeds
+        .filter((embed) => {
+          const domain = extractTld(embed.url);
+          if (!domain) return false;
+          return overrides?.[embed.url] === true && !isDomainAllowed(domain, preference);
+        })
+        .map((e) => e.url)
+    );
+  }, [allowedEmbeds, preference, overrides, onAddToAllowlist]);
 
   const safeFetchMetadata = useCallback(
     (url: string) => fetchMetadata(url),
@@ -62,14 +79,29 @@ export const MessageEmbeds = memo(function MessageEmbeds({
 
   return (
     <div className="message-embeds" style={containerStyle}>
-      {allowedEmbeds.map((embed) => (
-        <EmbedRenderer
-          key={embed.url}
-          embed={embed}
-          hero={isHero}
-          fetchMetadata={safeFetchMetadata}
-        />
-      ))}
+      {allowedEmbeds.map((embed) => {
+        const domain = extractTld(embed.url);
+        const showAllowlistPrompt = overriddenUrls.has(embed.url) && domain;
+
+        return (
+          <div key={embed.url} className="message-embed-wrapper">
+            <EmbedRenderer
+              embed={embed}
+              hero={isHero}
+              fetchMetadata={safeFetchMetadata}
+            />
+            {showAllowlistPrompt && onAddToAllowlist && (
+              <button
+                type="button"
+                className="embed-allowlist-prompt"
+                onClick={() => onAddToAllowlist(domain!)}
+              >
+                {t('conversations.embeds.alwaysShowFromSite', 'Always show embeds from {{domain}}', { domain })}
+              </button>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 });

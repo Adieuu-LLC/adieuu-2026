@@ -19,7 +19,7 @@ export interface EmbedPreference {
 }
 
 const STORAGE_KEY_PREFIX = 'adieuu.app.embedVisibility.';
-const DEFAULT_PREFERENCE: EmbedPreference = { mode: 'all', allowlist: [], maxWidth: 500 };
+const DEFAULT_PREFERENCE: EmbedPreference = { mode: 'allowlist', allowlist: [], maxWidth: 500 };
 const VALID_MODES: Set<string> = new Set(['none', 'all', 'allowlist']);
 const VALID_MAX_WIDTHS: Set<number> = new Set([0, 100, 300, 500]);
 

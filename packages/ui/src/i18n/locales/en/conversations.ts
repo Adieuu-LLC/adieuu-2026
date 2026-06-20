@@ -395,6 +395,19 @@ export const conversations = {
       openConfirm: 'Open Anyway',
     },
 
+    embeds: {
+      showPreview: 'Show link preview',
+      enableAll: 'Enable All Embeds',
+      enableAllPrompt: 'Enable all embeds',
+      enableAllTitle: 'Enable All Embeds',
+      enableAllDescription:
+        'When embeds are enabled, your browser loads images directly from third-party websites. This means those sites can see your IP address and may use this to track when you view a message containing their link.',
+      enableAllNote:
+        'You can change this at any time in your Appearance settings, or choose to allow embeds only from specific domains.',
+      goBack: 'Go back',
+      alwaysShowFromSite: 'Always show embeds from {{domain}}',
+    },
+
     ttlOff: 'Disappear this message',
     ttlActive: 'Message will disappear after {{ttl}}',
 
