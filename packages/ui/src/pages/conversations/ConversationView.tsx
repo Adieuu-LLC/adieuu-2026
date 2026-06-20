@@ -938,6 +938,14 @@ export function ConversationView() {
   const hasActiveCallToJoin =
     conversationCall.activeCall !== null && !conversationCall.isInCall && !isInCallHere;
 
+  // Ghost state: server thinks we're in the call, but we have no local
+  // LiveKit session. This happens when the client disconnected without
+  // successfully leaving the call on the server.
+  const isGhostParticipant =
+    conversationCall.activeCall !== null && conversationCall.isInCall && !isInCallHere;
+
+  const showCallBanner = hasActiveCallToJoin || isGhostParticipant;
+
   return (
     <div className="conversation-page">
         <div className="conversation-container">
@@ -1063,10 +1071,11 @@ export function ConversationView() {
 
           <ChatConnectionBanner />
 
-          {hasActiveCallToJoin && conversationCall.activeCall && (
+          {showCallBanner && conversationCall.activeCall && (
             <ActiveCallBanner
               participantCount={conversationCall.participants.length}
               participants={conversationCall.participants}
+              isGhostState={isGhostParticipant}
               onJoin={() => {
                 if (id && conversationCall.activeCall) {
                   callSession.requestJoinCall(

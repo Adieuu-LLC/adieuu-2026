@@ -487,19 +487,25 @@ describe('call.service', () => {
     expect(r.call?.wrappedE2EEKeys).toEqual(storedWrappedKeys);
   });
 
-  test('joinCall returns ALREADY_IN_CALL for active participant', async () => {
+  test('joinCall auto-leaves ghost participant and rejoins', async () => {
     mockCallRepo.findById.mockImplementation(() => Promise.resolve(makeCall()));
     mockConversationRepo.findById.mockImplementation(() =>
       Promise.resolve(makeConversation()),
+    );
+    mockCallRepo.updateParticipantLeft.mockImplementation(() =>
+      Promise.resolve(makeCall()),
+    );
+    mockCallRepo.addParticipant.mockImplementation(() =>
+      Promise.resolve(makeCall()),
     );
     const r = await joinCall(convId.toHexString(), callId.toHexString(), identityA.toHexString(), {
       audio: true,
       video: false,
       screenshare: false,
     }, testAccess);
-    expect(r.success).toBe(false);
-    expect(r.errorCode).toBe('ALREADY_IN_CALL');
-    expect(mockCallRepo.addParticipant).not.toHaveBeenCalled();
+    expect(r.success).toBe(true);
+    expect(mockCallRepo.updateParticipantLeft).toHaveBeenCalled();
+    expect(mockCallRepo.addParticipant).toHaveBeenCalled();
   });
 
   test('joinCall succeeds and returns livekitToken when enabled', async () => {

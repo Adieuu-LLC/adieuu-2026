@@ -53,6 +53,34 @@ function showSourcePicker(sources: SourceInfo[]): Promise<string | null> {
 }
 
 export function registerDisplayMediaHandler(): void {
+  if (process.platform === 'linux') {
+    // On Linux, desktopCapturer.getSources() triggers the xdg-desktop-portal
+    // picker on Wayland (user selects a source, getSources resolves with it).
+    // On X11, it returns all sources immediately and we select the first screen.
+    // A custom picker window is NOT used because on Wayland it conflicts with
+    // the portal, and the portal-selected source is the only one that produces
+    // a valid PipeWire stream.
+    session.defaultSession.setDisplayMediaRequestHandler(
+      async (_request, callback) => {
+        try {
+          const sources = await desktopCapturer.getSources({
+            types: ['screen', 'window'],
+          });
+          if (sources.length > 0) {
+            callback({ video: sources[0] });
+          } else {
+            callback({} as never);
+          }
+        } catch (err) {
+          console.error('[ScreenShare] Portal cancelled or getSources failed:', err);
+          callback({} as never);
+        }
+      },
+    );
+    return;
+  }
+
+  // Windows / macOS: custom picker
   session.defaultSession.setDisplayMediaRequestHandler(
     async (_request, callback) => {
       const sources = await desktopCapturer.getSources({
@@ -62,7 +90,7 @@ export function registerDisplayMediaHandler(): void {
       });
 
       if (sources.length === 0) {
-        callback(null);
+        callback({});
         return;
       }
 
@@ -80,13 +108,12 @@ export function registerDisplayMediaHandler(): void {
 
       const selectedId = await showSourcePicker(sourceInfos);
       if (!selectedId) {
-        callback(null);
+        callback({});
         return;
       }
 
       const selected = sources.find((s) => s.id === selectedId);
-      callback(selected ? { video: selected } : null);
+      callback(selected ? { video: selected } : {});
     },
-    { useSystemPicker: true },
   );
 }

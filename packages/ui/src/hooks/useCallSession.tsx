@@ -327,6 +327,9 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
               callE2EEKey = undefined;
             }
             const errorCode = resp.error?.code;
+            if (errorCode === 'ALREADY_IN_CALL') {
+              throw new CallSessionError(t('call.alreadyJoinedCall'), 'ALREADY_IN_CALL');
+            }
             if (errorCode === 'RATE_LIMITED') {
               const retryAfterSeconds = parseRetryAfterSeconds(resp.error?.details) ?? 30;
               throw new Error(t('call.rateLimited', { seconds: retryAfterSeconds }));

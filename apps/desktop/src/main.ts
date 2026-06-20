@@ -18,6 +18,10 @@ import { registerDisplayMediaHandler } from './main-process/display-media-handle
 const __dirname = getMainDirname(import.meta.url);
 loadDesktopEnvIfPresent(__dirname);
 
+// if (process.platform === 'linux') {
+//   app.commandLine.appendSwitch('enable-features', 'WebRTCPipeWireCapturer');
+// }
+
 if (!app.isPackaged) {
   app.name = 'Adieuu-Dev';
 }

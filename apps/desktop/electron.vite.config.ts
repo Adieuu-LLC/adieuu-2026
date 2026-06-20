@@ -1,5 +1,6 @@
 import { defineConfig } from 'electron-vite';
 import react from '@vitejs/plugin-react';
+import fs from 'fs';
 import path from 'path';
 import pkg from './package.json';
 import { cspPlugin } from '../../packages/shared/src/csp/vite-plugin-csp';
@@ -22,7 +23,7 @@ export default defineConfig({
           this.emitFile({
             type: 'asset',
             fileName: 'screen-picker.html',
-            source: require('fs').readFileSync(
+            source: fs.readFileSync(
               path.resolve(__dirname, 'src/main-process/screen-picker.html'),
               'utf-8',
             ),

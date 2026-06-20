@@ -21,6 +21,7 @@ import type {
 
 export interface ICallRepository {
   findActiveForConversation(conversationId: ObjectId): Promise<CallDocument | null>;
+  findActiveByRoomName(roomName: string): Promise<CallDocument | null>;
   findAllActive(): Promise<CallDocument[]>;
   addParticipant(callId: ObjectId, participant: CallParticipant): Promise<CallDocument | null>;
   updateParticipantLeft(callId: ObjectId, identityId: ObjectId): Promise<CallDocument | null>;
@@ -48,6 +49,16 @@ export class CallRepository
   async findActiveForConversation(conversationId: ObjectId): Promise<CallDocument | null> {
     return this.collection.findOne({
       conversationId,
+      status: { $ne: 'ended' },
+    }) as Promise<CallDocument | null>;
+  }
+
+  /**
+   * Find the active call that uses a specific LiveKit room name.
+   */
+  async findActiveByRoomName(roomName: string): Promise<CallDocument | null> {
+    return this.collection.findOne({
+      roomName,
       status: { $ne: 'ended' },
     }) as Promise<CallDocument | null>;
   }
