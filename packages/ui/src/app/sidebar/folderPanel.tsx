@@ -151,7 +151,7 @@ function FolderConversationItem({
         <span className="conversation-list-item-title">{displayName}</span>
         {isGroup && (
           <span className="conversation-list-item-members">
-            {conversation.participants.length} members
+            {t('conversations.invites.memberCount', { count: conversation.participants.length })}
           </span>
         )}
       </div>
@@ -254,7 +254,12 @@ export function FolderPanel({
   const { activeSession } = useCallSession();
   const panelRef = useRef<HTMLDivElement>(null);
 
-  useSidebarPanelDismiss({ isOpen, onClose, panelRef });
+  useSidebarPanelDismiss({
+    isOpen,
+    onClose,
+    panelRef,
+    ignoreClosestSelector: '.hover-card-content, .conversation-context-menu, .conversation-context-menu-item',
+  });
 
   if (!isOpen || !folder) return null;
 

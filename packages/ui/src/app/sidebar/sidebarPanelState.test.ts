@@ -14,11 +14,13 @@ describe('sidebarPanelState', () => {
     const state: SidebarPanelState = {
       isFriendsPanelOpen: false,
       isChatInvitesPanelOpen: true,
+      openFolderId: null,
     };
 
     expect(toggleFriendsPanel(state)).toEqual({
       isFriendsPanelOpen: true,
       isChatInvitesPanelOpen: false,
+      openFolderId: null,
     });
   });
 
@@ -26,11 +28,13 @@ describe('sidebarPanelState', () => {
     const state: SidebarPanelState = {
       isFriendsPanelOpen: true,
       isChatInvitesPanelOpen: false,
+      openFolderId: 'folder-1',
     };
 
     expect(toggleFriendsPanel(state)).toEqual({
       isFriendsPanelOpen: false,
       isChatInvitesPanelOpen: false,
+      openFolderId: 'folder-1',
     });
   });
 
@@ -38,11 +42,13 @@ describe('sidebarPanelState', () => {
     const state: SidebarPanelState = {
       isFriendsPanelOpen: true,
       isChatInvitesPanelOpen: false,
+      openFolderId: null,
     };
 
     expect(toggleChatInvitesPanel(state)).toEqual({
       isFriendsPanelOpen: false,
       isChatInvitesPanelOpen: true,
+      openFolderId: null,
     });
   });
 
@@ -50,11 +56,13 @@ describe('sidebarPanelState', () => {
     const state: SidebarPanelState = {
       isFriendsPanelOpen: false,
       isChatInvitesPanelOpen: true,
+      openFolderId: 'folder-1',
     };
 
     expect(toggleChatInvitesPanel(state)).toEqual({
       isFriendsPanelOpen: false,
       isChatInvitesPanelOpen: false,
+      openFolderId: 'folder-1',
     });
   });
 
@@ -62,16 +70,19 @@ describe('sidebarPanelState', () => {
     const state: SidebarPanelState = {
       isFriendsPanelOpen: true,
       isChatInvitesPanelOpen: true,
+      openFolderId: 'folder-1',
     };
 
     expect(closeFriendsPanel(state)).toEqual({
       isFriendsPanelOpen: false,
       isChatInvitesPanelOpen: true,
+      openFolderId: 'folder-1',
     });
 
     expect(closeChatInvitesPanel(state)).toEqual({
       isFriendsPanelOpen: true,
       isChatInvitesPanelOpen: false,
+      openFolderId: 'folder-1',
     });
   });
 
@@ -79,6 +90,7 @@ describe('sidebarPanelState', () => {
     expect(applySidebarAction(initialSidebarPanelState, 'openFriends')).toEqual({
       isFriendsPanelOpen: true,
       isChatInvitesPanelOpen: false,
+      openFolderId: null,
     });
   });
 
@@ -86,6 +98,7 @@ describe('sidebarPanelState', () => {
     expect(applySidebarAction(initialSidebarPanelState, 'openInvites')).toEqual({
       isFriendsPanelOpen: false,
       isChatInvitesPanelOpen: true,
+      openFolderId: null,
     });
   });
 });

@@ -709,7 +709,11 @@ export async function createIndexes(): Promise<void> {
   // Conversation folders — per-identity sidebar grouping
   const conversationFolders = database.collection(Collections.CONVERSATION_FOLDERS);
   await conversationFolders.createIndex({ identityId: 1 });
-  await conversationFolders.createIndex({ identityId: 1, conversationIds: 1 });
+  try { await conversationFolders.dropIndex('identityId_1_conversationIds_1'); } catch { /* index may not exist yet */ }
+  await conversationFolders.createIndex(
+    { identityId: 1, conversationIds: 1 },
+    { unique: true },
+  );
 
   // Stripe webhook idempotency — TTL auto-deletes after 30 days
   const stripeEvents = database.collection(Collections.STRIPE_PROCESSED_EVENTS);

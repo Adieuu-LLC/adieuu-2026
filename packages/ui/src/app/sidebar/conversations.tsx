@@ -340,7 +340,7 @@ const ConversationListItem = memo(function ConversationListItem({
         <span className="conversation-list-item-title">{displayName}</span>
         {isGroup && (
           <span className="conversation-list-item-members">
-            {conversation.participants.length} members
+            {t('conversations.invites.memberCount', { count: conversation.participants.length })}
           </span>
         )}
       </div>
@@ -650,11 +650,11 @@ function FolderListItem({
         <span className="conversation-list-item-title">{folder.name}</span>
         <span className="conversation-list-item-members">
           {[
-            dmCount > 0 ? `${dmCount} DM${dmCount !== 1 ? 's' : ''}` : null,
-            groupCount > 0 ? `${groupCount} group${groupCount !== 1 ? 's' : ''}` : null,
+            dmCount > 0 ? t('conversations.folders.dmCount', { count: dmCount }) : null,
+            groupCount > 0 ? t('conversations.folders.groupCount', { count: groupCount }) : null,
           ]
             .filter(Boolean)
-            .join(', ') || '0 conversations'}
+            .join(', ') || t('conversations.folders.emptyCount')}
         </span>
       </div>
       <div className="conversation-list-item-badges">

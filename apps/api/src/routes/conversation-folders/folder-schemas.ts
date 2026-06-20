@@ -6,6 +6,8 @@
 
 import { z } from '@adieuu/shared/schemas';
 
+const objectIdString = z.string().length(24).regex(/^[0-9a-fA-F]{24}$/);
+
 const FOLDER_ICON_NAMES = [
   'folder',
   'folders',
@@ -23,7 +25,7 @@ const FOLDER_ICON_NAMES = [
 
 export const CreateFolderSchema = z.object({
   name: z.string().min(1).max(100),
-  conversationIds: z.array(z.string().length(24)).min(1).max(50),
+  conversationIds: z.array(objectIdString).min(1).max(50),
   iconType: z.enum(['dynamic', 'icon']).optional(),
   iconName: z.enum(FOLDER_ICON_NAMES).optional(),
   iconColor: z.string().max(20).optional(),
@@ -39,5 +41,5 @@ export const UpdateFolderSchema = z.object({
 });
 
 export const AddConversationToFolderSchema = z.object({
-  conversationId: z.string().length(24),
+  conversationId: objectIdString,
 });

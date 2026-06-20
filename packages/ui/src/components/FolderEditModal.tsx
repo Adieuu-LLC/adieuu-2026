@@ -123,6 +123,8 @@ export function FolderEditModal({
                   className={`folder-edit-icon-option folder-edit-icon-option--dynamic ${iconType === 'dynamic' ? 'folder-edit-icon-option--selected' : ''}`}
                   onClick={() => setIconType('dynamic')}
                   disabled={loading}
+                  aria-label={t('conversations.folders.iconDynamic')}
+                  aria-pressed={iconType === 'dynamic'}
                 >
                   <span className="folder-edit-icon-option-preview folder-edit-icon-dynamic-preview">
                     <span className="folder-edit-icon-dynamic-dot" />
@@ -146,6 +148,8 @@ export function FolderEditModal({
                         setIconName(opt.name);
                       }}
                       disabled={loading}
+                      aria-label={opt.name}
+                      aria-pressed={isSelected}
                     >
                       <span
                         className="folder-edit-icon-option-preview"

@@ -111,7 +111,7 @@ export function ConversationFoldersProvider({ children }: { children: ReactNode 
           return res.data;
         }
       } catch {
-        // silent
+        toast.error(t('conversations.folders.folderCreateErrorToast'));
       }
       return null;
     },

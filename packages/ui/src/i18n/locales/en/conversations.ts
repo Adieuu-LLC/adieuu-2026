@@ -532,5 +532,13 @@ export const conversations = {
         favoriteRemovedToast: 'Folder removed from favorites',
         close: 'Close folder panel',
         emptyFolder: 'No conversations in this folder',
+        dmCount: '{{count}} DM',
+        dmCount_one: '1 DM',
+        dmCount_other: '{{count}} DMs',
+        groupCount: '{{count}} group',
+        groupCount_one: '1 group',
+        groupCount_other: '{{count}} groups',
+        emptyCount: '0 conversations',
+        folderCreateErrorToast: 'Failed to create folder',
     },
 } as const;

@@ -111,14 +111,24 @@ export async function addConversationToFolderCtrl(
     };
   }
 
-  const doc = await repo.addConversation(
-    identity._id,
-    new ObjectId(folder.id),
-    new ObjectId(conv.id),
-  );
-  if (!doc) return { kind: 'not_found', message: 'Folder not found.' };
+  try {
+    const doc = await repo.addConversation(
+      identity._id,
+      new ObjectId(folder.id),
+      new ObjectId(conv.id),
+    );
+    if (!doc) return { kind: 'not_found', message: 'Folder not found.' };
 
-  return { kind: 'ok', data: toPublicConversationFolder(doc) };
+    return { kind: 'ok', data: toPublicConversationFolder(doc) };
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message.includes('E11000')) {
+      return {
+        kind: 'bad_request',
+        message: 'Conversation is already in another folder.',
+      };
+    }
+    throw err;
+  }
 }
 
 export async function removeConversationFromFolderCtrl(

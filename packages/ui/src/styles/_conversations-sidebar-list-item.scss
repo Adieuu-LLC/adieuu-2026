@@ -215,8 +215,8 @@
 }
 
 .conversation-drop-over {
-  > .conversation-list-item,
-  > .folder-list-item {
+  .conversation-list-item,
+  .folder-list-item {
     background: var(--color-bg-hover);
     outline: 2px dashed var(--color-accent-primary);
     outline-offset: -2px;
