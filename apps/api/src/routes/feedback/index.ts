@@ -13,6 +13,7 @@ import {
   removeUpvoteResult,
   upvotePostResult,
   updateStatusResult,
+  updateRoadmapResult,
   getNotificationPrefsResult,
   updateNotificationPrefsResult,
   getRoadmapTimelineResult,
@@ -130,6 +131,15 @@ router.patch('/feedback/:postId/status', async (ctx) => {
   if (!auth.ok) return auth.response;
 
   const result = await updateStatusResult(auth.identitySession, ctx.params.postId ?? '', ctx.body);
+  if (!result.ok) return mapFeedbackFailure(ctx, result);
+  return success(result.data);
+});
+
+router.patch('/feedback/:postId/roadmap', async (ctx) => {
+  const auth = requireIdentity(ctx);
+  if (!auth.ok) return auth.response;
+
+  const result = await updateRoadmapResult(auth.identitySession, ctx.params.postId ?? '', ctx.body);
   if (!result.ok) return mapFeedbackFailure(ctx, result);
   return success(result.data);
 });

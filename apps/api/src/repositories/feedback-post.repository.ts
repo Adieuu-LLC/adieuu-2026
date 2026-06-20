@@ -58,6 +58,7 @@ export class FeedbackPostRepository extends BaseRepository<FeedbackPostDocument>
       isOfficial: false,
       isRoadmapOfficial: input.isRoadmapOfficial ?? false,
       isStaffAuthored: input.isStaffAuthored ?? false,
+      showOnTimeline: input.showOnTimeline ?? false,
       ...(input.targetReleaseDate ? { targetReleaseDate: input.targetReleaseDate } : {}),
       ...(status !== 'submitted'
         ? { statusChangedAt: now, statusChangedBy: input.identityId.toHexString() }
@@ -113,6 +114,7 @@ export class FeedbackPostRepository extends BaseRepository<FeedbackPostDocument>
 
   async listRoadmapTimelinePosts(): Promise<FeedbackPostDocument[]> {
     const filter: Filter<FeedbackPostDocument> = {
+      showOnTimeline: true,
       status: { $nin: [...ROADMAP_TIMELINE_EXCLUDED_STATUSES] },
     };
     const posts = await this.collection.find(filter).toArray();
@@ -173,6 +175,45 @@ export class FeedbackPostRepository extends BaseRepository<FeedbackPostDocument>
     const result = await this.collection.findOneAndUpdate(
       { postId } as Filter<FeedbackPostDocument>,
       { $set: setFields },
+      { returnDocument: 'after' },
+    );
+    return result as FeedbackPostDocument | null;
+  }
+
+  async updateRoadmapSettings(
+    postId: string,
+    updates: {
+      showOnTimeline?: boolean;
+      isRoadmapOfficial?: boolean;
+      targetReleaseDate?: Date | null;
+    },
+  ): Promise<FeedbackPostDocument | null> {
+    const now = new Date();
+    const setFields: Partial<FeedbackPostDocument> & { updatedAt: Date } = {
+      updatedAt: now,
+    };
+    const unsetFields: Partial<Record<keyof FeedbackPostDocument, ''>> = {};
+
+    if (updates.showOnTimeline !== undefined) {
+      setFields.showOnTimeline = updates.showOnTimeline;
+    }
+    if (updates.isRoadmapOfficial !== undefined) {
+      setFields.isRoadmapOfficial = updates.isRoadmapOfficial;
+    }
+    if (updates.targetReleaseDate === null) {
+      unsetFields.targetReleaseDate = '';
+    } else if (updates.targetReleaseDate !== undefined) {
+      setFields.targetReleaseDate = updates.targetReleaseDate;
+    }
+
+    const update: Record<string, unknown> = { $set: setFields };
+    if (Object.keys(unsetFields).length > 0) {
+      update.$unset = unsetFields;
+    }
+
+    const result = await this.collection.findOneAndUpdate(
+      { postId } as Filter<FeedbackPostDocument>,
+      update,
       { returnDocument: 'after' },
     );
     return result as FeedbackPostDocument | null;
