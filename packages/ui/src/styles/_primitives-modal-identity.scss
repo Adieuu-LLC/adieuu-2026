@@ -1,10 +1,41 @@
 @use 'variables' as *;
 
 // ============================================================================
-// Identity Modal
+// Identity Modal (Ark UI Dialog)
 // ============================================================================
 
+.identity-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: var(--z-modal-backdrop);
+
+  &[data-state='open'] {
+    animation: fadeIn var(--transition-fast) ease;
+  }
+}
+
+.identity-modal-positioner {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+}
+
 .identity-modal {
+  position: relative;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  max-width: 480px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: fadeIn var(--transition-fast) ease;
   padding: var(--spacing-2xl);
 
   &-content {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { Dialog, Portal } from '@ark-ui/react';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { Alert } from '../components/Alert';
@@ -135,21 +136,49 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
 
   const loginInputRef = useRef<HTMLInputElement>(null);
   const unlockInputRef = useRef<HTMLInputElement>(null);
+  const modalContainerRef = useRef<HTMLDivElement>(null);
 
-  /** autoFocus alone is unreliable after modal mount (see GifPicker). */
+  /**
+   * Focus a password input after any CSS animation on the modal container
+   * finishes. Focusing mid-animation (especially `transform`) can produce
+   * "phantom focus" in Chromium/Electron where the caret blinks but
+   * keystrokes are silently dropped. We listen for `animationend` on the
+   * container so the timing is deterministic rather than a setTimeout guess.
+   */
   const focusPasswordInput = useCallback((inputRef: RefObject<HTMLInputElement | null>) => {
     const el = inputRef.current;
     if (!el) return () => {};
-    const focus = () => el.focus({ preventScroll: true });
-    focus();
-    // Re-assert focus after the modal slideUp animation (200ms) completes.
-    // Focusing mid-CSS-animation can produce "phantom focus" in Chromium/Electron
-    // where the caret blinks but keystrokes are silently dropped.
-    const timer = window.setTimeout(() => {
+
+    const container = modalContainerRef.current;
+    let cleaned = false;
+
+    const commitFocus = () => {
+      if (cleaned) return;
+      cleaned = true;
+      if (container) container.removeEventListener('animationend', onAnimEnd);
+      clearTimeout(fallbackTimer);
       el.blur();
-      focus();
-    }, 250);
-    return () => clearTimeout(timer);
+      el.focus({ preventScroll: true });
+    };
+
+    const onAnimEnd = (e: AnimationEvent) => {
+      if (e.target === container) commitFocus();
+    };
+
+    if (container && container.getAnimations().length > 0) {
+      container.addEventListener('animationend', onAnimEnd);
+    } else {
+      el.focus({ preventScroll: true });
+      return () => {};
+    }
+
+    const fallbackTimer = window.setTimeout(commitFocus, 500);
+
+    return () => {
+      cleaned = true;
+      if (container) container.removeEventListener('animationend', onAnimEnd);
+      clearTimeout(fallbackTimer);
+    };
   }, []);
 
   useLayoutEffect(() => {
@@ -477,446 +506,461 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
     </button>
   );
 
-  if (!isOpen) return null;
+  const isNonDismissable = view === 'unlock' || view === 'creating' || view === 'logging_in';
 
   return (
-    <div
-      className="modal-overlay"
-      onClick={view === 'unlock' ? undefined : handleClose}
+    <Dialog.Root
+      open={isOpen}
+      onOpenChange={(details) => { if (!details.open) handleClose(); }}
+      closeOnInteractOutside={!isNonDismissable && !webDeviceChoiceOpen && !migrationPromptOpen}
+      closeOnEscape={!isNonDismissable && !webDeviceChoiceOpen && !migrationPromptOpen}
+      trapFocus
+      preventScroll
+      persistentElements={() => {
+        const els: HTMLElement[] = [];
+        const portalEls = document.querySelectorAll<HTMLElement>(
+          '.web-device-choice-layer-positioner, .migration-prompt-layer-positioner, .confirm-dialog-positioner'
+        );
+        portalEls.forEach((el) => els.push(el));
+        return els;
+      }}
     >
-      <div className="modal-container identity-modal" onClick={(e) => e.stopPropagation()}>
-        {view !== 'unlock' && (
-          <button type="button" className="modal-close" onClick={handleClose} aria-label={t('common.close', 'Close')}>
-            &times;
-          </button>
-        )}
+      <Portal>
+        <Dialog.Backdrop className="confirm-dialog-backdrop identity-modal-backdrop" />
+        <Dialog.Positioner className="confirm-dialog-positioner identity-modal-positioner">
+          <Dialog.Content ref={modalContainerRef} className="identity-modal" aria-label={t('identity.title')}>
+            {!isNonDismissable && (
+              <Dialog.CloseTrigger className="modal-close" aria-label={t('common.close', 'Close')}>
+                &times;
+              </Dialog.CloseTrigger>
+            )}
 
-        {view === 'choose' && (
-          <div className="identity-modal-content">
-            <div className="identity-modal-header">
-              <Icon name="mask" className="identity-modal-icon" />
-              <h2>{t('identity.title')}</h2>
-              <p>{t('identity.create.subtitle')}</p>
-            </div>
+            {view === 'choose' && (
+              <div className="identity-modal-content">
+                <div className="identity-modal-header">
+                  <Icon name="mask" className="identity-modal-icon" />
+                  <Dialog.Title asChild><h2>{t('identity.title')}</h2></Dialog.Title>
+                  <Dialog.Description asChild><p>{t('identity.create.subtitle')}</p></Dialog.Description>
+                </div>
 
-            <div className="identity-modal-actions">
-              {/* Show login button if user has at least one identity */}
-              {hasIdentity && (
-                <Button variant="primary" size="lg" onClick={() => setView('login')}>
-                  <Icon name="lock" />
-                  {t('identity.loginToExistingButton')}
-                </Button>
-              )}
-
-              {/* Show create button if user can create more identities */}
-              {canCreateMore && (
-                <Button
-                  variant={hasIdentity ? 'secondary' : 'primary'}
-                  size="lg"
-                  onClick={() => setView('create')}
-                >
-                  <Icon name="plus" />
-                  {t('identity.createButton')}
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {view === 'login' && (
-          <div className="identity-modal-content">
-            <div className="identity-modal-header">
-              <Icon name="mask" className="identity-modal-icon" />
-              <h2>{t('identity.login.title')}</h2>
-              <p>{t('identity.login.subtitle')}</p>
-            </div>
-
-            {error && <Alert variant="error">{error}</Alert>}
-            {success && <Alert variant="success">{success}</Alert>}
-
-            <form
-              className="identity-modal-form"
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleLogin();
-              }}
-            >
-              <Input
-                ref={loginInputRef}
-                type={passwordVisible ? 'text' : 'password'}
-                placeholder={t('identity.login.passwordPlaceholder')}
-                value={passphrase}
-                onChange={(e) => setPassphrase(e.target.value)}
-                disabled={loading}
-                autoComplete="current-password"
-                rightIcon={passwordVisibilityToggle}
-              />
-
-              {attemptNumber && attemptNumber >= 3 && (
-                <p className="identity-attempt-warning">
-                  {t('identity.login.attemptsRemaining', { remaining: 6 - attemptNumber })}
-                </p>
-              )}
-
-              <div className="identity-modal-buttons">
-                <Button
-                  type="submit"
-                  variant="primary"
-                  disabled={loading || passphrase.length < 8}
-                >
-                  {loading ? <Spinner size="sm" /> : t('identity.login.submitButton')}
-                </Button>
-              </div>
-            </form>
-
-            {canCreateMore && (
-              <div className="identity-modal-footer">
-                {!hasIdentity ? (
-                  <>
-                    <p>{t('identity.login.noIdentity')}</p>
-                    <Button variant="ghost" size="sm" onClick={() => setView('create')}>
-                      {t('identity.login.createPrompt')}
+                <div className="identity-modal-actions">
+                  {hasIdentity && (
+                    <Button variant="primary" size="lg" onClick={() => setView('login')}>
+                      <Icon name="lock" />
+                      {t('identity.loginToExistingButton')}
                     </Button>
-                  </>
-                ) : (
-                  <Button variant="ghost" size="sm" onClick={() => setView('create')}>
-                    {t('identity.login.createAnotherPrompt')}
-                  </Button>
-                )}
+                  )}
+
+                  {canCreateMore && (
+                    <Button
+                      variant={hasIdentity ? 'secondary' : 'primary'}
+                      size="lg"
+                      onClick={() => setView('create')}
+                    >
+                      <Icon name="plus" />
+                      {t('identity.createButton')}
+                    </Button>
+                  )}
+                </div>
               </div>
             )}
-          </div>
-        )}
 
-        {view === 'unlock' && (
-          <div className="identity-modal-content">
-            <div className="identity-modal-header">
-              <Icon name="lock" className="identity-modal-icon" />
-              <h2>{t('identity.unlock.title')}</h2>
-              <p>{t('identity.unlock.subtitle')}</p>
-            </div>
+            {view === 'login' && (
+              <div className="identity-modal-content">
+                <div className="identity-modal-header">
+                  <Icon name="mask" className="identity-modal-icon" />
+                  <Dialog.Title asChild><h2>{t('identity.login.title')}</h2></Dialog.Title>
+                  <Dialog.Description asChild><p>{t('identity.login.subtitle')}</p></Dialog.Description>
+                </div>
 
-            {error && <Alert variant="error">{error}</Alert>}
-            {success && <Alert variant="success">{success}</Alert>}
+                {error && <Alert variant="error">{error}</Alert>}
+                {success && <Alert variant="success">{success}</Alert>}
 
-            <form
-              className="identity-modal-form"
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleUnlock();
-              }}
-            >
-              <Input
-                ref={unlockInputRef}
-                type={passwordVisible ? 'text' : 'password'}
-                placeholder={t('identity.unlock.passwordPlaceholder')}
-                value={passphrase}
-                onChange={(e) => setPassphrase(e.target.value)}
-                disabled={loading}
-                autoComplete="current-password"
-                rightIcon={passwordVisibilityToggle}
-              />
-
-              <div className="identity-modal-buttons">
-                <Button
-                  type="submit"
-                  variant="primary"
-                  disabled={loading || passphrase.length < 8}
+                <form
+                  className="identity-modal-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleLogin();
+                  }}
                 >
-                  {loading ? <Spinner size="sm" /> : t('identity.unlock.submitButton')}
-                </Button>
-              </div>
-            </form>
-
-            <div className="identity-modal-footer identity-modal-footer-unlock">
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={loading || panicLoading}
-                onClick={() => void handleFullyLogout()}
-              >
-                {loading ? <Spinner size="sm" /> : t('identity.unlock.logoutButton')}
-              </Button>
-              {platformCapabilities.exitApplication && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={loading || panicLoading}
-                  onClick={() => void handleLogoutAndExit()}
-                >
-                  {loading ? <Spinner size="sm" /> : t('identity.unlock.logoutAndExitButton')}
-                </Button>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={loading || panicLoading}
-                className="identity-modal-panic-btn"
-                onClick={() => setPanicConfirmOpen(true)}
-              >
-                {t('identity.unlock.panicButton')}
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {view === 'create' && (
-          <div className="identity-modal-content">
-            <div className="identity-modal-header">
-              <Icon name="mask" className="identity-modal-icon" />
-              <h2>{t('identity.create.title')}</h2>
-              <p>{t('identity.create.subtitle')}</p>
-            </div>
-
-            <Alert variant="warning">{t('identity.create.noRecoveryWarning')}</Alert>
-
-            {error && <Alert variant="error">{error}</Alert>}
-            {success && <Alert variant="success">{success}</Alert>}
-
-            <form
-              className="identity-modal-form"
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleCreate();
-              }}
-            >
-              <div className="form-group">
-                <div className="input-with-info">
                   <Input
-                    type="password"
-                    placeholder={t('identity.create.passwordPlaceholder')}
+                    ref={loginInputRef}
+                    type={passwordVisible ? 'text' : 'password'}
+                    placeholder={t('identity.login.passwordPlaceholder')}
                     value={passphrase}
                     onChange={(e) => setPassphrase(e.target.value)}
                     disabled={loading}
-                    autoFocus
+                    autoComplete="current-password"
+                    rightIcon={passwordVisibilityToggle}
                   />
-                  <Popover
-                    trigger={
-                      <button
-                        type="button"
-                        className="passphrase-info-btn"
-                        aria-label="Passphrase tips"
-                      >
-                        <Icon name="info" />
-                      </button>
-                    }
-                    positioning={{ placement: 'bottom-end' }}
-                    className="passphrase-popover"
-                  >
-                    <div className="passphrase-info-content">
-                      <h4>{t('identity.create.passwordExamplesTitle')}</h4>
-                      <ul>
-                        {stringArrayFromI18nReturn(
-                          t('identity.create.passwordExamples', { returnObjects: true })
-                        ).map((example, i) => (
-                          <li key={i}>{example}</li>
-                        ))}
-                      </ul>
-                      <p className="passphrase-tip">{t('identity.create.passwordExamplesTip')}</p>
-                    </div>
-                  </Popover>
-                </div>
-                <p className="form-hint">{t('identity.create.passwordHint')}</p>
-              </div>
 
-              <div className="form-group">
-                <Input
-                  type="password"
-                  placeholder={t('identity.create.passwordConfirmPlaceholder')}
-                  value={passphraseConfirm}
-                  onChange={(e) => setPassphraseConfirm(e.target.value)}
-                  disabled={loading}
-                />
-                {passphraseConfirm.length > 0 && passphrase !== passphraseConfirm && (
-                  <p className="form-error">{t('identity.create.passwordMismatch')}</p>
+                  {attemptNumber && attemptNumber >= 3 && (
+                    <p className="identity-attempt-warning">
+                      {t('identity.login.attemptsRemaining', { remaining: 6 - attemptNumber })}
+                    </p>
+                  )}
+
+                  <div className="identity-modal-buttons">
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      disabled={loading || passphrase.length < 8}
+                    >
+                      {loading ? <Spinner size="sm" /> : t('identity.login.submitButton')}
+                    </Button>
+                  </div>
+                </form>
+
+                {canCreateMore && (
+                  <div className="identity-modal-footer">
+                    {!hasIdentity ? (
+                      <>
+                        <p>{t('identity.login.noIdentity')}</p>
+                        <Button variant="ghost" size="sm" onClick={() => setView('create')}>
+                          {t('identity.login.createPrompt')}
+                        </Button>
+                      </>
+                    ) : (
+                      <Button variant="ghost" size="sm" onClick={() => setView('create')}>
+                        {t('identity.login.createAnotherPrompt')}
+                      </Button>
+                    )}
+                  </div>
                 )}
-                {passphrasesMatch && passphraseStrength && (
-                  <p className={`passphrase-strength passphrase-strength-${passphraseStrength}`}>
-                    {t('identity.create.passwordStrength.match')}
-                    {passphraseStrength !== 'veryStrong' && (
-                      <span className="passphrase-strength-hint">
-                        {' '}&mdash; {t(`identity.create.passwordStrength.${passphraseStrength}`)}
-                      </span>
+              </div>
+            )}
+
+            {view === 'unlock' && (
+              <div className="identity-modal-content">
+                <div className="identity-modal-header">
+                  <Icon name="lock" className="identity-modal-icon" />
+                  <Dialog.Title asChild><h2>{t('identity.unlock.title')}</h2></Dialog.Title>
+                  <Dialog.Description asChild><p>{t('identity.unlock.subtitle')}</p></Dialog.Description>
+                </div>
+
+                {error && <Alert variant="error">{error}</Alert>}
+                {success && <Alert variant="success">{success}</Alert>}
+
+                <form
+                  className="identity-modal-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleUnlock();
+                  }}
+                >
+                  <Input
+                    ref={unlockInputRef}
+                    type={passwordVisible ? 'text' : 'password'}
+                    placeholder={t('identity.unlock.passwordPlaceholder')}
+                    value={passphrase}
+                    onChange={(e) => setPassphrase(e.target.value)}
+                    disabled={loading}
+                    autoComplete="current-password"
+                    rightIcon={passwordVisibilityToggle}
+                  />
+
+                  <div className="identity-modal-buttons">
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      disabled={loading || passphrase.length < 8}
+                    >
+                      {loading ? <Spinner size="sm" /> : t('identity.unlock.submitButton')}
+                    </Button>
+                  </div>
+                </form>
+
+                <div className="identity-modal-footer identity-modal-footer-unlock">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={loading || panicLoading}
+                    onClick={() => void handleFullyLogout()}
+                  >
+                    {loading ? <Spinner size="sm" /> : t('identity.unlock.logoutButton')}
+                  </Button>
+                  {platformCapabilities.exitApplication && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={loading || panicLoading}
+                      onClick={() => void handleLogoutAndExit()}
+                    >
+                      {loading ? <Spinner size="sm" /> : t('identity.unlock.logoutAndExitButton')}
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={loading || panicLoading}
+                    className="identity-modal-panic-btn"
+                    onClick={() => setPanicConfirmOpen(true)}
+                  >
+                    {t('identity.unlock.panicButton')}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {view === 'create' && (
+              <div className="identity-modal-content">
+                <div className="identity-modal-header">
+                  <Icon name="mask" className="identity-modal-icon" />
+                  <Dialog.Title asChild><h2>{t('identity.create.title')}</h2></Dialog.Title>
+                  <Dialog.Description asChild><p>{t('identity.create.subtitle')}</p></Dialog.Description>
+                </div>
+
+                <Alert variant="warning">{t('identity.create.noRecoveryWarning')}</Alert>
+
+                {error && <Alert variant="error">{error}</Alert>}
+                {success && <Alert variant="success">{success}</Alert>}
+
+                <form
+                  className="identity-modal-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleCreate();
+                  }}
+                >
+                  <div className="form-group">
+                    <div className="input-with-info">
+                      <Input
+                        type="password"
+                        placeholder={t('identity.create.passwordPlaceholder')}
+                        value={passphrase}
+                        onChange={(e) => setPassphrase(e.target.value)}
+                        disabled={loading}
+                        autoFocus
+                      />
+                      <Popover
+                        trigger={
+                          <button
+                            type="button"
+                            className="passphrase-info-btn"
+                            aria-label="Passphrase tips"
+                          >
+                            <Icon name="info" />
+                          </button>
+                        }
+                        positioning={{ placement: 'bottom-end' }}
+                        className="passphrase-popover"
+                      >
+                        <div className="passphrase-info-content">
+                          <h4>{t('identity.create.passwordExamplesTitle')}</h4>
+                          <ul>
+                            {stringArrayFromI18nReturn(
+                              t('identity.create.passwordExamples', { returnObjects: true })
+                            ).map((example, i) => (
+                              <li key={i}>{example}</li>
+                            ))}
+                          </ul>
+                          <p className="passphrase-tip">{t('identity.create.passwordExamplesTip')}</p>
+                        </div>
+                      </Popover>
+                    </div>
+                    <p className="form-hint">{t('identity.create.passwordHint')}</p>
+                  </div>
+
+                  <div className="form-group">
+                    <Input
+                      type="password"
+                      placeholder={t('identity.create.passwordConfirmPlaceholder')}
+                      value={passphraseConfirm}
+                      onChange={(e) => setPassphraseConfirm(e.target.value)}
+                      disabled={loading}
+                    />
+                    {passphraseConfirm.length > 0 && passphrase !== passphraseConfirm && (
+                      <p className="form-error">{t('identity.create.passwordMismatch')}</p>
                     )}
-                    {passphraseStrength === 'veryStrong' && (
-                      <span className="passphrase-strength-hint passphrase-strength-excellent">
-                        {' '}&mdash; {t('identity.create.passwordStrength.veryStrong')}
-                      </span>
+                    {passphrasesMatch && passphraseStrength && (
+                      <p className={`passphrase-strength passphrase-strength-${passphraseStrength}`}>
+                        {t('identity.create.passwordStrength.match')}
+                        {passphraseStrength !== 'veryStrong' && (
+                          <span className="passphrase-strength-hint">
+                            {' '}&mdash; {t(`identity.create.passwordStrength.${passphraseStrength}`)}
+                          </span>
+                        )}
+                        {passphraseStrength === 'veryStrong' && (
+                          <span className="passphrase-strength-hint passphrase-strength-excellent">
+                            {' '}&mdash; {t('identity.create.passwordStrength.veryStrong')}
+                          </span>
+                        )}
+                      </p>
                     )}
+                  </div>
+
+                  <div className="form-group">
+                    <Input
+                      type="text"
+                      placeholder={t('identity.create.usernamePlaceholder')}
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ''))}
+                      disabled={loading}
+                      maxLength={30}
+                    />
+                    <p className="form-hint">{t('identity.create.usernameHint')}</p>
+                  </div>
+
+                  <div className="form-group">
+                    <Input
+                      type="text"
+                      placeholder={t('identity.create.displayNamePlaceholder')}
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      disabled={loading}
+                      maxLength={50}
+                    />
+                    <p className="form-hint">{t('identity.create.displayNameHint')}</p>
+                  </div>
+
+                  <div className="identity-modal-buttons">
+                    <Button type="button" variant="ghost" onClick={() => setView('choose')}>
+                      {t('common.back')}
+                    </Button>
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      disabled={loading || !passphrasesMatch || username.length < 3 || displayName.length < 1}
+                    >
+                      {loading ? <Spinner size="sm" /> : t('identity.create.submitButton')}
+                    </Button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {view === 'creating' && (
+              <div className="identity-modal-content identity-modal-creating">
+                <div className="identity-creating-loader">
+                  <Spinner size="lg" />
+                  <h2>{success ? t('identity.create.success') : t('identity.create.creatingTitle')}</h2>
+                  <p>{success ? t('identity.create.redirecting') : t('identity.create.creatingSubtitle')}</p>
+                </div>
+              </div>
+            )}
+
+            {view === 'logging_in' && (
+              <div className="identity-modal-content identity-modal-creating">
+                <div className="identity-creating-loader">
+                  <Spinner size="lg" />
+                  <h2>{success ? t('identity.login.success') : t('identity.login.loggingInTitle')}</h2>
+                  <p>{success ? t('identity.login.redirecting') : t(`identity.login.status.${loginStatus}`)}</p>
+                </div>
+              </div>
+            )}
+
+            {view === 'subscription_required' && (
+              <div className="identity-modal-content">
+                <div className="identity-modal-header">
+                  <Icon name="lock" className="identity-modal-icon" />
+                  <Dialog.Title asChild><h2>{t('compliance.subscription.title')}</h2></Dialog.Title>
+                </div>
+                <p className="identity-modal-av-description">
+                  {t('compliance.subscription.description')}
+                </p>
+                <div className="identity-modal-actions">
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    onClick={() => { onClose(); navigate('/account/subscription'); }}
+                  >
+                    {t('compliance.subscription.subscribeCta')}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {view === 'geofenced' && (
+              <div className="identity-modal-content">
+                <div className="identity-modal-header">
+                  <Icon name="lock" className="identity-modal-icon" />
+                  <Dialog.Title asChild><h2>{t('compliance.geofence.title')}</h2></Dialog.Title>
+                </div>
+                <Alert variant="error">
+                  {t('compliance.geofence.description')}
+                </Alert>
+                {aliasGate?.jurisdiction && (
+                  <p className="identity-modal-jurisdiction">
+                    {t('compliance.geofence.jurisdictionLabel')}: <strong>{aliasGate.jurisdiction}</strong>
+                  </p>
+                )}
+                {aliasGate?.lawUrl && (
+                  <a
+                    href={aliasGate.lawUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="identity-modal-law-link"
+                  >
+                    {t('compliance.geofence.viewLaw')}
+                  </a>
+                )}
+              </div>
+            )}
+
+            {/* age_verification_required redirects to /account/age-verification via useEffect */}
+
+            {view === 'age_verification_failed' && (
+              <div className="identity-modal-content">
+                <div className="identity-modal-header">
+                  <Icon name="lock" className="identity-modal-icon" />
+                  <Dialog.Title asChild><h2>{t('compliance.ageVerification.title')}</h2></Dialog.Title>
+                </div>
+                <Alert variant="error">
+                  {t('compliance.ageVerification.failedMessage')}
+                </Alert>
+                {aliasGate?.retryAfter && (
+                  <p className="identity-modal-retry-after">
+                    {t('compliance.ageVerification.retryAfterLabel')}: {new Date(aliasGate.retryAfter).toLocaleDateString()}
                   </p>
                 )}
               </div>
+            )}
 
-              <div className="form-group">
-                <Input
-                  type="text"
-                  placeholder={t('identity.create.usernamePlaceholder')}
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ''))}
-                  disabled={loading}
-                  maxLength={30}
-                />
-                <p className="form-hint">{t('identity.create.usernameHint')}</p>
+            {view === 'age_verification_cooldown' && (
+              <div className="identity-modal-content">
+                <div className="identity-modal-header">
+                  <Icon name="lock" className="identity-modal-icon" />
+                  <Dialog.Title asChild><h2>{t('compliance.ageVerification.title')}</h2></Dialog.Title>
+                </div>
+                <Alert variant="warning">
+                  {t('compliance.ageVerification.cooldownMessage')}
+                </Alert>
+                {aliasGate?.retryAfter && (
+                  <p className="identity-modal-retry-after">
+                    {t('compliance.ageVerification.retryAfterLabel')}: {new Date(aliasGate.retryAfter).toLocaleDateString()}
+                  </p>
+                )}
+                {session?.ageVerification?.expirationCount !== undefined && (
+                  <p className="identity-modal-expiration-count">
+                    {t('compliance.ageVerification.expirationCount', {
+                      count: session.ageVerification.expirationCount,
+                      max: 3,
+                    })}
+                  </p>
+                )}
               </div>
+            )}
 
-              <div className="form-group">
-                <Input
-                  type="text"
-                  placeholder={t('identity.create.displayNamePlaceholder')}
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  disabled={loading}
-                  maxLength={50}
-                />
-                <p className="form-hint">{t('identity.create.displayNameHint')}</p>
-              </div>
-
-              <div className="identity-modal-buttons">
-                <Button type="button" variant="ghost" onClick={() => setView('choose')}>
-                  {t('common.back')}
-                </Button>
+            {/* Jurisdiction advisory banner for unresolved geo */}
+            {(view === 'choose' || view === 'login' || view === 'create') &&
+              session?.ageVerification === undefined &&
+              !session?.geo?.jurisdiction && (
+              <div className="identity-modal-advisory">
+                <Alert variant="info">
+                  {t('compliance.advisory.unresolvedJurisdiction')}
+                </Alert>
                 <Button
-                  type="submit"
-                  variant="primary"
-                  disabled={loading || !passphrasesMatch || username.length < 3 || displayName.length < 1}
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => { onClose(); navigate('/account/age-verification?optIn=1'); }}
                 >
-                  {loading ? <Spinner size="sm" /> : t('identity.create.submitButton')}
+                  {t('compliance.advisory.optInButton')}
                 </Button>
               </div>
-            </form>
-          </div>
-        )}
-
-        {view === 'creating' && (
-          <div className="identity-modal-content identity-modal-creating">
-            <div className="identity-creating-loader">
-              <Spinner size="lg" />
-              <h2>{success ? t('identity.create.success') : t('identity.create.creatingTitle')}</h2>
-              <p>{success ? t('identity.create.redirecting') : t('identity.create.creatingSubtitle')}</p>
-            </div>
-          </div>
-        )}
-
-        {view === 'logging_in' && (
-          <div className="identity-modal-content identity-modal-creating">
-            <div className="identity-creating-loader">
-              <Spinner size="lg" />
-              <h2>{success ? t('identity.login.success') : t('identity.login.loggingInTitle')}</h2>
-              <p>{success ? t('identity.login.redirecting') : t(`identity.login.status.${loginStatus}`)}</p>
-            </div>
-          </div>
-        )}
-
-        {view === 'subscription_required' && (
-          <div className="identity-modal-content">
-            <div className="identity-modal-header">
-              <Icon name="lock" className="identity-modal-icon" />
-              <h2>{t('compliance.subscription.title')}</h2>
-            </div>
-            <p className="identity-modal-av-description">
-              {t('compliance.subscription.description')}
-            </p>
-            <div className="identity-modal-actions">
-              <Button
-                variant="primary"
-                size="lg"
-                onClick={() => { onClose(); navigate('/account/subscription'); }}
-              >
-                {t('compliance.subscription.subscribeCta')}
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {view === 'geofenced' && (
-          <div className="identity-modal-content">
-            <div className="identity-modal-header">
-              <Icon name="lock" className="identity-modal-icon" />
-              <h2>{t('compliance.geofence.title')}</h2>
-            </div>
-            <Alert variant="error">
-              {t('compliance.geofence.description')}
-            </Alert>
-            {aliasGate?.jurisdiction && (
-              <p className="identity-modal-jurisdiction">
-                {t('compliance.geofence.jurisdictionLabel')}: <strong>{aliasGate.jurisdiction}</strong>
-              </p>
             )}
-            {aliasGate?.lawUrl && (
-              <a
-                href={aliasGate.lawUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="identity-modal-law-link"
-              >
-                {t('compliance.geofence.viewLaw')}
-              </a>
-            )}
-          </div>
-        )}
-
-        {/* age_verification_required redirects to /account/age-verification via useEffect */}
-
-        {view === 'age_verification_failed' && (
-          <div className="identity-modal-content">
-            <div className="identity-modal-header">
-              <Icon name="lock" className="identity-modal-icon" />
-              <h2>{t('compliance.ageVerification.title')}</h2>
-            </div>
-            <Alert variant="error">
-              {t('compliance.ageVerification.failedMessage')}
-            </Alert>
-            {aliasGate?.retryAfter && (
-              <p className="identity-modal-retry-after">
-                {t('compliance.ageVerification.retryAfterLabel')}: {new Date(aliasGate.retryAfter).toLocaleDateString()}
-              </p>
-            )}
-          </div>
-        )}
-
-        {view === 'age_verification_cooldown' && (
-          <div className="identity-modal-content">
-            <div className="identity-modal-header">
-              <Icon name="lock" className="identity-modal-icon" />
-              <h2>{t('compliance.ageVerification.title')}</h2>
-            </div>
-            <Alert variant="warning">
-              {t('compliance.ageVerification.cooldownMessage')}
-            </Alert>
-            {aliasGate?.retryAfter && (
-              <p className="identity-modal-retry-after">
-                {t('compliance.ageVerification.retryAfterLabel')}: {new Date(aliasGate.retryAfter).toLocaleDateString()}
-              </p>
-            )}
-            {session?.ageVerification?.expirationCount !== undefined && (
-              <p className="identity-modal-expiration-count">
-                {t('compliance.ageVerification.expirationCount', {
-                  count: session.ageVerification.expirationCount,
-                  max: 3,
-                })}
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Jurisdiction advisory banner for unresolved geo */}
-        {(view === 'choose' || view === 'login' || view === 'create') &&
-          session?.ageVerification === undefined &&
-          !session?.geo?.jurisdiction && (
-          <div className="identity-modal-advisory">
-            <Alert variant="info">
-              {t('compliance.advisory.unresolvedJurisdiction')}
-            </Alert>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => { onClose(); navigate('/account/age-verification?optIn=1'); }}
-            >
-              {t('compliance.advisory.optInButton')}
-            </Button>
-          </div>
-        )}
-      </div>
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Portal>
 
       <WebDeviceChoiceModal
         open={webDeviceChoiceOpen}
@@ -943,7 +987,6 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
         closeOnInteractOutside={!panicLoading}
         onConfirm={() => void handlePanicConfirm()}
       />
-
-    </div>
+    </Dialog.Root>
   );
 }

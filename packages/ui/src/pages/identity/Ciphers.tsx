@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Dialog, Portal } from '@ark-ui/react';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
@@ -25,12 +26,12 @@ interface EntropyRow {
 }
 
 interface AddCipherModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onAdd: (name: string, entropyPieces: EntropyPiece[]) => Promise<void>;
 }
 
-function AddCipherModal({ isOpen, onClose, onAdd }: AddCipherModalProps) {
+function AddCipherModal({ open, onOpenChange, onAdd }: AddCipherModalProps) {
   const { t } = useTranslation();
   const [name, setName] = useState('');
   const [entropyRows, setEntropyRows] = useState<EntropyRow[]>([{ id: '1', value: '' }]);
@@ -43,7 +44,6 @@ function AddCipherModal({ isOpen, onClose, onAdd }: AddCipherModalProps) {
 
   const removeEntropyRow = (id: string) => {
     setEntropyRows((prev) => {
-      // Don't remove if it's the only row
       if (prev.length <= 1) return prev;
       return prev.filter((row) => row.id !== id);
     });
@@ -65,7 +65,6 @@ function AddCipherModal({ isOpen, onClose, onAdd }: AddCipherModalProps) {
     setError(null);
 
     try {
-      // Convert rows to entropy pieces (filter out empty ones)
       const pieces = entropyRows
         .filter((row) => row.value.trim().length > 0)
         .map((row, idx) => createTextEntropy(row.value.trim(), `Phrase ${idx + 1}`));
@@ -77,10 +76,9 @@ function AddCipherModal({ isOpen, onClose, onAdd }: AddCipherModalProps) {
       }
 
       await onAdd(name.trim(), pieces);
-      // Reset form
       setName('');
       setEntropyRows([{ id: '1', value: '' }]);
-      onClose();
+      onOpenChange(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('ciphers.errors.createFailed'));
     } finally {
@@ -92,112 +90,109 @@ function AddCipherModal({ isOpen, onClose, onAdd }: AddCipherModalProps) {
     setName('');
     setEntropyRows([{ id: '1', value: '' }]);
     setError(null);
-    onClose();
+    onOpenChange(false);
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="modal-overlay" onClick={handleClose}>
-      <div className="modal-content modal-md" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2 className="modal-title">{t('ciphers.addModal.title')}</h2>
-          <button type="button" className="modal-close" onClick={handleClose}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit}>
-          <div className="modal-body">
-            <p className="cipher-add-description">{t('ciphers.addModal.description')}</p>
-
-            {error && <Alert variant="error" className="cipher-add-error">{error}</Alert>}
-
-            <div className="form-group">
-              <label className="form-label">{t('ciphers.addModal.nameLabel')}</label>
-              <Input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t('ciphers.addModal.namePlaceholder')}
-                disabled={submitting}
-                autoFocus
-              />
-              <p className="form-hint">{t('ciphers.addModal.nameHint')}</p>
+    <Dialog.Root open={open} onOpenChange={(e) => onOpenChange(e.open)} closeOnInteractOutside={!submitting}>
+      <Portal>
+        <Dialog.Backdrop className="confirm-dialog-backdrop" />
+        <Dialog.Positioner className="confirm-dialog-positioner">
+          <Dialog.Content className="confirm-dialog-content confirm-dialog-md">
+            <div className="confirm-dialog-header">
+              <Dialog.Title className="confirm-dialog-title">{t('ciphers.addModal.title')}</Dialog.Title>
             </div>
 
-            <div className="form-group">
-              <label className="form-label">{t('ciphers.addModal.entropyLabel')}</label>
-              <div className="entropy-rows">
-                {entropyRows.map((row, index) => (
-                  <div key={row.id} className="entropy-row">
-                    <span className="entropy-row-number">{index + 1}</span>
-                    <Input
-                      type="text"
-                      value={row.value}
-                      onChange={(e) => updateEntropyRow(row.id, e.target.value)}
-                      placeholder={t('ciphers.addModal.entropyRowPlaceholder')}
-                      disabled={submitting}
-                    />
-                    <button
-                      type="button"
-                      className="entropy-row-remove"
-                      onClick={() => removeEntropyRow(row.id)}
-                      disabled={submitting || entropyRows.length <= 1}
-                      title={t('common.remove')}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
-                    </button>
+            <form onSubmit={handleSubmit}>
+              <div className="confirm-dialog-body">
+                <p className="cipher-add-description">{t('ciphers.addModal.description')}</p>
+
+                {error && <Alert variant="error" className="cipher-add-error">{error}</Alert>}
+
+                <div className="form-group">
+                  <label className="form-label">{t('ciphers.addModal.nameLabel')}</label>
+                  <Input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder={t('ciphers.addModal.namePlaceholder')}
+                    disabled={submitting}
+                    autoFocus
+                  />
+                  <p className="form-hint">{t('ciphers.addModal.nameHint')}</p>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">{t('ciphers.addModal.entropyLabel')}</label>
+                  <div className="entropy-rows">
+                    {entropyRows.map((row, index) => (
+                      <div key={row.id} className="entropy-row">
+                        <span className="entropy-row-number">{index + 1}</span>
+                        <Input
+                          type="text"
+                          value={row.value}
+                          onChange={(e) => updateEntropyRow(row.id, e.target.value)}
+                          placeholder={t('ciphers.addModal.entropyRowPlaceholder')}
+                          disabled={submitting}
+                        />
+                        <button
+                          type="button"
+                          className="entropy-row-remove"
+                          onClick={() => removeEntropyRow(row.id)}
+                          disabled={submitting || entropyRows.length <= 1}
+                          title={t('common.remove')}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                  <button
+                    type="button"
+                    className="entropy-add-btn"
+                    onClick={addEntropyRow}
+                    disabled={submitting}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    {t('ciphers.addModal.addEntropy')}
+                  </button>
+                  <p className="form-hint">{t('ciphers.addModal.entropyHint')}</p>
+                </div>
+
+                <Alert variant="warning" className="cipher-security-warning">
+                  <strong>{t('ciphers.addModal.securityTitle')}</strong>
+                  <p>{t('ciphers.addModal.securityWarning')}</p>
+                </Alert>
               </div>
-              <button
-                type="button"
-                className="entropy-add-btn"
-                onClick={addEntropyRow}
-                disabled={submitting}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-                {t('ciphers.addModal.addEntropy')}
-              </button>
-              <p className="form-hint">{t('ciphers.addModal.entropyHint')}</p>
-            </div>
 
-            <Alert variant="warning" className="cipher-security-warning">
-              <strong>{t('ciphers.addModal.securityTitle')}</strong>
-              <p>{t('ciphers.addModal.securityWarning')}</p>
-            </Alert>
-          </div>
-
-          <div className="modal-footer">
-            <Button
-              type="button"
-              onClick={handleClose}
-              className="btn btn-ghost btn-md"
-              disabled={submitting}
-            >
-              {t('common.cancel')}
-            </Button>
-            <Button
-              type="submit"
-              className="btn btn-primary btn-md"
-              disabled={submitting || !name.trim() || !hasValidEntropy}
-            >
-              {submitting ? <Spinner size="sm" /> : t('ciphers.addModal.submit')}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
+              <div className="confirm-dialog-footer">
+                <Button
+                  type="button"
+                  onClick={handleClose}
+                  className="btn btn-ghost btn-md"
+                  disabled={submitting}
+                >
+                  {t('common.cancel')}
+                </Button>
+                <Button
+                  type="submit"
+                  className="btn btn-primary btn-md"
+                  disabled={submitting || !name.trim() || !hasValidEntropy}
+                >
+                  {submitting ? <Spinner size="sm" /> : t('ciphers.addModal.submit')}
+                </Button>
+              </div>
+            </form>
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Portal>
+    </Dialog.Root>
   );
 }
 
@@ -207,8 +202,8 @@ function AddCipherModal({ isOpen, onClose, onAdd }: AddCipherModalProps) {
 
 interface EditCipherModalProps {
   cipher: DecryptedCipher | null;
-  isOpen: boolean;
-  onClose: () => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onSave: (id: string, name: string, entropyPieces: EntropyPiece[]) => Promise<void>;
 }
 
@@ -219,7 +214,7 @@ interface EditEntropyRow {
   type: EntropyPiece['type'];
 }
 
-function EditCipherModal({ cipher, isOpen, onClose, onSave }: EditCipherModalProps) {
+function EditCipherModal({ cipher, open, onOpenChange, onSave }: EditCipherModalProps) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'details' | 'entropy'>('details');
   const [name, setName] = useState('');
@@ -228,7 +223,6 @@ function EditCipherModal({ cipher, isOpen, onClose, onSave }: EditCipherModalPro
   const [error, setError] = useState<string | null>(null);
   const [entropyModified, setEntropyModified] = useState(false);
 
-  // Initialize form when cipher changes
   useEffect(() => {
     if (cipher) {
       setName(cipher.name);
@@ -279,7 +273,6 @@ function EditCipherModal({ cipher, isOpen, onClose, onSave }: EditCipherModalPro
     setError(null);
 
     try {
-      // Convert rows to entropy pieces (filter out empty ones)
       const pieces: EntropyPiece[] = entropyRows
         .filter((row) => row.value.trim().length > 0)
         .map((row) => ({
@@ -295,7 +288,7 @@ function EditCipherModal({ cipher, isOpen, onClose, onSave }: EditCipherModalPro
       }
 
       await onSave(cipher.id, name.trim(), pieces);
-      onClose();
+      onOpenChange(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('ciphers.errors.updateFailed'));
     } finally {
@@ -305,148 +298,149 @@ function EditCipherModal({ cipher, isOpen, onClose, onSave }: EditCipherModalPro
 
   const handleClose = () => {
     setError(null);
-    onClose();
+    onOpenChange(false);
   };
 
-  if (!isOpen || !cipher) return null;
-
   return (
-    <div className="modal-overlay" onClick={handleClose}>
-      <div className="modal-content modal-lg" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2 className="modal-title">{t('ciphers.editModal.title')}</h2>
-          <button type="button" className="modal-close" onClick={handleClose}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="cipher-edit-tabs">
-          <button
-            type="button"
-            className={`cipher-edit-tab ${activeTab === 'details' ? 'active' : ''}`}
-            onClick={() => setActiveTab('details')}
-          >
-            {t('ciphers.editModal.tabs.details')}
-          </button>
-          <button
-            type="button"
-            className={`cipher-edit-tab ${activeTab === 'entropy' ? 'active' : ''}`}
-            onClick={() => setActiveTab('entropy')}
-          >
-            {t('ciphers.editModal.tabs.entropy')}
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit}>
-          <div className="modal-body">
-            {error && <Alert variant="error" className="cipher-edit-error">{error}</Alert>}
-
-            {activeTab === 'details' && (
-              <div className="cipher-edit-details">
-                <div className="form-group">
-                  <label className="form-label">{t('ciphers.editModal.nameLabel')}</label>
-                  <Input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder={t('ciphers.editModal.namePlaceholder')}
-                    disabled={submitting}
-                  />
+    <Dialog.Root open={open} onOpenChange={(e) => onOpenChange(e.open)} closeOnInteractOutside={!submitting}>
+      <Portal>
+        <Dialog.Backdrop className="confirm-dialog-backdrop" />
+        <Dialog.Positioner className="confirm-dialog-positioner">
+          <Dialog.Content className="confirm-dialog-content confirm-dialog-lg">
+            {cipher && (
+              <>
+                <div className="confirm-dialog-header">
+                  <Dialog.Title className="confirm-dialog-title">{t('ciphers.editModal.title')}</Dialog.Title>
                 </div>
 
-                <div className="cipher-edit-info">
-                  <div className="cipher-edit-info-row">
-                    <span className="cipher-edit-info-label">{t('ciphers.card.cipherId')}</span>
-                    <Tooltip content={cipher.cipherId}>
-                      <code className="cipher-edit-info-value">{cipher.shortId}...</code>
-                    </Tooltip>
-                  </div>
-                  <div className="cipher-edit-info-row">
-                    <span className="cipher-edit-info-label">{t('ciphers.card.entropyPieces')}</span>
-                    <span className="cipher-edit-info-value">{cipher.entropyPieces.length}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'entropy' && (
-              <div className="cipher-edit-entropy">
-                {entropyModified && (
-                  <Alert variant="warning" className="cipher-entropy-warning">
-                    <strong>{t('ciphers.editModal.entropyWarningTitle')}</strong>
-                    <p>{t('ciphers.editModal.entropyWarning')}</p>
-                  </Alert>
-                )}
-
-                <div className="form-group">
-                  <label className="form-label">{t('ciphers.editModal.entropyLabel')}</label>
-                  <div className="entropy-rows">
-                    {entropyRows.map((row, index) => (
-                      <div key={row.id} className="entropy-row">
-                        <span className="entropy-row-number">{index + 1}</span>
-                        <Input
-                          type="text"
-                          value={row.value}
-                          onChange={(e) => updateEntropyRow(row.id, e.target.value)}
-                          placeholder={t('ciphers.editModal.entropyRowPlaceholder')}
-                          disabled={submitting}
-                        />
-                        <button
-                          type="button"
-                          className="entropy-row-remove"
-                          onClick={() => removeEntropyRow(row.id)}
-                          disabled={submitting || entropyRows.length <= 1}
-                          title={t('common.remove')}
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <line x1="18" y1="6" x2="6" y2="18" />
-                            <line x1="6" y1="6" x2="18" y2="18" />
-                          </svg>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+                <div className="cipher-edit-tabs">
                   <button
                     type="button"
-                    className="entropy-add-btn"
-                    onClick={addEntropyRow}
-                    disabled={submitting}
+                    className={`cipher-edit-tab ${activeTab === 'details' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('details')}
                   >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <line x1="12" y1="5" x2="12" y2="19" />
-                      <line x1="5" y1="12" x2="19" y2="12" />
-                    </svg>
-                    {t('ciphers.editModal.addEntropy')}
+                    {t('ciphers.editModal.tabs.details')}
                   </button>
-                  <p className="form-hint">{t('ciphers.editModal.entropyHint')}</p>
+                  <button
+                    type="button"
+                    className={`cipher-edit-tab ${activeTab === 'entropy' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('entropy')}
+                  >
+                    {t('ciphers.editModal.tabs.entropy')}
+                  </button>
                 </div>
-              </div>
-            )}
-          </div>
 
-          <div className="modal-footer">
-            <Button
-              type="button"
-              onClick={handleClose}
-              className="btn btn-ghost btn-md"
-              disabled={submitting}
-            >
-              {t('common.cancel')}
-            </Button>
-            <Button
-              type="submit"
-              className="btn btn-primary btn-md"
-              disabled={submitting || !name.trim() || !hasValidEntropy}
-            >
-              {submitting ? <Spinner size="sm" /> : t('ciphers.editModal.save')}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
+                <form onSubmit={handleSubmit}>
+                  <div className="confirm-dialog-body">
+                    {error && <Alert variant="error" className="cipher-edit-error">{error}</Alert>}
+
+                    {activeTab === 'details' && (
+                      <div className="cipher-edit-details">
+                        <div className="form-group">
+                          <label className="form-label">{t('ciphers.editModal.nameLabel')}</label>
+                          <Input
+                            type="text"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder={t('ciphers.editModal.namePlaceholder')}
+                            disabled={submitting}
+                          />
+                        </div>
+
+                        <div className="cipher-edit-info">
+                          <div className="cipher-edit-info-row">
+                            <span className="cipher-edit-info-label">{t('ciphers.card.cipherId')}</span>
+                            <Tooltip content={cipher.cipherId}>
+                              <code className="cipher-edit-info-value">{cipher.shortId}...</code>
+                            </Tooltip>
+                          </div>
+                          <div className="cipher-edit-info-row">
+                            <span className="cipher-edit-info-label">{t('ciphers.card.entropyPieces')}</span>
+                            <span className="cipher-edit-info-value">{cipher.entropyPieces.length}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeTab === 'entropy' && (
+                      <div className="cipher-edit-entropy">
+                        {entropyModified && (
+                          <Alert variant="warning" className="cipher-entropy-warning">
+                            <strong>{t('ciphers.editModal.entropyWarningTitle')}</strong>
+                            <p>{t('ciphers.editModal.entropyWarning')}</p>
+                          </Alert>
+                        )}
+
+                        <div className="form-group">
+                          <label className="form-label">{t('ciphers.editModal.entropyLabel')}</label>
+                          <div className="entropy-rows">
+                            {entropyRows.map((row, index) => (
+                              <div key={row.id} className="entropy-row">
+                                <span className="entropy-row-number">{index + 1}</span>
+                                <Input
+                                  type="text"
+                                  value={row.value}
+                                  onChange={(e) => updateEntropyRow(row.id, e.target.value)}
+                                  placeholder={t('ciphers.editModal.entropyRowPlaceholder')}
+                                  disabled={submitting}
+                                />
+                                <button
+                                  type="button"
+                                  className="entropy-row-remove"
+                                  onClick={() => removeEntropyRow(row.id)}
+                                  disabled={submitting || entropyRows.length <= 1}
+                                  title={t('common.remove')}
+                                >
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <line x1="18" y1="6" x2="6" y2="18" />
+                                    <line x1="6" y1="6" x2="18" y2="18" />
+                                  </svg>
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          <button
+                            type="button"
+                            className="entropy-add-btn"
+                            onClick={addEntropyRow}
+                            disabled={submitting}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <line x1="12" y1="5" x2="12" y2="19" />
+                              <line x1="5" y1="12" x2="19" y2="12" />
+                            </svg>
+                            {t('ciphers.editModal.addEntropy')}
+                          </button>
+                          <p className="form-hint">{t('ciphers.editModal.entropyHint')}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="confirm-dialog-footer">
+                    <Button
+                      type="button"
+                      onClick={handleClose}
+                      className="btn btn-ghost btn-md"
+                      disabled={submitting}
+                    >
+                      {t('common.cancel')}
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="btn btn-primary btn-md"
+                      disabled={submitting || !name.trim() || !hasValidEntropy}
+                    >
+                      {submitting ? <Spinner size="sm" /> : t('ciphers.editModal.save')}
+                    </Button>
+                  </div>
+                </form>
+              </>
+            )}
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Portal>
+    </Dialog.Root>
   );
 }
 
@@ -456,23 +450,22 @@ function EditCipherModal({ cipher, isOpen, onClose, onSave }: EditCipherModalPro
 
 interface ShareCipherModalProps {
   cipher: DecryptedCipher | null;
-  isOpen: boolean;
-  onClose: () => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
-function ShareCipherModal({ cipher, isOpen, onClose }: ShareCipherModalProps) {
+function ShareCipherModal({ cipher, open, onOpenChange }: ShareCipherModalProps) {
   const { t } = useTranslation();
   const toast = useToast();
   const [hasConsented, setHasConsented] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Reset consent when modal opens/closes
   useEffect(() => {
-    if (!isOpen) {
+    if (!open) {
       setHasConsented(false);
       setCopied(false);
     }
-  }, [isOpen]);
+  }, [open]);
 
   const handleCopy = async () => {
     if (!cipher) return;
@@ -491,132 +484,131 @@ function ShareCipherModal({ cipher, isOpen, onClose }: ShareCipherModalProps) {
     }
   };
 
-  if (!isOpen || !cipher) return null;
-
-  const warningBullets = t('ciphers.shareModal.warningBullets', { returnObjects: true }) as string[];
-
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content modal-md" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2 className="modal-title">{t('ciphers.shareModal.title')}</h2>
-          <button type="button" className="modal-close" onClick={onClose}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
+    <Dialog.Root open={open} onOpenChange={(e) => onOpenChange(e.open)}>
+      <Portal>
+        <Dialog.Backdrop className="confirm-dialog-backdrop" />
+        <Dialog.Positioner className="confirm-dialog-positioner">
+          <Dialog.Content className="confirm-dialog-content confirm-dialog-md">
+            {cipher && (
+              <>
+                <div className="confirm-dialog-header">
+                  <Dialog.Title className="confirm-dialog-title">{t('ciphers.shareModal.title')}</Dialog.Title>
+                </div>
 
-        <div className="modal-body">
-          {!hasConsented ? (
-            <div className="cipher-share-warning">
-              <Alert variant="warning" className="cipher-share-warning-alert">
-                <strong>{t('ciphers.shareModal.warningTitle')}</strong>
-                <p>{t('ciphers.shareModal.warningMessage')}</p>
-                <ul className="cipher-share-warning-list">
-                  {warningBullets.map((bullet, idx) => (
-                    <li key={idx}>{bullet}</li>
-                  ))}
-                </ul>
-              </Alert>
+                <div className="confirm-dialog-body">
+                  {!hasConsented ? (
+                    <div className="cipher-share-warning">
+                      <Alert variant="warning" className="cipher-share-warning-alert">
+                        <strong>{t('ciphers.shareModal.warningTitle')}</strong>
+                        <p>{t('ciphers.shareModal.warningMessage')}</p>
+                        <ul className="cipher-share-warning-list">
+                          {(t('ciphers.shareModal.warningBullets', { returnObjects: true }) as string[]).map((bullet, idx) => (
+                            <li key={idx}>{bullet}</li>
+                          ))}
+                        </ul>
+                      </Alert>
 
-              <label className="cipher-share-consent">
-                <input
-                  type="checkbox"
-                  checked={hasConsented}
-                  onChange={(e) => setHasConsented(e.target.checked)}
-                />
-                <span>{t('ciphers.shareModal.consentLabel')}</span>
-              </label>
-            </div>
-          ) : (
-            <div className="cipher-share-content">
-              <div className="cipher-share-section">
-                <h3 className="cipher-share-section-title">{t('ciphers.shareModal.copyTitle')}</h3>
-                <p className="cipher-share-section-desc">{t('ciphers.shareModal.copyDescription')}</p>
-
-                <div className="cipher-share-phrases">
-                  {cipher.entropyPieces.map((piece, idx) => (
-                    <div key={idx} className="cipher-share-phrase">
-                      <span className="cipher-share-phrase-label">
-                        {t('ciphers.shareModal.phraseLabel', { index: idx + 1 })}
-                      </span>
-                      <code className="cipher-share-phrase-value">{piece.value}</code>
+                      <label className="cipher-share-consent">
+                        <input
+                          type="checkbox"
+                          checked={hasConsented}
+                          onChange={(e) => setHasConsented(e.target.checked)}
+                        />
+                        <span>{t('ciphers.shareModal.consentLabel')}</span>
+                      </label>
                     </div>
-                  ))}
-                </div>
-
-                <Button
-                  type="button"
-                  className="btn btn-secondary btn-md cipher-share-copy-btn"
-                  onClick={handleCopy}
-                >
-                  {copied ? (
-                    <>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                      {t('ciphers.shareModal.copied')}
-                    </>
                   ) : (
-                    <>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                      </svg>
-                      {t('ciphers.shareModal.copyButton')}
-                    </>
+                    <div className="cipher-share-content">
+                      <div className="cipher-share-section">
+                        <h3 className="cipher-share-section-title">{t('ciphers.shareModal.copyTitle')}</h3>
+                        <p className="cipher-share-section-desc">{t('ciphers.shareModal.copyDescription')}</p>
+
+                        <div className="cipher-share-phrases">
+                          {cipher.entropyPieces.map((piece, idx) => (
+                            <div key={idx} className="cipher-share-phrase">
+                              <span className="cipher-share-phrase-label">
+                                {t('ciphers.shareModal.phraseLabel', { index: idx + 1 })}
+                              </span>
+                              <code className="cipher-share-phrase-value">{piece.value}</code>
+                            </div>
+                          ))}
+                        </div>
+
+                        <Button
+                          type="button"
+                          className="btn btn-secondary btn-md cipher-share-copy-btn"
+                          onClick={handleCopy}
+                        >
+                          {copied ? (
+                            <>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                              {t('ciphers.shareModal.copied')}
+                            </>
+                          ) : (
+                            <>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                              </svg>
+                              {t('ciphers.shareModal.copyButton')}
+                            </>
+                          )}
+                        </Button>
+                      </div>
+
+                      <div className="cipher-share-divider">
+                        <span>or</span>
+                      </div>
+
+                      <div className="cipher-share-section">
+                        <h3 className="cipher-share-section-title">{t('ciphers.shareModal.qrTitle')}</h3>
+                        <p className="cipher-share-section-desc">{t('ciphers.shareModal.qrDescription')}</p>
+
+                        <div className="cipher-share-qr-placeholder">
+                          <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+                            <rect x="3" y="3" width="7" height="7" />
+                            <rect x="14" y="3" width="7" height="7" />
+                            <rect x="3" y="14" width="7" height="7" />
+                            <rect x="14" y="14" width="3" height="3" />
+                            <rect x="18" y="14" width="3" height="3" />
+                            <rect x="14" y="18" width="3" height="3" />
+                            <rect x="18" y="18" width="3" height="3" />
+                          </svg>
+                          <p className="cipher-share-qr-coming-soon">QR code generation coming soon</p>
+                        </div>
+                      </div>
+                    </div>
                   )}
-                </Button>
-              </div>
-
-              <div className="cipher-share-divider">
-                <span>or</span>
-              </div>
-
-              <div className="cipher-share-section">
-                <h3 className="cipher-share-section-title">{t('ciphers.shareModal.qrTitle')}</h3>
-                <p className="cipher-share-section-desc">{t('ciphers.shareModal.qrDescription')}</p>
-
-                <div className="cipher-share-qr-placeholder">
-                  <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
-                    <rect x="3" y="3" width="7" height="7" />
-                    <rect x="14" y="3" width="7" height="7" />
-                    <rect x="3" y="14" width="7" height="7" />
-                    <rect x="14" y="14" width="3" height="3" />
-                    <rect x="18" y="14" width="3" height="3" />
-                    <rect x="14" y="18" width="3" height="3" />
-                    <rect x="18" y="18" width="3" height="3" />
-                  </svg>
-                  <p className="cipher-share-qr-coming-soon">QR code generation coming soon</p>
                 </div>
-              </div>
-            </div>
-          )}
-        </div>
 
-        <div className="modal-footer">
-          <Button
-            type="button"
-            onClick={onClose}
-            className="btn btn-ghost btn-md"
-          >
-            {t('common.close')}
-          </Button>
-          {!hasConsented && (
-            <Button
-              type="button"
-              className="btn btn-primary btn-md"
-              disabled={!hasConsented}
-              onClick={() => setHasConsented(true)}
-            >
-              {t('ciphers.shareModal.continueButton')}
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
+                <div className="confirm-dialog-footer">
+                  <Button
+                    type="button"
+                    onClick={() => onOpenChange(false)}
+                    className="btn btn-ghost btn-md"
+                  >
+                    {t('common.close')}
+                  </Button>
+                  {!hasConsented && (
+                    <Button
+                      type="button"
+                      className="btn btn-primary btn-md"
+                      disabled={!hasConsented}
+                      onClick={() => setHasConsented(true)}
+                    >
+                      {t('ciphers.shareModal.continueButton')}
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Portal>
+    </Dialog.Root>
   );
 }
 
@@ -626,23 +618,23 @@ function ShareCipherModal({ cipher, isOpen, onClose }: ShareCipherModalProps) {
 
 interface DuplicateCipherModalProps {
   cipher: DecryptedCipher | null;
-  isOpen: boolean;
-  onClose: () => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onDuplicate: (id: string, newName: string) => Promise<void>;
 }
 
-function DuplicateCipherModal({ cipher, isOpen, onClose, onDuplicate }: DuplicateCipherModalProps) {
+function DuplicateCipherModal({ cipher, open, onOpenChange, onDuplicate }: DuplicateCipherModalProps) {
   const { t } = useTranslation();
   const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (cipher && isOpen) {
+    if (cipher && open) {
       setName(t('ciphers.duplicateModal.namePlaceholder', { name: cipher.name }).replace('e.g., ', ''));
       setError(null);
     }
-  }, [cipher, isOpen, t]);
+  }, [cipher, open, t]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -653,7 +645,7 @@ function DuplicateCipherModal({ cipher, isOpen, onClose, onDuplicate }: Duplicat
 
     try {
       await onDuplicate(cipher.id, name.trim());
-      onClose();
+      onOpenChange(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('ciphers.errors.duplicateFailed'));
     } finally {
@@ -661,60 +653,61 @@ function DuplicateCipherModal({ cipher, isOpen, onClose, onDuplicate }: Duplicat
     }
   };
 
-  if (!isOpen || !cipher) return null;
-
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content modal-sm" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2 className="modal-title">{t('ciphers.duplicateModal.title')}</h2>
-          <button type="button" className="modal-close" onClick={onClose}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
+    <Dialog.Root open={open} onOpenChange={(e) => onOpenChange(e.open)} closeOnInteractOutside={!submitting}>
+      <Portal>
+        <Dialog.Backdrop className="confirm-dialog-backdrop" />
+        <Dialog.Positioner className="confirm-dialog-positioner">
+          <Dialog.Content className="confirm-dialog-content confirm-dialog-sm">
+            {cipher && (
+              <>
+                <div className="confirm-dialog-header">
+                  <Dialog.Title className="confirm-dialog-title">{t('ciphers.duplicateModal.title')}</Dialog.Title>
+                </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="modal-body">
-            <p className="cipher-duplicate-description">{t('ciphers.duplicateModal.description')}</p>
+                <form onSubmit={handleSubmit}>
+                  <div className="confirm-dialog-body">
+                    <p className="cipher-duplicate-description">{t('ciphers.duplicateModal.description')}</p>
 
-            {error && <Alert variant="error">{error}</Alert>}
+                    {error && <Alert variant="error">{error}</Alert>}
 
-            <div className="form-group">
-              <label className="form-label">{t('ciphers.duplicateModal.nameLabel')}</label>
-              <Input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t('ciphers.duplicateModal.namePlaceholder', { name: cipher.name })}
-                disabled={submitting}
-                autoFocus
-              />
-            </div>
-          </div>
+                    <div className="form-group">
+                      <label className="form-label">{t('ciphers.duplicateModal.nameLabel')}</label>
+                      <Input
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder={t('ciphers.duplicateModal.namePlaceholder', { name: cipher.name })}
+                        disabled={submitting}
+                        autoFocus
+                      />
+                    </div>
+                  </div>
 
-          <div className="modal-footer">
-            <Button
-              type="button"
-              onClick={onClose}
-              className="btn btn-ghost btn-md"
-              disabled={submitting}
-            >
-              {t('common.cancel')}
-            </Button>
-            <Button
-              type="submit"
-              className="btn btn-primary btn-md"
-              disabled={submitting || !name.trim()}
-            >
-              {submitting ? <Spinner size="sm" /> : t('ciphers.duplicateModal.submit')}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
+                  <div className="confirm-dialog-footer">
+                    <Button
+                      type="button"
+                      onClick={() => onOpenChange(false)}
+                      className="btn btn-ghost btn-md"
+                      disabled={submitting}
+                    >
+                      {t('common.cancel')}
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="btn btn-primary btn-md"
+                      disabled={submitting || !name.trim()}
+                    >
+                      {submitting ? <Spinner size="sm" /> : t('ciphers.duplicateModal.submit')}
+                    </Button>
+                  </div>
+                </form>
+              </>
+            )}
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Portal>
+    </Dialog.Root>
   );
 }
 
@@ -1030,31 +1023,31 @@ export function IdentityCiphers() {
 
       {/* Add Cipher Modal */}
       <AddCipherModal
-        isOpen={addModalOpen}
-        onClose={() => setAddModalOpen(false)}
+        open={addModalOpen}
+        onOpenChange={setAddModalOpen}
         onAdd={handleAddCipher}
       />
 
       {/* Edit Cipher Modal */}
       <EditCipherModal
         cipher={editCipher}
-        isOpen={editCipher !== null}
-        onClose={() => setEditCipher(null)}
+        open={editCipher !== null}
+        onOpenChange={(open) => { if (!open) setEditCipher(null); }}
         onSave={handleEditCipher}
       />
 
       {/* Share Cipher Modal */}
       <ShareCipherModal
         cipher={shareCipher}
-        isOpen={shareCipher !== null}
-        onClose={() => setShareCipher(null)}
+        open={shareCipher !== null}
+        onOpenChange={(open) => { if (!open) setShareCipher(null); }}
       />
 
       {/* Duplicate Cipher Modal */}
       <DuplicateCipherModal
         cipher={duplicateCipherModal}
-        isOpen={duplicateCipherModal !== null}
-        onClose={() => setDuplicateCipherModal(null)}
+        open={duplicateCipherModal !== null}
+        onOpenChange={(open) => { if (!open) setDuplicateCipherModal(null); }}
         onDuplicate={handleDuplicateCipher}
       />
 

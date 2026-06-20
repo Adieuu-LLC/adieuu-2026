@@ -297,6 +297,18 @@
     }
   }
 
+  &-sm {
+    max-width: 360px;
+  }
+
+  &-md {
+    max-width: 480px;
+  }
+
+  &-lg {
+    max-width: 640px;
+  }
+
   &-header {
     padding: var(--spacing-lg);
     padding-bottom: 0;
