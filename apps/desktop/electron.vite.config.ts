@@ -15,12 +15,30 @@ export default defineConfig({
         input: 'src/main.ts',
       },
     },
+    plugins: [
+      {
+        name: 'copy-screen-picker-html',
+        generateBundle() {
+          this.emitFile({
+            type: 'asset',
+            fileName: 'screen-picker.html',
+            source: require('fs').readFileSync(
+              path.resolve(__dirname, 'src/main-process/screen-picker.html'),
+              'utf-8',
+            ),
+          });
+        },
+      },
+    ],
   },
   preload: {
     build: {
       outDir: 'dist/preload',
       rollupOptions: {
-        input: 'src/preload.ts',
+        input: {
+          preload: 'src/preload.ts',
+          'screen-picker-preload': 'src/screen-picker-preload.ts',
+        },
         output: {
           format: 'cjs',
           entryFileNames: '[name].cjs',
