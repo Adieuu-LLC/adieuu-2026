@@ -87,7 +87,12 @@
         "dmg",
         "zip"
       ],
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "extendInfo": {
+        "NSScreenCaptureUsageDescription": "Adieuu needs screen recording access to share your screen during calls.",
+        "NSMicrophoneUsageDescription": "Adieuu needs microphone access for voice and video calls.",
+        "NSCameraUsageDescription": "Adieuu needs camera access for video calls."
+      }
     },
     "linux": {
       "target": [

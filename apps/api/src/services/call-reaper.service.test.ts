@@ -9,14 +9,19 @@ const mockPublishConversationEvent = mock(() => Promise.resolve());
 
 const mockCallRepo = {
   findAllActive: mock(() => Promise.resolve([])) as AnyMock,
+  findById: mock(() => Promise.resolve(null)) as AnyMock,
   updateStatus: mock(() => Promise.resolve(null)) as AnyMock,
+  updateParticipantLeft: mock(() => Promise.resolve(null)) as AnyMock,
 };
 
 const mockConversationRepo = {
   findById: mock(() => Promise.resolve(null)) as AnyMock,
 };
 
+const mockListParticipants = mock(() => Promise.resolve([])) as AnyMock;
+
 const mockConfig = {
+  livekit: { enabled: true },
   callReaper: {
     intervalSec: 60,
     emptyTimeoutSec: 120,
@@ -42,6 +47,7 @@ mock.module('./conversation/redis-events', () => ({
 
 mock.module('./livekit-room.service', () => ({
   deleteRoom: mock(() => Promise.resolve()),
+  listParticipants: mockListParticipants,
 }));
 
 mock.module('../utils/adieuuLogger', () => ({
@@ -84,9 +90,14 @@ describe('call-reaper.service', () => {
 
   beforeEach(() => {
     mockCallRepo.findAllActive.mockClear();
+    mockCallRepo.findById.mockClear();
     mockCallRepo.updateStatus.mockClear();
+    mockCallRepo.updateParticipantLeft.mockClear();
     mockConversationRepo.findById.mockClear();
     mockPublishConversationEvent.mockClear();
+    mockListParticipants.mockClear();
+    mockListParticipants.mockImplementation(() => Promise.resolve([]));
+    mockConfig.livekit.enabled = true;
     mockConfig.callReaper.emptyTimeoutSec = 120;
     mockConfig.callReaper.maxCallDurationSec = 24 * 60 * 60;
   });
@@ -199,5 +210,43 @@ describe('call-reaper.service', () => {
 
     expect(mockCallRepo.updateStatus).not.toHaveBeenCalled();
     expect(mockPublishConversationEvent).not.toHaveBeenCalled();
+  });
+
+  test('marks ghost participants as left when absent from LiveKit room', async () => {
+    const oldDate = new Date(Date.now() - 200_000);
+    const call = makeCall({
+      participants: [
+        { identityId: identityA, joinedAt: oldDate, mediaState: { audio: true, video: false, screenshare: false } },
+      ],
+      updatedAt: oldDate,
+      createdAt: oldDate,
+    });
+
+    const callWithLeft = {
+      ...call,
+      participants: [
+        { identityId: identityA, joinedAt: oldDate, leftAt: new Date(), mediaState: { audio: true, video: false, screenshare: false } },
+      ],
+    };
+
+    mockCallRepo.findAllActive.mockImplementation(() => Promise.resolve([call]));
+    mockListParticipants.mockImplementation(() => Promise.resolve([]));
+    mockCallRepo.updateParticipantLeft.mockImplementation(() => Promise.resolve(callWithLeft));
+    mockCallRepo.findById.mockImplementation(() => Promise.resolve(callWithLeft));
+    mockCallRepo.updateStatus.mockImplementation(() =>
+      Promise.resolve({ ...callWithLeft, status: 'ended', endedAt: new Date() }),
+    );
+    mockConversationRepo.findById.mockImplementation(() =>
+      Promise.resolve({ _id: convId, participants: [identityA, identityB] }),
+    );
+
+    await reapStaleCalls();
+
+    expect(mockCallRepo.updateParticipantLeft).toHaveBeenCalledWith(callId, identityA);
+    expect(mockCallRepo.updateStatus).toHaveBeenCalledWith(
+      callId,
+      'ended',
+      expect.objectContaining({ endedAt: expect.any(Date) }),
+    );
   });
 });

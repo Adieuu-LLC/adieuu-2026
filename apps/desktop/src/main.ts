@@ -13,9 +13,14 @@ import { registerWillNavigateGuard } from './main-process/navigation-guard';
 import { createMainWindow } from './main-process/create-main-window';
 import { initAutoUpdater, clearUpdateCheckTimer } from './main-process/auto-updater';
 import { registerMainProcessIpc } from './main-process/register-main-ipc';
+import { registerDisplayMediaHandler } from './main-process/display-media-handler';
 
 const __dirname = getMainDirname(import.meta.url);
 loadDesktopEnvIfPresent(__dirname);
+
+// if (process.platform === 'linux') {
+//   app.commandLine.appendSwitch('enable-features', 'WebRTCPipeWireCapturer');
+// }
 
 if (!app.isPackaged) {
   app.name = 'Adieuu-Dev';
@@ -84,6 +89,7 @@ app.whenReady().then(() => {
       customSchemeOrigin: CUSTOM_SCHEME_ORIGIN,
     });
   }
+  registerDisplayMediaHandler();
   app.setAsDefaultProtocolClient(CUSTOM_SCHEME);
 
   const launchUrl = process.argv.find((arg) => arg.startsWith(`${CUSTOM_SCHEME}://`));

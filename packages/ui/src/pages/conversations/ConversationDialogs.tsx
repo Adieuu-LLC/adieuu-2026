@@ -142,6 +142,7 @@ export function ConversationDialogs({
         <ExternalLinkModal
           href={pendingLinkHref}
           onClose={onCloseLinkModal}
+          identityId={selfId}
         />
       )}
     </>

@@ -54,6 +54,32 @@ export async function removeParticipant(roomName: string, identityId: string): P
   }
 }
 
+export interface LiveKitParticipant {
+  identity: string;
+  sid: string;
+  state: number;
+}
+
+/**
+ * List participants currently connected to a LiveKit room.
+ * Returns an empty array if the room doesn't exist or LiveKit is not configured.
+ */
+export async function listParticipants(roomName: string): Promise<LiveKitParticipant[]> {
+  const client = getClient();
+  if (!client) return [];
+
+  try {
+    return await client.listParticipants(roomName);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('not found') || msg.includes('room')) {
+      return [];
+    }
+    elog.warn('Failed to list LiveKit room participants', { roomName, err });
+    return [];
+  }
+}
+
 /**
  * Delete a LiveKit room entirely.
  * This force-disconnects all participants and frees all server resources.

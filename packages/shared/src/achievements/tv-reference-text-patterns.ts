@@ -22,6 +22,7 @@ export const TV_REFERENCE_DISPLAY_NAME_ACTIONS = {
   prisonMike: 'display_name_prison_mike',
   khaleesiDaenerys: 'display_name_khaleesi_daenerys',
   krustyKrab: 'display_name_krusty_krab',
+  camacho: 'display_name_camacho',
 } as const;
 
 export const TV_REFERENCE_BIO_ACTIONS = {
@@ -35,6 +36,8 @@ export const TV_REFERENCE_BIO_ACTIONS = {
   charlieBitMe: 'bio_charlie_bit_me',
   aintNobodyGotTime: 'bio_aint_nobody_got_time',
   myCabbages: 'bio_my_cabbages',
+  brawndo: 'bio_brawndo',
+  rehabilitation: 'bio_rehabilitation',
 } as const;
 
 export const TV_REFERENCE_PROFILE_ACTIONS = {
@@ -59,6 +62,10 @@ export const TV_REFERENCE_BIO_OR_MESSAGE_ACTIONS = {
   winterIsComing: 'text_winter_is_coming',
   youFatLard: 'text_you_fat_lard',
   glassCaseOfEmotion: 'text_glass_case_of_emotion',
+  notSureIf: 'text_not_sure_if',
+  whatPlantsCrave: 'text_what_plants_crave',
+  owMyBalls: 'text_ow_my_balls',
+  carlsJr: 'text_carls_jr',
 } as const;
 
 function normalize(text: string): string {
@@ -103,6 +110,14 @@ export function containsKhaleesiOrDaenerysDisplayName(displayName: string): bool
 
 export function isKrustyKrabDisplayName(displayName: string): boolean {
   return isExactDisplayName(displayName, 'Krusty Krab');
+}
+
+export function isNotSureDisplayName(displayName: string): boolean {
+  return isExactDisplayName(displayName, 'Not Sure');
+}
+
+export function containsCamachoDisplayName(displayName: string): boolean {
+  return /\bcamacho\b/i.test(displayName);
 }
 
 export function containsEventsOccurInRealTime(text: string): boolean {
@@ -224,6 +239,30 @@ export function containsMyCabbages(text: string): boolean {
   return /\bmy cabbages\b/i.test(text);
 }
 
+export function containsBrawndo(text: string): boolean {
+  return /\bbrawndo\b/i.test(text);
+}
+
+export function containsRehabilitation(text: string): boolean {
+  return /\brehabilitation\b/i.test(text);
+}
+
+export function containsNotSureIf(text: string): boolean {
+  return /not sure if/i.test(text);
+}
+
+export function containsWhatPlantsCrave(text: string): boolean {
+  return /what plants crave/i.test(text);
+}
+
+export function containsOwMyBalls(text: string): boolean {
+  return /ow,? my balls/i.test(text);
+}
+
+export function containsCarlsJr(text: string): boolean {
+  return /\bcarl'?s jr\b/i.test(text);
+}
+
 export function getTvReferenceDisplayNameAchievementActions(displayName: string): string[] {
   const bounded = textForAchievementScan(
     displayName,
@@ -260,6 +299,12 @@ export function getTvReferenceDisplayNameAchievementActions(displayName: string)
   }
   if (isKrustyKrabDisplayName(bounded)) {
     actions.push(TV_REFERENCE_DISPLAY_NAME_ACTIONS.krustyKrab);
+  }
+  if (isNotSureDisplayName(bounded)) {
+    actions.push(TV_REFERENCE_BIO_OR_MESSAGE_ACTIONS.notSureIf);
+  }
+  if (containsCamachoDisplayName(bounded)) {
+    actions.push(TV_REFERENCE_DISPLAY_NAME_ACTIONS.camacho);
   }
 
   return actions;
@@ -300,6 +345,12 @@ export function getTvReferenceBioAchievementActions(bio: string): string[] {
   }
   if (containsMyCabbages(bounded)) {
     actions.push(TV_REFERENCE_BIO_ACTIONS.myCabbages);
+  }
+  if (containsBrawndo(bounded)) {
+    actions.push(TV_REFERENCE_BIO_ACTIONS.brawndo);
+  }
+  if (containsRehabilitation(bounded)) {
+    actions.push(TV_REFERENCE_BIO_ACTIONS.rehabilitation);
   }
 
   return actions;
@@ -374,6 +425,18 @@ export function getTvReferenceBioOrMessageAchievementActions(text: string): stri
   }
   if (containsGlassCaseOfEmotion(bounded)) {
     actions.push(TV_REFERENCE_BIO_OR_MESSAGE_ACTIONS.glassCaseOfEmotion);
+  }
+  if (containsNotSureIf(bounded)) {
+    actions.push(TV_REFERENCE_BIO_OR_MESSAGE_ACTIONS.notSureIf);
+  }
+  if (containsWhatPlantsCrave(bounded)) {
+    actions.push(TV_REFERENCE_BIO_OR_MESSAGE_ACTIONS.whatPlantsCrave);
+  }
+  if (containsOwMyBalls(bounded)) {
+    actions.push(TV_REFERENCE_BIO_OR_MESSAGE_ACTIONS.owMyBalls);
+  }
+  if (containsCarlsJr(bounded)) {
+    actions.push(TV_REFERENCE_BIO_OR_MESSAGE_ACTIONS.carlsJr);
   }
 
   return actions;

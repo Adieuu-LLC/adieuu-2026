@@ -381,5 +381,33 @@ export const achievements = {
       name: 'The Earth Kingdom',
       description: 'This place is worse than Omashu!',
     },
+    notSureIf: {
+      name: "I'm Not Sure If...",
+      description: "We've reviewed all the evidence, and...",
+    },
+    presidentCamacho: {
+      name: 'Five-Time Ultimate Smackdown Champion',
+      description: "Brought to you by Carl's Jr.",
+    },
+    brawndo: {
+      name: "Brawndo's Got What Plants Crave",
+      description: "It's got electrolytes.",
+    },
+    rehabilitation: {
+      name: 'Rehabilitation',
+      description: 'An unforgettable assault on your comfort zone.',
+    },
+    whatPlantsCrave: {
+      name: 'Electrolytes',
+      description: 'Do you even know what electrolytes are?',
+    },
+    owMyBalls: {
+      name: 'Ow, My Balls!',
+      description: "America's number-one-rated hit show.",
+    },
+    carlsJr: {
+      name: "Welcome to Carl's Jr.",
+      description: 'Would you like to try our Extra Big Ass Taco?',
+    },
     sponsor: { name: 'Patron of the Arts', description: 'Sponsored another user\'s subscription.' },
 } as const;

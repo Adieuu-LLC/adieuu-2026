@@ -12,7 +12,12 @@
 
 import { WebhookReceiver, type WebhookEvent } from 'livekit-server-sdk';
 import { RoomServiceClient } from 'livekit-server-sdk';
+import { ObjectId } from 'mongodb';
 import { config } from '../../config';
+import { getCallRepository } from '../../repositories/call.repository';
+import { getConversationRepository } from '../../repositories/conversation.repository';
+import { publishConversationEvent, publishToParticipants } from '../../services/conversation/redis-events';
+import { deleteRoom as livekitDeleteRoom } from '../../services/livekit-room.service';
 import type { StreamQualityCaps } from '@adieuu/shared';
 import elog from '../../utils/adieuuLogger';
 
@@ -69,11 +74,22 @@ export function exceedsCap(
 
 /**
  * Handles a verified LiveKit webhook event.
- * Currently enforces publish-side quality caps on `track_published`.
  */
 async function handleLiveKitEvent(event: WebhookEvent): Promise<void> {
-  if (event.event !== 'track_published') return;
+  switch (event.event) {
+    case 'track_published':
+      await handleTrackPublished(event);
+      break;
+    case 'participant_left':
+      await handleParticipantLeft(event);
+      break;
+  }
+}
 
+/**
+ * Enforces publish-side quality caps by muting over-cap tracks.
+ */
+async function handleTrackPublished(event: WebhookEvent): Promise<void> {
   const { room, participant, track } = event;
   if (!room?.name || !participant?.identity || !track) return;
 
@@ -111,6 +127,71 @@ async function handleLiveKitEvent(event: WebhookEvent): Promise<void> {
       identity: participant.identity,
       trackSid: track.sid,
       err,
+    });
+  }
+}
+
+/**
+ * When LiveKit reports a participant left the media room, mark them as
+ * left in MongoDB. This catches ghost participants whose client-side
+ * leave call never reached the server (crash, network loss, etc.).
+ * If they were the last active participant, the call is auto-ended.
+ */
+async function handleParticipantLeft(event: WebhookEvent): Promise<void> {
+  const { room, participant } = event;
+  if (!room?.name || !participant?.identity) return;
+
+  const callRepo = getCallRepository();
+  const call = await callRepo.findActiveByRoomName(room.name);
+  if (!call) return;
+
+  const identityId = participant.identity;
+  const identityObjId = new ObjectId(identityId);
+
+  const isActiveParticipant = call.participants.some(
+    (p) => p.identityId.equals(identityObjId) && !p.leftAt
+  );
+  if (!isActiveParticipant) return;
+
+  const updated = await callRepo.updateParticipantLeft(call._id, identityObjId);
+  if (!updated) return;
+
+  elog.info('LiveKit webhook marked ghost participant as left', {
+    callId: call._id.toHexString(),
+    identityId,
+    roomName: room.name,
+  });
+
+  const conversationRepo = getConversationRepository();
+  const conversation = await conversationRepo.findById(call.conversationId);
+
+  const activeParticipants = updated.participants.filter((p) => !p.leftAt);
+  if (activeParticipants.length === 0) {
+    const ended = await callRepo.updateStatus(call._id, 'ended', { endedAt: new Date() });
+    if (ended) {
+      void livekitDeleteRoom(call.roomName);
+      if (conversation) {
+        await Promise.all(
+          conversation.participants.map((id: ObjectId) =>
+            publishConversationEvent(id.toHexString(), {
+              type: 'call_ended',
+              data: {
+                callId: call._id.toHexString(),
+                endedBy: identityId,
+                reason: 'last_participant_left',
+              },
+            }),
+          ),
+        );
+      }
+      elog.info('Call auto-ended after last participant left via webhook', {
+        callId: call._id.toHexString(),
+      });
+    }
+  } else if (conversation) {
+    await publishToParticipants(conversation.participants, identityObjId, {
+      type: 'call_participant_left',
+      data: { callId: call._id.toHexString(), identityId },
     });
   }
 }

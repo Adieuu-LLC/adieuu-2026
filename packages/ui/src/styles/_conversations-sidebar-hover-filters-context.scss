@@ -80,6 +80,30 @@
     }
   }
 
+  &-active-call {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    background: var(--color-accent-primary-bg, rgba(var(--color-accent-primary-rgb, 99, 102, 241), 0.1));
+    animation: conversation-call-pulse 2s ease-in-out infinite;
+
+    &-icon {
+      width: 12px;
+      height: 12px;
+      color: var(--color-accent-primary);
+      flex-shrink: 0;
+    }
+
+    &-text {
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-weight-semibold);
+      color: var(--color-accent-primary);
+    }
+  }
+
   &-members {
     &-label {
       display: block;
@@ -138,6 +162,14 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    &-call-icon {
+      width: 10px;
+      height: 10px;
+      color: var(--color-accent-primary);
+      flex-shrink: 0;
+      margin-left: 2px;
     }
 
     &-username {

@@ -655,6 +655,7 @@ export function handleConversationSocketMessage(
           emitAchievementUnlocked({
             achievementId: achData.achievementId,
             definition: achData.definition,
+            notificationId: notification.id,
           });
         }
         break;

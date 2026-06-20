@@ -2,7 +2,8 @@ import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
 import { initI18n } from '@adieuu/ui/i18n';
-import { App, PlatformProvider, AuthProvider, IdentityProvider, ThemeProvider, IconPackProvider, ToastProvider, type AppConfig, setDeviceKeyStorageBackend, setPreKeyStorageBackend, migrateIndexedDbToBackend } from '@adieuu/ui';
+import { App, PlatformProvider, AuthProvider, IdentityProvider, ThemeProvider, IconPackProvider, ToastProvider, CrashBoundary, type AppConfig, setDeviceKeyStorageBackend, setPreKeyStorageBackend, migrateIndexedDbToBackend } from '@adieuu/ui';
+import { crashReporter } from '@adieuu/ui/services/crashReporter';
 import '@adieuu/ui/icons/registry';
 import { desktopCapabilities } from './platform';
 import { API_BASE_URL, CHAT_WS_URL, LIVEKIT_URL } from './config';
@@ -59,22 +60,26 @@ function DesktopApp() {
     <>
       <WindowTitleBar />
       <DeepLinkHandler />
-      <PlatformProvider config={config} capabilities={desktopCapabilities}>
-        <ToastProvider>
-          <AuthProvider>
-            <IdentityProvider>
-              <ThemeProvider>
-                <IconPackProvider>
-                  <App />
-                </IconPackProvider>
-              </ThemeProvider>
-            </IdentityProvider>
-          </AuthProvider>
-        </ToastProvider>
-      </PlatformProvider>
+      <CrashBoundary reportEndpoint={API_BASE_URL}>
+        <PlatformProvider config={config} capabilities={desktopCapabilities}>
+          <ToastProvider>
+            <AuthProvider>
+              <IdentityProvider>
+                <ThemeProvider>
+                  <IconPackProvider>
+                    <App />
+                  </IconPackProvider>
+                </ThemeProvider>
+              </IdentityProvider>
+            </AuthProvider>
+          </ToastProvider>
+        </PlatformProvider>
+      </CrashBoundary>
     </>
   );
 }
+
+crashReporter.init({ endpoint: API_BASE_URL, platform: 'desktop' });
 
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('Root element not found');

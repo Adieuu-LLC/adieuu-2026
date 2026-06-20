@@ -1,5 +1,6 @@
 import { defineConfig } from 'electron-vite';
 import react from '@vitejs/plugin-react';
+import fs from 'fs';
 import path from 'path';
 import pkg from './package.json';
 import { cspPlugin } from '../../packages/shared/src/csp/vite-plugin-csp';
@@ -15,12 +16,30 @@ export default defineConfig({
         input: 'src/main.ts',
       },
     },
+    plugins: [
+      {
+        name: 'copy-screen-picker-html',
+        generateBundle() {
+          this.emitFile({
+            type: 'asset',
+            fileName: 'screen-picker.html',
+            source: fs.readFileSync(
+              path.resolve(__dirname, 'src/main-process/screen-picker.html'),
+              'utf-8',
+            ),
+          });
+        },
+      },
+    ],
   },
   preload: {
     build: {
       outDir: 'dist/preload',
       rollupOptions: {
-        input: 'src/preload.ts',
+        input: {
+          preload: 'src/preload.ts',
+          'screen-picker-preload': 'src/screen-picker-preload.ts',
+        },
         output: {
           format: 'cjs',
           entryFileNames: '[name].cjs',
@@ -59,6 +78,7 @@ export default defineConfig({
         // More specific paths MUST come before less specific ones
         '@adieuu/ui/styles.scss': path.resolve(__dirname, '../../packages/ui/src/styles.scss'),
         '@adieuu/ui/icons/registry': path.resolve(__dirname, '../../packages/ui/src/icons/registry.ts'),
+        '@adieuu/ui/services/crashReporter': path.resolve(__dirname, '../../packages/ui/src/services/crashReporter.ts'),
         '@adieuu/ui/i18n': path.resolve(__dirname, '../../packages/ui/src/i18n/index.ts'),
         '@adieuu/ui': path.resolve(__dirname, '../../packages/ui/src/index.ts'),
       },

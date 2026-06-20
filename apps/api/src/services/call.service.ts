@@ -244,12 +244,18 @@ export async function joinCall(
     return { success: false, error: 'Not a participant of this conversation', errorCode: 'NOT_PARTICIPANT' };
   }
 
-  // Prevent duplicate active joins
+  // If the user is already listed as active but is attempting to join again,
+  // they are a ghost participant (client crashed without calling leave).
+  // Automatically leave them first so the join can proceed.
   const alreadyActive = call.participants.some(
     (p) => p.identityId.equals(identityObjId) && !p.leftAt
   );
   if (alreadyActive) {
-    return { success: false, error: 'Already in this call', errorCode: 'ALREADY_IN_CALL' };
+    elog.warn('Ghost participant detected during join, auto-leaving before rejoin', {
+      callId, identityId, roomName: call.roomName,
+    });
+    await callRepo.updateParticipantLeft(callObjId, identityObjId);
+    void livekitRemoveParticipant(call.roomName, identityId);
   }
 
   const enforcedMedia = enforceCallSettings(mediaState, conversation);

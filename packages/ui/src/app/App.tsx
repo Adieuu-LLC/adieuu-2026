@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ComponentType, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, type ComponentType, type ReactNode } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { useIdentity } from '../hooks/useIdentity';
 import { AppLayout } from '../components/AppLayout';
@@ -267,6 +267,34 @@ function AuthRoute({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+function CrashTestLevel1(): ReactNode {
+  throw new Error('[CrashTest] Level 1: React render crash');
+}
+
+function CrashTestLevel2() {
+  useEffect(() => {
+    setTimeout(() => { throw new Error('[CrashTest] Level 2: uncaught error outside React'); }, 100);
+  }, []);
+  return (
+    <p style={{ padding: '2rem', color: '#a1a1aa' }}>
+      Level 2 fired. Check the Network tab for a <code>POST /api/client-errors</code> request.
+      This layer reports silently — the app stays running.
+    </p>
+  );
+}
+
+function CrashTestLevel3() {
+  useEffect(() => {
+    setTimeout(() => { void Promise.reject(new Error('[CrashTest] Level 3: unhandled promise rejection')); }, 100);
+  }, []);
+  return (
+    <p style={{ padding: '2rem', color: '#a1a1aa' }}>
+      Level 3 fired. Check the Network tab for a <code>POST /api/client-errors</code> request.
+      This layer reports silently — the app stays running.
+    </p>
+  );
+}
+
 /**
  * Main application component with all routes.
  * Shared across all platforms (web, desktop, mobile).
@@ -401,6 +429,15 @@ export function App() {
       <Route path="/refer/:code" element={<ReferralLanding />} />
       <Route path="/service-status" element={<ServiceStatus />} />
       <Route path="/checkout/complete" element={<CheckoutComplete />} />
+
+      {/* Dev-only crash test routes */}
+      {import.meta.env.DEV && (
+        <>
+          <Route path="/level1" element={<CrashTestLevel1 />} />
+          <Route path="/level2" element={<CrashTestLevel2 />} />
+          <Route path="/level3" element={<CrashTestLevel3 />} />
+        </>
+      )}
 
       {/* Catch-all redirect */}
       <Route path="*" element={<Navigate to="/" replace />} />

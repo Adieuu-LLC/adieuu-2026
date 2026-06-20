@@ -24,6 +24,7 @@ import {
   setLastIdentityUnlockAt,
 } from '../services/deviceKeyStorage';
 import { generateAndUploadPreKeys } from '../services/preKeyService';
+import { crashReporter } from '../services/crashReporter';
 import type {
   CreateIdentityResult,
   IdentityContextValue,
@@ -1079,6 +1080,14 @@ export interface IdentityProviderProps {
  */
 export function IdentityProvider({ children }: IdentityProviderProps) {
   const identityState = useIdentityState();
+
+  useEffect(() => {
+    if (identityState.status === 'logged_in' && identityState.identity?.username) {
+      crashReporter.setUserContext({ type: 'alias', identifier: identityState.identity.username });
+    } else if (identityState.status === 'logged_out' || identityState.status === 'no_identity') {
+      crashReporter.setUserContext(null);
+    }
+  }, [identityState.status, identityState.identity?.username]);
 
   return <IdentityContext.Provider value={identityState}>{children}</IdentityContext.Provider>;
 }

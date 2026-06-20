@@ -32,7 +32,9 @@ import { MessageMediaAttachment } from './MessageMediaAttachment';
 import { MessageGifAttachment } from './MessageGifAttachment';
 import type { MediaMessageLayout } from '../../components/MediaMessage';
 import { MessageEmbeds } from '../../components/embeds';
+import { EnableEmbedsModal } from '../../components/embeds/EnableEmbedsModal';
 import { useEmbedPreference, isDomainAllowed } from '../../hooks/useEmbedPreference';
+import { useEmbedOnboarding } from '../../hooks/useEmbedOnboarding';
 import { detectEmbeds, extractTld } from '../../utils/embedDetection';
 import type { HiddenEmbedInfo } from '../../utils/markdownParser';
 import { useAppConfig } from '../../config';
@@ -195,9 +197,11 @@ export const MessageBubble = memo(function MessageBubble({
   const { block: blockIdentity } = useBlockContext();
   const toast = useToast();
   const { apiBaseUrl } = useAppConfig();
-  const [embedPreference] = useEmbedPreference(selfId ?? '');
+  const [embedPreference, setEmbedPreference] = useEmbedPreference(selfId ?? '');
   const fetchMetadata = useMemo(() => createUnfurlFetcher(apiBaseUrl), [apiBaseUrl]);
   const [embedOverrides, setEmbedOverrides] = useState<Record<string, boolean>>({});
+  const { seen: embedOnboardingSeen, dismiss: dismissEmbedOnboarding } = useEmbedOnboarding(selfId ?? '');
+  const [enableEmbedsModalOpen, setEnableEmbedsModalOpen] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const [actionBarPopoverOpen, setActionBarPopoverOpen] = useState(false);
   const [showContextReactionPicker, setShowContextReactionPicker] = useState(false);
@@ -338,6 +342,28 @@ export const MessageBubble = memo(function MessageBubble({
     () => Object.values(embedOverrides).some((v) => v === true),
     [embedOverrides],
   );
+
+  const hasHiddenEmbeds = !!hiddenEmbedMap && hiddenEmbedMap.size > 0;
+
+  const handleAddToAllowlist = useCallback((domain: string) => {
+    if (!selfId) return;
+    const normalized = domain.replace(/^www\./, '').toLowerCase();
+    if (!embedPreference.allowlist.includes(normalized)) {
+      setEmbedPreference({
+        ...embedPreference,
+        allowlist: [...embedPreference.allowlist, normalized],
+      });
+    }
+  }, [selfId, embedPreference, setEmbedPreference]);
+
+  const handleEnableAllEmbeds = useCallback(() => {
+    if (!selfId) return;
+    setEmbedPreference({ ...embedPreference, mode: 'all' });
+    dismissEmbedOnboarding();
+    setEnableEmbedsModalOpen(false);
+  }, [selfId, embedPreference, setEmbedPreference, dismissEmbedOnboarding]);
+
+  const showEmbedOnboarding = !embedOnboardingSeen && hasHiddenEmbeds;
 
   const renderedContent = useMemo(() => {
     if (!content) return null;
@@ -625,6 +651,44 @@ export const MessageBubble = memo(function MessageBubble({
             preference={embedPreference}
             fetchMetadata={fetchMetadata}
             overrides={embedOverrides}
+            onAddToAllowlist={embedPreference.mode === 'allowlist' ? handleAddToAllowlist : undefined}
+          />
+        )}
+        {content && hasHiddenEmbeds && (
+          <div className="embed-hidden-actions">
+            {(() => {
+              const firstHidden = hiddenEmbedMap!.entries().next().value;
+              if (!firstHidden) return null;
+              const [, info] = firstHidden;
+              return (
+                <button
+                  type="button"
+                  className="embed-hidden-actions-show"
+                  onClick={() => info.onToggle()}
+                >
+                  {t('conversations.embeds.showPreview', 'Show link preview')}
+                </button>
+              );
+            })()}
+            {showEmbedOnboarding && (
+              <button
+                type="button"
+                className="embed-hidden-actions-enable-all"
+                onClick={() => setEnableEmbedsModalOpen(true)}
+              >
+                {t('conversations.embeds.enableAllPrompt', 'Enable all embeds')}
+              </button>
+            )}
+          </div>
+        )}
+        {enableEmbedsModalOpen && (
+          <EnableEmbedsModal
+            open={enableEmbedsModalOpen}
+            onEnableAll={handleEnableAllEmbeds}
+            onClose={() => {
+              setEnableEmbedsModalOpen(false);
+              dismissEmbedOnboarding();
+            }}
           />
         )}
       </>

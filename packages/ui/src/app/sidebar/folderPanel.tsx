@@ -202,7 +202,7 @@ function FolderConversationItem({
       <Menu.Root onSelect={handleContextAction}>
         <Menu.ContextTrigger asChild>
           <div className="conversation-list-item-context-anchor">
-            <SidebarConversationDmHoverCard conversation={conversation} otherUserId={otherParticipants[0]!}>
+            <SidebarConversationDmHoverCard conversation={conversation} otherUserId={otherParticipants[0]!} hasActiveCall={hasActiveCall}>
               {row}
             </SidebarConversationDmHoverCard>
           </div>
@@ -217,7 +217,7 @@ function FolderConversationItem({
       <Menu.Root onSelect={handleContextAction}>
         <Menu.ContextTrigger asChild>
           <div className="conversation-list-item-context-anchor">
-            <GroupConversationSidebarHoverCard conversation={conversation} displayName={displayName}>
+            <GroupConversationSidebarHoverCard conversation={conversation} displayName={displayName} hasActiveCall={hasActiveCall}>
               {row}
             </GroupConversationSidebarHoverCard>
           </div>

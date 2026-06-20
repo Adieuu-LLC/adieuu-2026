@@ -1213,4 +1213,100 @@
   .sidebar-toggle {
     display: none;
   }
+
+  // When the mobile menu is open, always show items in expanded style
+  // even if the sidebar was collapsed before opening.
+  .sidebar-collapsed.sidebar-mobile-open {
+    .sidebar-item {
+      justify-content: flex-start;
+      padding: var(--spacing-sm) var(--spacing-md);
+      gap: var(--spacing-md);
+
+      .sidebar-item-label {
+        display: block;
+      }
+
+      .sidebar-item-chevron {
+        display: block;
+      }
+    }
+
+    .sidebar-submenu {
+      display: flex;
+    }
+
+    .conversation-list-item {
+      position: relative;
+      justify-content: flex-start;
+      padding: var(--spacing-sm) var(--spacing-md);
+      gap: var(--spacing-sm);
+
+      &-info {
+        display: flex;
+      }
+
+      &-badges {
+        position: static;
+        top: auto;
+        right: auto;
+        pointer-events: auto;
+      }
+
+      &-star,
+      &-archive-icon {
+        display: block;
+      }
+
+      &-badge {
+        position: static;
+        top: auto;
+        right: auto;
+        min-width: revert;
+        height: revert;
+        font-size: revert;
+        padding: revert;
+      }
+
+      &-unread-dot {
+        position: static;
+        top: auto;
+        right: auto;
+        width: revert;
+        height: revert;
+      }
+    }
+
+    .sidebar-call-widget {
+      flex-direction: row;
+      align-items: center;
+      padding: var(--spacing-sm) var(--spacing-md);
+      gap: var(--spacing-sm);
+
+      .sidebar-call-widget__info {
+        justify-content: flex-start;
+      }
+
+      .sidebar-call-widget__text {
+        display: flex;
+      }
+
+      .sidebar-call-widget__actions {
+        flex-direction: row;
+        width: auto;
+      }
+
+      .sidebar-call-widget__decline,
+      .sidebar-call-widget__accept {
+        align-self: auto;
+      }
+
+      .sidebar-call-widget__leave {
+        align-self: auto;
+      }
+    }
+
+    .sidebar-section-label {
+      display: block;
+    }
+  }
 }

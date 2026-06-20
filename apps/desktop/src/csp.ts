@@ -29,6 +29,7 @@ const desktopCspManifest: Record<string, string[]> = {
   'font-src': ["'self'"],
   'img-src': [
     "'self'",
+    'https:',
     'https://media.adieuu.com',
     'https://static.klipy.com',
     mediaS3Origin,

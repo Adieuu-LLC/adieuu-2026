@@ -12,25 +12,30 @@ import type { PublicCallParticipant } from '../../hooks/useCall';
 export interface ActiveCallBannerProps {
   participantCount: number;
   participants: PublicCallParticipant[];
+  /** True when the server thinks we're in the call but we have no local session. */
+  isGhostState?: boolean;
   onJoin: () => void;
   onTroubleshoot?: () => void;
 }
 
 export function ActiveCallBanner({
   participantCount,
+  isGhostState,
   onJoin,
   onTroubleshoot,
 }: ActiveCallBannerProps) {
   const { t } = useTranslation();
 
   return (
-    <div className="active-call-banner">
+    <div className={`active-call-banner${isGhostState ? ' active-call-banner--ghost' : ''}`}>
       <div className="active-call-banner__info">
         <Icon name="phone" className="active-call-banner__icon" />
         <span className="active-call-banner__text">
-          {participantCount > 0
-            ? t('call.activeCallBanner', { count: participantCount })
-            : t('call.activeCallBannerEmpty')}
+          {isGhostState
+            ? t('call.ghostCallBanner', 'You were disconnected from this call.')
+            : participantCount > 0
+              ? t('call.activeCallBanner', { count: participantCount })
+              : t('call.activeCallBannerEmpty')}
         </span>
       </div>
       <div className="active-call-banner__actions">
@@ -50,7 +55,7 @@ export function ActiveCallBanner({
           onClick={onJoin}
         >
           <Icon name="phone" />
-          <span>{t('call.joinCall')}</span>
+          <span>{isGhostState ? t('call.rejoinCall', 'Rejoin') : t('call.joinCall')}</span>
         </Button>
       </div>
     </div>

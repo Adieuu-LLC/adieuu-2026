@@ -1248,11 +1248,11 @@ $call-overlay-title-bar-height: 32px;
 .sidebar-call-widget {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-md);
   border-radius: var(--radius-md);
   margin-bottom: var(--spacing-sm);
+  overflow: hidden;
 
   &--active {
     background: var(--color-success-bg);
@@ -1270,7 +1270,8 @@ $call-overlay-title-bar-height: 32px;
     align-items: center;
     gap: var(--spacing-sm);
     min-width: 0;
-    flex: 1;
+    flex: 1 1 0;
+    overflow: hidden;
     background: none;
     border: none;
     color: inherit;
@@ -1296,6 +1297,8 @@ $call-overlay-title-bar-height: 32px;
     display: flex;
     flex-direction: column;
     min-width: 0;
+    flex: 1 1 0;
+    overflow: hidden;
   }
 
   &__name {
@@ -1310,6 +1313,9 @@ $call-overlay-title-bar-height: 32px;
   &__status {
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   &__actions {
@@ -1326,6 +1332,58 @@ $call-overlay-title-bar-height: 32px;
   &__leave {
     color: var(--color-error);
     flex-shrink: 0;
+  }
+}
+
+@media (max-width: 1340px) {
+  .sidebar-call-widget {
+    flex-wrap: wrap;
+
+    .sidebar-call-widget__info {
+      flex: 1 1 100%;
+    }
+
+    .sidebar-call-widget__actions {
+      margin-left: auto;
+    }
+
+    .sidebar-call-widget__leave {
+      margin-left: auto;
+    }
+  }
+}
+
+@media (max-width: 815px) {
+  .sidebar-call-widget {
+    flex-direction: column;
+    align-items: stretch;
+    padding: var(--spacing-sm);
+    gap: var(--spacing-sm);
+
+    .sidebar-call-widget__info {
+      justify-content: center;
+    }
+
+    .sidebar-call-widget__text {
+      display: none;
+    }
+
+    .sidebar-call-widget__leave {
+      align-self: center;
+      padding: var(--spacing-sm) var(--spacing-md);
+    }
+
+    .sidebar-call-widget__actions {
+      flex-direction: column;
+      width: 100%;
+      gap: var(--spacing-sm);
+    }
+
+    .sidebar-call-widget__decline,
+    .sidebar-call-widget__accept {
+      align-self: center;
+      padding: var(--spacing-sm) var(--spacing-md);
+    }
   }
 }
 
