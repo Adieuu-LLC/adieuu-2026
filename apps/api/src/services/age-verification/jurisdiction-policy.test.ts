@@ -20,7 +20,11 @@ mock.module('../../utils/adieuuLogger', () => ({
   default: { warn: () => {}, info: () => {}, error: () => {}, debug: () => {} },
 }));
 
-const { getAgeVerificationPolicy, requiresAgeVerification } = await import('./jurisdiction-policy');
+const {
+  getAgeVerificationPolicy,
+  requiresAgeVerification,
+  resolveBusinessSettingsId,
+} = await import('./jurisdiction-policy');
 
 beforeEach(() => {
   mockFindByJurisdiction.mockReset();
@@ -110,5 +114,49 @@ describe('getAgeVerificationPolicy', () => {
       expect(policy.leastInvasiveMethod).toBe('Email');
       expect(policy.compatibleMethods).toContain('Email');
     }
+  });
+});
+
+describe('resolveBusinessSettingsId', () => {
+  test('falls back to platform setting when jurisdictionId is whitespace-only', async () => {
+    mockFindByKey.mockImplementation((key: string) => {
+      if (key.includes('verifymy-default-business-settings-id')) {
+        return Promise.resolve({ valueType: 'string', value: 'default-id-123' });
+      }
+      return Promise.resolve(null);
+    });
+
+    const result = await resolveBusinessSettingsId('   ');
+
+    expect(result).toBe('default-id-123');
+    expect(mockFindByKey).toHaveBeenCalledWith(
+      'platform-age-verification-verifymy-default-business-settings-id',
+    );
+  });
+
+  test('returns trimmed default ID from platform setting when valid', async () => {
+    mockFindByKey.mockImplementation((key: string) => {
+      if (key.includes('verifymy-default-business-settings-id')) {
+        return Promise.resolve({ valueType: 'string', value: '  trimmed-id  ' });
+      }
+      return Promise.resolve(null);
+    });
+
+    const result = await resolveBusinessSettingsId(undefined);
+
+    expect(result).toBe('trimmed-id');
+  });
+
+  test('returns undefined when platform default is whitespace-only', async () => {
+    mockFindByKey.mockImplementation((key: string) => {
+      if (key.includes('verifymy-default-business-settings-id')) {
+        return Promise.resolve({ valueType: 'string', value: '   ' });
+      }
+      return Promise.resolve(null);
+    });
+
+    const result = await resolveBusinessSettingsId(undefined);
+
+    expect(result).toBeUndefined();
   });
 });
