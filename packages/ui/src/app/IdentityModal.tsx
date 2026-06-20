@@ -516,14 +516,6 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
       closeOnEscape={!isNonDismissable && !webDeviceChoiceOpen && !migrationPromptOpen}
       trapFocus
       preventScroll
-      persistentElements={() => {
-        const els: HTMLElement[] = [];
-        const portalEls = document.querySelectorAll<HTMLElement>(
-          '.web-device-choice-layer-positioner, .migration-prompt-layer-positioner, .confirm-dialog-positioner'
-        );
-        portalEls.forEach((el) => els.push(el));
-        return els;
-      }}
     >
       <Portal>
         <Dialog.Backdrop className="confirm-dialog-backdrop identity-modal-backdrop" />
