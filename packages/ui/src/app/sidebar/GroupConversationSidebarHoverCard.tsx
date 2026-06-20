@@ -1,9 +1,12 @@
 import { useCallback, useMemo, useRef, useState, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import type { PublicGroupInvite } from '@adieuu/shared';
+import { createApiClient, type PublicGroupInvite } from '@adieuu/shared';
 import { HoverCard } from '../../components/HoverCard';
+import { Icon } from '../../icons/Icon';
+import { useAppConfig } from '../../config/PlatformContext';
 import { useConversations, type DecryptedConversation } from '../../hooks/useConversations';
+import { getActiveCall } from '../../services/callService';
 import { ConversationSidebarHoverMeta } from './ConversationSidebarHoverMeta';
 
 function memberSortKey(
@@ -20,18 +23,24 @@ function memberSortKey(
 export function GroupConversationSidebarHoverCard({
   conversation,
   displayName,
+  hasActiveCall,
   children,
 }: {
   conversation: DecryptedConversation;
   displayName: string;
+  hasActiveCall?: boolean;
   children: ReactElement;
 }) {
   const { t } = useTranslation();
+  const { apiBaseUrl } = useAppConfig();
   const { participantProfiles, prefetchParticipantProfiles, listPendingGroupInvites, fetchConversationById } =
     useConversations();
   const [pendingInvites, setPendingInvites] = useState<PublicGroupInvite[]>([]);
   const [invitesLoading, setInvitesLoading] = useState(false);
   const invitesFetchedRef = useRef(false);
+  const [callParticipantIds, setCallParticipantIds] = useState<Set<string>>(new Set());
+  const callFetchedRef = useRef(false);
+  const apiClient = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }).client, [apiBaseUrl]);
 
   const sortedParticipantIds = useMemo(() => {
     return [...conversation.participants].sort((a, b) =>
@@ -46,6 +55,24 @@ export function GroupConversationSidebarHoverCard({
   const handleOpen = useCallback(async () => {
     void prefetchParticipantProfiles(conversation.participants);
     void fetchConversationById(conversation.id);
+
+    if (hasActiveCall && !callFetchedRef.current) {
+      callFetchedRef.current = true;
+      try {
+        const resp = await getActiveCall(apiClient, conversation.id);
+        if (resp.success && resp.data?.call) {
+          const ids = new Set(
+            resp.data.call.participants
+              .filter((p: { leftAt?: string }) => !p.leftAt)
+              .map((p: { identityId: string }) => p.identityId),
+          );
+          setCallParticipantIds(ids);
+        }
+      } catch {
+        callFetchedRef.current = false;
+      }
+    }
+
     if (invitesFetchedRef.current) return;
     invitesFetchedRef.current = true;
     setInvitesLoading(true);
@@ -62,6 +89,8 @@ export function GroupConversationSidebarHoverCard({
   }, [
     conversation.id,
     conversation.participants,
+    hasActiveCall,
+    apiClient,
     listPendingGroupInvites,
     prefetchParticipantProfiles,
     fetchConversationById,
@@ -82,6 +111,17 @@ export function GroupConversationSidebarHoverCard({
         <span className="invite-group-hover-card-name">{displayName}</span>
         <ConversationSidebarHoverMeta conversation={conversation} />
       </div>
+
+      {hasActiveCall && (
+        <div className="invite-group-hover-card-active-call">
+          <Icon name="phone" className="invite-group-hover-card-active-call-icon" />
+          <span className="invite-group-hover-card-active-call-text">
+            {callParticipantIds.size > 0
+              ? t('call.hoverActiveCall', { count: callParticipantIds.size, defaultValue: 'Active call ({{count}} participants)' })
+              : t('call.hoverActiveCallNoCount', 'Active call')}
+          </span>
+        </div>
+      )}
 
       <div className="invite-group-hover-card-members">
         <span className="invite-group-hover-card-members-label">
@@ -119,6 +159,9 @@ export function GroupConversationSidebarHoverCard({
                     </span>
                   )}
                 </span>
+                {callParticipantIds.has(pid) && (
+                  <Icon name="phone" className="invite-group-hover-card-member-call-icon" aria-hidden />
+                )}
                 {member?.username && (
                   <span className="invite-group-hover-card-member-username">@{member.username}</span>
                 )}

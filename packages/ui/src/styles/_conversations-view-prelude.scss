@@ -50,10 +50,16 @@
   height: 12px;
   color: var(--color-text-secondary);
   flex-shrink: 0;
+  animation: conversation-call-pulse 2s ease-in-out infinite;
 
   &--joined {
     color: var(--color-accent-primary);
   }
+}
+
+@keyframes conversation-call-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 
 .conversation-list-item-archive-icon {
