@@ -51,6 +51,7 @@ const webCspManifest: Record<string, string[]> = {
     'https://verify.verifymyage.com',
   ],
   'media-src': ["'self'"],
+  'worker-src': ["'self'"],
 };
 
 export const cspManifest = mergeCspManifests(
