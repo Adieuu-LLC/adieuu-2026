@@ -8,6 +8,8 @@
 
 export interface AchievementUnlockEvent {
   achievementId: string;
+  /** Present when delivered via WS push or REST catch-up; used to mark notification read. */
+  notificationId?: string;
   definition: {
     id: string;
     name: string;

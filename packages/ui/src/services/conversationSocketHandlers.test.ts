@@ -9,6 +9,10 @@ import {
   onSupportTicketUpdated,
   setActiveSupportTicketId,
 } from './supportTicketEvents';
+import {
+  onAchievementUnlocked,
+  resetAchievementEmitHistory,
+} from './achievementEvents';
 
 function createContext() {
   const notifications: Array<{ title: string; body: string }> = [];
@@ -308,5 +312,46 @@ describe('conversationSocketHandlers', () => {
 
     notificationOnClick?.();
     expect(navigatedTo).toBe('/moderation/tickets/mongo-id-2');
+  });
+
+  test('passes notificationId when routing achievement_unlocked to event bus', () => {
+    resetAchievementEmitHistory();
+    const received: Array<{ achievementId: string; notificationId?: string }> = [];
+    const unsubscribe = onAchievementUnlocked((event) => {
+      received.push({
+        achievementId: event.achievementId,
+        notificationId: event.notificationId,
+      });
+    });
+
+    const h = createContext();
+    handleConversationSocketMessage(
+      {
+        type: 'notification_created',
+        data: {
+          notification: {
+            id: 'notif-ach-1',
+            type: 'achievement_unlocked',
+            data: {
+              achievementId: 'first-message',
+              definition: {
+                id: 'first-message',
+                name: 'achievements.firstMessage.name',
+                description: 'achievements.firstMessage.description',
+                icon: 'trophy',
+                category: 'social',
+              },
+            },
+          },
+        },
+      } as ChatIncomingMessage,
+      h.ctx,
+    );
+
+    unsubscribe();
+    expect(received).toEqual([
+      { achievementId: 'first-message', notificationId: 'notif-ach-1' },
+    ]);
+    resetAchievementEmitHistory();
   });
 });

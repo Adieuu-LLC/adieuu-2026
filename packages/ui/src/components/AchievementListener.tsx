@@ -76,6 +76,10 @@ export function AchievementListener() {
 
   const handleUnlocked = useCallback(
     (event: AchievementUnlockEvent) => {
+      if (event.notificationId) {
+        api.notifications.markAsRead([event.notificationId]).catch(() => {});
+      }
+
       const prefs = identity?.id
         ? loadAchievementPreferences(identity.id)
         : FALLBACK_ACHIEVEMENT_PREFS;
@@ -95,7 +99,7 @@ export function AchievementListener() {
         toast.info(t('achievements.unlocked'), t(event.definition.name));
       }
     },
-    [identity?.id, toast, t],
+    [identity?.id, toast, t, api],
   );
 
   useEffect(() => {
@@ -126,6 +130,7 @@ export function AchievementListener() {
               emitAchievementUnlocked({
                 achievementId: achData.achievementId,
                 definition: achData.definition,
+                notificationId: notif.id,
               });
               ids.push(notif.id);
             }
