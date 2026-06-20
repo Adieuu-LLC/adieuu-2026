@@ -19,6 +19,7 @@ import {
 } from '../services/authRestrictionFlow';
 import { ComplianceModals } from '../components/ComplianceModals';
 import { tryRedeemPendingReferral } from '../services/referralRedemption';
+import { crashReporter } from '../services/crashReporter';
 
 /** Delay (ms) before retrying the initial session check on cold start. */
 const MOUNT_RETRY_DELAY_MS = 750;
@@ -385,6 +386,14 @@ export interface AuthProviderProps {
  */
 export function AuthProvider({ children }: AuthProviderProps) {
   const auth = useAuthState();
+
+  useEffect(() => {
+    if (auth.status === 'authenticated' && auth.session?.identifier) {
+      crashReporter.setUserContext({ type: 'account', identifier: auth.session.identifier });
+    } else if (auth.status === 'unauthenticated') {
+      crashReporter.setUserContext(null);
+    }
+  }, [auth.status, auth.session?.identifier]);
 
   return (
     <AuthContext.Provider value={auth}>

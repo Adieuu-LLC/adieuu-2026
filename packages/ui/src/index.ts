@@ -74,6 +74,13 @@ export {
   getMessageLayout,
 } from './hooks/useMessageLayoutPreference';
 export type { MessageLayout } from './hooks/useMessageLayoutPreference';
+export {
+  useCrashReportingPreference,
+  setCrashReportingEnabled,
+  getCrashReportingEnabled,
+  setCrashReportingIncludeUser,
+  getCrashReportingIncludeUser,
+} from './hooks/useCrashReportingPreference';
 
 export type {
   AuthStatus,
@@ -162,6 +169,7 @@ export { AvatarGroup } from './components/AvatarGroup';
 export { KeyStorageBanner } from './components/KeyStorageBanner';
 export { ProgressBar } from './components/ProgressBar';
 export { UpdateOverlay } from './components/UpdateOverlay';
+export { CrashBoundary } from './components/CrashBoundary';
 export { ExportKeyBackupModal } from './components/ExportKeyBackupModal';
 export { ImportKeyBackupModal } from './components/ImportKeyBackupModal';
 export type { ExportKeyBackupModalProps } from './components/ExportKeyBackupModal';

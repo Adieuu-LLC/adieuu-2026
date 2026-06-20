@@ -417,6 +417,8 @@ export const Collections = {
   FEEDBACK_COMMENTS: 'feedback_comments',
   /** Per-identity feedback notification preferences */
   FEEDBACK_NOTIFICATION_PREFS: 'feedback_notification_prefs',
+  /** Client-side crash reports (TTL-indexed, auto-expire after 90 days) */
+  CLIENT_ERRORS: 'client_errors',
 } as const;
 
 /**

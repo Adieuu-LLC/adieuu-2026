@@ -59,6 +59,7 @@ export default defineConfig({
         // More specific paths MUST come before less specific ones
         '@adieuu/ui/styles.scss': path.resolve(__dirname, '../../packages/ui/src/styles.scss'),
         '@adieuu/ui/icons/registry': path.resolve(__dirname, '../../packages/ui/src/icons/registry.ts'),
+        '@adieuu/ui/services/crashReporter': path.resolve(__dirname, '../../packages/ui/src/services/crashReporter.ts'),
         '@adieuu/ui/i18n': path.resolve(__dirname, '../../packages/ui/src/i18n/index.ts'),
         '@adieuu/ui': path.resolve(__dirname, '../../packages/ui/src/index.ts'),
       },

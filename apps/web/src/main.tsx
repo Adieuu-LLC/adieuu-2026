@@ -2,7 +2,8 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { initI18n } from '@adieuu/ui/i18n';
-import { App, PlatformProvider, AuthProvider, IdentityProvider, ThemeProvider, IconPackProvider, ToastProvider, type AppConfig } from '@adieuu/ui';
+import { App, PlatformProvider, AuthProvider, IdentityProvider, ThemeProvider, IconPackProvider, ToastProvider, CrashBoundary, type AppConfig } from '@adieuu/ui';
+import { crashReporter } from '@adieuu/ui/services/crashReporter';
 import '@adieuu/ui/icons/registry';
 import { webCapabilities } from './platform';
 import '@adieuu/ui/styles.scss';
@@ -34,25 +35,29 @@ const config: AppConfig = {
   livekitUrl,
 };
 
+crashReporter.init({ endpoint: apiBaseUrl, platform: 'web' });
+
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('Root element not found');
 
 createRoot(rootElement).render(
   <StrictMode>
     <BrowserRouter>
-      <PlatformProvider config={config} capabilities={webCapabilities}>
-        <ToastProvider>
-          <AuthProvider>
-            <IdentityProvider>
-              <ThemeProvider>
-                <IconPackProvider>
-                  <App />
-                </IconPackProvider>
-              </ThemeProvider>
-            </IdentityProvider>
-          </AuthProvider>
-        </ToastProvider>
-      </PlatformProvider>
+      <CrashBoundary reportEndpoint={apiBaseUrl}>
+        <PlatformProvider config={config} capabilities={webCapabilities}>
+          <ToastProvider>
+            <AuthProvider>
+              <IdentityProvider>
+                <ThemeProvider>
+                  <IconPackProvider>
+                    <App />
+                  </IconPackProvider>
+                </ThemeProvider>
+              </IdentityProvider>
+            </AuthProvider>
+          </ToastProvider>
+        </PlatformProvider>
+      </CrashBoundary>
     </BrowserRouter>
   </StrictMode>
 );

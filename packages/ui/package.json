@@ -22,6 +22,10 @@
     "./csp": {
       "types": "./dist/csp.d.ts",
       "import": "./dist/csp.js"
+    },
+    "./services/crashReporter": {
+      "types": "./dist/services/crashReporter.d.ts",
+      "import": "./dist/services/crashReporter.js"
     }
   },
   "scripts": {

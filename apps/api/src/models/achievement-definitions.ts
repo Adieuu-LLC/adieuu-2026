@@ -681,6 +681,62 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
     category: 'profile',
     trigger: { type: 'action', action: 'bio_my_cabbages' },
   },
+  {
+    id: 'not_sure_if',
+    name: 'achievements.notSureIf.name',
+    description: 'achievements.notSureIf.description',
+    icon: 'gavel',
+    category: 'profile',
+    trigger: { type: 'action', action: 'text_not_sure_if' },
+  },
+  {
+    id: 'president_camacho',
+    name: 'achievements.presidentCamacho.name',
+    description: 'achievements.presidentCamacho.description',
+    icon: 'crown',
+    category: 'profile',
+    trigger: { type: 'action', action: 'display_name_camacho' },
+  },
+  {
+    id: 'brawndo',
+    name: 'achievements.brawndo.name',
+    description: 'achievements.brawndo.description',
+    icon: 'bottleWater',
+    category: 'profile',
+    trigger: { type: 'action', action: 'bio_brawndo' },
+  },
+  {
+    id: 'rehabilitation',
+    name: 'achievements.rehabilitation.name',
+    description: 'achievements.rehabilitation.description',
+    icon: 'building',
+    category: 'profile',
+    trigger: { type: 'action', action: 'bio_rehabilitation' },
+  },
+  {
+    id: 'what_plants_crave',
+    name: 'achievements.whatPlantsCrave.name',
+    description: 'achievements.whatPlantsCrave.description',
+    icon: 'kidneys',
+    category: 'misc',
+    trigger: { type: 'action', action: 'text_what_plants_crave' },
+  },
+  {
+    id: 'ow_my_balls',
+    name: 'achievements.owMyBalls.name',
+    description: 'achievements.owMyBalls.description',
+    icon: 'film',
+    category: 'misc',
+    trigger: { type: 'action', action: 'text_ow_my_balls' },
+  },
+  {
+    id: 'carls_jr',
+    name: 'achievements.carlsJr.name',
+    description: 'achievements.carlsJr.description',
+    icon: 'utensils',
+    category: 'misc',
+    trigger: { type: 'action', action: 'text_carls_jr' },
+  },
 
   // -- Misc --
   {
@@ -1136,6 +1192,10 @@ export const CLAIMABLE_ACTIONS = new Set([
   'text_winter_is_coming',
   'text_you_fat_lard',
   'text_glass_case_of_emotion',
+  'text_not_sure_if',
+  'text_what_plants_crave',
+  'text_ow_my_balls',
+  'text_carls_jr',
 ]);
 
 export function toPublicDefinition(def: AchievementDefinition): PublicAchievementDefinition {

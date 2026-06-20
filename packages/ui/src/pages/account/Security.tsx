@@ -10,6 +10,11 @@ import { TotpSetup, WebAuthnSetup, MfaCredentialsList } from '../../components/M
 import { createApiClient, type SessionDetails } from '@adieuu/shared';
 import { useAppConfig } from '../../config';
 import { ChangePassphrasePanel } from './ChangePassphrasePanel';
+import {
+  useCrashReportingPreference,
+  setCrashReportingEnabled,
+  setCrashReportingIncludeUser,
+} from '../../hooks/useCrashReportingPreference';
 
 const VALID_TABS = ['authentication', 'passphrase', 'sessions'] as const;
 type SecurityTab = typeof VALID_TABS[number];
@@ -260,6 +265,7 @@ export function AccountSecurity() {
   const navigate = useNavigate();
   const { apiBaseUrl } = useAppConfig();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
+  const crashReporting = useCrashReportingPreference();
 
   // Validate tab parameter and default to authentication
   const activeTab: SecurityTab = VALID_TABS.includes(tab as SecurityTab)
@@ -307,6 +313,58 @@ export function AccountSecurity() {
             </Card>
           </TabContent>
         </Tabs>
+
+        <Card variant="elevated" className="app-settings-card" style={{ marginTop: '1.5rem' }}>
+          <h2 className="app-settings-section-title">
+            {t('identity.privacy.errorReporting.title', 'Error Reporting')}
+          </h2>
+          <p className="app-settings-section-desc">
+            {t(
+              'identity.privacy.errorReporting.description',
+              'Help improve Adieuu by automatically sending crash reports when something goes wrong. Reports are anonymous by default and contain no personally identifiable information.',
+            )}
+          </p>
+
+          <label className="app-settings-toggle">
+            <input
+              type="checkbox"
+              checked={crashReporting.enabled}
+              onChange={(e) => setCrashReportingEnabled(e.target.checked)}
+            />
+            <span className="app-settings-toggle-label">
+              <span className="app-settings-toggle-title">
+                {t('identity.privacy.errorReporting.enabledLabel', 'Send anonymous crash reports')}
+              </span>
+              <span className="app-settings-toggle-hint">
+                {t(
+                  'identity.privacy.errorReporting.enabledHint',
+                  'Automatically send technical crash data (error messages, stack traces) when an error occurs. No personal data is included.',
+                )}
+              </span>
+            </span>
+          </label>
+
+          {crashReporting.enabled && (
+            <label className="app-settings-toggle">
+              <input
+                type="checkbox"
+                checked={crashReporting.includeUser}
+                onChange={(e) => setCrashReportingIncludeUser(e.target.checked)}
+              />
+              <span className="app-settings-toggle-label">
+                <span className="app-settings-toggle-title">
+                  {t('identity.privacy.errorReporting.includeContactLabel', 'Include my contact info')}
+                </span>
+                <span className="app-settings-toggle-hint">
+                  {t(
+                    'identity.privacy.errorReporting.includeContactHint',
+                    'Attach your email or phone number to crash reports so our team can reach out if needed.',
+                  )}
+                </span>
+              </span>
+            </label>
+          )}
+        </Card>
       </div>
     </div>
   );

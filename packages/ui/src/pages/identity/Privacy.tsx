@@ -31,6 +31,11 @@ import { useClaimAchievement } from '../../hooks/useClaimAchievement';
 import { useAppConfig } from '../../config';
 import { useToast } from '../../components/Toast';
 import { SessionLockedPage } from '../../components/SessionLockedPage';
+import {
+  useCrashReportingPreference,
+  setCrashReportingEnabled,
+  setCrashReportingIncludeUser,
+} from '../../hooks/useCrashReportingPreference';
 import type { SecurityLevel } from '../../services/preKeyService';
 
 // ============================================================================
@@ -475,6 +480,7 @@ export function IdentityPrivacy() {
   const [confirmUnblock, setConfirmUnblock] = useState<string | null>(null);
   const [savingApproval, setSavingApproval] = useState(false);
   const [whyAccountSignInOpen, setWhyAccountSignInOpen] = useState(false);
+  const crashReporting = useCrashReportingPreference();
 
   const isLoggedIn = identityStatus === 'logged_in';
 
@@ -525,6 +531,7 @@ export function IdentityPrivacy() {
       );
     }
     list.push({ id: 'blocked', label: t('blocked.title') });
+    list.push({ id: 'error-reporting', label: t('identity.privacy.errorReporting.title', 'Error Reporting') });
     return list;
   }, [t, isLoggedIn, identity]);
 
@@ -686,6 +693,60 @@ export function IdentityPrivacy() {
                     </Button>
                   )}
                 </div>
+              )}
+            </Card>
+            </div>
+
+            <div ref={(el) => setSectionRef('error-reporting', el)} data-section="error-reporting">
+            <Card variant="elevated" className="app-settings-card">
+              <h2 className="app-settings-section-title">
+                {t('identity.privacy.errorReporting.title', 'Error Reporting')}
+              </h2>
+              <p className="app-settings-section-desc">
+                {t(
+                  'identity.privacy.errorReporting.description',
+                  'Help improve Adieuu by automatically sending crash reports when something goes wrong. Reports are anonymous by default and contain no personally identifiable information.',
+                )}
+              </p>
+
+              <label className="app-settings-toggle">
+                <input
+                  type="checkbox"
+                  checked={crashReporting.enabled}
+                  onChange={(e) => setCrashReportingEnabled(e.target.checked)}
+                />
+                <span className="app-settings-toggle-label">
+                  <span className="app-settings-toggle-title">
+                    {t('identity.privacy.errorReporting.enabledLabel', 'Send anonymous crash reports')}
+                  </span>
+                  <span className="app-settings-toggle-hint">
+                    {t(
+                      'identity.privacy.errorReporting.enabledHint',
+                      'Automatically send technical crash data (error messages, stack traces) when an error occurs. No personal data is included.',
+                    )}
+                  </span>
+                </span>
+              </label>
+
+              {crashReporting.enabled && (
+                <label className="app-settings-toggle">
+                  <input
+                    type="checkbox"
+                    checked={crashReporting.includeUser}
+                    onChange={(e) => setCrashReportingIncludeUser(e.target.checked)}
+                  />
+                  <span className="app-settings-toggle-label">
+                    <span className="app-settings-toggle-title">
+                      {t('identity.privacy.errorReporting.includeAliasLabel', 'Include my alias handle')}
+                    </span>
+                    <span className="app-settings-toggle-hint">
+                      {t(
+                        'identity.privacy.errorReporting.includeAliasHint',
+                        'Attach your alias username to crash reports so our team can reach out if needed.',
+                      )}
+                    </span>
+                  </span>
+                </label>
               )}
             </Card>
             </div>

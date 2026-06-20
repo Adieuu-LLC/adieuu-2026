@@ -45,6 +45,7 @@ import { supportRoutes } from './support';
 import { unfurlRoutes } from './unfurl';
 import { complianceRoutes } from './compliance';
 import { feedbackRoutes } from './feedback';
+import { clientErrorRoutes } from './client-errors';
 
 /**
  * Registers all application routes with the main router.
@@ -177,4 +178,7 @@ export function registerRoutes(app: Router): void {
 
   // Community feedback board
   app.merge(feedbackRoutes, '/api');
+
+  // Client-side crash reports (anonymous, rate-limited by IP)
+  app.merge(clientErrorRoutes, '/api');
 }

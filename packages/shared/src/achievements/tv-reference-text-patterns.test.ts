@@ -30,6 +30,12 @@ describe('tv reference display name achievements', () => {
     expect(getTvReferenceDisplayNameAchievementActions('Krusty Krab')).toContain(
       TV_REFERENCE_DISPLAY_NAME_ACTIONS.krustyKrab,
     );
+    expect(getTvReferenceDisplayNameAchievementActions('Not Sure')).toContain(
+      TV_REFERENCE_BIO_OR_MESSAGE_ACTIONS.notSureIf,
+    );
+    expect(getTvReferenceDisplayNameAchievementActions('President Camacho')).toContain(
+      TV_REFERENCE_DISPLAY_NAME_ACTIONS.camacho,
+    );
   });
 });
 
@@ -73,6 +79,12 @@ describe('tv reference bio achievements', () => {
     );
     expect(getTvReferenceBioAchievementActions('my cabbages!')).toContain(
       TV_REFERENCE_BIO_ACTIONS.myCabbages,
+    );
+    expect(getTvReferenceBioAchievementActions('powered by brawndo')).toContain(
+      TV_REFERENCE_BIO_ACTIONS.brawndo,
+    );
+    expect(getTvReferenceBioAchievementActions('enrolled in rehabilitation')).toContain(
+      TV_REFERENCE_BIO_ACTIONS.rehabilitation,
     );
   });
 });
@@ -140,6 +152,18 @@ describe('tv reference bio or message achievements', () => {
     );
     expect(getTvReferenceBioOrMessageAchievementActions('glass case of emotion')).toContain(
       TV_REFERENCE_BIO_OR_MESSAGE_ACTIONS.glassCaseOfEmotion,
+    );
+    expect(getTvReferenceBioOrMessageAchievementActions("I'm not sure if that's legal")).toContain(
+      TV_REFERENCE_BIO_OR_MESSAGE_ACTIONS.notSureIf,
+    );
+    expect(getTvReferenceBioOrMessageAchievementActions("it's got what plants crave")).toContain(
+      TV_REFERENCE_BIO_OR_MESSAGE_ACTIONS.whatPlantsCrave,
+    );
+    expect(getTvReferenceBioOrMessageAchievementActions('ow, my balls')).toContain(
+      TV_REFERENCE_BIO_OR_MESSAGE_ACTIONS.owMyBalls,
+    );
+    expect(getTvReferenceBioOrMessageAchievementActions("welcome to carl's jr")).toContain(
+      TV_REFERENCE_BIO_OR_MESSAGE_ACTIONS.carlsJr,
     );
   });
 });
