@@ -325,17 +325,34 @@ export function FeedbackDetail() {
   ) => {
     if (!postId || !post) return;
     setRoadmapUpdating(true);
-    const previous = post;
-    setPost({ ...post, ...updates });
+    const previousShowOnTimeline =
+      updates.showOnTimeline !== undefined ? post.showOnTimeline : undefined;
+    const previousIsRoadmapOfficial =
+      updates.isRoadmapOfficial !== undefined ? post.isRoadmapOfficial : undefined;
+    setPost((prev) => (prev ? { ...prev, ...updates } : prev));
+    const rollbackRoadmapFields = () => {
+      setPost((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          ...(previousShowOnTimeline !== undefined && {
+            showOnTimeline: previousShowOnTimeline,
+          }),
+          ...(previousIsRoadmapOfficial !== undefined && {
+            isRoadmapOfficial: previousIsRoadmapOfficial,
+          }),
+        };
+      });
+    };
     try {
       const res = await api.feedback.updateRoadmap(postId, updates);
       if (!res.success) {
-        setPost(previous);
+        rollbackRoadmapFields();
         toast.error(t('feedback.roadmapUpdateError'));
       }
     } catch (err) {
       console.error('[FeedbackDetail] updateRoadmap failed', err);
-      setPost(previous);
+      rollbackRoadmapFields();
       toast.error(t('feedback.roadmapUpdateError'));
     } finally {
       setRoadmapUpdating(false);
