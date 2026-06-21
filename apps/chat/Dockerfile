@@ -3,7 +3,7 @@
 # uWebSockets.js ships native binaries; build target platform should match runtime (e.g. linux/arm64 for Fargate Graviton).
 
 # Trixie (or newer glibc) is required: uWebSockets.js ships native binaries that need GLIBC >= 2.38 (Bookworm is too old).
-FROM node:25-trixie-slim AS builder
+FROM node:26-trixie-slim AS builder
 WORKDIR /app
 
 RUN apt-get update \
@@ -26,7 +26,7 @@ RUN pnpm exec turbo run build --filter=@adieuu/chat
 # pnpm v10+ requires --legacy when the package has no inject-workspace-packages=true
 RUN pnpm --filter @adieuu/chat deploy --prod --legacy /out
 
-FROM node:25-trixie-slim AS runner
+FROM node:26-trixie-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
