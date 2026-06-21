@@ -34,6 +34,7 @@ mock.module('../../services/feedback.service', () => ({
   removeFeedbackUpvote: mock(async () => ({ success: true, data: undefined })),
   upvoteFeedbackPost: mock(async () => ({ success: true, data: undefined })),
   updateFeedbackStatus: mock(async () => ({ success: true, data: undefined })),
+  updateFeedbackRoadmap: mock(async () => ({ success: true, data: undefined })),
 }));
 
 const mockFindByIdentityId = mock(async (): Promise<{

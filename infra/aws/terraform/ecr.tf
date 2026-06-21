@@ -22,11 +22,12 @@ resource "aws_ecr_lifecycle_policy" "api" {
   policy = jsonencode({
     rules = [{
       rulePriority = 1
-      description  = "Keep last 10 images"
+      # Retain enough SHA-tagged builds to support task-def rollbacks/downgrades.
+      description = "Keep last 30 images"
       selection = {
         tagStatus   = "any"
         countType   = "imageCountMoreThan"
-        countNumber = 10
+        countNumber = 30
       }
       action = { type = "expire" }
     }]
@@ -39,11 +40,12 @@ resource "aws_ecr_lifecycle_policy" "chat" {
   policy = jsonencode({
     rules = [{
       rulePriority = 1
-      description  = "Keep last 10 images"
+      # Retain enough SHA-tagged builds to support task-def rollbacks/downgrades.
+      description = "Keep last 30 images"
       selection = {
         tagStatus   = "any"
         countType   = "imageCountMoreThan"
-        countNumber = 10
+        countNumber = 30
       }
       action = { type = "expire" }
     }]

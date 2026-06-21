@@ -36,6 +36,7 @@ export interface PublicFeedbackPost {
   hasStaffResponse: boolean;
   isRoadmapOfficial: boolean;
   isStaffAuthored: boolean;
+  showOnTimeline: boolean;
   hasUpvoted: boolean;
   targetReleaseDate?: string;
   releasedAt?: string;
@@ -78,6 +79,7 @@ export interface CreateFeedbackPostParams {
   category: FeedbackCategory;
   attachmentMediaIds?: string[];
   isRoadmapOfficial?: boolean;
+  showOnTimeline?: boolean;
   targetReleaseDate?: string;
   status?: FeedbackStatus;
 }
@@ -123,6 +125,13 @@ export interface FeedbackDetailResponse {
 
 export interface UpdateFeedbackStatusParams {
   status: FeedbackStatus;
+}
+
+export interface UpdateFeedbackRoadmapParams {
+  showOnTimeline?: boolean;
+  isRoadmapOfficial?: boolean;
+  /** YYYY-MM-DD to set, or null to clear. */
+  targetReleaseDate?: string | null;
 }
 
 export interface CreateFeedbackPostResponse {

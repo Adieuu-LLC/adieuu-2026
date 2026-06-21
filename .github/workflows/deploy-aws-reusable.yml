@@ -259,13 +259,42 @@ jobs:
           docker push "${IMG}:${DEPLOY_SHA}"
           docker push "${IMG}:latest"
 
-      - name: Force ECS deployment
+      # Register a new task-def revision pinned to the immutable :${DEPLOY_SHA} image so
+      # every release has a runnable revision to roll back / downgrade to. The base is the
+      # family's latest ACTIVE revision, which carries the Terraform-managed env/secrets/sizing.
+      - name: Register task definition and deploy
+        env:
+          DEPLOY_SHA: ${{ needs.changes.outputs.deploy_sha }}
         run: |
-          aws ecs update-service \
-            --cluster "${{ vars.DEPLOY_ECS_CLUSTER_NAME_ADIEUU }}" \
-            --service "${{ vars.DEPLOY_ECS_SERVICE_API_ADIEUU }}" \
-            --force-new-deployment \
-            --region "${{ env.AWS_REGION }}"
+          set -euo pipefail
+          CLUSTER="${{ vars.DEPLOY_ECS_CLUSTER_NAME_ADIEUU }}"
+          SERVICE="${{ vars.DEPLOY_ECS_SERVICE_API_ADIEUU }}"
+          IMG="${{ vars.DEPLOY_ECR_API_REPOSITORY_URL_ADIEUU }}"
+          CONTAINER="api"
+
+          CURRENT_TD=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" \
+            --query 'services[0].taskDefinition' --output text)
+          FAMILY="${CURRENT_TD##*/}"; FAMILY="${FAMILY%:*}"
+          echo "Basing new revision on latest ACTIVE revision of family: $FAMILY"
+
+          aws ecs describe-task-definition --task-definition "$FAMILY" \
+            --query 'taskDefinition' --output json > base-td.json
+
+          jq --arg IMAGE "${IMG}:${DEPLOY_SHA}" --arg NAME "$CONTAINER" '
+            .containerDefinitions |= map(if .name == $NAME then .image = $IMAGE else . end)
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                  .compatibilities, .registeredAt, .registeredBy)
+          ' base-td.json > new-td.json
+
+          NEW_TD_ARN=$(aws ecs register-task-definition --cli-input-json file://new-td.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "Registered $NEW_TD_ARN"
+
+          aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" \
+            --task-definition "$NEW_TD_ARN" --region "${{ env.AWS_REGION }}"
+
+          echo "Waiting for service to stabilize..."
+          aws ecs wait services-stable --cluster "$CLUSTER" --service "$SERVICE"
 
   deploy-chat:
     needs: changes
@@ -305,13 +334,42 @@ jobs:
           docker push "${IMG}:${DEPLOY_SHA}"
           docker push "${IMG}:latest"
 
-      - name: Force ECS deployment
+      # Register a new task-def revision pinned to the immutable :${DEPLOY_SHA} image so
+      # every release has a runnable revision to roll back / downgrade to. The base is the
+      # family's latest ACTIVE revision, which carries the Terraform-managed env/secrets/sizing.
+      - name: Register task definition and deploy
+        env:
+          DEPLOY_SHA: ${{ needs.changes.outputs.deploy_sha }}
         run: |
-          aws ecs update-service \
-            --cluster "${{ vars.DEPLOY_ECS_CLUSTER_NAME_ADIEUU }}" \
-            --service "${{ vars.DEPLOY_ECS_SERVICE_CHAT_ADIEUU }}" \
-            --force-new-deployment \
-            --region "${{ env.AWS_REGION }}"
+          set -euo pipefail
+          CLUSTER="${{ vars.DEPLOY_ECS_CLUSTER_NAME_ADIEUU }}"
+          SERVICE="${{ vars.DEPLOY_ECS_SERVICE_CHAT_ADIEUU }}"
+          IMG="${{ vars.DEPLOY_ECR_CHAT_REPOSITORY_URL_ADIEUU }}"
+          CONTAINER="chat"
+
+          CURRENT_TD=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" \
+            --query 'services[0].taskDefinition' --output text)
+          FAMILY="${CURRENT_TD##*/}"; FAMILY="${FAMILY%:*}"
+          echo "Basing new revision on latest ACTIVE revision of family: $FAMILY"
+
+          aws ecs describe-task-definition --task-definition "$FAMILY" \
+            --query 'taskDefinition' --output json > base-td.json
+
+          jq --arg IMAGE "${IMG}:${DEPLOY_SHA}" --arg NAME "$CONTAINER" '
+            .containerDefinitions |= map(if .name == $NAME then .image = $IMAGE else . end)
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                  .compatibilities, .registeredAt, .registeredBy)
+          ' base-td.json > new-td.json
+
+          NEW_TD_ARN=$(aws ecs register-task-definition --cli-input-json file://new-td.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "Registered $NEW_TD_ARN"
+
+          aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" \
+            --task-definition "$NEW_TD_ARN" --region "${{ env.AWS_REGION }}"
+
+          echo "Waiting for service to stabilize..."
+          aws ecs wait services-stable --cluster "$CLUSTER" --service "$SERVICE"
 
   deploy-lambdas:
     needs: changes

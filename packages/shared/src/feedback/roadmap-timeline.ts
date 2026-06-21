@@ -17,6 +17,7 @@ export interface RoadmapTimelinePostInput {
   postId: string;
   status: FeedbackStatus;
   isRoadmapOfficial: boolean;
+  showOnTimeline?: boolean;
   targetReleaseDate?: string | Date | null;
   releasedAt?: string | Date | null;
   statusChangedAt?: string | Date | null;
