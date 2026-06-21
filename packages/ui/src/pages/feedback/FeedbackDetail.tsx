@@ -14,7 +14,7 @@ import {
   type PublicFeedbackPost,
   type RelatedFeedbackPost,
 } from '@adieuu/shared';
-import { Select, Portal, createListCollection } from '@ark-ui/react';
+import { Select, Switch, Portal, createListCollection } from '@ark-ui/react';
 import { useAppConfig } from '../../config';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
@@ -117,6 +117,7 @@ export function FeedbackDetail() {
   const [replySubmitting, setReplySubmitting] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [roadmapUpdating, setRoadmapUpdating] = useState(false);
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   const [linkSubmitting, setLinkSubmitting] = useState(false);
   const [relatedPostsExpanded, setRelatedPostsExpanded] = useState(false);
@@ -319,6 +320,45 @@ export function FeedbackDetail() {
     }
   };
 
+  const handleRoadmapUpdate = async (
+    updates: { showOnTimeline?: boolean; isRoadmapOfficial?: boolean },
+  ) => {
+    if (!postId || !post) return;
+    setRoadmapUpdating(true);
+    const previousShowOnTimeline =
+      updates.showOnTimeline !== undefined ? post.showOnTimeline : undefined;
+    const previousIsRoadmapOfficial =
+      updates.isRoadmapOfficial !== undefined ? post.isRoadmapOfficial : undefined;
+    setPost((prev) => (prev ? { ...prev, ...updates } : prev));
+    const rollbackRoadmapFields = () => {
+      setPost((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          ...(previousShowOnTimeline !== undefined && {
+            showOnTimeline: previousShowOnTimeline,
+          }),
+          ...(previousIsRoadmapOfficial !== undefined && {
+            isRoadmapOfficial: previousIsRoadmapOfficial,
+          }),
+        };
+      });
+    };
+    try {
+      const res = await api.feedback.updateRoadmap(postId, updates);
+      if (!res.success) {
+        rollbackRoadmapFields();
+        toast.error(t('feedback.roadmapUpdateError'));
+      }
+    } catch (err) {
+      console.error('[FeedbackDetail] updateRoadmap failed', err);
+      rollbackRoadmapFields();
+      toast.error(t('feedback.roadmapUpdateError'));
+    } finally {
+      setRoadmapUpdating(false);
+    }
+  };
+
   const handleLinkPost = async (linkedPostId: string, linkType: FeedbackLinkType) => {
     if (!postId) return;
     if (!requireIdentitySession()) {
@@ -403,6 +443,9 @@ export function FeedbackDetail() {
               <span className={`feedback-status-badge feedback-status-${post.status}`}>
                 {t(`feedback.statuses.${post.status}`)}
               </span>
+              {post.isRoadmapOfficial && (
+                <span className="feedback-official-badge">{t('feedback.officialBadge')}</span>
+              )}
             </div>
 
             {currentIdentityId === post.author.identityId ? (
@@ -504,6 +547,42 @@ export function FeedbackDetail() {
                   </Select.Positioner>
                 </Portal>
               </Select.Root>
+
+              <div className="feedback-roadmap-admin">
+                <Switch.Root
+                  checked={post.showOnTimeline}
+                  disabled={roadmapUpdating}
+                  onCheckedChange={(d) =>
+                    void handleRoadmapUpdate({ showOnTimeline: d.checked === true })
+                  }
+                  className="sidebar-filter-switch"
+                >
+                  <Switch.Label className="sidebar-filter-switch-label">
+                    {t('feedback.showOnTimeline')}
+                  </Switch.Label>
+                  <Switch.Control className="sidebar-filter-switch-control">
+                    <Switch.Thumb className="sidebar-filter-switch-thumb" />
+                  </Switch.Control>
+                  <Switch.HiddenInput />
+                </Switch.Root>
+
+                <Switch.Root
+                  checked={post.isRoadmapOfficial}
+                  disabled={roadmapUpdating}
+                  onCheckedChange={(d) =>
+                    void handleRoadmapUpdate({ isRoadmapOfficial: d.checked === true })
+                  }
+                  className="sidebar-filter-switch"
+                >
+                  <Switch.Label className="sidebar-filter-switch-label">
+                    {t('feedback.markOfficial')}
+                  </Switch.Label>
+                  <Switch.Control className="sidebar-filter-switch-control">
+                    <Switch.Thumb className="sidebar-filter-switch-thumb" />
+                  </Switch.Control>
+                  <Switch.HiddenInput />
+                </Switch.Root>
+              </div>
             </div>
           )}
         </Card>

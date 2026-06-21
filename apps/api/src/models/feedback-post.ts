@@ -22,8 +22,11 @@ export interface FeedbackPostDocument extends BaseDocument {
   hasStaffResponse: boolean;
   /** @deprecated Legacy field; no longer used in UI */
   isOfficial?: boolean;
+  /** Official team tag (e.g. "created by staff"); display-only, independent of timeline. */
   isRoadmapOfficial: boolean;
   isStaffAuthored: boolean;
+  /** Whether this post appears on the public roadmap/timeline. */
+  showOnTimeline: boolean;
   targetReleaseDate?: Date;
   releasedAt?: Date;
   statusChangedAt?: Date;
@@ -41,5 +44,6 @@ export interface CreateFeedbackPostInput {
   status?: FeedbackStatus;
   isRoadmapOfficial?: boolean;
   isStaffAuthored?: boolean;
+  showOnTimeline?: boolean;
   targetReleaseDate?: Date;
 }

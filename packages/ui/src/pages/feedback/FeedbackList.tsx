@@ -411,6 +411,11 @@ export function FeedbackList() {
                             {t(`feedback.statuses.${post.status}`)}
                           </span>
                         )}
+                        {post.isRoadmapOfficial && (
+                          <span className="feedback-official-badge">
+                            {t('feedback.officialBadge')}
+                          </span>
+                        )}
                         {post.hasStaffResponse && (
                           <span className="feedback-staff-response-badge">
                             {t('feedback.staffResponse')}

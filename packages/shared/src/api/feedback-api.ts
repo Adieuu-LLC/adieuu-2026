@@ -11,6 +11,7 @@ import type {
   PublicFeedbackComment,
   RoadmapTimelineResponseData,
   UpdateFeedbackNotificationPrefsParams,
+  UpdateFeedbackRoadmapParams,
   UpdateFeedbackStatusParams,
 } from './feedback-types';
 
@@ -75,6 +76,16 @@ export class FeedbackApi {
   ): Promise<ApiResponse<void>> {
     return this.client.patch(
       `/api/feedback/${encodeURIComponent(postId)}/status`,
+      params,
+    );
+  }
+
+  async updateRoadmap(
+    postId: string,
+    params: UpdateFeedbackRoadmapParams,
+  ): Promise<ApiResponse<void>> {
+    return this.client.patch(
+      `/api/feedback/${encodeURIComponent(postId)}/roadmap`,
       params,
     );
   }

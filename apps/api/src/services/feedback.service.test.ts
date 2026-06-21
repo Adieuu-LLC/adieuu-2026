@@ -24,6 +24,7 @@ mock.module('./rate-limit.service', () => ({
 const mockCreatePost = mock(async (_input: unknown): Promise<FeedbackPostDocument | null> => null);
 const mockFindByPostId = mock((): any => Promise.resolve(null));
 const mockUpdateStatus = mock((): any => Promise.resolve(null));
+const mockUpdateRoadmapSettings = mock((): any => Promise.resolve(null));
 const mockListRoadmapTimelinePosts = mock((): any => Promise.resolve([]));
 
 mock.module('../repositories/feedback-post.repository', () => ({
@@ -31,6 +32,7 @@ mock.module('../repositories/feedback-post.repository', () => ({
     createPost: mockCreatePost,
     findByPostId: mockFindByPostId,
     updateStatus: mockUpdateStatus,
+    updateRoadmapSettings: mockUpdateRoadmapSettings,
     listRoadmapTimelinePosts: mockListRoadmapTimelinePosts,
   }),
 }));
@@ -99,6 +101,7 @@ mock.module('../repositories/feedback-notification-prefs.repository', () => ({
 const {
   createFeedbackPost,
   updateFeedbackStatus,
+  updateFeedbackRoadmap,
   getRoadmapTimelinePosts,
 } = await import('./feedback.service');
 
@@ -139,6 +142,7 @@ describe('feedback.service', () => {
     mockUpdateStatus.mockClear();
     mockListRoadmapTimelinePosts.mockClear();
     mockCheckAndAward.mockClear();
+    mockUpdateRoadmapSettings.mockClear();
     mockGetPlatformCapabilities.mockReset();
     mockGetPlatformCapabilities.mockResolvedValue({
       isPlatformAdmin: false,
@@ -150,6 +154,7 @@ describe('feedback.service', () => {
         postId: (input as { postId?: string }).postId ?? 'FB-created',
         status: (input as { status?: FeedbackPostDocument['status'] }).status,
         isRoadmapOfficial: (input as { isRoadmapOfficial?: boolean }).isRoadmapOfficial,
+        showOnTimeline: (input as { showOnTimeline?: boolean }).showOnTimeline,
         targetReleaseDate: (input as { targetReleaseDate?: Date }).targetReleaseDate,
       }),
     );
@@ -249,7 +254,7 @@ describe('feedback.service', () => {
     );
   });
 
-  test('createFeedbackPost requires official flag when setting initial status', async () => {
+  test('createFeedbackPost allows setting initial status without official flag', async () => {
     setStaffDevCapabilities();
 
     const result = await createFeedbackPost(
@@ -263,11 +268,40 @@ describe('feedback.service', () => {
       [ADIEUU_DEV_ENTITLEMENT],
     );
 
-    expect(result.success).toBe(false);
-    if (!result.success) expect(result.errorCode).toBe('FORBIDDEN');
+    expect(result.success).toBe(true);
+    expect(mockCreatePost).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'planned',
+        isRoadmapOfficial: false,
+        showOnTimeline: false,
+      }),
+    );
   });
 
-  test('createFeedbackPost forces official when target release date is provided', async () => {
+  test('createFeedbackPost marks showOnTimeline when add-to-timeline is set', async () => {
+    setStaffDevCapabilities();
+
+    const result = await createFeedbackPost(
+      identity,
+      {
+        title: 'Roadmap item',
+        description: 'Details here',
+        category: 'feature',
+        showOnTimeline: true,
+      },
+      [ADIEUU_DEV_ENTITLEMENT],
+    );
+
+    expect(result.success).toBe(true);
+    expect(mockCreatePost).toHaveBeenCalledWith(
+      expect.objectContaining({
+        showOnTimeline: true,
+        isRoadmapOfficial: false,
+      }),
+    );
+  });
+
+  test('createFeedbackPost does not force official when target release date is provided', async () => {
     setStaffDevCapabilities();
 
     const result = await createFeedbackPost(
@@ -284,7 +318,8 @@ describe('feedback.service', () => {
     expect(result.success).toBe(true);
     expect(mockCreatePost).toHaveBeenCalledWith(
       expect.objectContaining({
-        isRoadmapOfficial: true,
+        isRoadmapOfficial: false,
+        showOnTimeline: true,
         targetReleaseDate: new Date('2026-09-01T00:00:00.000Z'),
       }),
     );
@@ -389,6 +424,51 @@ describe('feedback.service', () => {
       expect(result.errorCode).toBe('NOT_FOUND');
     }
     expect(mockCheckAndAward).not.toHaveBeenCalled();
+  });
+
+  test('updateFeedbackRoadmap requires staff dev access', async () => {
+    const result = await updateFeedbackRoadmap(
+      'FB-roadmap',
+      identity,
+      { showOnTimeline: true },
+      [ADIEUU_DEV_ENTITLEMENT],
+    );
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorCode).toBe('FORBIDDEN');
+    expect(mockUpdateRoadmapSettings).not.toHaveBeenCalled();
+  });
+
+  test('updateFeedbackRoadmap toggles showOnTimeline for staff dev', async () => {
+    setStaffDevCapabilities();
+    mockFindByPostId.mockResolvedValue(
+      makeCreatedPost({ postId: 'FB-roadmap', status: 'released' }),
+    );
+    mockUpdateRoadmapSettings.mockResolvedValue(
+      makeCreatedPost({ postId: 'FB-roadmap', status: 'released', showOnTimeline: true }),
+    );
+
+    const result = await updateFeedbackRoadmap(
+      'FB-roadmap',
+      identity,
+      { showOnTimeline: true },
+      [ADIEUU_DEV_ENTITLEMENT],
+    );
+
+    expect(result.success).toBe(true);
+    expect(mockUpdateRoadmapSettings).toHaveBeenCalledWith(
+      'FB-roadmap',
+      expect.objectContaining({ showOnTimeline: true }),
+    );
+  });
+
+  test('updateFeedbackRoadmap rejects empty update', async () => {
+    setStaffDevCapabilities();
+
+    const result = await updateFeedbackRoadmap('FB-roadmap', identity, {}, [ADIEUU_DEV_ENTITLEMENT]);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorCode).toBe('INVALID_STATUS');
   });
 
   test('getRoadmapTimelinePosts returns repository posts', async () => {

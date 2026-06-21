@@ -94,6 +94,36 @@ data "aws_iam_policy_document" "github_actions_deploy" {
     ]
   }
 
+  # Register a new SHA-pinned task-def revision per deploy (layered on the Terraform base).
+  # RegisterTaskDefinition/DescribeTaskDefinition do not support resource-level scoping.
+  statement {
+    sid    = "EcsRegisterTaskDefinition"
+    effect = "Allow"
+    actions = [
+      "ecs:RegisterTaskDefinition",
+      "ecs:DescribeTaskDefinition",
+    ]
+    resources = ["*"]
+  }
+
+  # RegisterTaskDefinition requires passing the task + execution roles to ECS.
+  statement {
+    sid    = "EcsPassTaskRoles"
+    effect = "Allow"
+    actions = [
+      "iam:PassRole",
+    ]
+    resources = [
+      aws_iam_role.ecs_task.arn,
+      aws_iam_role.ecs_task_execution.arn,
+    ]
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["ecs-tasks.amazonaws.com"]
+    }
+  }
+
   dynamic "statement" {
     for_each = local.public_dns_tls_enabled ? [1] : []
     content {

@@ -18,6 +18,10 @@ resource "aws_ecs_task_definition" "api" {
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
   task_role_arn            = aws_iam_role.ecs_task.arn
 
+  # Keep prior revisions ACTIVE so they remain runnable for rollbacks/downgrades.
+  # CI registers SHA-pinned revisions on top of this Terraform-managed base.
+  skip_destroy = true
+
   runtime_platform {
     cpu_architecture        = "ARM64"
     operating_system_family = "LINUX"
@@ -69,6 +73,10 @@ resource "aws_ecs_task_definition" "chat" {
   memory                   = var.chat_task_memory
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
   task_role_arn            = aws_iam_role.ecs_task.arn
+
+  # Keep prior revisions ACTIVE so they remain runnable for rollbacks/downgrades.
+  # CI registers SHA-pinned revisions on top of this Terraform-managed base.
+  skip_destroy = true
 
   runtime_platform {
     cpu_architecture        = "ARM64"
@@ -143,7 +151,10 @@ resource "aws_ecs_service" "api" {
   ]
 
   lifecycle {
-    ignore_changes = [desired_count]
+    # CI registers SHA-pinned task-def revisions and points the service at them, so
+    # Terraform must not revert the running revision back to its base. The TF task def
+    # is the desired-config base; CI rolls it out with the application image per release.
+    ignore_changes = [desired_count, task_definition]
   }
 
   tags = local.common_tags
@@ -179,7 +190,10 @@ resource "aws_ecs_service" "chat" {
   ]
 
   lifecycle {
-    ignore_changes = [desired_count]
+    # CI registers SHA-pinned task-def revisions and points the service at them, so
+    # Terraform must not revert the running revision back to its base. The TF task def
+    # is the desired-config base; CI rolls it out with the application image per release.
+    ignore_changes = [desired_count, task_definition]
   }
 
   tags = local.common_tags

@@ -206,6 +206,7 @@ export interface CreateFeedbackPostInput {
   category: string;
   attachmentMediaIds?: string[];
   isRoadmapOfficial?: boolean;
+  showOnTimeline?: boolean;
   targetReleaseDate?: string;
   status?: string;
 }
@@ -254,10 +255,13 @@ export async function createFeedbackPost(
     return attachmentResult;
   }
 
+  // "Official", "show on timeline", target date, and initial status are all
+  // independent staff-only fields. Any of them requires the privileged role.
   const wantsRoadmapOfficial = input.isRoadmapOfficial === true;
   const wantsTargetDate = Boolean(input.targetReleaseDate?.trim());
+  const wantsTimeline = input.showOnTimeline === true;
   const wantsStatus = input.status !== undefined && input.status !== 'submitted';
-  const hasPrivilegedFields = wantsRoadmapOfficial || wantsTargetDate || wantsStatus;
+  const hasPrivilegedFields = wantsRoadmapOfficial || wantsTargetDate || wantsTimeline || wantsStatus;
 
   if (hasPrivilegedFields) {
     const allowed = await canManageFeedbackCreateFields(identity, sessionEntitlements);
@@ -282,10 +286,10 @@ export async function createFeedbackPost(
     initialStatus = input.status as FeedbackStatus;
   }
 
-  const isRoadmapOfficial = wantsRoadmapOfficial || Boolean(parsedTargetDate);
-  if (initialStatus !== 'submitted' && !isRoadmapOfficial) {
-    return { success: false, error: 'Official roadmap entry required for initial status', errorCode: 'FORBIDDEN' };
-  }
+  // "Official" is a display-only tag, no longer tied to timeline visibility.
+  const isRoadmapOfficial = wantsRoadmapOfficial;
+  // Providing a target release date implies the entry belongs on the timeline.
+  const showOnTimeline = wantsTimeline || Boolean(parsedTargetDate);
 
   const postRepo = getFeedbackPostRepository();
   const post = await postRepo.createPost({
@@ -299,6 +303,7 @@ export async function createFeedbackPost(
     status: initialStatus,
     isRoadmapOfficial,
     isStaffAuthored: canStaffSubmit,
+    showOnTimeline,
     targetReleaseDate: parsedTargetDate,
   });
 
@@ -741,6 +746,61 @@ export async function updateFeedbackStatus(
     post.category,
     newStatus as FeedbackStatus,
   );
+  return { success: true, data: undefined };
+}
+
+export interface UpdateFeedbackRoadmapInput {
+  showOnTimeline?: boolean;
+  isRoadmapOfficial?: boolean;
+  /** YYYY-MM-DD string to set the date, or null to clear it. */
+  targetReleaseDate?: string | null;
+}
+
+export async function updateFeedbackRoadmap(
+  postId: string,
+  identity: IdentityDocument,
+  input: UpdateFeedbackRoadmapInput,
+  sessionEntitlements: string[] = [],
+): Promise<ServiceResult<void>> {
+  const allowed = await canManageFeedbackStatus(identity, sessionEntitlements);
+  if (!allowed) {
+    return { success: false, error: 'Forbidden', errorCode: 'FORBIDDEN' };
+  }
+
+  const hasUpdate =
+    input.showOnTimeline !== undefined ||
+    input.isRoadmapOfficial !== undefined ||
+    input.targetReleaseDate !== undefined;
+  if (!hasUpdate) {
+    return { success: false, error: 'No fields to update', errorCode: 'INVALID_STATUS' };
+  }
+
+  let parsedTargetDate: Date | null | undefined;
+  if (input.targetReleaseDate === null) {
+    parsedTargetDate = null;
+  } else if (input.targetReleaseDate !== undefined) {
+    const trimmed = input.targetReleaseDate.trim();
+    parsedTargetDate = trimmed.length === 0 ? null : parseTargetReleaseDate(trimmed) ?? undefined;
+    if (parsedTargetDate === undefined) {
+      return { success: false, error: 'Invalid target release date', errorCode: 'INVALID_STATUS' };
+    }
+  }
+
+  const postRepo = getFeedbackPostRepository();
+  const post = await postRepo.findByPostId(postId);
+  if (!post) {
+    return { success: false, error: 'Post not found', errorCode: 'NOT_FOUND' };
+  }
+
+  const updated = await postRepo.updateRoadmapSettings(postId, {
+    showOnTimeline: input.showOnTimeline,
+    isRoadmapOfficial: input.isRoadmapOfficial,
+    targetReleaseDate: parsedTargetDate,
+  });
+  if (!updated) {
+    return { success: false, error: 'Post not found', errorCode: 'NOT_FOUND' };
+  }
+
   return { success: true, data: undefined };
 }
 

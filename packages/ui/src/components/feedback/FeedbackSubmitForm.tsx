@@ -30,6 +30,7 @@ export interface FeedbackSubmitFormValues {
   description: string;
   attachmentMediaIds: string[];
   isRoadmapOfficial?: boolean;
+  showOnTimeline?: boolean;
   targetReleaseDate?: string;
   status?: FeedbackStatus;
 }
@@ -81,10 +82,6 @@ export function FeedbackSubmitForm({ submitting, onSubmit, onCancel }: FeedbackS
     [t],
   );
 
-  const officialLocked = addToTimeline;
-  const effectiveOfficial = officialLocked || isRoadmapOfficial;
-  const canSelectStatus = showPrivilegedFields && effectiveOfficial;
-
   const canSubmit =
     category !== '' &&
     title.trim().length > 0 &&
@@ -92,13 +89,6 @@ export function FeedbackSubmitForm({ submitting, onSubmit, onCancel }: FeedbackS
     title.length <= MAX_FEEDBACK_TITLE_LENGTH &&
     description.length <= MAX_FEEDBACK_BODY_LENGTH &&
     attachments.length <= MAX_FEEDBACK_ATTACHMENTS;
-
-  const handleTimelineChange = useCallback((checked: boolean) => {
-    setAddToTimeline(checked);
-    if (checked) {
-      setIsRoadmapOfficial(true);
-    }
-  }, []);
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
@@ -110,23 +100,21 @@ export function FeedbackSubmitForm({ submitting, onSubmit, onCancel }: FeedbackS
         title: title.trim(),
         description: description.trim(),
         attachmentMediaIds: attachments.map((a) => a.mediaId),
-        ...(showPrivilegedFields && effectiveOfficial ? { isRoadmapOfficial: true } : {}),
+        ...(showPrivilegedFields && isRoadmapOfficial ? { isRoadmapOfficial: true } : {}),
+        ...(showPrivilegedFields && addToTimeline ? { showOnTimeline: true } : {}),
         ...(showPrivilegedFields && addToTimeline && targetReleaseDate.trim()
           ? { targetReleaseDate: targetReleaseDate.trim() }
           : {}),
-        ...(showPrivilegedFields && canSelectStatus && status
-          ? { status: status as FeedbackStatus }
-          : {}),
+        ...(showPrivilegedFields && status ? { status: status as FeedbackStatus } : {}),
       });
     },
     [
       addToTimeline,
       attachments,
-      canSelectStatus,
       canSubmit,
       category,
       description,
-      effectiveOfficial,
+      isRoadmapOfficial,
       onSubmit,
       showPrivilegedFields,
       status,
@@ -201,7 +189,7 @@ export function FeedbackSubmitForm({ submitting, onSubmit, onCancel }: FeedbackS
         <div className="feedback-submit-privileged-fields">
           <Checkbox.Root
             checked={addToTimeline}
-            onCheckedChange={(e) => handleTimelineChange(e.checked === true)}
+            onCheckedChange={(e) => setAddToTimeline(e.checked === true)}
             className="feedback-official-checkbox"
           >
             <Checkbox.Control className="fs-checkbox-control" />
@@ -222,8 +210,7 @@ export function FeedbackSubmitForm({ submitting, onSubmit, onCancel }: FeedbackS
           )}
 
           <Checkbox.Root
-            checked={effectiveOfficial}
-            disabled={officialLocked}
+            checked={isRoadmapOfficial}
             onCheckedChange={(e) => setIsRoadmapOfficial(e.checked === true)}
             className="feedback-official-checkbox"
           >
@@ -240,7 +227,6 @@ export function FeedbackSubmitForm({ submitting, onSubmit, onCancel }: FeedbackS
             <Select.Root
               collection={statusCollection}
               value={status ? [status] : []}
-              disabled={!canSelectStatus}
               onValueChange={(d) => setStatus((d.value[0] as FeedbackStatus) ?? '')}
             >
               <Select.Control className="report-select-control">

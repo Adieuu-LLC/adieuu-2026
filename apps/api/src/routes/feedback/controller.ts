@@ -44,6 +44,7 @@ import {
   resolveFeedbackAuthors,
   upvoteFeedbackPost,
   updateFeedbackStatus,
+  updateFeedbackRoadmap,
 } from '../../services/feedback.service';
 
 export type FeedbackFailureKind =
@@ -65,6 +66,7 @@ export const CreateFeedbackPostSchema = z.object({
   category: z.enum(FEEDBACK_CATEGORIES as unknown as [string, ...string[]]),
   attachmentMediaIds: z.array(z.string().min(1).max(200)).max(MAX_FEEDBACK_ATTACHMENTS).optional(),
   isRoadmapOfficial: z.boolean().optional(),
+  showOnTimeline: z.boolean().optional(),
   targetReleaseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   status: z.enum(FEEDBACK_STATUSES as unknown as [string, ...string[]]).optional(),
 });
@@ -101,6 +103,22 @@ export const CreateFeedbackCommentSchema = z
 export const UpdateFeedbackStatusSchema = z.object({
   status: z.enum(FEEDBACK_STATUSES as unknown as [string, ...string[]]),
 });
+
+export const UpdateFeedbackRoadmapSchema = z
+  .object({
+    showOnTimeline: z.boolean().optional(),
+    isRoadmapOfficial: z.boolean().optional(),
+    targetReleaseDate: z
+      .union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.null()])
+      .optional(),
+  })
+  .refine(
+    (data) =>
+      data.showOnTimeline !== undefined ||
+      data.isRoadmapOfficial !== undefined ||
+      data.targetReleaseDate !== undefined,
+    { message: 'At least one roadmap field is required' },
+  );
 
 export type FeedbackListQuery = {
   page: number;
@@ -212,6 +230,7 @@ async function toPublicPost(
     hasStaffResponse: post.hasStaffResponse,
     isRoadmapOfficial: post.isRoadmapOfficial ?? false,
     isStaffAuthored: post.isStaffAuthored ?? false,
+    showOnTimeline: post.showOnTimeline ?? false,
     hasUpvoted,
     targetReleaseDate: post.targetReleaseDate?.toISOString().slice(0, 10),
     releasedAt: post.releasedAt?.toISOString(),
@@ -523,6 +542,29 @@ export async function updateStatusResult(
     postId,
     ctx.identity,
     parsed.data.status,
+    ctx.entitlements,
+  );
+  if (!result.success) {
+    return mapServiceError(result.errorCode, result.error);
+  }
+
+  return { ok: true, data: undefined };
+}
+
+export async function updateRoadmapResult(
+  ctx: IdentityContext,
+  postId: string,
+  body: unknown,
+): Promise<FeedbackResult<void>> {
+  const parsed = UpdateFeedbackRoadmapSchema.safeParse(body);
+  if (!parsed.success) {
+    return { ok: false, kind: 'validation_failed' };
+  }
+
+  const result = await updateFeedbackRoadmap(
+    postId,
+    ctx.identity,
+    parsed.data,
     ctx.entitlements,
   );
   if (!result.success) {
