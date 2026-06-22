@@ -43,6 +43,7 @@ mock.module('../db/redis', () => ({
 import {
   coercePlatformSettingValue,
   ensureAuthAllowlistPlatformSettingsExist,
+  ensureAgeVerificationPlatformSettingsExist,
   ensureCsamHashServicesPlatformSettingExists,
   ensureNcmecCyberTiplinePlatformSettingExists,
   isAuthIdentifierAllowed,
@@ -120,6 +121,17 @@ describe('sanitizePlatformSettingValueAfterCoerce', () => {
         raw,
       ),
     ).toBe('VERIFYMY');
+  });
+
+  test('sanitizes default VerifyMy business settings ID as general string', () => {
+    const raw = '  bs-us-default  ';
+    expect(
+      sanitizePlatformSettingValueAfterCoerce(
+        PLATFORM_SETTING_KEYS.AGE_VERIFICATION_VERIFYMY_DEFAULT_BUSINESS_SETTINGS_ID,
+        'string',
+        raw,
+      ),
+    ).toBe('bs-us-default');
   });
 
   test('sanitizes jurisdiction arrays as alphanumdash', () => {
@@ -311,6 +323,59 @@ describe('ensureAuthAllowlistPlatformSettingsExist', () => {
     );
 
     await ensureAuthAllowlistPlatformSettingsExist('admin-user-id');
+
+    expect(mockUpsertByKey).not.toHaveBeenCalled();
+  });
+});
+
+describe('ensureAgeVerificationPlatformSettingsExist', () => {
+  beforeEach(() => {
+    mockFindByKey.mockReset();
+    mockUpsertByKey.mockReset();
+    mockUpsertByKey.mockImplementation(() =>
+      Promise.resolve({
+        _id: new ObjectId(),
+        key: PLATFORM_SETTING_KEYS.AGE_VERIFICATION_ENABLED,
+        description: '',
+        valueType: 'boolean',
+        value: false,
+        lastUpdatedBy: 'system',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+    );
+  });
+
+  test('creates default VerifyMy business settings ID when missing', async () => {
+    mockFindByKey.mockImplementation(() => Promise.resolve(null));
+
+    await ensureAgeVerificationPlatformSettingsExist();
+
+    expect(mockUpsertByKey).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: PLATFORM_SETTING_KEYS.AGE_VERIFICATION_VERIFYMY_DEFAULT_BUSINESS_SETTINGS_ID,
+        valueType: 'string',
+        value: '',
+        lastUpdatedBy: 'system',
+      }),
+    );
+  });
+
+  test('does not overwrite existing age verification settings', async () => {
+    mockFindByKey.mockImplementation(() =>
+      Promise.resolve({
+        _id: new ObjectId(),
+        key: PLATFORM_SETTING_KEYS.AGE_VERIFICATION_VERIFYMY_DEFAULT_BUSINESS_SETTINGS_ID,
+        description: 'existing',
+        valueType: 'string',
+        value: 'bs-existing',
+        lastUpdatedBy: 'admin',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+    );
+
+    await ensureAgeVerificationPlatformSettingsExist();
 
     expect(mockUpsertByKey).not.toHaveBeenCalled();
   });

@@ -12,6 +12,8 @@ export const PLATFORM_SETTING_KEYS = {
   AGE_VERIFICATION_AUTO_EMAIL_CHECK: 'platform-age-verification-auto-email-check',
   AGE_VERIFICATION_ACTIVE_PROVIDER: 'platform-age-verification-active-provider',
   AGE_VERIFICATION_VERIFYMY_ENV: 'platform-age-verification-verifymy-env',
+  AGE_VERIFICATION_VERIFYMY_DEFAULT_BUSINESS_SETTINGS_ID:
+    'platform-age-verification-verifymy-default-business-settings-id',
   AGE_VERIFICATION_REQUIRED_MODE: 'platform-age-verification-required-mode',
   AGE_VERIFICATION_REQUIRED_JURISDICTIONS: 'platform-age-verification-required-jurisdictions',
   GEOFENCE_BLOCKED_JURISDICTIONS: 'platform-geofence-blocked-jurisdictions',
@@ -71,6 +73,26 @@ export type SanctionedCountrySeedMode = 'additive' | 'clobber';
 export interface RunSanctionedCountrySeedResult {
   upserted: number;
   deactivated: number;
+}
+
+export interface AdminJurisdictionRequirement {
+  jurisdiction: string;
+  jurisdictionName: string;
+  region: string;
+  status: 'enacted' | 'proposed';
+  verificationConfig?: { vmyBusinessSettingsId?: string };
+  updatedAt: string;
+  createdAt: string;
+}
+
+export interface UpdateJurisdictionVerificationConfigBody {
+  vmyBusinessSettingsId?: string;
+}
+
+export type JurisdictionRequirementSeedMode = 'additive' | 'clobber';
+
+export interface RunJurisdictionRequirementSeedResult {
+  upserted: number;
 }
 
 export interface PlatformAdminRow {
@@ -367,6 +389,33 @@ export class AdminApi {
     ApiResponse<{ result: RunSanctionedCountrySeedResult; countries: AdminSanctionedCountry[] }>
   > {
     return this.client.post('/api/admin/sanctioned-countries/seed', { mode });
+  }
+
+  async getJurisdictionRequirements(): Promise<
+    ApiResponse<{ jurisdictions: AdminJurisdictionRequirement[] }>
+  > {
+    return this.client.get('/api/admin/jurisdiction-requirements');
+  }
+
+  async updateJurisdictionVerificationConfig(
+    jurisdiction: string,
+    body: UpdateJurisdictionVerificationConfigBody,
+  ): Promise<ApiResponse<{ jurisdiction: AdminJurisdictionRequirement }>> {
+    return this.client.put(
+      `/api/admin/jurisdiction-requirements/${encodeURIComponent(jurisdiction)}`,
+      body,
+    );
+  }
+
+  async runJurisdictionRequirementsSeed(
+    mode: JurisdictionRequirementSeedMode,
+  ): Promise<
+    ApiResponse<{
+      result: RunJurisdictionRequirementSeedResult;
+      jurisdictions: AdminJurisdictionRequirement[];
+    }>
+  > {
+    return this.client.post('/api/admin/jurisdiction-requirements/seed', { mode });
   }
 
   async listPlatformAdmins(): Promise<ApiResponse<{ admins: PlatformAdminRow[] }>> {

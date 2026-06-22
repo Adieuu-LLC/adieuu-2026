@@ -63,6 +63,61 @@ export interface JurisdictionRequirementDocument extends BaseDocument {
   verificationConfig?: VerificationConfig;
 }
 
+function readOptionalTrimmedString(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/**
+ * Reads VerifyMy business settings ID from canonical or legacy document shapes.
+ * Supports nested `verificationConfig.vmyBusinessSettingsId` and a legacy
+ * top-level `vmyBusinessSettingsId` field from manual DB edits.
+ */
+export function extractVerificationConfig(
+  doc: JurisdictionRequirementDocument,
+): VerificationConfig | undefined {
+  const nestedId = readOptionalTrimmedString(doc.verificationConfig?.vmyBusinessSettingsId);
+  if (nestedId) {
+    return { vmyBusinessSettingsId: nestedId };
+  }
+
+  const legacyRecord = doc as JurisdictionRequirementDocument & {
+    vmyBusinessSettingsId?: unknown;
+  };
+  const legacyId = readOptionalTrimmedString(legacyRecord.vmyBusinessSettingsId);
+  if (legacyId) {
+    return { vmyBusinessSettingsId: legacyId };
+  }
+
+  return undefined;
+}
+
+/** Admin view includes provider configuration and timestamps. */
+export interface AdminJurisdictionRequirement {
+  jurisdiction: string;
+  jurisdictionName: string;
+  region: string;
+  status: JurisdictionRequirementStatus;
+  verificationConfig?: VerificationConfig;
+  updatedAt: string;
+  createdAt: string;
+}
+
+export function toAdminJurisdictionRequirement(
+  doc: JurisdictionRequirementDocument,
+): AdminJurisdictionRequirement {
+  return {
+    jurisdiction: doc.jurisdiction,
+    jurisdictionName: doc.jurisdictionName,
+    region: doc.region,
+    status: doc.status,
+    verificationConfig: extractVerificationConfig(doc),
+    createdAt: doc.createdAt.toISOString(),
+    updatedAt: doc.updatedAt.toISOString(),
+  };
+}
+
 export function toPublicJurisdictionRequirement(
   doc: JurisdictionRequirementDocument,
 ): PublicJurisdictionRequirement {

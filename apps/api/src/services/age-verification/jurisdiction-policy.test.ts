@@ -115,9 +115,47 @@ describe('getAgeVerificationPolicy', () => {
       expect(policy.compatibleMethods).toContain('Email');
     }
   });
+
+  test('includes nested verificationConfig business settings ID', async () => {
+    mockFindByJurisdiction.mockImplementation(() =>
+      Promise.resolve({
+        jurisdiction: 'US-TN',
+        requirements: ['age_verification'],
+        compatibleMethods: ['email_age_check'],
+        legislation: [],
+        verificationConfig: { vmyBusinessSettingsId: 'nested-id' },
+      }),
+    );
+
+    const policy = await getAgeVerificationPolicy('US-TN');
+
+    expect(policy?.vmyBusinessSettingsId).toBe('nested-id');
+  });
+
+  test('includes legacy top-level business settings ID', async () => {
+    mockFindByJurisdiction.mockImplementation(() =>
+      Promise.resolve({
+        jurisdiction: 'US-TN',
+        requirements: ['age_verification'],
+        compatibleMethods: ['email_age_check'],
+        legislation: [],
+        vmyBusinessSettingsId: 'legacy-id',
+      }),
+    );
+
+    const policy = await getAgeVerificationPolicy('US-TN');
+
+    expect(policy?.vmyBusinessSettingsId).toBe('legacy-id');
+  });
 });
 
 describe('resolveBusinessSettingsId', () => {
+  test('returns jurisdiction-specific ID when provided', async () => {
+    const result = await resolveBusinessSettingsId('bs-jurisdiction-123');
+    expect(result).toBe('bs-jurisdiction-123');
+    expect(mockFindByKey).not.toHaveBeenCalled();
+  });
+
   test('falls back to platform setting when jurisdictionId is whitespace-only', async () => {
     mockFindByKey.mockImplementation((key: string) => {
       if (key.includes('verifymy-default-business-settings-id')) {

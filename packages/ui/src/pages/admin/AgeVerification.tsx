@@ -10,6 +10,7 @@ import { useAppConfig } from '../../config';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { EffectiveAvJurisdictionsPanel } from './EffectiveAvJurisdictionsPanel';
+import { JurisdictionRequirementsPanel } from './JurisdictionRequirementsPanel';
 import { SanctionedCountriesPanel } from './SanctionedCountriesPanel';
 
 function settingMap(settings: PublicPlatformSetting[]): Map<string, PublicPlatformSetting> {
@@ -29,6 +30,7 @@ export function AdminAgeVerification() {
   const [autoEmailBackgroundCheck, setAutoEmailBackgroundCheck] = useState(false);
   const [provider, setProvider] = useState('verifymy');
   const [environment, setEnvironment] = useState('sandbox');
+  const [defaultBusinessSettingsId, setDefaultBusinessSettingsId] = useState('');
   const [ncmecEnvironment, setNcmecEnvironment] = useState('test');
   const [requiredMode, setRequiredMode] = useState('jurisdictions');
   const [requiredJurisdictions, setRequiredJurisdictions] = useState('');
@@ -87,6 +89,11 @@ export function AdminAgeVerification() {
 
     const env = map.get(PLATFORM_SETTING_KEYS.AGE_VERIFICATION_VERIFYMY_ENV);
     setEnvironment(env?.valueType === 'string' ? String(env.value) : 'sandbox');
+
+    const defaultBsId = map.get(PLATFORM_SETTING_KEYS.AGE_VERIFICATION_VERIFYMY_DEFAULT_BUSINESS_SETTINGS_ID);
+    setDefaultBusinessSettingsId(
+      defaultBsId?.valueType === 'string' ? String(defaultBsId.value) : '',
+    );
 
     const ncmecEnv = map.get(PLATFORM_SETTING_KEYS.NCMEC_CYBERTIPLINE_ENV);
     setNcmecEnvironment(
@@ -184,6 +191,14 @@ export function AdminAgeVerification() {
         value: environment,
         description: 'VerifyMy environment (sandbox or production)',
       }),
+      api.admin.putPlatformSetting(
+        PLATFORM_SETTING_KEYS.AGE_VERIFICATION_VERIFYMY_DEFAULT_BUSINESS_SETTINGS_ID,
+        {
+          valueType: 'string',
+          value: defaultBusinessSettingsId.trim(),
+          description: 'Default VerifyMy business_settings_id when jurisdiction has none configured',
+        },
+      ),
       api.admin.putPlatformSetting(PLATFORM_SETTING_KEYS.NCMEC_CYBERTIPLINE_ENV, {
         valueType: 'string',
         value: ncmecEnvironment,
@@ -296,6 +311,21 @@ export function AdminAgeVerification() {
           </Card>
 
           <Card className="admin-card">
+            <label className="admin-field-label" htmlFor="admin-av-default-business-id">
+              {t('compliance.admin.defaultBusinessSettingsIdLabel')}
+            </label>
+            <input
+              id="admin-av-default-business-id"
+              className="admin-input"
+              value={defaultBusinessSettingsId}
+              onChange={(e) => setDefaultBusinessSettingsId(e.target.value)}
+              spellCheck={false}
+              placeholder={t('compliance.admin.defaultBusinessSettingsIdPlaceholder')}
+            />
+            <p className="admin-hint">{t('compliance.admin.defaultBusinessSettingsIdDescription')}</p>
+          </Card>
+
+          <Card className="admin-card">
             <label className="admin-field-label" htmlFor="admin-ncmec-env">
               {t('compliance.admin.ncmecEnvironmentLabel')}
             </label>
@@ -380,6 +410,10 @@ export function AdminAgeVerification() {
               placeholder={t('compliance.admin.lawLinksPlaceholder')}
               spellCheck={false}
             />
+          </Card>
+
+          <Card className="admin-card">
+            <JurisdictionRequirementsPanel />
           </Card>
 
           <Card className="admin-card">
