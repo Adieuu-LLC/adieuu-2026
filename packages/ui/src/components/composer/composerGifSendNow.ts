@@ -48,7 +48,7 @@ export async function executeGifSendNow(options: GifSendNowOptions): Promise<voi
   });
 
   const sent = await onSend(plaintext, {
-    useForwardSecrecy: forwardSecrecyEnabled,
+    ...(forwardSecrecyEnabled ? { useForwardSecrecy: forwardSecrecyEnabled } : {}),
     ...(replyToMessageId ? { replyToMessageId } : {}),
     ...(ttlSeconds ? { expiresInSeconds: ttlSeconds } : {}),
   });

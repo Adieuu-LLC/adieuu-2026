@@ -3,7 +3,7 @@ import { klipyItemToGifAttachment, routeGifSelection } from './gifPickerSelectio
 import type { KlipyItem } from '@adieuu/shared';
 
 const sampleItem: KlipyItem = {
-  id: 'item-1',
+  id: 1,
   slug: 'wave-123',
   type: 'sticker',
   title: 'Waving sticker',
