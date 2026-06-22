@@ -427,6 +427,12 @@ export async function ensureAgeVerificationPlatformSettingsExist(): Promise<void
       value: 'sandbox',
     },
     {
+      key: PLATFORM_SETTING_KEYS.AGE_VERIFICATION_VERIFYMY_DEFAULT_BUSINESS_SETTINGS_ID,
+      description: 'Default VerifyMy business_settings_id when jurisdiction has none configured',
+      valueType: 'string',
+      value: '',
+    },
+    {
       key: PLATFORM_SETTING_KEYS.AGE_VERIFICATION_REQUIRED_MODE,
       description: 'Enforcement mode: jurisdictions (seed-data-driven) or all',
       valueType: 'string',

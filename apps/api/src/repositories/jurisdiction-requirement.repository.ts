@@ -53,16 +53,21 @@ export class JurisdictionRequirementRepository extends BaseRepository<Jurisdicti
   }
 
   /**
-   * Idempotent seed upsert (used by maintainer script only).
+   * Idempotent seed upsert (used by maintainer script and admin seed).
+   * When `preserveVerificationConfig` is true and the seed row omits
+   * `verificationConfig`, existing admin-configured IDs are left unchanged.
    */
   async upsertSeedRow(
     row: Omit<JurisdictionRequirementDocument, '_id' | 'createdAt' | 'updatedAt'>,
+    opts?: { preserveVerificationConfig?: boolean },
   ): Promise<void> {
     const now = new Date();
     const jurisdiction = row.jurisdiction.trim().toUpperCase();
     const filter = { jurisdiction } as Filter<JurisdictionRequirementDocument>;
-    const $set = {
-      ...row,
+    const preserveVerificationConfig = opts?.preserveVerificationConfig !== false;
+    const { verificationConfig, ...rest } = row;
+    const $set: Record<string, unknown> = {
+      ...rest,
       jurisdiction,
       updatedAt: now,
     };
@@ -70,7 +75,45 @@ export class JurisdictionRequirementRepository extends BaseRepository<Jurisdicti
       $set: $set as never,
       $setOnInsert: { createdAt: now },
     };
+    if (verificationConfig !== undefined) {
+      $set.verificationConfig = verificationConfig;
+    } else if (!preserveVerificationConfig) {
+      update.$unset = { verificationConfig: '' };
+    }
     await this.collection.updateOne(filter, update, { upsert: true });
+  }
+
+  async patchVerificationConfig(
+    jurisdiction: string,
+    vmyBusinessSettingsId: string | undefined,
+  ): Promise<JurisdictionRequirementDocument | null> {
+    const code = jurisdiction.trim().toUpperCase();
+    const existing = await this.findByJurisdiction(code);
+    if (!existing) return null;
+
+    const now = new Date();
+    if (vmyBusinessSettingsId) {
+      await this.collection.updateOne(
+        { jurisdiction: code } as Filter<JurisdictionRequirementDocument>,
+        {
+          $set: {
+            verificationConfig: { vmyBusinessSettingsId },
+            updatedAt: now,
+          },
+          $unset: { vmyBusinessSettingsId: '' },
+        },
+      );
+    } else {
+      await this.collection.updateOne(
+        { jurisdiction: code } as Filter<JurisdictionRequirementDocument>,
+        {
+          $unset: { verificationConfig: '', vmyBusinessSettingsId: '' },
+          $set: { updatedAt: now },
+        },
+      );
+    }
+
+    return this.findByJurisdiction(code);
   }
 }
 

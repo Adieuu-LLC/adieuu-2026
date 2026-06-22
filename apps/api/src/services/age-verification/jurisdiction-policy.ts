@@ -12,7 +12,10 @@ import { requirementImpliesAgeVerification } from '@adieuu/shared';
 import { PLATFORM_SETTING_KEYS } from '../../constants/platform-settings-keys';
 import { getPlatformSettingsRepository } from '../../repositories/platform-settings.repository';
 import { getJurisdictionRequirementRepository } from '../../repositories/jurisdiction-requirement.repository';
-import type { LegislationRef } from '../../models/jurisdiction-requirement';
+import {
+  extractVerificationConfig,
+  type LegislationRef,
+} from '../../models/jurisdiction-requirement';
 import elog from '../../utils/adieuuLogger';
 
 /**
@@ -80,7 +83,7 @@ export async function getAgeVerificationPolicy(
     leastInvasiveMethod: leastInvasive,
     legislation: doc.legislation,
     notes: doc.notes,
-    vmyBusinessSettingsId: doc.verificationConfig?.vmyBusinessSettingsId,
+    vmyBusinessSettingsId: extractVerificationConfig(doc)?.vmyBusinessSettingsId,
   };
 }
 

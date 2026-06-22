@@ -27,6 +27,11 @@ import {
   runSanctionedCountriesSeedAdminResult,
   upsertSanctionedCountryAdminResult,
 } from './sanctioned-countries.controller';
+import {
+  listJurisdictionRequirementsAdminResult,
+  runJurisdictionRequirementsSeedAdminResult,
+  updateJurisdictionVerificationConfigAdminResult,
+} from './jurisdiction-requirements.controller';
 
 const router = new Router();
 
@@ -242,6 +247,46 @@ router.post('/admin/sanctioned-countries/seed', async (ctx) => {
   }
 
   return success({ result: result.result, countries: result.countries });
+});
+
+router.get('/admin/jurisdiction-requirements', async (ctx) => {
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_PLATFORM_SETTINGS);
+  if (!auth.ok) return auth.response;
+
+  const result = await listJurisdictionRequirementsAdminResult();
+  return success({ jurisdictions: result.jurisdictions });
+});
+
+router.put('/admin/jurisdiction-requirements/:jurisdiction', async (ctx) => {
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_PLATFORM_SETTINGS);
+  if (!auth.ok) return auth.response;
+
+  const jurisdiction = ctx.params.jurisdiction;
+  if (!jurisdiction) {
+    return ctx.errors.validationFailed();
+  }
+
+  const result = await updateJurisdictionVerificationConfigAdminResult(jurisdiction, ctx.body);
+  if (!result.ok) {
+    if (result.reason === 'validation_failed') return ctx.errors.validationFailed();
+    if (result.reason === 'not_found') return ctx.errors.notFound();
+    return ctx.errors.internal();
+  }
+
+  return success({ jurisdiction: result.jurisdiction });
+});
+
+router.post('/admin/jurisdiction-requirements/seed', async (ctx) => {
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_PLATFORM_SETTINGS);
+  if (!auth.ok) return auth.response;
+
+  const result = await runJurisdictionRequirementsSeedAdminResult(ctx.body);
+  if (!result.ok) {
+    if (result.reason === 'validation_failed') return ctx.errors.validationFailed();
+    return ctx.errors.internal();
+  }
+
+  return success({ result: result.result, jurisdictions: result.jurisdictions });
 });
 
 export const adminRoutes = router;
