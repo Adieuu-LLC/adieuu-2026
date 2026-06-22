@@ -602,7 +602,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       });
 
       const sent = await onSend(plaintext, {
-        useForwardSecrecy: forwardSecrecy?.enabled,
+        ...(forwardSecrecy?.enabled ? { useForwardSecrecy: true } : {}),
         ...(replyContext ? { replyToMessageId: replyContext.messageId } : {}),
         ...(ttlSeconds ? { expiresInSeconds: ttlSeconds } : {}),
         mentionedIdentityIds,
@@ -676,7 +676,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       });
       if (editContext) {
         const sent = await onSend(plaintext, {
-          useForwardSecrecy: forwardSecrecy?.enabled,
+          ...(forwardSecrecy?.enabled ? { useForwardSecrecy: true } : {}),
         });
         if (sent != null) {
           onSendSucceeded?.();
@@ -684,7 +684,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
         inputRef.current?.focus();
       } else {
         const sent = await onSend(plaintext, {
-          useForwardSecrecy: forwardSecrecy?.enabled,
+          ...(forwardSecrecy?.enabled ? { useForwardSecrecy: true } : {}),
           ...(replyContext ? { replyToMessageId: replyContext.messageId } : {}),
           ...(ttlSeconds ? { expiresInSeconds: ttlSeconds } : {}),
           mentionedIdentityIds,
