@@ -7,6 +7,32 @@ import { BaseRepository } from './base.repository';
 import { Collections } from '../db/mongo';
 import type { JurisdictionRequirementDocument } from '../models/jurisdiction-requirement';
 
+/** @internal test helper and shared upsert builder for seed/admin operations. */
+export function buildJurisdictionSeedUpsertUpdate(
+  row: Omit<JurisdictionRequirementDocument, '_id' | 'createdAt' | 'updatedAt'>,
+  now: Date,
+  opts?: { preserveVerificationConfig?: boolean },
+): UpdateFilter<JurisdictionRequirementDocument> {
+  const jurisdiction = row.jurisdiction.trim().toUpperCase();
+  const preserveVerificationConfig = opts?.preserveVerificationConfig !== false;
+  const { verificationConfig, ...rest } = row;
+  const $set: Record<string, unknown> = {
+    ...rest,
+    jurisdiction,
+    updatedAt: now,
+  };
+  const update: UpdateFilter<JurisdictionRequirementDocument> = {
+    $set: $set as never,
+    $setOnInsert: { createdAt: now },
+  };
+  if (verificationConfig !== undefined) {
+    $set.verificationConfig = verificationConfig;
+  } else if (!preserveVerificationConfig) {
+    update.$unset = { verificationConfig: '' };
+  }
+  return update;
+}
+
 export class JurisdictionRequirementRepository extends BaseRepository<JurisdictionRequirementDocument> {
   constructor() {
     super(Collections.JURISDICTION_REQUIREMENTS);
@@ -64,22 +90,7 @@ export class JurisdictionRequirementRepository extends BaseRepository<Jurisdicti
     const now = new Date();
     const jurisdiction = row.jurisdiction.trim().toUpperCase();
     const filter = { jurisdiction } as Filter<JurisdictionRequirementDocument>;
-    const preserveVerificationConfig = opts?.preserveVerificationConfig !== false;
-    const { verificationConfig, ...rest } = row;
-    const $set: Record<string, unknown> = {
-      ...rest,
-      jurisdiction,
-      updatedAt: now,
-    };
-    const update: UpdateFilter<JurisdictionRequirementDocument> = {
-      $set: $set as never,
-      $setOnInsert: { createdAt: now },
-    };
-    if (verificationConfig !== undefined) {
-      $set.verificationConfig = verificationConfig;
-    } else if (!preserveVerificationConfig) {
-      update.$unset = { verificationConfig: '' };
-    }
+    const update = buildJurisdictionSeedUpsertUpdate(row, now, opts);
     await this.collection.updateOne(filter, update, { upsert: true });
   }
 

@@ -37,6 +37,18 @@ function normalizeBusinessSettingsId(raw: string | undefined): string | undefine
   return trimmed;
 }
 
+/** @internal test helper */
+export function parseJurisdictionVerificationConfigInput(
+  input: UpdateJurisdictionVerificationConfigInput,
+): { jurisdiction: string; vmyBusinessSettingsId?: string } | null {
+  const jurisdiction = normalizeJurisdictionCode(input.jurisdiction);
+  if (!jurisdiction) return null;
+  return {
+    jurisdiction,
+    vmyBusinessSettingsId: normalizeBusinessSettingsId(input.vmyBusinessSettingsId),
+  };
+}
+
 export async function listJurisdictionRequirementsForAdmin(): Promise<AdminJurisdictionRequirement[]> {
   const repo = getJurisdictionRequirementRepository();
   const docs = await repo.findRequiringAgeVerification(AGE_VERIFICATION_REQUIREMENT_SLUGS);
