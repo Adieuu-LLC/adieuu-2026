@@ -1,7 +1,24 @@
 import { describe, expect, mock, test } from 'bun:test';
+import type { AdminJurisdictionRequirement } from '../../models/jurisdiction-requirement';
 
-const mockListJurisdictionRequirementsForAdmin = mock(() => Promise.resolve([]));
-const mockUpdateJurisdictionVerificationConfigForAdmin = mock(() => Promise.resolve(null));
+const sampleJurisdiction = (
+  overrides: Partial<AdminJurisdictionRequirement> = {},
+): AdminJurisdictionRequirement => ({
+  jurisdiction: 'US-TN',
+  jurisdictionName: 'Tennessee',
+  region: 'United States',
+  status: 'enacted',
+  createdAt: '2024-01-01T00:00:00.000Z',
+  updatedAt: '2024-01-01T00:00:00.000Z',
+  ...overrides,
+});
+
+const mockListJurisdictionRequirementsForAdmin = mock(
+  (): Promise<AdminJurisdictionRequirement[]> => Promise.resolve([]),
+);
+const mockUpdateJurisdictionVerificationConfigForAdmin = mock(
+  (): Promise<AdminJurisdictionRequirement | null> => Promise.resolve(null),
+);
 const mockRunJurisdictionRequirementsSeed = mock(() => Promise.resolve({ upserted: 0 }));
 
 mock.module('../../services/compliance/jurisdiction-requirements-admin.service', () => ({
@@ -19,15 +36,9 @@ import {
 describe('listJurisdictionRequirementsAdminResult', () => {
   test('returns jurisdictions from admin service', async () => {
     mockListJurisdictionRequirementsForAdmin.mockResolvedValueOnce([
-      {
-        jurisdiction: 'US-TN',
-        jurisdictionName: 'Tennessee',
-        region: 'United States',
-        status: 'enacted',
+      sampleJurisdiction({
         verificationConfig: { vmyBusinessSettingsId: 'bs-123' },
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:00:00.000Z',
-      },
+      }),
     ]);
 
     const result = await listJurisdictionRequirementsAdminResult();
@@ -72,15 +83,11 @@ describe('updateJurisdictionVerificationConfigAdminResult', () => {
   });
 
   test('returns jurisdiction when update succeeds', async () => {
-    mockUpdateJurisdictionVerificationConfigForAdmin.mockResolvedValueOnce({
-      jurisdiction: 'US-TN',
-      jurisdictionName: 'Tennessee',
-      region: 'United States',
-      status: 'enacted',
-      verificationConfig: { vmyBusinessSettingsId: 'bs-123' },
-      createdAt: '2024-01-01T00:00:00.000Z',
-      updatedAt: '2024-01-01T00:00:00.000Z',
-    });
+    mockUpdateJurisdictionVerificationConfigForAdmin.mockResolvedValueOnce(
+      sampleJurisdiction({
+        verificationConfig: { vmyBusinessSettingsId: 'bs-123' },
+      }),
+    );
 
     const result = await updateJurisdictionVerificationConfigAdminResult('US-TN', {
       vmyBusinessSettingsId: 'bs-123',
@@ -101,16 +108,7 @@ describe('runJurisdictionRequirementsSeedAdminResult', () => {
 
   test('returns seed result and refreshed jurisdictions on success', async () => {
     mockRunJurisdictionRequirementsSeed.mockResolvedValueOnce({ upserted: 2 });
-    mockListJurisdictionRequirementsForAdmin.mockResolvedValueOnce([
-      {
-        jurisdiction: 'US-TN',
-        jurisdictionName: 'Tennessee',
-        region: 'United States',
-        status: 'enacted',
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:00:00.000Z',
-      },
-    ]);
+    mockListJurisdictionRequirementsForAdmin.mockResolvedValueOnce([sampleJurisdiction()]);
 
     const result = await runJurisdictionRequirementsSeedAdminResult({ mode: 'additive' });
 
