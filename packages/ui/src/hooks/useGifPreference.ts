@@ -212,28 +212,30 @@ export function useEffectiveGifAnimateOnHoverOnly(identityId: string, conversati
 // ---------------------------------------------------------------------------
 
 const SEND_NOW_KEY = 'adieuu.gif-send-now';
+let sendNowFallback = true;
 
 function getSendNowSnapshot(): boolean {
   try {
     const raw = localStorage.getItem(SEND_NOW_KEY);
     if (raw === 'false') return false;
   } catch {
-    // Storage unavailable
+    return sendNowFallback;
   }
   return true;
 }
 
 function saveSendNow(value: boolean): void {
+  sendNowFallback = value;
   try {
     if (value) {
       localStorage.removeItem(SEND_NOW_KEY);
     } else {
       localStorage.setItem(SEND_NOW_KEY, 'false');
     }
-    emitChange();
   } catch {
     // Storage full or unavailable
   }
+  emitChange();
 }
 
 /**

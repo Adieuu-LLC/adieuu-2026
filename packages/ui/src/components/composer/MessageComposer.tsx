@@ -1049,30 +1049,34 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   }, []);
 
   const handleGifSendNow = useCallback(
-    async (gif: GifAttachment) => {
+    (gif: GifAttachment) => {
       if (disabled || !channelId || sending) return;
       setShowMediaPicker(false);
 
-      const payload = gifPayload(undefined, gif);
-      payload.senderDeviceId = getOrCreateDeviceId();
-      const plaintext = serializePayload(payload);
+      void (async () => {
+        const payload = gifPayload(undefined, gif);
+        payload.senderDeviceId = getOrCreateDeviceId();
+        const plaintext = serializePayload(payload);
 
-      api.klipy.share({
-        slug: gif.slug,
-        type: gif.type,
-        searchTerm: gif.searchTerm || undefined,
-      });
+        await api.klipy.share({
+          slug: gif.slug,
+          type: gif.type,
+          searchTerm: gif.searchTerm || undefined,
+        });
 
-      const sent = await onSend(plaintext, {
-        useForwardSecrecy: forwardSecrecy?.enabled,
-        ...(replyContext ? { replyToMessageId: replyContext.messageId } : {}),
-        ...(ttlSeconds ? { expiresInSeconds: ttlSeconds } : {}),
+        const sent = await onSend(plaintext, {
+          useForwardSecrecy: forwardSecrecy?.enabled,
+          ...(replyContext ? { replyToMessageId: replyContext.messageId } : {}),
+          ...(ttlSeconds ? { expiresInSeconds: ttlSeconds } : {}),
+        });
+        replyContext?.onCancel();
+        if (sent != null) {
+          onSendSucceeded?.();
+        }
+        inputRef.current?.focus();
+      })().catch((err) => {
+        console.error('[Composer] GIF send-now failed:', err);
       });
-      replyContext?.onCancel();
-      if (sent != null) {
-        onSendSucceeded?.();
-      }
-      inputRef.current?.focus();
     },
     [disabled, channelId, sending, onSend, forwardSecrecy, replyContext, ttlSeconds, onSendSucceeded, api],
   );
