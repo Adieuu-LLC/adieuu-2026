@@ -13,6 +13,16 @@
   white-space: nowrap;
   pointer-events: none;
   animation: tooltipFadeIn var(--transition-fast) ease-out;
+
+  &--multiline {
+    white-space: normal;
+    max-width: 280px;
+    line-height: 1.4;
+
+    p + p {
+      margin-top: var(--spacing-xs);
+    }
+  }
 }
 
 .tooltip-arrow {

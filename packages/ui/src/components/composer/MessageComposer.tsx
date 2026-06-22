@@ -46,6 +46,7 @@ import {
   clipboardPasteSuggestsNonPlainMedia,
 } from './conversationMediaFromClipboard';
 import { detectShortcodeQuery, detectMentionQuery, detectPageTagQuery, updateMentionOffsets, updatePageTagOffsets, resolveMentionedIdentityIds } from './composerUtils';
+import { runGifSendNow } from './composerGifSendNow';
 import { ComposerAttachments } from './ComposerAttachments';
 import { ComposerShortcodeAutocomplete, ComposerMentionAutocomplete, ComposerPageTagAutocomplete, type MentionSuggestion, type PageTagSuggestion } from './ComposerAutocomplete';
 import { ComposerTTLMenu } from './ComposerTTLMenu';
@@ -601,7 +602,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       });
 
       const sent = await onSend(plaintext, {
-        useForwardSecrecy: forwardSecrecy?.enabled,
+        ...(forwardSecrecy?.enabled ? { useForwardSecrecy: true } : {}),
         ...(replyContext ? { replyToMessageId: replyContext.messageId } : {}),
         ...(ttlSeconds ? { expiresInSeconds: ttlSeconds } : {}),
         mentionedIdentityIds,
@@ -675,7 +676,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       });
       if (editContext) {
         const sent = await onSend(plaintext, {
-          useForwardSecrecy: forwardSecrecy?.enabled,
+          ...(forwardSecrecy?.enabled ? { useForwardSecrecy: true } : {}),
         });
         if (sent != null) {
           onSendSucceeded?.();
@@ -683,7 +684,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
         inputRef.current?.focus();
       } else {
         const sent = await onSend(plaintext, {
-          useForwardSecrecy: forwardSecrecy?.enabled,
+          ...(forwardSecrecy?.enabled ? { useForwardSecrecy: true } : {}),
           ...(replyContext ? { replyToMessageId: replyContext.messageId } : {}),
           ...(ttlSeconds ? { expiresInSeconds: ttlSeconds } : {}),
           mentionedIdentityIds,
@@ -1048,6 +1049,26 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     setTimeout(() => inputRef.current?.focus(), 50);
   }, []);
 
+  const handleGifSendNow = useCallback(
+    (gif: GifAttachment) => {
+      if (disabled || !channelId || sending) return;
+      setShowMediaPicker(false);
+
+      runGifSendNow({
+        gif,
+        onSend,
+        klipyShare: (params) => api.klipy.share(params),
+        forwardSecrecyEnabled: forwardSecrecy?.enabled,
+        replyToMessageId: replyContext?.messageId,
+        replyOnCancel: replyContext?.onCancel,
+        ttlSeconds,
+        onSendSucceeded,
+        focusInput: () => inputRef.current?.focus(),
+      });
+    },
+    [disabled, channelId, sending, onSend, forwardSecrecy, replyContext, ttlSeconds, onSendSucceeded, api],
+  );
+
   const handleEmojiSelect = useCallback((result: EmojiSelectResult) => {
     const inserted = result.native
       ? result.native
@@ -1192,6 +1213,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
                   <Popover.Content className="gif-picker-popover">
                     <GifPicker
                       onGifSelect={handleGifSelect}
+                      onGifSendNow={handleGifSendNow}
                       initialTab={lastMediaTab}
                       onTabChange={setLastMediaTab}
                       lastMessageText={lastMessageText}
@@ -1267,6 +1289,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       gifsDisabled,
       showMediaPicker,
       handleGifSelect,
+      handleGifSendNow,
       lastMediaTab,
       lastMessageText,
       channelId,

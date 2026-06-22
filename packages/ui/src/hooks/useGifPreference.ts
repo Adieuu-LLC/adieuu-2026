@@ -206,3 +206,62 @@ export function useEffectiveGifAnimateOnHoverOnly(identityId: string, conversati
     () => false
   );
 }
+
+// ---------------------------------------------------------------------------
+// GIF picker "Send Now" toggle (global, identity-agnostic)
+// ---------------------------------------------------------------------------
+
+const SEND_NOW_KEY = 'adieuu.gif-send-now';
+let sendNowFallback = true;
+
+function getSendNowSnapshot(): boolean {
+  try {
+    const raw = localStorage.getItem(SEND_NOW_KEY);
+    if (raw === 'false') return false;
+    return sendNowFallback;
+  } catch {
+    return sendNowFallback;
+  }
+}
+
+function saveSendNow(value: boolean): void {
+  sendNowFallback = value;
+  try {
+    if (value) {
+      localStorage.removeItem(SEND_NOW_KEY);
+    } else {
+      localStorage.setItem(SEND_NOW_KEY, 'false');
+    }
+  } catch {
+    // Storage full or unavailable
+  }
+  emitChange();
+}
+
+export function loadGifSendNow(): boolean {
+  return getSendNowSnapshot();
+}
+
+export function saveGifSendNow(value: boolean): void {
+  saveSendNow(value);
+}
+
+/**
+ * Global preference controlling whether selecting a GIF/sticker in the picker
+ * immediately sends the message (true) or adds it as a composer attachment (false).
+ * Defaults to true.
+ */
+export function useGifSendNow(): [boolean, (v: boolean) => void] {
+  const value = useSyncExternalStore(
+    subscribe,
+    getSendNowSnapshot,
+    () => true,
+  );
+
+  const setValue = useCallback(
+    (v: boolean) => saveSendNow(v),
+    [],
+  );
+
+  return [value, setValue];
+}
