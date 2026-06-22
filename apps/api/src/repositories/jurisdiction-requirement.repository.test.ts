@@ -39,7 +39,7 @@ describe('buildJurisdictionSeedUpsertUpdate', () => {
       { preserveVerificationConfig: false },
     );
 
-    expect(update.$unset).toEqual({ verificationConfig: '' });
+    expect(update.$unset).toEqual({ verificationConfig: '', vmyBusinessSettingsId: '' });
   });
 
   test('normalizes jurisdiction code in $set', () => {

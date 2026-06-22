@@ -36,14 +36,11 @@ describe('parseJurisdictionVerificationConfigInput', () => {
   });
 
   test('rejects business settings ID longer than 128 characters', () => {
-    expect(
+    expect(() =>
       parseJurisdictionVerificationConfigInput({
         jurisdiction: 'US-TN',
         vmyBusinessSettingsId: 'x'.repeat(129),
       }),
-    ).toEqual({
-      jurisdiction: 'US-TN',
-      vmyBusinessSettingsId: undefined,
-    });
+    ).toThrow('vmyBusinessSettingsId exceeds maximum length of 128 characters');
   });
 });

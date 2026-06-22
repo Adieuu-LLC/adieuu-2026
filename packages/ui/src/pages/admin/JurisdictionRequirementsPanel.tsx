@@ -54,7 +54,6 @@ export function JurisdictionRequirementsPanel() {
     setForm(EMPTY_FORM);
     setEditingCode(null);
     setSaveError(null);
-    setSaveSuccess(null);
   };
 
   const startEdit = (row: AdminJurisdictionRequirement) => {
@@ -225,6 +224,7 @@ export function JurisdictionRequirementsPanel() {
                     onChange={(e) =>
                       setForm((prev) => ({ ...prev, vmyBusinessSettingsId: e.target.value }))
                     }
+                    maxLength={128}
                     spellCheck={false}
                     placeholder={t('compliance.admin.jurisdictionRequirementsBusinessIdPlaceholder')}
                   />
@@ -240,9 +240,10 @@ export function JurisdictionRequirementsPanel() {
                 </Button>
               </div>
               {saveError && <p className="admin-inline-error">{saveError}</p>}
-              {saveSuccess && <p className="admin-inline-success">{saveSuccess}</p>}
             </div>
           )}
+
+          {saveSuccess && <p className="admin-inline-success">{saveSuccess}</p>}
 
           <div className="admin-jurisdiction-requirements__seed">
             <h3 className="admin-jurisdiction-requirements__subtitle">

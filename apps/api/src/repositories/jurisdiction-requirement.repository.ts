@@ -28,7 +28,7 @@ export function buildJurisdictionSeedUpsertUpdate(
   if (verificationConfig !== undefined) {
     $set.verificationConfig = verificationConfig;
   } else if (!preserveVerificationConfig) {
-    update.$unset = { verificationConfig: '' };
+    update.$unset = { verificationConfig: '', vmyBusinessSettingsId: '' };
   }
   return update;
 }

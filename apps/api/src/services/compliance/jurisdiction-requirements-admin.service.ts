@@ -33,7 +33,10 @@ function normalizeBusinessSettingsId(raw: string | undefined): string | undefine
   if (raw === undefined) return undefined;
   const { value } = sanitizeString(raw, 'general');
   const trimmed = value.trim();
-  if (!trimmed || trimmed.length > 128) return undefined;
+  if (!trimmed) return undefined;
+  if (trimmed.length > 128) {
+    throw new Error('vmyBusinessSettingsId exceeds maximum length of 128 characters');
+  }
   return trimmed;
 }
 
