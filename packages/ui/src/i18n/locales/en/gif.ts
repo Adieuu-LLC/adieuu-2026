@@ -43,6 +43,10 @@ export const gif = {
     animateOnHoverOnlyHint:
       'Shows a still image until you hover or focus. If no still image is available for a message, the animation plays as usual.',
     animateOnHoverAria: 'GIF or sticker',
+    sendNow: 'Send Now',
+    sendNowHint: 'When off, the GIF is added as an attachment so you can include a caption or context.',
+    klipyHintP1: "We're grateful to Klipy for providing a growing GIF and sticker library to us at no cost to us or you (other than their watermarks). For your privacy, we do not exercise their option to include ads among the GIFs.",
+    klipyHintP2: "FYI, any image from a remote website (even Klipy's servers) can be used to track your IP and other info: if preferred, you can turn off GIFs per conversation, or completely via your Adieuu settings.",
     composerButton: 'GIF',
     stickerButton: 'Stickers',
     composerButtonCombined: 'GIFs and Stickers',

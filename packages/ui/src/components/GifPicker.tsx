@@ -20,7 +20,7 @@ import {
   useMemo,
   type CSSProperties,
 } from 'react';
-import { Tabs } from '@ark-ui/react';
+import { Switch, Tabs } from '@ark-ui/react';
 import { useTranslation } from 'react-i18next';
 import {
   createApiClient,
@@ -28,6 +28,8 @@ import {
   type KlipySearchResponse,
 } from '@adieuu/shared';
 import { useAppConfig } from '../config/PlatformContext';
+import { useGifSendNow } from '../hooks/useGifPreference';
+import { Tooltip } from './Tooltip';
 import type { GifAttachment } from '../services/messagePayload';
 
 // ---------------------------------------------------------------------------
@@ -38,6 +40,8 @@ export type ContentTab = 'gifs' | 'stickers';
 
 export interface GifPickerProps {
   onGifSelect: (gif: GifAttachment) => void;
+  /** Called when the "Send Now" toggle is on and a GIF is selected. */
+  onGifSendNow?: (gif: GifAttachment) => void;
   /** Which tab to show on mount. Defaults to `'gifs'`. */
   initialTab?: ContentTab;
   /** Fired when the user switches between the GIF and Sticker tabs. */
@@ -118,9 +122,10 @@ function extractKeyword(text: string): string {
 // Component
 // ---------------------------------------------------------------------------
 
-export function GifPicker({ onGifSelect, initialTab, onTabChange, lastMessageText, conversationId }: GifPickerProps) {
+export function GifPicker({ onGifSelect, onGifSendNow, initialTab, onTabChange, lastMessageText, conversationId }: GifPickerProps) {
   const { t } = useTranslation();
   const { apiBaseUrl } = useAppConfig();
+  const [sendNow, setSendNow] = useGifSendNow();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
 
   const [tab, setTab] = useState<ContentTab>(initialTab ?? 'gifs');
@@ -348,9 +353,13 @@ export function GifPicker({ onGifSelect, initialTab, onTabChange, lastMessageTex
         title: item.title || undefined,
         slug: item.slug,
       };
-      onGifSelect(gif);
+      if (sendNow && onGifSendNow) {
+        onGifSendNow(gif);
+      } else {
+        onGifSelect(gif);
+      }
     },
-    [onGifSelect, searchTerm]
+    [onGifSelect, onGifSendNow, sendNow, searchTerm]
   );
 
   // -------------------------------------------------------------------------
@@ -455,11 +464,39 @@ export function GifPicker({ onGifSelect, initialTab, onTabChange, lastMessageTex
       </div>
 
       <div className="gif-picker__attribution">
-        <img
-          src="/img/klipy/viewer-logo.svg"
-          alt={t('gif.poweredBy')}
-          className="gif-picker__attribution-logo"
-        />
+        <Tooltip content={t('gif.sendNowHint')} position="top" className="tooltip--multiline">
+          <span className="gif-picker__send-now-wrap">
+            <Switch.Root
+              checked={sendNow}
+              onCheckedChange={(d) => setSendNow(d.checked)}
+              className="gif-picker__send-now"
+            >
+              <Switch.Label className="gif-picker__send-now-label">
+                {t('gif.sendNow')}
+              </Switch.Label>
+              <Switch.Control className="sidebar-filter-switch-control">
+                <Switch.Thumb className="sidebar-filter-switch-thumb" />
+              </Switch.Control>
+              <Switch.HiddenInput />
+            </Switch.Root>
+          </span>
+        </Tooltip>
+        <Tooltip
+          content={
+            <>
+              <p>{t('gif.klipyHintP1')}</p>
+              <p>{t('gif.klipyHintP2')}</p>
+            </>
+          }
+          position="top"
+          className="tooltip--multiline"
+        >
+          <img
+            src="/img/klipy/viewer-logo.svg"
+            alt={t('gif.poweredBy')}
+            className="gif-picker__attribution-logo"
+          />
+        </Tooltip>
       </div>
     </div>
   );

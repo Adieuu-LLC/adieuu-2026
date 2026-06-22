@@ -202,15 +202,35 @@
   &__attribution {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: space-between;
     padding: var(--spacing-xs) var(--spacing-sm);
     border-top: 1px solid var(--color-border);
+  }
+
+  &__send-now-wrap {
+    display: flex;
+  }
+
+  &__send-now {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+
+  &__send-now-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
   }
 
   &__attribution-logo {
     height: 18px;
     width: auto;
     opacity: 0.7;
+    cursor: help;
   }
 }
 

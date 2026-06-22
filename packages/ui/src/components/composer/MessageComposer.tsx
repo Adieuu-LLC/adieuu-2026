@@ -1048,6 +1048,35 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     setTimeout(() => inputRef.current?.focus(), 50);
   }, []);
 
+  const handleGifSendNow = useCallback(
+    async (gif: GifAttachment) => {
+      if (disabled || !channelId || sending) return;
+      setShowMediaPicker(false);
+
+      const payload = gifPayload(undefined, gif);
+      payload.senderDeviceId = getOrCreateDeviceId();
+      const plaintext = serializePayload(payload);
+
+      api.klipy.share({
+        slug: gif.slug,
+        type: gif.type,
+        searchTerm: gif.searchTerm || undefined,
+      });
+
+      const sent = await onSend(plaintext, {
+        useForwardSecrecy: forwardSecrecy?.enabled,
+        ...(replyContext ? { replyToMessageId: replyContext.messageId } : {}),
+        ...(ttlSeconds ? { expiresInSeconds: ttlSeconds } : {}),
+      });
+      replyContext?.onCancel();
+      if (sent != null) {
+        onSendSucceeded?.();
+      }
+      inputRef.current?.focus();
+    },
+    [disabled, channelId, sending, onSend, forwardSecrecy, replyContext, ttlSeconds, onSendSucceeded, api],
+  );
+
   const handleEmojiSelect = useCallback((result: EmojiSelectResult) => {
     const inserted = result.native
       ? result.native
@@ -1192,6 +1221,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
                   <Popover.Content className="gif-picker-popover">
                     <GifPicker
                       onGifSelect={handleGifSelect}
+                      onGifSendNow={handleGifSendNow}
                       initialTab={lastMediaTab}
                       onTabChange={setLastMediaTab}
                       lastMessageText={lastMessageText}
@@ -1267,6 +1297,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       gifsDisabled,
       showMediaPicker,
       handleGifSelect,
+      handleGifSendNow,
       lastMediaTab,
       lastMessageText,
       channelId,
