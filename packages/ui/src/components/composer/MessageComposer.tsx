@@ -46,6 +46,7 @@ import {
   clipboardPasteSuggestsNonPlainMedia,
 } from './conversationMediaFromClipboard';
 import { detectShortcodeQuery, detectMentionQuery, detectPageTagQuery, updateMentionOffsets, updatePageTagOffsets, resolveMentionedIdentityIds } from './composerUtils';
+import { runGifSendNow } from './composerGifSendNow';
 import { ComposerAttachments } from './ComposerAttachments';
 import { ComposerShortcodeAutocomplete, ComposerMentionAutocomplete, ComposerPageTagAutocomplete, type MentionSuggestion, type PageTagSuggestion } from './ComposerAutocomplete';
 import { ComposerTTLMenu } from './ComposerTTLMenu';
@@ -1053,29 +1054,16 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       if (disabled || !channelId || sending) return;
       setShowMediaPicker(false);
 
-      void (async () => {
-        const payload = gifPayload(undefined, gif);
-        payload.senderDeviceId = getOrCreateDeviceId();
-        const plaintext = serializePayload(payload);
-
-        await api.klipy.share({
-          slug: gif.slug,
-          type: gif.type,
-          searchTerm: gif.searchTerm || undefined,
-        });
-
-        const sent = await onSend(plaintext, {
-          useForwardSecrecy: forwardSecrecy?.enabled,
-          ...(replyContext ? { replyToMessageId: replyContext.messageId } : {}),
-          ...(ttlSeconds ? { expiresInSeconds: ttlSeconds } : {}),
-        });
-        replyContext?.onCancel();
-        if (sent != null) {
-          onSendSucceeded?.();
-        }
-        inputRef.current?.focus();
-      })().catch((err) => {
-        console.error('[Composer] GIF send-now failed:', err);
+      runGifSendNow({
+        gif,
+        onSend,
+        klipyShare: (params) => api.klipy.share(params),
+        forwardSecrecyEnabled: forwardSecrecy?.enabled,
+        replyToMessageId: replyContext?.messageId,
+        replyOnCancel: replyContext?.onCancel,
+        ttlSeconds,
+        onSendSucceeded,
+        focusInput: () => inputRef.current?.focus(),
       });
     },
     [disabled, channelId, sending, onSend, forwardSecrecy, replyContext, ttlSeconds, onSendSucceeded, api],

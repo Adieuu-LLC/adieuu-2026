@@ -31,6 +31,7 @@ import { useAppConfig } from '../config/PlatformContext';
 import { useGifSendNow } from '../hooks/useGifPreference';
 import { Tooltip } from './Tooltip';
 import type { GifAttachment } from '../services/messagePayload';
+import { klipyItemToGifAttachment, routeGifSelection } from './gifPickerSelection';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -339,25 +340,8 @@ export function GifPicker({ onGifSelect, onGifSendNow, initialTab, onTabChange, 
   // -------------------------------------------------------------------------
   const handleSelect = useCallback(
     (item: KlipyItem) => {
-      const gif: GifAttachment = {
-        provider: 'klipy',
-        type: item.type,
-        url: item.url,
-        ...(item.posterUrl ? { posterUrl: item.posterUrl } : {}),
-        previewUrl: item.previewUrl,
-        tinyUrl: item.tinyUrl,
-        blurPreview: item.blurPreview,
-        width: item.width,
-        height: item.height,
-        searchTerm: searchTerm || '',
-        title: item.title || undefined,
-        slug: item.slug,
-      };
-      if (sendNow && onGifSendNow) {
-        onGifSendNow(gif);
-      } else {
-        onGifSelect(gif);
-      }
+      const gif = klipyItemToGifAttachment(item, searchTerm);
+      routeGifSelection({ sendNow, gif, onGifSelect, onGifSendNow });
     },
     [onGifSelect, onGifSendNow, sendNow, searchTerm]
   );

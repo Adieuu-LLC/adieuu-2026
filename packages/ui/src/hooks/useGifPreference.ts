@@ -218,10 +218,10 @@ function getSendNowSnapshot(): boolean {
   try {
     const raw = localStorage.getItem(SEND_NOW_KEY);
     if (raw === 'false') return false;
+    return sendNowFallback;
   } catch {
     return sendNowFallback;
   }
-  return true;
 }
 
 function saveSendNow(value: boolean): void {
@@ -236,6 +236,14 @@ function saveSendNow(value: boolean): void {
     // Storage full or unavailable
   }
   emitChange();
+}
+
+export function loadGifSendNow(): boolean {
+  return getSendNowSnapshot();
+}
+
+export function saveGifSendNow(value: boolean): void {
+  saveSendNow(value);
 }
 
 /**
