@@ -10,6 +10,7 @@ export interface MfaStatus {
   totpCount: number;
   webauthnEnabled: boolean;
   webauthnCount: number;
+  discountTier: 'none' | 'basic' | 'hardware_key';
 }
 
 /**

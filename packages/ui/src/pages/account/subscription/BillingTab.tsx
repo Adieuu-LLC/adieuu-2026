@@ -1,14 +1,16 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type {
   BillingDetailsPayload,
   BillingInvoiceEntry,
   BillingPromoRedemptionEntry,
 } from '@adieuu/shared';
+import { createApiClient } from '@adieuu/shared';
 import { Card } from '../../../components/Card';
 import { Button } from '../../../components/Button';
 import { Spinner } from '../../../components/Spinner';
 import { Alert } from '../../../components/Alert';
+import { useAppConfig } from '../../../config';
 import type { BillingTabProps } from './types';
 import { formatDate } from './types';
 
@@ -64,7 +66,20 @@ export function BillingTab({
   billingDetailsError,
 }: BillingTabProps) {
   const { t } = useTranslation();
+  const { apiBaseUrl } = useAppConfig();
   const { hasGifted } = derived;
+
+  const [discountTier, setDiscountTier] = useState<'none' | 'basic' | 'hardware_key'>('none');
+
+  const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
+
+  useEffect(() => {
+    api.mfa.getStatus().then((res) => {
+      if (res.success && res.data) {
+        setDiscountTier(res.data.discountTier);
+      }
+    }).catch(() => {});
+  }, [api]);
 
   const historyEntries = useMemo(
     () => (billingDetails ? buildHistoryEntries(billingDetails) : []),
@@ -175,6 +190,33 @@ export function BillingTab({
             </div>
           ) : (
             <p className="subscription-billing-body">{t('account.subscription.billing.noRenewalInfo')}</p>
+          )}
+        </Card>
+      )}
+
+      {discountTier !== 'none' && (
+        <Card className="subscription-billing-card">
+          <h3 className="subscription-billing-subheading">
+            {t('account.subscription.billing.mfaDiscountHeading', 'MFA Security Discount')}
+          </h3>
+          <p className="subscription-billing-body">
+            {discountTier === 'hardware_key'
+              ? t(
+                  'account.subscription.billing.mfaDiscountHardwareKey',
+                  'You have a 5% discount on all purchases thanks to your hardware security key.',
+                )
+              : t(
+                  'account.subscription.billing.mfaDiscountBasic',
+                  'You have a 2% discount on subscriptions thanks to multi-factor authentication.',
+                )}
+          </p>
+          {discountTier === 'basic' && (
+            <p className="subscription-billing-meta">
+              {t(
+                'account.subscription.billing.mfaDiscountUpgradeHint',
+                'Add a hardware security key for 5% off all purchases.',
+              )}
+            </p>
           )}
         </Card>
       )}

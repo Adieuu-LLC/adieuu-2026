@@ -192,4 +192,7 @@ export interface MfaStatus {
   /** WebAuthn credentials configured */
   webauthnEnabled: boolean;
   webauthnCount: number;
+
+  /** Active MFA discount tier */
+  discountTier: 'none' | 'basic' | 'hardware_key';
 }

@@ -32,6 +32,7 @@ import type {
   AuthenticatorTransport,
 } from '../models/mfa';
 import { getRedis, isRedisConnected, RedisKeys } from '../db';
+import { reconcileMfaDiscount } from './billing/mfa-discount.service';
 import elog from '../utils/adieuuLogger';
 
 // ============================================================================
@@ -172,6 +173,8 @@ export async function verifyAndActivateTotp(
 
   elog.info('TOTP activated', { userId, totpId: totpId.substring(0, 8) });
 
+  void reconcileMfaDiscount(userId);
+
   return { success: true };
 }
 
@@ -236,6 +239,8 @@ export async function deleteTotp(
   await repo.delete(totpId);
 
   elog.info('TOTP deleted', { userId, totpId: totpId.substring(0, 8) });
+
+  void reconcileMfaDiscount(userId);
 
   return { success: true };
 }
@@ -386,6 +391,8 @@ export async function verifyWebAuthnRegistration(
     transports: savedCredential.transports,
     aaguid: savedCredential.aaguid,
   });
+
+  void reconcileMfaDiscount(userId);
 
   return { success: true, credential: savedCredential };
 }
@@ -547,6 +554,8 @@ export async function deleteWebAuthnCredential(
 
   elog.info('WebAuthn credential deleted', { userId, credentialId: credentialId.substring(0, 8) });
 
+  void reconcileMfaDiscount(userId);
+
   return { success: true };
 }
 
@@ -593,12 +602,24 @@ export async function getMfaStatus(userId: string): Promise<MfaStatus> {
   const totpEnabled = totpCredentials.length > 0;
   const webauthnEnabled = webauthnCredentials.length > 0;
 
+  const hasHardwareKey = webauthnCredentials.some(
+    (c) => !c.backedUp && c.transports?.some((t) => t === 'usb' || t === 'nfc' || t === 'ble'),
+  );
+
+  let discountTier: 'none' | 'basic' | 'hardware_key' = 'none';
+  if (hasHardwareKey) {
+    discountTier = 'hardware_key';
+  } else if (totpEnabled || webauthnEnabled) {
+    discountTier = 'basic';
+  }
+
   return {
     enabled: totpEnabled || webauthnEnabled,
     totpEnabled,
     totpCount: totpCredentials.length,
     webauthnEnabled,
     webauthnCount: webauthnCredentials.length,
+    discountTier,
   };
 }
 

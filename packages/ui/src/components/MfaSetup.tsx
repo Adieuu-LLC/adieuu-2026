@@ -424,6 +424,38 @@ export function MfaCredentialsList({ onSetupTotp, onSetupWebAuthn }: MfaCredenti
         </div>
       </div>
 
+      {/* MFA Discount Hint */}
+      {status && !status.enabled && (
+        <div className="mfa-discount-hint">
+          <span>
+            {t(
+              'account.security.mfa.discountHint.noMfa',
+              'Enable MFA to receive a 2% discount on subscriptions. Use a hardware security key for 5% off all purchases.',
+            )}
+          </span>
+        </div>
+      )}
+      {status?.discountTier === 'basic' && (
+        <div className="mfa-discount-hint">
+          <span>
+            {t(
+              'account.security.mfa.discountHint.basic',
+              'You have a 2% MFA discount on subscriptions. Add a hardware security key (USB/NFC) to upgrade to 5% off all purchases.',
+            )}
+          </span>
+        </div>
+      )}
+      {status?.discountTier === 'hardware_key' && (
+        <div className="mfa-discount-hint mfa-discount-hint-active">
+          <span>
+            {t(
+              'account.security.mfa.discountHint.hardwareKey',
+              'You have a 5% hardware key discount applied to all purchases.',
+            )}
+          </span>
+        </div>
+      )}
+
       {/* Authenticator Apps Section */}
       <div className="mfa-section">
         <div className="mfa-section-header">

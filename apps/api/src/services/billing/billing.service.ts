@@ -11,6 +11,7 @@
 import Stripe from 'stripe';
 import type { SubscriptionTierId, PurchasableProductId } from '@adieuu/shared';
 import { getStripe } from './stripe.client';
+import { getUserMfaDiscountTier, getCouponIdForCheckout } from './mfa-discount.service';
 import { config } from '../../config';
 import {
   PURCHASABLE_PRODUCTS,
@@ -194,11 +195,19 @@ export async function createCheckoutSessionForProduct(
     customer: customerId,
     client_reference_id: user._id.toHexString(),
     line_items: [{ price: priceId, quantity: 1 }],
-    allow_promotion_codes: true,
     success_url: config.stripe.successUrl,
     cancel_url: config.stripe.cancelUrl,
     metadata: { userId: user._id.toHexString(), productId },
   };
+
+  // Apply MFA discount coupon if eligible
+  const mfaTier = await getUserMfaDiscountTier(user._id.toHexString());
+  const mfaCouponId = getCouponIdForCheckout(mfaTier, productMeta.checkoutMode);
+  if (mfaCouponId) {
+    sessionParams.discounts = [{ coupon: mfaCouponId }];
+  } else {
+    sessionParams.allow_promotion_codes = true;
+  }
 
   if (productMeta.checkoutMode === 'subscription') {
     sessionParams.subscription_data = {
