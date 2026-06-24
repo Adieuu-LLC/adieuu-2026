@@ -475,7 +475,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     setAttachments((prev) => {
       const next = [...prev];
       const removed = next.splice(index, 1);
-      removed.forEach((a) => URL.revokeObjectURL(a.previewUrl));
+      for (const a of removed) URL.revokeObjectURL(a.previewUrl);
       return next;
     });
   }, []);
@@ -483,7 +483,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     return () => {
-      attachments.forEach((a) => URL.revokeObjectURL(a.previewUrl));
+      for (const a of attachments) URL.revokeObjectURL(a.previewUrl);
     };
   }, []);
 
@@ -649,7 +649,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       replyContext?.onCancel();
       setSendMp4WithoutReencode(false);
       setAttachments((prev) => {
-        prev.forEach((a) => URL.revokeObjectURL(a.previewUrl));
+        for (const a of prev) URL.revokeObjectURL(a.previewUrl);
         return [];
       });
       inputRef.current?.focus();

@@ -286,9 +286,9 @@ const ConversationListItem = memo(function ConversationListItem({
 
   const singleLargeAvatar = (opts: { withDmBadge: boolean }) => (
     <div className="conversation-list-item-avatar">
-      {listAvatarPids[0] && participantProfiles[listAvatarPids[0]!]?.avatarUrl ? (
+      {listAvatarPids[0] && participantProfiles[listAvatarPids[0]]?.avatarUrl ? (
         <img
-          src={participantProfiles[listAvatarPids[0]!]!.avatarUrl!}
+          src={participantProfiles[listAvatarPids[0]]?.avatarUrl as string}
           alt=""
           className="conversation-list-item-avatar-img"
         />

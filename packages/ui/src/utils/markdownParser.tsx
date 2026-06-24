@@ -35,8 +35,8 @@ import { parseMessageSegments } from './urlParsing';
  * tone modifiers, and keycap sequences. Greedy + global so we can strip all
  * emoji from a string in one pass.
  */
-const UNICODE_EMOJI_RE =
-  /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}\u{2300}-\u{23FF}\u{2B05}-\u{2B07}\u{2B1B}\u{2B1C}\u{2B50}\u{2B55}\u{3030}\u{303D}\u{3297}\u{3299}\u{FE0E}\u{FE0F}\u{200C}\u{200D}]+/gu;
+// biome-ignore lint/suspicious/noMisleadingCharacterClass: combining characters (ZWJ, keycap) are intentionally matched as standalone code points for emoji stripping
+const UNICODE_EMOJI_RE =  /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}\u{2300}-\u{23FF}\u{2B05}-\u{2B07}\u{2B1B}\u{2B1C}\u{2B50}\u{2B55}\u{3030}\u{303D}\u{3297}\u{3299}\u{FE0E}\u{FE0F}\u{200C}\u{200D}]+/gu;
 
 /**
  * Returns `true` when `text` consists exclusively of emoji (native Unicode
@@ -53,9 +53,10 @@ export function isEmojiOnlyMessage(
   if (!text) return false;
 
   const blocks = parseBlocks(text);
-  if (blocks.length !== 1 || blocks[0]!.type !== 'paragraph') return false;
+  const block = blocks[0];
+  if (blocks.length !== 1 || block?.type !== 'paragraph') return false;
 
-  let remaining = blocks[0]!.content;
+  let remaining = block.content;
 
   if (remaining.includes(MENTION_START) || remaining.includes(PAGE_TAG_START)) return false;
 
@@ -277,11 +278,11 @@ interface FormatRule {
  * text-style markers.
  */
 const MENTION_PATTERN = new RegExp(
-  MENTION_START + '([a-f0-9]{24})' + MENTION_END,
+  `${MENTION_START}([a-f0-9]{24})${MENTION_END}`,
 );
 
 const PAGE_TAG_PATTERN = new RegExp(
-  PAGE_TAG_START + '([a-z0-9_-]+)' + PAGE_TAG_END,
+  `${PAGE_TAG_START}([a-z0-9_-]+)${PAGE_TAG_END}`,
 );
 
 const FORMAT_RULES: FormatRule[] = [
@@ -589,14 +590,14 @@ function injectCustomEmojis(
     const pattern = createCustomEmojiColonTokenRegex();
     const parts: ReactNode[] = [];
     let lastIdx = 0;
-    let match: RegExpExecArray | null;
-    while ((match = pattern.exec(node)) !== null) {
+    for (const match of node.matchAll(pattern)) {
       const sc = match[1]?.toLowerCase();
       if (!sc) continue;
       const entry = emojis[sc];
       if (!entry) continue;
-      if (match.index > lastIdx) {
-        parts.push(node.slice(lastIdx, match.index));
+      const idx = match.index ?? 0;
+      if (idx > lastIdx) {
+        parts.push(node.slice(lastIdx, idx));
       }
       parts.push(
         createElement('img', {
@@ -610,7 +611,7 @@ function injectCustomEmojis(
           loading: 'lazy',
         }),
       );
-      lastIdx = pattern.lastIndex;
+      lastIdx = idx + match[0].length;
     }
     if (parts.length === 0) return node;
     if (lastIdx < node.length) parts.push(node.slice(lastIdx));

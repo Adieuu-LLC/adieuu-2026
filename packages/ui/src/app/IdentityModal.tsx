@@ -128,7 +128,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
   const [displayName, setDisplayName] = useState('');
 
   // Rate limiting info
-  const [retryAfter, setRetryAfter] = useState<number | null>(null);
+  const [_retryAfter, setRetryAfter] = useState<number | null>(null);
   const [attemptNumber, setAttemptNumber] = useState<number | null>(null);
 
   // Login status for progress display

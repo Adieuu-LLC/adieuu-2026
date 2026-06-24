@@ -29,7 +29,7 @@ export function SponsorshipDirectoryPage() {
     const res = await api.sponsorship.getDirectory(cursor);
     if (res.success && res.data) {
       if (cursor) {
-        setEntries((prev) => [...prev, ...res.data!.entries]);
+        setEntries((prev) => [...prev, ...(res.data?.entries ?? [])]);
       } else {
         setEntries(res.data.entries);
       }
@@ -45,7 +45,8 @@ export function SponsorshipDirectoryPage() {
   async function handleLoadMore() {
     if (loadingMore || !entries.length) return;
     setLoadingMore(true);
-    const lastEntry = entries[entries.length - 1]!;
+    const lastEntry = entries[entries.length - 1];
+    if (!lastEntry) return;
     await fetchDirectory(lastEntry.createdAt);
     setLoadingMore(false);
   }

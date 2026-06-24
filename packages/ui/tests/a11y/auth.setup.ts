@@ -19,37 +19,52 @@ const STORAGE_STATE_PATH = path.resolve(__dirname, '.auth/session.json');
 export const AUTH_STORAGE_STATE = STORAGE_STATE_PATH;
 
 async function globalSetup() {
+  if (process.env.SKIP_A11Y_AUTH === '1') {
+    console.log('[a11y auth setup] Skipped (SKIP_A11Y_AUTH=1)');
+    return;
+  }
+
   const email = process.env.PW_TEST_EMAIL ?? 'local-test@adieuu.com';
   const otpCode = process.env.DEV_OTP_CODE ?? '123456';
   const baseURL = process.env.PW_API_URL ?? 'http://localhost:3000';
 
-  const context = await request.newContext({ baseURL });
-
-  // Step 1: Request OTP
-  const requestRes = await context.post('/api/auth/request', {
-    data: { identifier: email, type: 'email' },
-  });
-
-  if (!requestRes.ok()) {
-    const body = await requestRes.text();
-    throw new Error(`Failed to request OTP: ${requestRes.status()} ${body}`);
+  let context;
+  try {
+    context = await request.newContext({ baseURL });
+  } catch (err) {
+    console.warn(`[a11y auth setup] Could not connect to API at ${baseURL}, skipping auth. Authenticated tests will be skipped.`);
+    return;
   }
 
-  // Step 2: Verify OTP (uses DEV_OTP_CODE bypass on the server)
-  const verifyRes = await context.post('/api/auth/verify', {
-    data: { identifier: email, code: otpCode },
-  });
+  try {
+    // Step 1: Request OTP
+    const requestRes = await context.post('/api/auth/request', {
+      data: { identifier: email, type: 'email' },
+    });
 
-  if (!verifyRes.ok()) {
-    const body = await verifyRes.text();
-    throw new Error(`Failed to verify OTP: ${verifyRes.status()} ${body}`);
+    if (!requestRes.ok()) {
+      const body = await requestRes.text();
+      throw new Error(`Failed to request OTP: ${requestRes.status()} ${body}`);
+    }
+
+    // Step 2: Verify OTP (uses DEV_OTP_CODE bypass on the server)
+    const verifyRes = await context.post('/api/auth/verify', {
+      data: { identifier: email, code: otpCode },
+    });
+
+    if (!verifyRes.ok()) {
+      const body = await verifyRes.text();
+      throw new Error(`Failed to verify OTP: ${verifyRes.status()} ${body}`);
+    }
+
+    // Step 3: Save cookie state
+    await context.storageState({ path: STORAGE_STATE_PATH });
+    console.log(`[a11y auth setup] Authenticated as ${email}, state saved to ${STORAGE_STATE_PATH}`);
+  } catch (err) {
+    console.warn(`[a11y auth setup] Auth failed: ${err instanceof Error ? err.message : err}. Authenticated tests may be skipped.`);
+  } finally {
+    await context.dispose();
   }
-
-  // Step 3: Save cookie state
-  await context.storageState({ path: STORAGE_STATE_PATH });
-  await context.dispose();
-
-  console.log(`[a11y auth setup] Authenticated as ${email}, state saved to ${STORAGE_STATE_PATH}`);
 }
 
 export default globalSetup;

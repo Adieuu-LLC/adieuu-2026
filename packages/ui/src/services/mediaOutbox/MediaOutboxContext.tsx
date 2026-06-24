@@ -80,7 +80,7 @@ export function MediaOutboxProvider({ children }: { children: ReactNode }) {
   const listenersRef = useRef(new Set<() => void>());
 
   const notify = useCallback(() => {
-    listenersRef.current.forEach((l) => l());
+    for (const l of listenersRef.current) l();
   }, []);
 
   const subscribe = useCallback((onStoreChange: () => void) => {
@@ -283,7 +283,7 @@ export function MediaOutboxProvider({ children }: { children: ReactNode }) {
   const retryJob = useCallback(
     async (jobId: string) => {
       const j = await mediaOutboxGetJob(jobId);
-      if (!j || j.stage !== 'failed') return;
+      if (j?.stage !== 'failed') return;
       let nextStage: MediaOutboxJobRecord['stage'] = 'queued';
       if (j.messageSendCompleted === true) nextStage = 'scan_upload';
       else if (j.e2eSnapshot?.length) nextStage = 'sending';

@@ -340,7 +340,8 @@ export function MfaCredentialsList({ onSetupTotp, onSetupWebAuthn }: MfaCredenti
     const sanitizedName = editingPasskey.name
       .trim()
       .slice(0, 100)
-      .replace(/[\x00-\x1F\x7F]/g, ''); // Remove control characters
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally strips control characters from user input
+      .replace(/[\x00-\x1F\x7F]/g, '');
 
     if (!sanitizedName) {
       setRenameError(t('account.security.mfa.webauthn.nameRequired', 'Name is required'));

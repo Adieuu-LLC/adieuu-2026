@@ -65,7 +65,7 @@ export function SponsorCheckoutModal({ open, entry, onClose }: SponsorCheckoutMo
         await openCheckoutOrPortalUrl(res.data.url, openExternal);
         onClose();
       } else {
-        const code = (res as any).error?.code; // eslint-disable-line @typescript-eslint/no-explicit-any
+        const code = (res as { error?: { code?: string } }).error?.code;
         if (code === 'SELF_SPONSOR') {
           toast.error(t('sponsorship.errors.selfSponsor'));
         } else if (code === 'REQUEST_UNAVAILABLE') {
