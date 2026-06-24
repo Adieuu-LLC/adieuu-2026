@@ -103,6 +103,13 @@ mock.module('../../utils/adieuuLogger', () => ({
   },
 }));
 
+mock.module('./mfa-discount.service', () => ({
+  getUserMfaDiscountTier: mock(async () => 'none'),
+  getCouponIdForTier: mock(() => undefined),
+  getCouponIdForCheckout: mock(() => undefined),
+  reconcileMfaDiscount: mock(async () => {}),
+}));
+
 import {
   tierIdsForPriceIds,
   entitlementsForPriceIds,

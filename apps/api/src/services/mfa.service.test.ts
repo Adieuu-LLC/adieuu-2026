@@ -37,6 +37,7 @@ const mockConfig = {
     otpSecret: 'otp-secret-for-tests',
     sessionSecret: 'test-session-secret',
   },
+  stripe: { enabled: false },
 };
 
 const mockTotpRepo = {

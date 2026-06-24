@@ -24,6 +24,7 @@ const {
   getAgeVerificationPolicy,
   requiresAgeVerification,
   resolveBusinessSettingsId,
+  resolveBusinessSettings,
 } = await import('./jurisdiction-policy');
 
 beforeEach(() => {
@@ -123,13 +124,16 @@ describe('getAgeVerificationPolicy', () => {
         requirements: ['age_verification'],
         compatibleMethods: ['email_age_check'],
         legislation: [],
-        verificationConfig: { vmyBusinessSettingsId: 'nested-id' },
+        verificationConfig: { vmyBusinessSettingsId: 'nested-id', vmyBusinessSettingsCountry: 'US' },
+        parentJurisdiction: 'US',
       }),
     );
 
     const policy = await getAgeVerificationPolicy('US-TN');
 
     expect(policy?.vmyBusinessSettingsId).toBe('nested-id');
+    expect(policy?.vmyBusinessSettingsCountry).toBe('US');
+    expect(policy?.parentJurisdiction).toBe('US');
   });
 
   test('includes legacy top-level business settings ID', async () => {
@@ -196,5 +200,152 @@ describe('resolveBusinessSettingsId', () => {
     const result = await resolveBusinessSettingsId(undefined);
 
     expect(result).toBeUndefined();
+  });
+});
+
+describe('resolveBusinessSettings', () => {
+  test('tier 1: returns jurisdiction-specific ID and explicit country', async () => {
+    const result = await resolveBusinessSettings('US-TN', {
+      vmyBusinessSettingsId: 'tn-settings-id',
+      vmyBusinessSettingsCountry: 'US',
+      parentJurisdiction: 'US',
+    });
+    expect(result).toEqual({ id: 'tn-settings-id', country: 'US' });
+    expect(mockFindByJurisdiction).not.toHaveBeenCalled();
+  });
+
+  test('tier 1: derives country from jurisdiction when vmyBusinessSettingsCountry absent', async () => {
+    const result = await resolveBusinessSettings('US-TX', {
+      vmyBusinessSettingsId: 'tx-settings-id',
+      vmyBusinessSettingsCountry: undefined,
+      parentJurisdiction: 'US',
+    });
+    expect(result).toEqual({ id: 'tx-settings-id', country: 'US' });
+  });
+
+  test('tier 1: derives country from 2-letter jurisdiction', async () => {
+    const result = await resolveBusinessSettings('DE', {
+      vmyBusinessSettingsId: 'de-settings-id',
+      vmyBusinessSettingsCountry: undefined,
+      parentJurisdiction: 'EU',
+    });
+    expect(result).toEqual({ id: 'de-settings-id', country: 'DE' });
+  });
+
+  test('tier 2: falls back to parent jurisdiction business settings', async () => {
+    mockFindByJurisdiction.mockImplementation((j: string) => {
+      if (j === 'EU') {
+        return Promise.resolve({
+          jurisdiction: 'EU',
+          requirements: ['age_assurance'],
+          compatibleMethods: ['email_age_check'],
+          legislation: [],
+          verificationConfig: { vmyBusinessSettingsId: 'eu-settings-id', vmyBusinessSettingsCountry: 'DE' },
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    const result = await resolveBusinessSettings('FR', {
+      vmyBusinessSettingsId: undefined,
+      vmyBusinessSettingsCountry: undefined,
+      parentJurisdiction: 'EU',
+    });
+
+    expect(result).toEqual({ id: 'eu-settings-id', country: 'DE' });
+    expect(mockFindByJurisdiction).toHaveBeenCalledWith('EU');
+  });
+
+  test('tier 2: derives parent country when parent has no explicit country', async () => {
+    mockFindByJurisdiction.mockImplementation((j: string) => {
+      if (j === 'US') {
+        return Promise.resolve({
+          jurisdiction: 'US',
+          requirements: [],
+          compatibleMethods: ['email_age_check'],
+          legislation: [],
+          verificationConfig: { vmyBusinessSettingsId: 'us-settings-id' },
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    const result = await resolveBusinessSettings('US-TN', {
+      vmyBusinessSettingsId: undefined,
+      vmyBusinessSettingsCountry: undefined,
+      parentJurisdiction: 'US',
+    });
+
+    expect(result).toEqual({ id: 'us-settings-id', country: 'US' });
+  });
+
+  test('tier 3: falls back to platform default when no parent or parent has no settings', async () => {
+    mockFindByKey.mockImplementation((key: string) => {
+      if (key.includes('verifymy-default-business-settings-id')) {
+        return Promise.resolve({ valueType: 'string', value: 'platform-default-id' });
+      }
+      if (key.includes('verifymy-default-business-settings-country')) {
+        return Promise.resolve({ valueType: 'string', value: 'us' });
+      }
+      return Promise.resolve(null);
+    });
+
+    const result = await resolveBusinessSettings('GB', {
+      vmyBusinessSettingsId: undefined,
+      vmyBusinessSettingsCountry: undefined,
+      parentJurisdiction: undefined,
+    });
+
+    expect(result).toEqual({ id: 'platform-default-id', country: 'US' });
+  });
+
+  test('tier 3: defaults country to US when platform country setting absent', async () => {
+    mockFindByKey.mockImplementation((key: string) => {
+      if (key.includes('verifymy-default-business-settings-id')) {
+        return Promise.resolve({ valueType: 'string', value: 'platform-default-id' });
+      }
+      return Promise.resolve(null);
+    });
+
+    const result = await resolveBusinessSettings('GB', {
+      vmyBusinessSettingsId: undefined,
+      vmyBusinessSettingsCountry: undefined,
+      parentJurisdiction: undefined,
+    });
+
+    expect(result).toEqual({ id: 'platform-default-id', country: 'US' });
+  });
+
+  test('returns undefined when nothing configured anywhere', async () => {
+    const result = await resolveBusinessSettings('GB', {
+      vmyBusinessSettingsId: undefined,
+      vmyBusinessSettingsCountry: undefined,
+      parentJurisdiction: undefined,
+    });
+
+    expect(result).toBeUndefined();
+  });
+
+  test('returns undefined when policy is null', async () => {
+    const result = await resolveBusinessSettings('UNKNOWN', null);
+    expect(result).toBeUndefined();
+  });
+
+  test('skips tier 2 when no parentJurisdiction', async () => {
+    mockFindByKey.mockImplementation((key: string) => {
+      if (key.includes('verifymy-default-business-settings-id')) {
+        return Promise.resolve({ valueType: 'string', value: 'fallback-id' });
+      }
+      return Promise.resolve(null);
+    });
+
+    const result = await resolveBusinessSettings('AU', {
+      vmyBusinessSettingsId: undefined,
+      vmyBusinessSettingsCountry: undefined,
+      parentJurisdiction: undefined,
+    });
+
+    expect(result).toEqual({ id: 'fallback-id', country: 'US' });
+    expect(mockFindByJurisdiction).not.toHaveBeenCalled();
   });
 });

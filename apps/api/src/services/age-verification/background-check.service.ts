@@ -16,7 +16,7 @@ import type { UserDocument, UserAgeVerification } from '../../models/user';
 import { getAgeVerificationRepository } from '../../repositories/age-verification.repository';
 import { getUserRepository } from '../../repositories/user.repository';
 import { getActiveProvider } from './providers';
-import { getAgeVerificationPolicy, resolveBusinessSettingsId } from './jurisdiction-policy';
+import { getAgeVerificationPolicy, resolveBusinessSettings } from './jurisdiction-policy';
 import { isAgeVerificationEnabled, isAutoEmailBackgroundCheckEnabled } from './av-settings';
 import { config } from '../../config';
 import elog from '../../utils/adieuuLogger';
@@ -53,16 +53,20 @@ export async function initiateBackgroundCheck(user: UserDocument): Promise<void>
 
     const callbackUrl = `${config.apiBaseUrl}/api/age-verification/callback`;
 
-    const countryCode = user.geo?.countryCode?.toLowerCase() ?? 'us';
-    const jurisdiction = user.geo?.jurisdiction ?? countryCode.toUpperCase();
+    const jurisdiction = user.geo?.jurisdiction ?? user.geo?.countryCode?.toUpperCase() ?? 'US';
     const policy = await getAgeVerificationPolicy(jurisdiction);
+    const businessSettings = await resolveBusinessSettings(jurisdiction, policy);
+
+    const countryCode = businessSettings?.country?.toLowerCase()
+      ?? user.geo?.countryCode?.toLowerCase()
+      ?? 'us';
 
     const providerResult = await provider.startVerification({
       redirectUrl: callbackUrl,
       country: countryCode,
       externalUserId: user._id.toHexString(),
       userInfo: { email: user.email },
-      businessSettingsId: await resolveBusinessSettingsId(policy?.vmyBusinessSettingsId),
+      businessSettingsId: businessSettings?.id,
     });
 
     const doc = await repo.createVerification({
@@ -70,7 +74,7 @@ export async function initiateBackgroundCheck(user: UserDocument): Promise<void>
       providerId: provider.id,
       providerVerificationId: providerResult.verificationId,
       status: providerResult.status === 'approved' ? 'approved' : 'started',
-      jurisdiction: user.geo?.jurisdiction ?? countryCode.toUpperCase(),
+      jurisdiction,
       requestedMethod: undefined,
       startedAt: new Date(),
       redirectUrl: providerResult.redirectUrl,
@@ -84,7 +88,7 @@ export async function initiateBackgroundCheck(user: UserDocument): Promise<void>
         providerId: provider.id,
         providerVerificationId: providerResult.verificationId,
         verifiedAt: new Date(),
-        lastJurisdiction: user.geo?.jurisdiction ?? countryCode.toUpperCase(),
+        lastJurisdiction: jurisdiction,
         expirationCount: 0,
       };
       await userRepo.updateAgeVerification(user._id, av);
@@ -101,7 +105,7 @@ export async function initiateBackgroundCheck(user: UserDocument): Promise<void>
         status: 'pending',
         providerId: provider.id,
         providerVerificationId: providerResult.verificationId,
-        lastJurisdiction: user.geo?.jurisdiction ?? countryCode.toUpperCase(),
+        lastJurisdiction: jurisdiction,
         expirationCount: 0,
         lastStatusCheckAt: new Date(),
       };

@@ -96,19 +96,27 @@ export class JurisdictionRequirementRepository extends BaseRepository<Jurisdicti
 
   async patchVerificationConfig(
     jurisdiction: string,
-    vmyBusinessSettingsId: string | undefined,
+    config: { vmyBusinessSettingsId?: string; vmyBusinessSettingsCountry?: string } | undefined,
   ): Promise<JurisdictionRequirementDocument | null> {
     const code = jurisdiction.trim().toUpperCase();
     const existing = await this.findByJurisdiction(code);
     if (!existing) return null;
 
     const now = new Date();
-    if (vmyBusinessSettingsId) {
+    const hasId = !!config?.vmyBusinessSettingsId;
+
+    if (hasId) {
+      const verificationConfig: Record<string, string> = {
+        vmyBusinessSettingsId: config!.vmyBusinessSettingsId!,
+      };
+      if (config!.vmyBusinessSettingsCountry) {
+        verificationConfig.vmyBusinessSettingsCountry = config!.vmyBusinessSettingsCountry;
+      }
       await this.collection.updateOne(
         { jurisdiction: code } as Filter<JurisdictionRequirementDocument>,
         {
           $set: {
-            verificationConfig: { vmyBusinessSettingsId },
+            verificationConfig,
             updatedAt: now,
           },
           $unset: { vmyBusinessSettingsId: '' },

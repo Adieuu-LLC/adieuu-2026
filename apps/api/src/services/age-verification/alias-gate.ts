@@ -8,7 +8,7 @@
 
 import type { UserDocument } from '../../models/user';
 import { isAgeVerificationEnabled, getBlockedJurisdictions, getLawLinkForJurisdiction, getRequiredMode } from './av-settings';
-import { requiresAgeVerification, getAgeVerificationPolicy } from './jurisdiction-policy';
+import { requiresAgeVerification, getAgeVerificationPolicy, type JurisdictionAgePolicy } from './jurisdiction-policy';
 
 const FAILED_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;       // 30 days
 const EXPIRED_COOLDOWN_MS = 24 * 60 * 60 * 1000;            // 24 hours
@@ -79,7 +79,29 @@ export async function evaluateAliasGate(user: UserDocument): Promise<AliasGateRe
   const avRequired = await requiresAgeVerification(jurisdiction);
   if (!avRequired) return ALLOWED;
 
-  return evaluateAvStatus(user, jurisdiction);
+  // 4. Credit card method satisfied by active subscription?
+  const policy = await getAgeVerificationPolicy(jurisdiction);
+  if (policy && hasSubscriptionSatisfiedCreditCardMethod(user, policy)) {
+    return ALLOWED;
+  }
+
+  return evaluateAvStatus(user, jurisdiction, undefined, policy);
+}
+
+/**
+ * Returns true when the jurisdiction accepts credit card as an age verification
+ * method and the user already has an active paid subscription (or lifetime purchase).
+ */
+function hasSubscriptionSatisfiedCreditCardMethod(
+  user: UserDocument,
+  policy: JurisdictionAgePolicy,
+): boolean {
+  if (!policy.compatibleMethodSlugs?.includes('credit_card')) return false;
+  const billing = user.billing;
+  if (!billing) return false;
+  const hasActiveSub = billing.activeSubscriptions.length > 0
+    && (billing.status === 'active' || billing.status === 'trialing');
+  return hasActiveSub || billing.isLifetime;
 }
 
 /**
@@ -91,6 +113,7 @@ async function evaluateAvStatus(
   user: UserDocument,
   jurisdiction: string,
   requiredReason?: 'legislation' | 'abusive_ip' | 'utah_attestation' | 'admin',
+  prefetchedPolicy?: JurisdictionAgePolicy | null,
 ): Promise<AliasGateResult> {
   const av = user.ageVerification;
 
@@ -118,7 +141,9 @@ async function evaluateAvStatus(
   }
 
   // AV required but not verified (or cooldown elapsed)
-  const policy = await getAgeVerificationPolicy(jurisdiction);
+  const policy = prefetchedPolicy !== undefined
+    ? prefetchedPolicy
+    : await getAgeVerificationPolicy(jurisdiction);
   const leastInvasiveMethod = policy?.leastInvasiveMethod ?? 'Email';
 
   return {

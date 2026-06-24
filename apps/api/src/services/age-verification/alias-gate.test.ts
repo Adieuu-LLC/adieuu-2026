@@ -24,6 +24,7 @@ mock.module('./jurisdiction-policy', () => ({
   requiresAgeVerification: mockRequiresAgeVerification,
   getAgeVerificationPolicy: mockGetAgeVerificationPolicy,
   resolveBusinessSettingsId: (id: string | undefined) => Promise.resolve(id),
+  resolveBusinessSettings: (_j: string, _p: unknown) => Promise.resolve(undefined),
 }));
 
 const { evaluateAliasGate } = await import('./alias-gate');
@@ -280,6 +281,123 @@ describe('evaluateAliasGate', () => {
     expect(result.allowed).toBe(false);
     if (!result.allowed) {
       expect(result.code).toBe('GEOFENCE_BLOCKED');
+    }
+  });
+
+  test('allows user with active subscription when jurisdiction supports credit_card method', async () => {
+    mockRequiresAgeVerification.mockImplementation(() => Promise.resolve(true));
+    mockGetAgeVerificationPolicy.mockImplementation(() => Promise.resolve({
+      required: true,
+      compatibleMethods: ['Email', 'CreditCard', 'AgeEstimation'],
+      compatibleMethodSlugs: ['email_age_check', 'credit_card', 'facial_age_estimation'],
+      leastInvasiveMethod: 'Email',
+      legislation: [],
+    }));
+    const user = makeUser({
+      geo: { jurisdiction: 'GB', countryCode: 'GB', ipHash: '', checkedAt: new Date() },
+      billing: {
+        activeSubscriptions: ['access'],
+        entitlements: [],
+        isLifetime: false,
+        status: 'active',
+        updatedAt: new Date(),
+      },
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(true);
+  });
+
+  test('allows user with lifetime purchase when jurisdiction supports credit_card method', async () => {
+    mockRequiresAgeVerification.mockImplementation(() => Promise.resolve(true));
+    mockGetAgeVerificationPolicy.mockImplementation(() => Promise.resolve({
+      required: true,
+      compatibleMethods: ['Email', 'CreditCard'],
+      compatibleMethodSlugs: ['email_age_check', 'credit_card'],
+      leastInvasiveMethod: 'Email',
+      legislation: [],
+    }));
+    const user = makeUser({
+      geo: { jurisdiction: 'GB', countryCode: 'GB', ipHash: '', checkedAt: new Date() },
+      billing: {
+        activeSubscriptions: [],
+        entitlements: [],
+        isLifetime: true,
+        status: undefined,
+        updatedAt: new Date(),
+      },
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(true);
+  });
+
+  test('requires AV when jurisdiction supports credit_card but user has no active subscription', async () => {
+    mockRequiresAgeVerification.mockImplementation(() => Promise.resolve(true));
+    mockGetAgeVerificationPolicy.mockImplementation(() => Promise.resolve({
+      required: true,
+      compatibleMethods: ['Email', 'CreditCard'],
+      compatibleMethodSlugs: ['email_age_check', 'credit_card'],
+      leastInvasiveMethod: 'Email',
+      legislation: [],
+    }));
+    const user = makeUser({
+      geo: { jurisdiction: 'GB', countryCode: 'GB', ipHash: '', checkedAt: new Date() },
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(false);
+    if (!result.allowed) {
+      expect(result.code).toBe('AGE_VERIFICATION_REQUIRED');
+    }
+  });
+
+  test('requires AV when user has active subscription but jurisdiction does not support credit_card', async () => {
+    mockRequiresAgeVerification.mockImplementation(() => Promise.resolve(true));
+    mockGetAgeVerificationPolicy.mockImplementation(() => Promise.resolve({
+      required: true,
+      compatibleMethods: ['Email', 'AgeEstimation'],
+      compatibleMethodSlugs: ['email_age_check', 'facial_age_estimation'],
+      leastInvasiveMethod: 'Email',
+      legislation: [],
+    }));
+    const user = makeUser({
+      geo: { jurisdiction: 'US-TN', countryCode: 'US', ipHash: '', checkedAt: new Date() },
+      billing: {
+        activeSubscriptions: ['access'],
+        entitlements: [],
+        isLifetime: false,
+        status: 'active',
+        updatedAt: new Date(),
+      },
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(false);
+    if (!result.allowed) {
+      expect(result.code).toBe('AGE_VERIFICATION_REQUIRED');
+    }
+  });
+
+  test('requires AV for gifted user even when jurisdiction supports credit_card and user has subscription', async () => {
+    mockRequiresAgeVerification.mockImplementation(() => Promise.resolve(true));
+    mockGetAgeVerificationPolicy.mockImplementation(() => Promise.resolve({
+      required: true,
+      compatibleMethods: ['Email', 'CreditCard'],
+      compatibleMethodSlugs: ['email_age_check', 'credit_card'],
+      leastInvasiveMethod: 'Email',
+      legislation: [],
+    }));
+    const user = makeUser({
+      geo: { jurisdiction: 'GB', countryCode: 'GB', ipHash: '', checkedAt: new Date() },
+      billing: {
+        activeSubscriptions: ['access'],
+        entitlements: ['gifted'],
+        isLifetime: false,
+        status: 'active',
+        updatedAt: new Date(),
+      },
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(false);
+    if (!result.allowed) {
+      expect(result.code).toBe('AGE_VERIFICATION_REQUIRED');
     }
   });
 });

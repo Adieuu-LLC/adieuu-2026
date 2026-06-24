@@ -70,6 +70,7 @@ function usState(
     legislation: [{ name: law, enactmentDate: enact, url }],
     notes,
     status,
+    parentJurisdiction: 'US',
     verificationConfig: vmyBusinessSettingsId
       ? { vmyBusinessSettingsId }
       : undefined,
@@ -77,6 +78,16 @@ function usState(
 }
 
 const US: SeedRow[] = [
+  {
+    jurisdiction: 'US',
+    jurisdictionName: 'United States (federal)',
+    region: 'United States',
+    requirements: [],
+    compatibleMethods: [...M.std],
+    legislation: [],
+    notes: 'Parent record for US state jurisdictions; holds shared VerifyMy business settings.',
+    status: 'enacted',
+  },
   usState('US-AL', 'Alabama', 'HB164', '1st October 2024', 'State of Alabama AG',
     [...M.std], ['age_verification'], undefined, 'enacted',
     'https://action.freespeechcoalition.com/bill/alabama-hb-164/'),
@@ -213,6 +224,7 @@ const EU_AND_ROW: SeedRow[] = [
     notes:
       'Non-French European sites are now in-scope. Email cannot be used as part of a background check; user must be able to choose a double-blind method.',
     status: 'enacted',
+    parentJurisdiction: 'EU',
   },
   {
     jurisdiction: 'DE',
@@ -223,6 +235,7 @@ const EU_AND_ROW: SeedRow[] = [
     regulatoryBody: 'KJM',
     legislation: [{ name: 'Jugendmedienschutz-Staatsvertrag (JMStV)', enactmentDate: '1st May 2021 (latest amendment)', url: 'https://www.kjm-online.de/themen/technischer-jugendmedienschutz/' }],
     status: 'enacted',
+    parentJurisdiction: 'EU',
   },
   {
     jurisdiction: 'IT',
@@ -239,6 +252,7 @@ const EU_AND_ROW: SeedRow[] = [
     notes:
       'Italian-established sites: 6 months from 12 Nov 2025. Non-Italian established: 3 months from 1 Feb 2026.',
     status: 'enacted',
+    parentJurisdiction: 'EU',
   },
   {
     jurisdiction: 'AU',

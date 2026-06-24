@@ -35,12 +35,18 @@ const METHOD_ESCALATION_ORDER: ReadonlyArray<{ slug: string; verifyMyMethod: str
 export interface JurisdictionAgePolicy {
   required: boolean;
   compatibleMethods: string[];
+  /** Raw method slugs from seed data (e.g. 'credit_card', 'email_age_check'). */
+  compatibleMethodSlugs: string[];
   /** VerifyMy method name for the least invasive compatible method. */
   leastInvasiveMethod: string;
   legislation: LegislationRef[];
   notes?: string;
-  /** VerifyMy business settings ID for this jurisdiction (US states). */
+  /** VerifyMy business settings ID for this jurisdiction. */
   vmyBusinessSettingsId?: string;
+  /** ISO country code the business settings are registered under. */
+  vmyBusinessSettingsCountry?: string;
+  /** Parent jurisdiction code for fallback resolution. */
+  parentJurisdiction?: string;
 }
 
 /**
@@ -60,6 +66,7 @@ export async function getAgeVerificationPolicy(
     return {
       required: true,
       compatibleMethods: ['Email'],
+      compatibleMethodSlugs: [],
       leastInvasiveMethod: 'Email',
       legislation: [],
     };
@@ -77,13 +84,18 @@ export async function getAgeVerificationPolicy(
 
   const leastInvasive = orderedMethods[0] ?? 'Email';
 
+  const verificationConfig = extractVerificationConfig(doc);
+
   return {
     required: true,
     compatibleMethods: orderedMethods.length > 0 ? orderedMethods : ['Email'],
+    compatibleMethodSlugs: doc.compatibleMethods,
     leastInvasiveMethod: leastInvasive,
     legislation: doc.legislation,
     notes: doc.notes,
-    vmyBusinessSettingsId: extractVerificationConfig(doc)?.vmyBusinessSettingsId,
+    vmyBusinessSettingsId: verificationConfig?.vmyBusinessSettingsId,
+    vmyBusinessSettingsCountry: verificationConfig?.vmyBusinessSettingsCountry,
+    parentJurisdiction: doc.parentJurisdiction,
   };
 }
 
@@ -130,10 +142,90 @@ async function isAdminOverrideJurisdiction(jurisdiction: string): Promise<boolea
   return false;
 }
 
+export interface ResolvedBusinessSettings {
+  id: string;
+  /** ISO country code to send to VerifyMy (matches the business settings registration). */
+  country: string;
+}
+
 /**
- * Resolves the VerifyMy business_settings_id for a verification request.
- * Returns the jurisdiction-specific ID if configured, otherwise the
- * platform-level default, or undefined if neither is set.
+ * Derives the country code from a jurisdiction code when no explicit
+ * vmyBusinessSettingsCountry is configured. Takes the portion before the
+ * first dash (e.g. "US-TX" -> "US", "DE" -> "DE").
+ */
+function deriveCountryFromJurisdiction(jurisdiction: string): string {
+  return jurisdiction.split('-')[0]!.toUpperCase();
+}
+
+/**
+ * Resolves the VerifyMy business settings for a verification request.
+ *
+ * 3-tier fallback:
+ *   1. Jurisdiction-specific (from getAgeVerificationPolicy)
+ *   2. Parent jurisdiction doc (via parentJurisdiction field)
+ *   3. Platform-level default
+ *
+ * Returns both the business_settings_id and the country code that must
+ * accompany it in the VerifyMy API request.
+ */
+export async function resolveBusinessSettings(
+  jurisdiction: string,
+  policy: Pick<JurisdictionAgePolicy, 'vmyBusinessSettingsId' | 'vmyBusinessSettingsCountry' | 'parentJurisdiction'> | null,
+): Promise<ResolvedBusinessSettings | undefined> {
+  // Tier 1: jurisdiction-specific
+  const directId = policy?.vmyBusinessSettingsId?.trim();
+  if (directId) {
+    const country = policy?.vmyBusinessSettingsCountry?.trim()
+      || deriveCountryFromJurisdiction(jurisdiction);
+    return { id: directId, country };
+  }
+
+  // Tier 2: parent jurisdiction
+  const parentCode = policy?.parentJurisdiction?.trim();
+  if (parentCode) {
+    const repo = getJurisdictionRequirementRepository();
+    const parentDoc = await repo.findByJurisdiction(parentCode);
+    if (parentDoc) {
+      const parentConfig = extractVerificationConfig(parentDoc);
+      const parentId = parentConfig?.vmyBusinessSettingsId?.trim();
+      if (parentId) {
+        const country = parentConfig?.vmyBusinessSettingsCountry?.trim()
+          || deriveCountryFromJurisdiction(parentCode);
+        return { id: parentId, country };
+      }
+    }
+  }
+
+  // Tier 3: platform default
+  try {
+    const repo = getPlatformSettingsRepository();
+    const idDoc = await repo.findByKey(PLATFORM_SETTING_KEYS.AGE_VERIFICATION_VERIFYMY_DEFAULT_BUSINESS_SETTINGS_ID);
+    if (idDoc?.valueType === 'string' && typeof idDoc.value === 'string') {
+      const trimmedId = idDoc.value.trim();
+      if (trimmedId.length > 0) {
+        let country = 'US';
+        try {
+          const countryDoc = await repo.findByKey(PLATFORM_SETTING_KEYS.AGE_VERIFICATION_VERIFYMY_DEFAULT_BUSINESS_SETTINGS_COUNTRY);
+          if (countryDoc?.valueType === 'string' && typeof countryDoc.value === 'string') {
+            const trimmedCountry = countryDoc.value.trim();
+            if (trimmedCountry.length > 0) country = trimmedCountry.toUpperCase();
+          }
+        } catch {
+          // fall through with default 'US'
+        }
+        return { id: trimmedId, country };
+      }
+    }
+  } catch (err) {
+    elog.warn('Failed to read default VerifyMy business settings', { error: err });
+  }
+
+  return undefined;
+}
+
+/**
+ * @deprecated Use resolveBusinessSettings instead. Kept for backward compatibility
+ * during migration; will be removed once all callers are updated.
  */
 export async function resolveBusinessSettingsId(
   jurisdictionId: string | undefined,

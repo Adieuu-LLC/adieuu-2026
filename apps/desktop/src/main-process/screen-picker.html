@@ -11,9 +11,17 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: #1a1a2e;
       color: #e0e0e0;
-      padding: 20px;
-      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
       user-select: none;
+    }
+
+    #content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
     }
 
     h2 {
@@ -71,9 +79,10 @@
       display: flex;
       justify-content: flex-end;
       gap: 10px;
-      margin-top: 20px;
-      padding-top: 16px;
+      padding: 16px 20px;
       border-top: 1px solid #333;
+      background: #1a1a2e;
+      flex-shrink: 0;
     }
 
     button {
@@ -103,13 +112,15 @@
   </style>
 </head>
 <body>
-  <div id="screens-section" class="section" hidden>
-    <h2>Screens</h2>
-    <div id="screens-grid" class="grid"></div>
-  </div>
-  <div id="windows-section" class="section" hidden>
-    <h2>Windows</h2>
-    <div id="windows-grid" class="grid"></div>
+  <div id="content">
+    <div id="screens-section" class="section" hidden>
+      <h2>Screens</h2>
+      <div id="screens-grid" class="grid"></div>
+    </div>
+    <div id="windows-section" class="section" hidden>
+      <h2>Windows</h2>
+      <div id="windows-grid" class="grid"></div>
+    </div>
   </div>
   <div class="actions">
     <button class="btn-cancel" id="cancel-btn">Cancel</button>

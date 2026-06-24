@@ -184,13 +184,15 @@ function findMfaDiscount(subscription: Stripe.Subscription): string | null {
 
   const discount = subscription.discounts?.find((d) => {
     if (typeof d === 'string') return mfaCouponIds.has(d);
-    const couponId = typeof d.coupon === 'string' ? d.coupon : d.coupon?.id;
+    const coupon = d.source?.coupon;
+    const couponId = typeof coupon === 'string' ? coupon : coupon?.id;
     return couponId && mfaCouponIds.has(couponId);
   });
 
   if (!discount) return null;
   if (typeof discount === 'string') return discount;
-  return (typeof discount.coupon === 'string' ? discount.coupon : discount.coupon?.id) ?? null;
+  const coupon = discount.source?.coupon;
+  return (typeof coupon === 'string' ? coupon : coupon?.id) ?? null;
 }
 
 /**
@@ -207,7 +209,8 @@ function getOtherDiscounts(
   return (subscription.discounts ?? [])
     .filter((d) => {
       if (typeof d === 'string') return !mfaCouponIds.has(d);
-      const couponId = typeof d.coupon === 'string' ? d.coupon : d.coupon?.id;
+      const coupon = d.source?.coupon;
+      const couponId = typeof coupon === 'string' ? coupon : coupon?.id;
       return couponId && !mfaCouponIds.has(couponId);
     })
     .map((d) => {

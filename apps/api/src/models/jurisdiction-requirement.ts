@@ -21,6 +21,9 @@ export type JurisdictionRequirementStatus = 'enacted' | 'proposed';
 export interface VerificationConfig {
   /** VerifyMy business settings ID (required per-jurisdiction for US states). */
   vmyBusinessSettingsId?: string;
+  /** ISO country code the business settings are registered under at VerifyMy.
+   *  If omitted, derived from the jurisdiction code (first 2 chars / before dash). */
+  vmyBusinessSettingsCountry?: string;
 }
 
 /**
@@ -36,6 +39,7 @@ export interface PublicJurisdictionRequirement {
   legislation: LegislationRef[];
   notes?: string;
   status: JurisdictionRequirementStatus;
+  parentJurisdiction?: string;
   verificationConfig?: VerificationConfig;
 }
 
@@ -60,6 +64,8 @@ export interface JurisdictionRequirementDocument extends BaseDocument {
   /** Free-form context from the compliance matrix */
   notes?: string;
   status: JurisdictionRequirementStatus;
+  /** Parent jurisdiction for fallback resolution (e.g. "US" for US-TX, "EU" for DE). */
+  parentJurisdiction?: string;
   verificationConfig?: VerificationConfig;
 }
 
@@ -79,7 +85,12 @@ export function extractVerificationConfig(
 ): VerificationConfig | undefined {
   const nestedId = readOptionalTrimmedString(doc.verificationConfig?.vmyBusinessSettingsId);
   if (nestedId) {
-    return { vmyBusinessSettingsId: nestedId };
+    return {
+      vmyBusinessSettingsId: nestedId,
+      vmyBusinessSettingsCountry: readOptionalTrimmedString(
+        doc.verificationConfig?.vmyBusinessSettingsCountry,
+      ),
+    };
   }
 
   const legacyRecord = doc as JurisdictionRequirementDocument & {
@@ -131,6 +142,7 @@ export function toPublicJurisdictionRequirement(
     legislation: doc.legislation,
     notes: doc.notes,
     status: doc.status,
+    parentJurisdiction: doc.parentJurisdiction,
     verificationConfig: doc.verificationConfig,
   };
 }

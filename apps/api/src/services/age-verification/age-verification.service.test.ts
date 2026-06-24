@@ -28,9 +28,13 @@ const mockGetAgeVerificationPolicy = mock((_j: string) => Promise.resolve({
   leastInvasiveMethod: 'Email',
   legislation: [],
 }));
+const mockResolveBusinessSettings = mock((_jurisdiction: string, _policy: unknown) =>
+  Promise.resolve({ id: 'test-settings-id', country: 'US' } as { id: string; country: string } | undefined),
+);
 const mockResolveBusinessSettingsId = mock((id: string | undefined) => Promise.resolve(id));
 mock.module('./jurisdiction-policy', () => ({
   getAgeVerificationPolicy: mockGetAgeVerificationPolicy,
+  resolveBusinessSettings: mockResolveBusinessSettings,
   resolveBusinessSettingsId: mockResolveBusinessSettingsId,
 }));
 
@@ -185,12 +189,9 @@ describe('startVerification', () => {
   });
 
   test('passes businessSettingsId from policy to provider', async () => {
-    mockGetAgeVerificationPolicy.mockImplementation(async () => ({
-      required: true,
-      compatibleMethods: ['Email', 'AgeEstimation'],
-      leastInvasiveMethod: 'Email',
-      legislation: [],
-      vmyBusinessSettingsId: 'bs-ca-456',
+    mockResolveBusinessSettings.mockImplementation(async () => ({
+      id: 'bs-ca-456',
+      country: 'US',
     }));
 
     const user = makeUser();
@@ -265,6 +266,37 @@ describe('startVerification', () => {
 
     const callArgs = mockStartVerification.mock.calls[0]![0] as { country: string };
     expect(callArgs.country).toBe('gb');
+  });
+
+  test('uses country from resolved business settings over user geo', async () => {
+    mockResolveBusinessSettings.mockImplementation(async () => ({
+      id: 'eu-settings-id',
+      country: 'DE',
+    }));
+
+    const user = makeUser({ geo: { jurisdiction: 'FR', countryCode: 'FR', ipHash: 'h', checkedAt: new Date() } });
+    await startVerification(user, {
+      jurisdiction: 'FR',
+      callbackBaseUrl: 'https://api.example.com',
+    });
+
+    const callArgs = mockStartVerification.mock.calls[0]![0] as { country: string; businessSettingsId?: string };
+    expect(callArgs.country).toBe('de');
+    expect(callArgs.businessSettingsId).toBe('eu-settings-id');
+  });
+
+  test('falls back to user geo country when no business settings resolved', async () => {
+    mockResolveBusinessSettings.mockImplementation(async () => undefined);
+
+    const user = makeUser({ geo: { jurisdiction: 'AU', countryCode: 'AU', ipHash: 'h', checkedAt: new Date() } });
+    await startVerification(user, {
+      jurisdiction: 'AU',
+      callbackBaseUrl: 'https://api.example.com',
+    });
+
+    const callArgs = mockStartVerification.mock.calls[0]![0] as { country: string; businessSettingsId?: string };
+    expect(callArgs.country).toBe('au');
+    expect(callArgs.businessSettingsId).toBeUndefined();
   });
 });
 

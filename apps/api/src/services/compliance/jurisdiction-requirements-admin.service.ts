@@ -16,6 +16,7 @@ export type JurisdictionRequirementSeedMode = 'additive' | 'clobber';
 export interface UpdateJurisdictionVerificationConfigInput {
   jurisdiction: string;
   vmyBusinessSettingsId?: string;
+  vmyBusinessSettingsCountry?: string;
 }
 
 export interface RunJurisdictionRequirementSeedResult {
@@ -40,15 +41,24 @@ function normalizeBusinessSettingsId(raw: string | undefined): string | undefine
   return trimmed;
 }
 
+function normalizeCountryCode(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  const { value } = sanitizeString(raw, 'alphanumdash');
+  const trimmed = value.trim().toUpperCase();
+  if (!trimmed || trimmed.length > 8) return undefined;
+  return trimmed;
+}
+
 /** @internal test helper */
 export function parseJurisdictionVerificationConfigInput(
   input: UpdateJurisdictionVerificationConfigInput,
-): { jurisdiction: string; vmyBusinessSettingsId?: string } | null {
+): { jurisdiction: string; vmyBusinessSettingsId?: string; vmyBusinessSettingsCountry?: string } | null {
   const jurisdiction = normalizeJurisdictionCode(input.jurisdiction);
   if (!jurisdiction) return null;
   return {
     jurisdiction,
     vmyBusinessSettingsId: normalizeBusinessSettingsId(input.vmyBusinessSettingsId),
+    vmyBusinessSettingsCountry: normalizeCountryCode(input.vmyBusinessSettingsCountry),
   };
 }
 
@@ -65,8 +75,12 @@ export async function updateJurisdictionVerificationConfigForAdmin(
   if (!jurisdiction) return null;
 
   const vmyBusinessSettingsId = normalizeBusinessSettingsId(input.vmyBusinessSettingsId);
+  const vmyBusinessSettingsCountry = normalizeCountryCode(input.vmyBusinessSettingsCountry);
   const repo = getJurisdictionRequirementRepository();
-  const doc = await repo.patchVerificationConfig(jurisdiction, vmyBusinessSettingsId);
+  const doc = await repo.patchVerificationConfig(jurisdiction, {
+    vmyBusinessSettingsId,
+    vmyBusinessSettingsCountry,
+  });
   return doc ? toAdminJurisdictionRequirement(doc) : null;
 }
 
