@@ -19,7 +19,7 @@ const ACCEPTABLE_USE_SECTIONS: LegalPolicySection[] = [
           . By using our Services, you agree to comply with this policy.
         </p>
         <p>
-          Adieuu exists to make online conversation more human. We built a platform with structural barriers against bots, throwaways, and bad-faith actors: you pay for your Account, and you have a finite number of Aliases — dodging blocks or enforcement actions becomes expensive. This restores the kind of natural accountability that free, anonymous platforms typically lack. At the same time, the cryptographic separation between your Account (your private identity) and your Aliases (how you speak and act on the platform) means you can engage honestly without the social, professional, or political pressures that come with having your name attached to every word. Our architecture aims provides the right balance between accountability and free speech.
+          Adieuu exists to make online conversation more human. We built a platform with structural barriers against bots, throwaways, and bad-faith actors: you pay for your Account, and you have a finite number of Aliases — dodging blocks or enforcement actions becomes expensive. This restores the kind of natural accountability that free, anonymous platforms typically lack. At the same time, the cryptographic separation between your Account (your private identity) and your Aliases (how you speak and act on the platform) means you can engage honestly without the social, professional, or political pressures that come with having your name attached to every word. Our architecture provides both accountability and free speech — not one at the expense of the other.
         </p>
         <p>
           We designed this policy to protect our users, our platform, and the broader community while respecting individual expression and privacy. We recognize the importance of free speech and the diversity of viewpoints our users may hold. We intervene only where conduct or content poses genuine risk of harm — not because we disagree with it.
@@ -84,6 +84,8 @@ const ACCEPTABLE_USE_SECTIONS: LegalPolicySection[] = [
         <h4>Exploitation and Abuse</h4>
         <ul>
           <li>Content designed to harass, stalk, intimidate, or threaten a specific individual in a sustained or targeted manner;</li>
+          <li>Coordinating, organizing, or participating in targeted harassment campaigns against individuals or groups (brigading), including mass-reporting, dogpiling, or directing others to harass a target;</li>
+          <li>Sextortion: threatening to share, publish, or distribute intimate or sexual content of another person in order to coerce, extort, or manipulate them;</li>
           <li>Doxxing: sharing private personal information (home address, phone number, workplace, etc.) of anyone else, without their permission. Even if you have no intent to harass or endanger, sharing others' private information may enable someone else to harass or endanger the user;</li>
           <li>Content that promotes, instructs, or glorifies self-harm or suicide, or that targets individuals in crisis with such material (educational, harm-reduction, and support-oriented discussions are permitted);</li>
           <li>Sharing graphic imagery of self-harm with the intent to encourage, normalize, or spread such behavior;</li>
@@ -99,6 +101,7 @@ const ACCEPTABLE_USE_SECTIONS: LegalPolicySection[] = [
         <h4>Deceptive and Manipulative Content</h4>
         <ul>
           <li>Impersonation of another person, entity, or Adieuu staff with intent to deceive;</li>
+          <li>Scams and social engineering, including but not limited to romance scams, investment/cryptocurrency fraud, phishing, and impersonating Adieuu staff or support in order to obtain credentials, payments, or personal information from other users;</li>
           <li>Coordinated inauthentic behavior, including operating networks of Aliases to artificially amplify content, manipulate discussions, or mislead other users about the origin or popularity of content;</li>
           <li>Deliberately misleading content that poses an imminent risk of physical harm (e.g., false emergency alerts, dangerous medical instructions presented as fact);</li>
           <li>Using AI, bots, or automated systems to generate content or interactions that masquerade as human conversation without disclosure.</li>
@@ -244,7 +247,7 @@ const ACCEPTABLE_USE_SECTIONS: LegalPolicySection[] = [
         <h4>Appeals</h4>
         <p>If you believe an enforcement action was taken in error, you may appeal by emailing <a href="mailto:iminnocent@adieuu.com" rel="noopener noreferrer" target="_blank">iminnocent@adieuu.com</a>. Appeals will be reviewed by a different reviewer than the one who made the original decision, where possible. Actions related to illegal content (such as CSAM) may not be appealed.</p>
         <blockquote>
-          <p>We aim to be fair. If we got it wrong, tell us. Appeals are reviewed by a fresh set of eyes when possible. Given the permanence of Alias termination, we take appeals seriously.</p>
+          <p>We aim to be fair. If we got it wrong, tell us. Appeals are reviewed by a fresh set of eyes when possible. Given the permanence of Alias termination, we take reports seriously and try to be conservative in our enforcement actions.</p>
         </blockquote>
       </>
     ),
