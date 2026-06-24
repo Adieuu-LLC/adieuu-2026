@@ -17,11 +17,6 @@ const CONTENT_BY_SLUG: Record<string, LegalContentComponent> = {
   privacy: lazy(() =>
     import('./content/privacy').then((m) => ({ default: m.PrivacyPolicyContent })),
   ),
-  'idea-submission-terms': lazy(() =>
-    import('./content/idea-submission-terms').then((m) => ({
-      default: m.IdeaSubmissionTermsContent,
-    })),
-  ),
   'acceptable-use': lazy(() =>
     import('./content/acceptable-use').then((m) => ({ default: m.AcceptableUsePolicyContent })),
   ),

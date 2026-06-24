@@ -26,12 +26,6 @@ export const LEGAL_POLICIES: LegalPolicyDefinition[] = [
     showInFooter: false,
   },
   {
-    slug: 'idea-submission-terms',
-    title: 'Idea Submission Terms',
-    description: 'Terms governing feature requests and feedback submissions.',
-    showInFooter: false,
-  },
-  {
     slug: 'paid-services',
     title: 'Paid Services Terms',
     description: 'Terms for subscriptions and other paid features.',
