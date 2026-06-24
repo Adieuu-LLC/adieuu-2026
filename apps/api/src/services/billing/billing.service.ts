@@ -209,8 +209,17 @@ export async function createCheckoutSessionForProduct(
   };
 
   // Apply MFA discount coupon if eligible
-  const mfaTier = await getUserMfaDiscountTier(user._id.toHexString());
-  const mfaCouponId = getCouponIdForCheckout(mfaTier, productMeta.checkoutMode);
+  let mfaCouponId: string | undefined;
+  try {
+    const mfaTier = await getUserMfaDiscountTier(user._id.toHexString());
+    mfaCouponId = getCouponIdForCheckout(mfaTier, productMeta.checkoutMode);
+  } catch (err) {
+    elog.warn('MFA discount lookup failed; falling back to promotion codes', {
+      userId: user._id.toHexString(),
+      ...billingErrorLogFields(err),
+    });
+  }
+
   if (mfaCouponId) {
     sessionParams.discounts = [{ coupon: mfaCouponId }];
   } else {

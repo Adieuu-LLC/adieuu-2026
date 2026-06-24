@@ -95,79 +95,86 @@ export function getCouponIdForCheckout(
 export async function reconcileMfaDiscount(userId: string): Promise<void> {
   if (!config.stripe.enabled) return;
 
-  const desiredTier = await getUserMfaDiscountTier(userId);
-  const desiredCouponId = getCouponIdForTier(desiredTier);
-
-  if (!desiredCouponId && desiredTier !== 'none') {
-    elog.debug('MFA discount coupon IDs not configured; skipping reconciliation', { userId, desiredTier });
-    return;
-  }
-
-  const userRepo = getUserRepository();
-  const user = await userRepo.findById(userId);
-  if (!user) return;
-
-  const subscriptionId = user.billing?.stripeSubscriptionId;
-  if (!subscriptionId) {
-    elog.debug('No active subscription to apply MFA discount', { userId, desiredTier });
-    return;
-  }
-
-  const stripe = getStripe();
-
-  let subscription: Stripe.Subscription;
   try {
-    subscription = await stripe.subscriptions.retrieve(subscriptionId);
-  } catch (err) {
-    elog.warn('Failed to retrieve subscription for MFA discount reconciliation', {
-      userId,
-      subscriptionId,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return;
-  }
+    const desiredTier = await getUserMfaDiscountTier(userId);
+    const desiredCouponId = getCouponIdForTier(desiredTier);
 
-  if (subscription.status !== 'active' && subscription.status !== 'trialing') {
-    return;
-  }
-
-  const currentMfaCouponId = findMfaDiscount(subscription);
-  if (currentMfaCouponId === (desiredCouponId ?? null)) {
-    return;
-  }
-
-  const isUpgrade = isDiscountUpgrade(currentMfaCouponId, desiredCouponId ?? null);
-
-  try {
-    if (desiredCouponId) {
-      const discounts: Stripe.SubscriptionUpdateParams.Discount[] = [
-        { coupon: desiredCouponId },
-        ...getOtherDiscounts(subscription),
-      ];
-      await stripe.subscriptions.update(subscriptionId, {
-        discounts,
-        proration_behavior: isUpgrade ? 'create_prorations' : 'none',
-      });
-    } else {
-      const otherDiscounts = getOtherDiscounts(subscription);
-      await stripe.subscriptions.update(subscriptionId, {
-        discounts: otherDiscounts.length > 0 ? otherDiscounts : [],
-        proration_behavior: 'none',
-      });
+    if (!desiredCouponId && desiredTier !== 'none') {
+      elog.debug('MFA discount coupon IDs not configured; skipping reconciliation', { userId, desiredTier });
+      return;
     }
 
-    elog.info('MFA discount reconciled on subscription', {
-      userId,
-      subscriptionId,
-      previousCoupon: currentMfaCouponId,
-      newCoupon: desiredCouponId ?? 'none',
-      prorated: isUpgrade,
-    });
+    const userRepo = getUserRepository();
+    const user = await userRepo.findById(userId);
+    if (!user) return;
+
+    const subscriptionId = user.billing?.stripeSubscriptionId;
+    if (!subscriptionId) {
+      elog.debug('No active subscription to apply MFA discount', { userId, desiredTier });
+      return;
+    }
+
+    const stripe = getStripe();
+
+    let subscription: Stripe.Subscription;
+    try {
+      subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    } catch (err) {
+      elog.warn('Failed to retrieve subscription for MFA discount reconciliation', {
+        userId,
+        subscriptionId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return;
+    }
+
+    if (subscription.status !== 'active' && subscription.status !== 'trialing') {
+      return;
+    }
+
+    const currentMfaCouponId = findMfaDiscount(subscription);
+    if (currentMfaCouponId === (desiredCouponId ?? null)) {
+      return;
+    }
+
+    const isUpgrade = isDiscountUpgrade(currentMfaCouponId, desiredCouponId ?? null);
+
+    try {
+      if (desiredCouponId) {
+        const discounts: Stripe.SubscriptionUpdateParams.Discount[] = [
+          { coupon: desiredCouponId },
+          ...getOtherDiscounts(subscription),
+        ];
+        await stripe.subscriptions.update(subscriptionId, {
+          discounts,
+          proration_behavior: isUpgrade ? 'create_prorations' : 'none',
+        });
+      } else {
+        const otherDiscounts = getOtherDiscounts(subscription);
+        await stripe.subscriptions.update(subscriptionId, {
+          discounts: otherDiscounts.length > 0 ? otherDiscounts : [],
+          proration_behavior: 'none',
+        });
+      }
+
+      elog.info('MFA discount reconciled on subscription', {
+        userId,
+        subscriptionId,
+        previousCoupon: currentMfaCouponId,
+        newCoupon: desiredCouponId ?? 'none',
+        prorated: isUpgrade,
+      });
+    } catch (err) {
+      elog.error('Failed to reconcile MFA discount', {
+        userId,
+        subscriptionId,
+        desiredCouponId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   } catch (err) {
-    elog.error('Failed to reconcile MFA discount', {
+    elog.error('Unhandled error in reconcileMfaDiscount', {
       userId,
-      subscriptionId,
-      desiredCouponId,
       error: err instanceof Error ? err.message : String(err),
     });
   }
@@ -211,7 +218,8 @@ function getOtherDiscounts(
       if (typeof d === 'string') return !mfaCouponIds.has(d);
       const coupon = d.source?.coupon;
       const couponId = typeof coupon === 'string' ? coupon : coupon?.id;
-      return couponId && !mfaCouponIds.has(couponId);
+      if (!couponId) return true;
+      return !mfaCouponIds.has(couponId);
     })
     .map((d) => {
       if (typeof d === 'string') return { discount: d };

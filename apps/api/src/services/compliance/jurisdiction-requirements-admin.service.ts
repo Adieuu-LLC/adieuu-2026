@@ -45,7 +45,7 @@ function normalizeCountryCode(raw: string | undefined): string | undefined {
   if (raw === undefined) return undefined;
   const { value } = sanitizeString(raw, 'alphanumdash');
   const trimmed = value.trim().toUpperCase();
-  if (!trimmed || trimmed.length > 8) return undefined;
+  if (!/^[A-Z]{2}$/.test(trimmed)) return undefined;
   return trimmed;
 }
 

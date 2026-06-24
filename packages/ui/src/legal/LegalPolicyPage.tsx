@@ -26,7 +26,7 @@ export function LegalPolicyPage() {
       <div className="container">
         <div className="page-header">
           <Link to="/legal-policies" className="legal-policy-back-link">
-            <Icon name="arrow-left" size="sm" />
+            <Icon name="arrowLeft" size="sm" />
             <span>View All Policies</span>
           </Link>
           <h1 className="page-title legal-policy-page-title">{title}</h1>

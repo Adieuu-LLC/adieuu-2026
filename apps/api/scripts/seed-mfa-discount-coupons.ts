@@ -44,7 +44,28 @@ async function main() {
   for (const couponDef of COUPONS) {
     try {
       const existing = await stripe.coupons.retrieve(couponDef.id);
-      console.log(`  ✓ Coupon "${couponDef.id}" already exists (${existing.percent_off}% off, ${existing.duration})`);
+
+      const drifts: string[] = [];
+      if (existing.percent_off !== couponDef.percent_off) {
+        drifts.push(`percent_off: expected ${couponDef.percent_off}, got ${existing.percent_off}`);
+      }
+      if (existing.duration !== couponDef.duration) {
+        drifts.push(`duration: expected ${couponDef.duration}, got ${existing.duration}`);
+      }
+      for (const [key, expected] of Object.entries(couponDef.metadata)) {
+        const actual = existing.metadata?.[key];
+        if (actual !== expected) {
+          drifts.push(`metadata.${key}: expected "${expected}", got "${actual}"`);
+        }
+      }
+
+      if (drifts.length > 0) {
+        console.error(`  ✗ Coupon "${couponDef.id}" has drifted from expected definition:`);
+        for (const d of drifts) console.error(`      - ${d}`);
+        process.exit(1);
+      }
+
+      console.log(`  ✓ Coupon "${couponDef.id}" already exists and matches (${existing.percent_off}% off, ${existing.duration})`);
     } catch (err: unknown) {
       if (err instanceof Stripe.errors.StripeError && err.statusCode === 404) {
         const created = await stripe.coupons.create(couponDef);

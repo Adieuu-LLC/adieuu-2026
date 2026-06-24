@@ -41,17 +41,16 @@ function isInternalPath(href: string | undefined): boolean {
   return href.startsWith('/') && !href.startsWith('//');
 }
 
-interface LegalInternalLinkProps {
+interface LegalInternalLinkProps extends Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'href'> {
   href: string;
-  className?: string;
   children: ReactNode;
 }
 
-function LegalInternalLink({ href, className, children }: LegalInternalLinkProps) {
+function LegalInternalLink({ href, className, children, ...rest }: LegalInternalLinkProps) {
   return (
     <Link
       to={href}
-      rel="noopener noreferrer"
+      {...rest}
       className={['legal-internal-link', className].filter(Boolean).join(' ')}
     >
       {children}
@@ -86,11 +85,11 @@ export function enhanceLegalExternalLinks(node: ReactNode): ReactNode {
   }
 
   if (node.type === 'a') {
-    const { href, children: linkChildren, className } = node.props;
+    const { href, children: linkChildren, ...anchorProps } = node.props;
 
     if (isInternalPath(href)) {
       return (
-        <LegalInternalLink href={href} className={className}>
+        <LegalInternalLink href={href} {...anchorProps}>
           {linkChildren}
         </LegalInternalLink>
       );

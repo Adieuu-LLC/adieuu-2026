@@ -69,7 +69,7 @@ export function BillingTab({
   const { apiBaseUrl } = useAppConfig();
   const { hasGifted } = derived;
 
-  const [discountTier, setDiscountTier] = useState<'none' | 'basic' | 'hardware_key'>('none');
+  const [discountTier, setDiscountTier] = useState<'unknown' | 'none' | 'basic' | 'hardware_key'>('unknown');
 
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
 
@@ -77,8 +77,12 @@ export function BillingTab({
     api.mfa.getStatus().then((res) => {
       if (res.success && res.data) {
         setDiscountTier(res.data.discountTier);
+      } else {
+        setDiscountTier('none');
       }
-    }).catch(() => {});
+    }).catch((err) => {
+      console.error('Failed to fetch MFA discount status:', err);
+    });
   }, [api]);
 
   const historyEntries = useMemo(
@@ -194,7 +198,7 @@ export function BillingTab({
         </Card>
       )}
 
-      {discountTier !== 'none' && (
+      {discountTier !== 'none' && discountTier !== 'unknown' && (
         <Card className="subscription-billing-card">
           <h3 className="subscription-billing-subheading">
             {t('account.subscription.billing.mfaDiscountHeading', 'MFA Security Discount')}

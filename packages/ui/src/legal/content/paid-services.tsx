@@ -147,7 +147,7 @@ const PAID_SERVICES_SECTIONS: LegalPolicySection[] = [
       <>
         <p>We reward users who take steps to secure their Accounts by offering discounts on subscriptions, sponsorships, and purchases for enabling multi-factor authentication:</p>
         <ul>
-          <li><strong>Standard MFA (2% discount):</strong> A 2% discount on subscription renewals and sponsorship purchases is applied to Accounts that have any form of MFA enabled and actively maintained (e.g., TOTP authenticator app, SMS verification, or similar).</li>
+          <li><strong>Standard MFA (2% discount):</strong> A 2% discount on subscription renewals and sponsorship purchases is applied to Accounts that have any form of MFA enabled and actively maintained (e.g., TOTP authenticator app or WebAuthn-compatible device).</li>
           <li><strong>Hardware Key MFA (5% discount):</strong> A 5% discount on <em>all</em> purchases (including subscriptions, sponsorships, and one-time purchases) is applied to Accounts that have hardware security key MFA enabled and actively maintained (e.g., YubiKey or similar FIDO2/WebAuthn device). This 5% is inclusive of the standard 2% — they do not stack.</li>
         </ul>
         <p>MFA discounts are applied automatically and remain in effect for as long as the qualifying MFA method is active on your Account. If you remove or disable the qualifying MFA method, the discount will be removed at your next billing event. Re-enabling MFA will re-apply the discount prospectively.</p>

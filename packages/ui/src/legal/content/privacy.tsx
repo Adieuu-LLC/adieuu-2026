@@ -212,7 +212,7 @@ const PRIVACY_POLICY_SECTIONS: LegalPolicySection[] = [
           <li>Be transparent: we cannot produce what we don't have. E2EE Content is not available to us in readable form, and the Account/Alias linkage is not derivable from our systems.</li>
         </ul>
         <blockquote>
-          <p>We comply with all applicable laws to the best of our ability. However, if law enforcement asks for the content of your encrypted messages, our honest answer is "we can't read them either." If they ask which Account owns an Alias, the answer is "we aren't able to determine that.".</p>
+          <p>We comply with all applicable laws to the best of our ability. However, if law enforcement asks for the content of your encrypted messages, our honest answer is "we can't read them either." If they ask which Account owns an Alias, the answer is "we aren't able to determine that."</p>
         </blockquote>
 
         <h4>Mandatory Reporting</h4>
