@@ -69,3 +69,4 @@ video-tests/
 packages/ui/public/ffmpeg-core/
 
 scripts/sync-local*
+packages/ui/playwright-report/*
