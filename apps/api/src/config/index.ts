@@ -453,6 +453,10 @@ export const config = {
       'STRIPE_PORTAL_RETURN_URL',
       `${optionalEnv('WEB_APP_URL', 'http://localhost:3000')}/account/subscription`,
     ),
+    coupons: {
+      mfaBasic: optionalEnv('STRIPE_COUPON_MFA_BASIC', ''),
+      mfaHardwareKey: optionalEnv('STRIPE_COUPON_MFA_HARDWARE_KEY', ''),
+    },
   },
 
   /**

@@ -20,24 +20,6 @@ export interface LegalPolicyDefinition {
 
 export const LEGAL_POLICIES: LegalPolicyDefinition[] = [
   {
-    slug: 'tos',
-    title: 'Terms of Service',
-    description: 'The rules and guidelines for using Adieuu.',
-    showInFooter: true,
-  },
-  {
-    slug: 'privacy',
-    title: 'Privacy Policy',
-    description: 'How we collect, use, and protect your information.',
-    showInFooter: true,
-  },
-  {
-    slug: 'idea-submission-terms',
-    title: 'Idea Submission Terms',
-    description: 'Terms governing feature requests and feedback submissions.',
-    showInFooter: false,
-  },
-  {
     slug: 'acceptable-use',
     title: 'Acceptable Use Policy',
     description: 'Rules for acceptable conduct on Adieuu.',
@@ -48,6 +30,18 @@ export const LEGAL_POLICIES: LegalPolicyDefinition[] = [
     title: 'Paid Services Terms',
     description: 'Terms for subscriptions and other paid features.',
     showInFooter: false,
+  },
+  {
+    slug: 'privacy',
+    title: 'Privacy Policy',
+    description: 'How we collect, use, and protect your information.',
+    showInFooter: true,
+  },
+  {
+    slug: 'tos',
+    title: 'Terms of Service',
+    description: 'The rules and guidelines for using Adieuu.',
+    showInFooter: true,
   },
 ];
 

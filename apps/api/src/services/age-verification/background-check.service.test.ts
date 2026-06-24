@@ -37,10 +37,14 @@ const mockGetAgeVerificationPolicy = mock(async (_j: string) => ({
   legislation: [],
 })) as AnyMock;
 
+const mockResolveBusinessSettings = mock((_jurisdiction: string, _policy: unknown) =>
+  Promise.resolve({ id: 'test-settings-id', country: 'US' }),
+) as AnyMock;
 const mockResolveBusinessSettingsId = mock((id: string | undefined) => Promise.resolve(id)) as AnyMock;
 
 mock.module('./jurisdiction-policy', () => ({
   getAgeVerificationPolicy: mockGetAgeVerificationPolicy,
+  resolveBusinessSettings: mockResolveBusinessSettings,
   resolveBusinessSettingsId: mockResolveBusinessSettingsId,
 }));
 
@@ -240,12 +244,9 @@ describe('initiateBackgroundCheck', () => {
   });
 
   test('passes businessSettingsId from jurisdiction policy to provider', async () => {
-    mockGetAgeVerificationPolicy.mockImplementation(async () => ({
-      required: true,
-      compatibleMethods: ['Email'],
-      leastInvasiveMethod: 'Email',
-      legislation: [],
-      vmyBusinessSettingsId: 'bs-ca-789',
+    mockResolveBusinessSettings.mockImplementation(async () => ({
+      id: 'bs-ca-789',
+      country: 'US',
     }));
 
     const user = makeUser();
@@ -257,6 +258,8 @@ describe('initiateBackgroundCheck', () => {
   });
 
   test('sends undefined businessSettingsId when policy has none', async () => {
+    mockResolveBusinessSettings.mockImplementation(async () => undefined);
+
     const user = makeUser();
     await initiateBackgroundCheck(user);
 

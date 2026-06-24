@@ -145,7 +145,7 @@ export const feedback = {
     description: 'Before posting, please confirm the following:',
     publicVisible: 'I understand my post will be publicly visible to other users.',
     legalAgreement:
-      'I agree to the <tosLink>Terms of Service</tosLink> and <ideaTermsLink>Idea Submission Terms</ideaTermsLink>.',
+      'I agree to the <tosLink>Terms of Service</tosLink>.',
     submit: 'Submit feedback',
   },
   notifications: {

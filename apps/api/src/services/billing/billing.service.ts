@@ -11,6 +11,7 @@
 import Stripe from 'stripe';
 import type { SubscriptionTierId, PurchasableProductId } from '@adieuu/shared';
 import { getStripe } from './stripe.client';
+import { getUserMfaDiscountTier, getCouponIdForCheckout } from './mfa-discount.service';
 import { config } from '../../config';
 import {
   PURCHASABLE_PRODUCTS,
@@ -194,11 +195,36 @@ export async function createCheckoutSessionForProduct(
     customer: customerId,
     client_reference_id: user._id.toHexString(),
     line_items: [{ price: priceId, quantity: 1 }],
-    allow_promotion_codes: true,
     success_url: config.stripe.successUrl,
     cancel_url: config.stripe.cancelUrl,
     metadata: { userId: user._id.toHexString(), productId },
+    consent_collection: {
+      terms_of_service: 'required',
+    },
+    custom_text: {
+      terms_of_service_acceptance: {
+        message: `I agree to the [Terms of Service](${config.webAppUrl}/legal-policies/tos) and [Paid Services Terms](${config.webAppUrl}/legal-policies/paid-services). I consent to immediate access to the digital service upon payment and acknowledge that I waive my right of withdrawal.`,
+      },
+    },
   };
+
+  // Apply MFA discount coupon if eligible
+  let mfaCouponId: string | undefined;
+  try {
+    const mfaTier = await getUserMfaDiscountTier(user._id.toHexString());
+    mfaCouponId = getCouponIdForCheckout(mfaTier, productMeta.checkoutMode);
+  } catch (err) {
+    elog.warn('MFA discount lookup failed; falling back to promotion codes', {
+      userId: user._id.toHexString(),
+      ...billingErrorLogFields(err),
+    });
+  }
+
+  if (mfaCouponId) {
+    sessionParams.discounts = [{ coupon: mfaCouponId }];
+  } else {
+    sessionParams.allow_promotion_codes = true;
+  }
 
   if (productMeta.checkoutMode === 'subscription') {
     sessionParams.subscription_data = {

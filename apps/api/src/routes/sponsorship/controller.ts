@@ -306,6 +306,14 @@ export async function createSponsorshipCheckout(
       ...(isRecurringProduct ? {} : { allow_promotion_codes: true }),
       success_url: config.stripe.successUrl,
       cancel_url: config.stripe.cancelUrl,
+      consent_collection: {
+        terms_of_service: 'required',
+      },
+      custom_text: {
+        terms_of_service_acceptance: {
+          message: `I agree to the [Terms of Service](${config.webAppUrl}/legal-policies/tos) and [Paid Services Terms](${config.webAppUrl}/legal-policies/paid-services). I consent to immediate access to the digital service upon payment and acknowledge that I waive my right of withdrawal.`,
+        },
+      },
       metadata: {
         sponsorship: 'true',
         sponsorUserId: userId,

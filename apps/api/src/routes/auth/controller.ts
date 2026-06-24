@@ -64,6 +64,7 @@ import {
   billingErrorLogFields,
   reconcileBillingFromCustomer,
 } from '../../services/billing/billing.service';
+import { reconcileMfaDiscount } from '../../services/billing/mfa-discount.service';
 import { resolveEffectiveAccess } from '../../services/billing/resolve-access';
 import { evaluateAliasGate, type AliasGateResult } from '../../services/age-verification/alias-gate';
 import { isAgeVerificationEnabled } from '../../services/age-verification/av-settings';
@@ -916,6 +917,10 @@ async function reconcileBillingIfStale(user: UserDocument): Promise<UserDocument
       });
     }
   }
+
+  // Reconcile MFA discount in the background (ensures subscription coupon
+  // stays in sync if credentials were added/removed while offline)
+  void reconcileMfaDiscount(user._id.toHexString());
 
   return user;
 }

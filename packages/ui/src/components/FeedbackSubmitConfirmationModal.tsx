@@ -81,14 +81,6 @@ export function FeedbackSubmitConfirmationModal({
                               rel="noopener noreferrer"
                             />
                           ),
-                          ideaTermsLink: (
-                            <Link
-                              to={getLegalPolicyPath('idea-submission-terms')}
-                              className="legal-agreement-link"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            />
-                          ),
                         }}
                       />
                     </span>
