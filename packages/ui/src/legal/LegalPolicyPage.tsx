@@ -1,6 +1,7 @@
 import { Suspense, useCallback, useState } from 'react';
-import { Navigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useParams } from 'react-router-dom';
 import { Card } from '../components/Card';
+import { Icon } from '../icons/Icon';
 import { getLegalPolicy } from './policies';
 import { getLegalPolicyContent } from './policy-content';
 
@@ -24,6 +25,10 @@ export function LegalPolicyPage() {
     <div className={`page-content${highContrast ? ' legal-policy-page-high-contrast' : ''}`}>
       <div className="container">
         <div className="page-header">
+          <Link to="/legal-policies" className="legal-policy-back-link">
+            <Icon name="arrow-left" size="sm" />
+            <span>View All Policies</span>
+          </Link>
           <h1 className="page-title legal-policy-page-title">{title}</h1>
         </div>
 
