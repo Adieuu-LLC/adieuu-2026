@@ -170,6 +170,7 @@ export const MediaMessage = memo(function MediaMessage({
 
       {state === 'available' && imageUrl && isVideo && (
         <div className="media-message-image-container media-message-image-container--video">
+          {/* biome-ignore lint/a11y/useMediaCaption: user-uploaded encrypted media; captions unavailable */}
           <video
             src={imageUrl}
             controls

@@ -31,7 +31,7 @@ function LifetimeFeatureList({ columnId }: { columnId: ComparisonColumnId }) {
               <span className="subscription-feature-check" aria-hidden="true">
                 &#10003;
               </span>
-              <span aria-label={`${label}: ${cell.displayValue}`}>
+              <span role="img" aria-label={`${label}: ${cell.displayValue}`}>
                 {label}{' '}
                 <span className="subscription-feature-value">{cell.displayValue}</span>
               </span>

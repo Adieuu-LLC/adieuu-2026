@@ -301,7 +301,7 @@ export function AccountOverview() {
       return (
         <Tooltip content={t('account.overview.verified')} position="left">
           <span className="verification-badge verification-verified">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <polyline points="20 6 9 17 4 12" />
             </svg>
           </span>
@@ -316,7 +316,7 @@ export function AccountOverview() {
     return (
       <Tooltip content={notSetText} position="left">
         <span className="verification-badge verification-pending">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <circle cx="12" cy="12" r="10" />
             <line x1="12" y1="8" x2="12" y2="12" />
             <line x1="12" y1="16" x2="12.01" y2="16" />

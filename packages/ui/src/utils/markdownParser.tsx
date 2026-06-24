@@ -393,29 +393,27 @@ function renderMentionNode(identityId: string, ctx: RenderCtx): ReactNode {
       : 'Unknown';
   const profile = isGroupMention ? undefined : mCtx?.profiles[identityId];
 
-  const mentionSpan = (
+  const mentionSpan = isGroupMention ? (
     <span
       key={ctx.k++}
-      className={
-        isGroupMention
-          ? 'dm-mention dm-mention--group'
-          : profile
-            ? 'dm-mention'
-            : 'dm-mention dm-mention--unknown'
-      }
-      role={isGroupMention ? undefined : 'link'}
-      tabIndex={isGroupMention ? undefined : 0}
-      onClick={isGroupMention ? undefined : () => mCtx?.onMentionClick?.(identityId)}
-      onKeyDown={
-        isGroupMention
-          ? undefined
-          : (e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                mCtx?.onMentionClick?.(identityId);
-              }
-            }
-      }
+      className="dm-mention dm-mention--group"
+    >
+      @{displayName}
+    </span>
+  ) : (
+    // biome-ignore lint/a11y/useSemanticElements: SPA-style navigation without a real href
+    <span
+      key={ctx.k++}
+      className={profile ? 'dm-mention' : 'dm-mention dm-mention--unknown'}
+      role="link"
+      tabIndex={0}
+      onClick={() => mCtx?.onMentionClick?.(identityId)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          mCtx?.onMentionClick?.(identityId);
+        }
+      }}
     >
       @{displayName}
     </span>
@@ -457,6 +455,7 @@ function renderPageTagNode(pageId: string, ctx: RenderCtx): ReactNode {
   }
 
   return (
+    // biome-ignore lint/a11y/useSemanticElements: SPA-style navigation without a real href
     <span
       key={ctx.k++}
       className="dm-page-tag"
@@ -487,6 +486,7 @@ function renderTextWithUrls(text: string, ctx: RenderCtx): ReactNode[] {
     if (seg.type === 'text') return [seg.value];
 
     const linkSpan = (
+      // biome-ignore lint/a11y/useSemanticElements: SPA-style link handler without a real href
       <span
         key={ctx.k++}
         className="dm-link"

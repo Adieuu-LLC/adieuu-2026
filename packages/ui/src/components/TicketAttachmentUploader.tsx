@@ -72,7 +72,7 @@ export function TicketAttachmentUploader({
 
   return (
     <div className="admin-form-group">
-      <label className="input-label">{t('support.form.attachments')}</label>
+      <label className="input-label" htmlFor="ticket-attachment-input">{t('support.form.attachments')}</label>
       <p className="input-hint">{hint}</p>
 
       {attachments.length > 0 && (
@@ -126,6 +126,7 @@ export function TicketAttachmentUploader({
       )}
 
       <input
+        id="ticket-attachment-input"
         ref={fileInputRef}
         type="file"
         accept={ACCEPTED_TYPES.join(',')}

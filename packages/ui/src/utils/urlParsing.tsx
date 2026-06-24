@@ -170,6 +170,7 @@ export function renderMessageWithUrls(
   return segments.map((seg, i) => {
     if (seg.type === 'text') return seg.value;
     return (
+      // biome-ignore lint/a11y/useSemanticElements: SPA-style link handler without a real href
       <span
         key={i}
         className="dm-link"

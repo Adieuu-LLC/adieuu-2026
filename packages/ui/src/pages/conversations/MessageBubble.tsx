@@ -436,6 +436,7 @@ export const MessageBubble = memo(function MessageBubble({
       >
         <span
           className="dm-message-signature-trust dm-message-signature-trust--ok"
+          role="img"
           aria-label={t(
             'conversations.memberSecurity.fingerprintMatchIndicator',
             'This device matches your verified fingerprint.',
@@ -454,6 +455,7 @@ export const MessageBubble = memo(function MessageBubble({
       >
         <span
           className="dm-message-signature-trust dm-message-signature-trust--bad"
+          role="img"
           aria-label={t(
             'conversations.memberSecurity.fingerprintMismatchIndicator',
             'Verified fingerprint no longer matches this device. Keys may have changed.',
@@ -698,6 +700,7 @@ export const MessageBubble = memo(function MessageBubble({
       replyQuote && !message.deleted ? <ReplyQuoteButton replyQuote={replyQuote} /> : null;
 
     const messageRow = (
+      // biome-ignore lint/a11y/noStaticElementInteractions: hover delegation to show/hide action bar
       <div
         className={`dm-message dm-message--linear${isPinned ? ' dm-message--pinned' : ''}${isFlashHighlight ? ' dm-message--flash-highlight' : ''}`}
         style={linearHoverStyle}
@@ -842,6 +845,7 @@ export const MessageBubble = memo(function MessageBubble({
   }
 
   const bubbleRow = (
+    // biome-ignore lint/a11y/noStaticElementInteractions: hover delegation to show/hide action bar
     <div
       className={`dm-message${applyOwnAlignment ? ' dm-message--own' : ''}${isPinned ? ' dm-message--pinned' : ''}${isFlashHighlight ? ' dm-message--flash-highlight' : ''}`}
       onMouseEnter={() => setShowActions(true)}

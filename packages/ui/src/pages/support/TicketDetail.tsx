@@ -174,6 +174,7 @@ export function TicketDetail() {
             <div className="support-ticket-attachments">
               {ticket.attachments.map((att) =>
                 att.contentType.startsWith('video/') ? (
+                  // biome-ignore lint/a11y/useMediaCaption: user-uploaded support ticket attachments have no captions
                   <video key={att.mediaId} src={att.cdnUrl} controls className="support-ticket-attachment" />
                 ) : (
                   <img key={att.mediaId} src={att.cdnUrl} alt="" className="support-ticket-attachment" />
@@ -287,8 +288,9 @@ export function TicketDetail() {
 
           {!isTerminal && showResolveForm && (
             <div className="support-resolve-form">
-              <label className="input-label">{t('support.detail.resolveNoteLabel')}</label>
+              <label className="input-label" htmlFor="resolve-note">{t('support.detail.resolveNoteLabel')}</label>
               <MarkdownTextarea
+                id="resolve-note"
                 value={resolveNote}
                 onChange={setResolveNote}
                 maxLength={500}

@@ -69,7 +69,7 @@ function OverrideFormFields({
   return (
     <div className="admin-subscription-form">
       <div className="input-wrapper">
-        <label className="input-label">{t('admin.users.modals.tier')}</label>
+        <span className="input-label">{t('admin.users.modals.tier')}</span>
         <Select.Root
           collection={tierCollection}
           value={[tier]}

@@ -60,7 +60,7 @@ export function ModerationFlyout() {
         <span style={{ position: 'relative', display: 'inline-flex' }}>
           <Icon name="shield" />
           {unresolvedCount > 0 && (
-            <span className="sidebar-tab-badge" aria-label={`${unresolvedCount} unresolved`}>
+            <span className="sidebar-tab-badge" role="status" aria-label={`${unresolvedCount} unresolved`}>
               {unresolvedCount > 99 ? '99+' : unresolvedCount}
             </span>
           )}
@@ -73,6 +73,7 @@ export function ModerationFlyout() {
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
           className="sidebar-account-chevron"
+          aria-hidden="true"
         >
           <path
             d="M4.5 3L7.5 6L4.5 9"
@@ -92,7 +93,7 @@ export function ModerationFlyout() {
           >
             {t('moderation.nav.moderationLink')}
             {unresolvedCount > 0 && (
-              <span className="sidebar-tab-badge" style={{ marginLeft: 'auto', position: 'static' }} aria-label={`${unresolvedCount} unresolved`}>
+              <span className="sidebar-tab-badge" role="status" style={{ marginLeft: 'auto', position: 'static' }} aria-label={`${unresolvedCount} unresolved`}>
                 {unresolvedCount > 99 ? '99+' : unresolvedCount}
               </span>
             )}

@@ -75,6 +75,7 @@ function RemoteVideo({ track }: { track: RemoteTrack }) {
   }, [track]);
 
   return (
+    // biome-ignore lint/a11y/useMediaCaption: live video call stream; captions not applicable
     <video
       ref={ref}
       autoPlay

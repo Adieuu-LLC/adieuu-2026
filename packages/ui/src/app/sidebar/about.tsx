@@ -143,6 +143,7 @@ export function AboutFlyout() {
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         className="sidebar-item-chevron"
+        aria-hidden="true"
       >
         <path
           d="M4.5 3L7.5 6L4.5 9"

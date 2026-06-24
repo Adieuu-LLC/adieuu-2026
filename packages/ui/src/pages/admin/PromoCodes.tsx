@@ -462,7 +462,7 @@ export function AdminPromoCodes() {
                 {form.grantSubscription && (
                   <div className="admin-subscription-form admin-promo-codes__subscription-fields">
                     <div className="input-wrapper">
-                      <label className="input-label">{t('admin.promoCodes.form.tier')}</label>
+                      <span className="input-label">{t('admin.promoCodes.form.tier')}</span>
                       <Select.Root
                         collection={tierCollection}
                         value={[form.subscriptionTier]}
@@ -623,7 +623,7 @@ export function AdminPromoCodes() {
 
               <div className="admin-promo-codes__field admin-promo-codes__field--wide">
                 <div className="input-wrapper">
-                  <label className="input-label">{t('admin.promoCodes.form.audience')}</label>
+                  <span className="input-label">{t('admin.promoCodes.form.audience')}</span>
                   <Select.Root
                     collection={audienceCollection}
                     value={[form.audience]}

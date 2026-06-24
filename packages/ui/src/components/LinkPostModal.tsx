@@ -169,6 +169,7 @@ export function LinkPostModal({
                   value={search}
                   onChange={(e) => handleSearchInput(e.target.value)}
                   disabled={loading}
+                  // biome-ignore lint/a11y/noAutofocus: intentional focus on dialog open
                   autoFocus
                 />
               </div>
@@ -184,7 +185,7 @@ export function LinkPostModal({
               )}
 
               {!searching && results.length > 0 && (
-                <ul className="feedback-link-modal-results" role="listbox">
+                <ul className="feedback-link-modal-results">
                   {results.map((result) => (
                     <li key={result.postId}>
                       <button
@@ -206,7 +207,6 @@ export function LinkPostModal({
               {selectedPost && (
                 <>
                   <div className="feedback-link-modal-field">
-                    <label className="input-label">{t('feedback.linkPostSelectType')}</label>
                     <Select.Root
                       collection={linkTypeCollection}
                       value={[linkType]}
@@ -218,6 +218,7 @@ export function LinkPostModal({
                         }
                       }}
                     >
+                      <Select.Label className="input-label">{t('feedback.linkPostSelectType')}</Select.Label>
                       <Select.Control className="report-select-control">
                         <Select.Trigger className="report-select-trigger">
                           <Select.ValueText />

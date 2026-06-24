@@ -17,6 +17,7 @@ function FlyoutChevron() {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className="sidebar-account-chevron"
+      aria-hidden="true"
     >
       <path
         d="M4.5 3L7.5 6L4.5 9"
@@ -46,7 +47,7 @@ export function SidebarFlyoutSubmenu({
   }, []);
 
   const handleTriggerKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLDivElement>) => {
+    (event: KeyboardEvent<HTMLButtonElement>) => {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
         focusFirstPanelItem();
@@ -67,16 +68,15 @@ export function SidebarFlyoutSubmenu({
 
   return (
     <div ref={wrapperRef} className="sidebar-flyout-submenu-wrapper">
-      <div
+      <button
+        type="button"
         className={`sidebar-flyout-submenu-trigger ${isActive ? 'sidebar-flyout-item-active' : ''}`}
-        role="button"
-        tabIndex={0}
         aria-haspopup="true"
         onKeyDown={handleTriggerKeyDown}
       >
         <span className="sidebar-flyout-submenu-label">{label}</span>
         <FlyoutChevron />
-      </div>
+      </button>
       <div className="sidebar-flyout-submenu-panel">
         <div className="sidebar-account-flyout-content">{children}</div>
       </div>

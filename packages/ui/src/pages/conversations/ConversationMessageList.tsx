@@ -391,9 +391,8 @@ export function ConversationMessageList({
           onTouchMove={onUserScrollIntent}
         >
           {showManualLoadOlder || showManualLoadNewer ? (
-            <div
+            <section
               className="dm-messages-manual-paging"
-              role="region"
               aria-label={tLocal('conversations.manualPagingRegion', 'Load message history')}
             >
               {showManualLoadOlder ? (
@@ -416,7 +415,7 @@ export function ConversationMessageList({
                   {t('conversations.viewNewerMessages', 'View newer messages')}
                 </button>
               ) : null}
-            </div>
+            </section>
           ) : null}
           {messagesLoading && reversedMessagesLength > 0 ? (
             <div className="dm-messages-history-loading" aria-busy="true">

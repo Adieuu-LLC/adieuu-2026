@@ -101,7 +101,7 @@ export function AvatarUpload({
         {isWorking && (
           <div className="avatar-upload-overlay">
             <div className="avatar-upload-progress">
-              <svg viewBox="0 0 36 36" className="avatar-upload-ring">
+              <svg viewBox="0 0 36 36" className="avatar-upload-ring" aria-hidden="true">
                 <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--color-border)" strokeWidth="2" />
                 <circle
                   cx="18"

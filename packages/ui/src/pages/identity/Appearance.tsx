@@ -413,7 +413,7 @@ export function IdentityAppearance() {
           <p className="app-settings-section-hint">
             <Trans
               i18nKey="account.appearance.languageContributeHint"
-              components={{ mailLink: <a href="mailto:say@adieuu.com" /> }}
+              components={{ mailLink: /* biome-ignore lint/a11y/useAnchorContent: Trans provides children at runtime */ <a href="mailto:say@adieuu.com" /> }}
             />
           </p>
         </Card>

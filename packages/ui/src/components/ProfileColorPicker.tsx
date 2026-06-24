@@ -7,7 +7,7 @@
  * A clear button resets back to the theme default.
  */
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useId, useRef } from 'react';
 
 export interface ProfileColorPickerProps {
   label: string;
@@ -22,6 +22,7 @@ export function ProfileColorPicker({
   onChange,
   disabled,
 }: ProfileColorPickerProps) {
+  const colorInputId = useId();
   const colorInputRef = useRef<HTMLInputElement>(null);
 
   const handleChange = useCallback(
@@ -47,10 +48,11 @@ export function ProfileColorPicker({
 
   return (
     <div className="profile-color-picker">
-      <label className="profile-color-picker-label">{label}</label>
+      <label className="profile-color-picker-label" htmlFor={colorInputId}>{label}</label>
       <div className="profile-color-picker-controls">
         {/* Hidden native input — only used to open the browser colour dialog */}
         <input
+          id={colorInputId}
           ref={colorInputRef}
           type="color"
           value={value || '#808080'}
@@ -74,7 +76,7 @@ export function ProfileColorPicker({
             <svg
               className="profile-color-picker-strike"
               viewBox="0 0 36 36"
-              aria-hidden
+              aria-hidden="true"
             >
               <line x1="4" y1="4" x2="32" y2="32" />
             </svg>
@@ -89,7 +91,7 @@ export function ProfileColorPicker({
             disabled={disabled}
             aria-label={`Clear ${label}`}
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>

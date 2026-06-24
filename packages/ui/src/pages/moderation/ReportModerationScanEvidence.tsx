@@ -120,6 +120,7 @@ export function ReportModerationScanEvidence({ reportId, api }: { reportId: stri
               {item.contentType}
             </div>
             {item.contentType.startsWith('video/') ? (
+              // biome-ignore lint/a11y/useMediaCaption: moderation scan evidence; captions not available
               <video
                 src={item.downloadUrl}
                 controls

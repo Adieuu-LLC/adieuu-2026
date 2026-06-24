@@ -16,7 +16,7 @@ import { useIsMobile } from '../../hooks/useIsMobile';
 function SupportUnreadBadge({ count }: { count: number }) {
   if (count <= 0) return null;
   return (
-    <span className="sidebar-tab-badge" aria-label={`${count} unread support replies`}>
+    <span className="sidebar-tab-badge" role="status" aria-label={`${count} unread support replies`}>
       {count > 99 ? '99+' : count}
     </span>
   );
@@ -43,6 +43,7 @@ function SupportNavLink({
       {unreadCount > 0 && (
         <span
           className="sidebar-tab-badge"
+          role="status"
           style={{ marginLeft: 'auto', position: 'static' }}
           aria-label={`${unreadCount} unread support replies`}
         >
@@ -146,6 +147,7 @@ export function AccountFlyout({ supportUnreadCount = 0 }: { supportUnreadCount?:
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         className="sidebar-account-chevron"
+        aria-hidden="true"
       >
         <path
           d="M4.5 3L7.5 6L4.5 9"
@@ -360,6 +362,7 @@ export function IdentityFlyout({ supportUnreadCount = 0 }: { supportUnreadCount?
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         className="sidebar-identity-chevron"
+        aria-hidden="true"
       >
         <path
           d="M4.5 3L7.5 6L4.5 9"

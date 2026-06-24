@@ -401,11 +401,11 @@ export function MfaCredentialsList({ onSetupTotp, onSetupWebAuthn }: MfaCredenti
       <div className={`mfa-status-banner ${status?.enabled ? 'mfa-enabled' : 'mfa-disabled'}`}>
         <div className="mfa-status-icon">
           {status?.enabled ? (
-            <svg viewBox="0 0 20 20" fill="none" className="icon-check">
+            <svg viewBox="0 0 20 20" fill="none" className="icon-check" aria-hidden="true">
               <path d="M6 10L9 13L14 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           ) : (
-            <svg viewBox="0 0 20 20" fill="none" className="icon-warning">
+            <svg viewBox="0 0 20 20" fill="none" className="icon-warning" aria-hidden="true">
               <path d="M10 6V10M10 14H10.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
           )}

@@ -141,7 +141,7 @@ function SendIconOptions({
       <p className="composer-controls-editor__icon-popover-title">
         {t('composerControls.sendIcon', 'Send icon')}
       </p>
-      <ul
+      <div
         className="composer-controls-editor__icon-list"
         role="listbox"
         aria-label={t('composerControls.sendIcon', 'Send icon')}
@@ -163,8 +163,8 @@ function SendIconOptions({
             </button>
           </li>
         ))}
-      </ul>
-      <div className="composer-controls-editor__icon-popover-divider" role="separator" />
+      </div>
+      <hr className="composer-controls-editor__icon-popover-divider" />
       <SendDisplayTextSwitch checked={sendShowText} onCheckedChange={onSendShowTextChange} />
     </>
   );

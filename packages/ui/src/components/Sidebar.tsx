@@ -164,17 +164,18 @@ export function Sidebar({
       
       {/* Hamburger menu button for mobile */}
       <button
+        type="button"
         className="sidebar-hamburger"
         onClick={() => setMobileOpen(!isMobileOpen)}
         aria-label={isMobileOpen ? t('nav.collapseSidebar') : t('nav.expandSidebar')}
         aria-expanded={isMobileOpen}
       >
         {isMobileOpen ? (
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         ) : (
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <path d="M3 12H21M3 6H21M3 18H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         )}
@@ -206,6 +207,7 @@ export function Sidebar({
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
           className="sidebar-toggle-icon"
+          aria-hidden="true"
         >
           <path
             d={getChevronPath()}
@@ -258,6 +260,7 @@ export function SidebarItem({ icon, label, href, onClick, isActive, children, ..
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
           className={`sidebar-item-chevron ${isOpen ? 'sidebar-item-chevron-open' : ''}`}
+          aria-hidden="true"
         >
           <path
             d="M3 4.5L6 7.5L9 4.5"
@@ -280,6 +283,7 @@ export function SidebarItem({ icon, label, href, onClick, isActive, children, ..
         href={href}
         className={itemClasses}
         title={!isExpanded ? label : undefined}
+        aria-current={isActive ? 'page' : undefined}
       >
         {content}
       </a>
@@ -292,6 +296,8 @@ export function SidebarItem({ icon, label, href, onClick, isActive, children, ..
         className={itemClasses}
         onClick={handleClick}
         title={!isExpanded ? label : undefined}
+        aria-current={isActive ? 'page' : undefined}
+        aria-expanded={hasChildren ? isOpen : undefined}
         type="button"
       >
         {content}
@@ -319,14 +325,14 @@ export function SidebarSubItem({ label, href, onClick, isActive }: SidebarSubIte
 
   if (href) {
     return (
-      <a href={href} className={classes}>
+      <a href={href} className={classes} aria-current={isActive ? 'page' : undefined}>
         {label}
       </a>
     );
   }
 
   return (
-    <button className={classes} onClick={onClick} type="button">
+    <button className={classes} onClick={onClick} aria-current={isActive ? 'page' : undefined} type="button">
       {label}
     </button>
   );

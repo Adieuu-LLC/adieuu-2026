@@ -83,7 +83,7 @@ export function NotificationSoundSelect({
         >
           <Select.ValueText className="app-settings-sound-select-value" />
           <Select.Indicator className="app-settings-sound-select-indicator" aria-hidden>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <path
                 d="M3 4.5L6 7.5L9 4.5"
                 stroke="currentColor"
@@ -103,7 +103,7 @@ export function NotificationSoundSelect({
                 <Select.Item key={item.value} item={item} className="app-settings-sound-select-item">
                   <Select.ItemText className="app-settings-sound-select-item-text">{item.label}</Select.ItemText>
                   <Select.ItemIndicator className="app-settings-sound-select-item-indicator">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                       <path
                         d="M11.5 3.5L5.25 9.75L2.5 7"
                         stroke="currentColor"

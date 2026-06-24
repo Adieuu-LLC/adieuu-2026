@@ -115,12 +115,12 @@ export function TicketList() {
 
       <div className="admin-card" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end', padding: '0.75rem 1rem' }}>
         <div className="input-wrapper" style={{ minWidth: '12rem', flex: '1 1 12rem', maxWidth: '20rem' }}>
-          <label className="input-label">{t('moderation.tickets.filterStatus')}</label>
           <Select.Root
             collection={statusCollection}
             value={[statusFilter]}
             onValueChange={(d) => updateFilter('status', d.value[0] ?? 'open,in_progress')}
           >
+            <Select.Label className="input-label">{t('moderation.tickets.filterStatus')}</Select.Label>
             <Select.Control className="report-select-control">
               <Select.Trigger className="report-select-trigger">
                 <Select.ValueText />
@@ -141,12 +141,12 @@ export function TicketList() {
         </div>
 
         <div className="input-wrapper" style={{ minWidth: '12rem', flex: '1 1 12rem', maxWidth: '20rem' }}>
-          <label className="input-label">{t('moderation.tickets.filterAssigned')}</label>
           <Select.Root
             collection={assignedCollection}
             value={[assignedFilter]}
             onValueChange={(d) => updateFilter('assigned', d.value[0] ?? 'all')}
           >
+            <Select.Label className="input-label">{t('moderation.tickets.filterAssigned')}</Select.Label>
             <Select.Control className="report-select-control">
               <Select.Trigger className="report-select-trigger">
                 <Select.ValueText />
@@ -167,12 +167,12 @@ export function TicketList() {
         </div>
 
         <div className="input-wrapper" style={{ minWidth: '12rem', flex: '1 1 12rem', maxWidth: '20rem' }}>
-          <label className="input-label">{t('moderation.tickets.filterCategory')}</label>
           <Select.Root
             collection={categoryCollection}
             value={[categoryFilter]}
             onValueChange={(d) => updateFilter('category', d.value[0] ?? '')}
           >
+            <Select.Label className="input-label">{t('moderation.tickets.filterCategory')}</Select.Label>
             <Select.Control className="report-select-control">
               <Select.Trigger className="report-select-trigger">
                 <Select.ValueText />

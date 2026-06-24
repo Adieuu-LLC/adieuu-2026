@@ -190,9 +190,8 @@ export function AppCallOverlay() {
               />
             </Suspense>
             {!isExpanded && (
-              <div
+              <hr
                 className="call-overlay__resize-handle"
-                role="separator"
                 aria-orientation="horizontal"
                 aria-label={t('call.resizeOverlay')}
                 {...resizeHandleProps}

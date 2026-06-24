@@ -157,7 +157,7 @@ export function AchievementGrid({
           <Icon name="trophy" size="sm" />
           {title}
           {!loading && totalCount > 0 && (
-            <span className="achievement-header__count" aria-label={t('achievements.progressCountAria', { earned: earnedCount, total: totalCount })}>
+            <span className="achievement-header__count" role="status" aria-label={t('achievements.progressCountAria', { earned: earnedCount, total: totalCount })}>
               {earnedCount}/{totalCount}
             </span>
           )}

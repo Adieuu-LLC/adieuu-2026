@@ -114,12 +114,12 @@ export function SubmitTicket() {
         <Card variant="elevated">
         <form onSubmit={(e) => void handleSubmit(e)} className="admin-form">
           <div className="admin-form-group">
-            <label className="input-label">{t('support.form.category')}</label>
             <Select.Root
               collection={categoryCollection}
               value={category ? [category] : []}
               onValueChange={(d) => setCategory((d.value[0] as TicketCategory) ?? '')}
             >
+              <Select.Label className="input-label">{t('support.form.category')}</Select.Label>
               <Select.Control className="report-select-control">
                 <Select.Trigger className="report-select-trigger">
                   <Select.ValueText placeholder={t('support.form.categoryPlaceholder')} />
@@ -141,12 +141,12 @@ export function SubmitTicket() {
 
           {category && subcategoryCollection.items.length > 0 && (
             <div className="admin-form-group">
-              <label className="input-label">{t('support.form.subcategory')}</label>
               <Select.Root
                 collection={subcategoryCollection}
                 value={subcategory ? [subcategory] : []}
                 onValueChange={(d) => setSubcategory(d.value[0] ?? '')}
               >
+                <Select.Label className="input-label">{t('support.form.subcategory')}</Select.Label>
                 <Select.Control className="report-select-control">
                   <Select.Trigger className="report-select-trigger">
                     <Select.ValueText placeholder={t('support.form.subcategoryPlaceholder')} />

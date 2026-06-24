@@ -441,6 +441,7 @@ export function FeedbackList() {
                   {currentIdentityId === post.author.identityId ? (
                     <div
                       className="feedback-upvote-btn feedback-upvote-btn--list feedback-upvote-btn--readonly"
+                      role="status"
                       aria-label={t('feedback.upvoteCount', { count: post.upvoteCount })}
                     >
                       <Icon name="plus" />

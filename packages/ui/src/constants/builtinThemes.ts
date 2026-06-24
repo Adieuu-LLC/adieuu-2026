@@ -35,7 +35,7 @@ export const BUILTIN_THEMES: readonly BuiltinTheme[] = [
 
         textPrimary: '#e6edf3',
         textSecondary: '#8b949e',
-        textMuted: '#6e7681',
+        textMuted: '#7d8590',
         textInverse: '#0d1117',
 
         accentPrimary: '#22d3ee',
@@ -81,7 +81,7 @@ export const BUILTIN_THEMES: readonly BuiltinTheme[] = [
 
         textPrimary: '#1f2328',
         textSecondary: '#656d76',
-        textMuted: '#8b949e',
+        textMuted: '#6e7681',
         textInverse: '#ffffff',
 
         accentPrimary: '#2563eb',
@@ -127,7 +127,7 @@ export const BUILTIN_THEMES: readonly BuiltinTheme[] = [
 
         textPrimary: '#f5e6d3',
         textSecondary: '#a89585',
-        textMuted: '#7a6b5d',
+        textMuted: '#8d7d6e',
         textInverse: '#1a1210',
 
         accentPrimary: '#f59e0b',
@@ -173,7 +173,7 @@ export const BUILTIN_THEMES: readonly BuiltinTheme[] = [
 
         textPrimary: '#dce8e0',
         textSecondary: '#8b9e91',
-        textMuted: '#657a6c',
+        textMuted: '#6f8878',
         textInverse: '#0f1512',
 
         accentPrimary: '#22c55e',
@@ -219,7 +219,7 @@ export const BUILTIN_THEMES: readonly BuiltinTheme[] = [
 
         textPrimary: '#e8e0f0',
         textSecondary: '#9b8fb0',
-        textMuted: '#716788',
+        textMuted: '#807599',
         textInverse: '#110e1a',
 
         accentPrimary: '#a855f7',
