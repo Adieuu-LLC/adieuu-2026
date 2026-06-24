@@ -1,7 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const AUTH_STATE = path.resolve(__dirname, 'tests/a11y/.auth/session.json');
 
 export default defineConfig({
-  testDir: './tests/a11y',
   timeout: 30_000,
   retries: 0,
   reporter: [['html', { open: 'never' }], ['list']],
@@ -16,4 +20,20 @@ export default defineConfig({
     timeout: 60_000,
     cwd: '../..',
   },
+  globalSetup: './tests/a11y/auth.setup.ts',
+  projects: [
+    {
+      name: 'public',
+      testDir: './tests/a11y',
+      testMatch: 'page-audit.spec.ts',
+    },
+    {
+      name: 'authenticated',
+      testDir: './tests/a11y',
+      testMatch: 'authenticated.spec.ts',
+      use: {
+        storageState: AUTH_STATE,
+      },
+    },
+  ],
 });

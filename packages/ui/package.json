@@ -36,7 +36,8 @@
     "test": "bun test --preload ./src/test.setup.ts",
     "test:coverage": "bun test --preload ./src/test.setup.ts --coverage",
     "test:ci": "bun test --preload ./src/test.setup.ts --coverage --coverage-reporter=lcov --coverage-dir=coverage",
-    "test:a11y": "node ./node_modules/@playwright/test/cli.js test --config playwright.config.ts",
+    "test:a11y": "node ./node_modules/@playwright/test/cli.js test --config playwright.config.ts --project=public",
+    "test:a11y:all": "node ./node_modules/@playwright/test/cli.js test --config playwright.config.ts",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist coverage"
   },

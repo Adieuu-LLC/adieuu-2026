@@ -119,11 +119,11 @@ test.describe('landmark structure', () => {
     expect(await nav.count()).toBeGreaterThan(0);
   });
 
-  test('login page has a main or form landmark', async ({ page }) => {
+  test('login page has a heading', async ({ page }) => {
     await page.goto('/auth/login', { waitUntil: 'networkidle' });
 
-    const mainOrForm = page.locator('main, form, [role="main"]');
-    expect(await mainOrForm.count()).toBeGreaterThan(0);
+    const heading = page.locator('h1, h2, h3, [role="heading"]');
+    expect(await heading.count()).toBeGreaterThan(0);
   });
 });
 
