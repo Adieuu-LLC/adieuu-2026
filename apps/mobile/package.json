@@ -1,6 +1,6 @@
 {
   "name": "@adieuu/mobile",
-  "version": "0.2.33",
+  "version": "0.2.34",
   "private": true,
   "scripts": {
     "sync": "cap sync",
