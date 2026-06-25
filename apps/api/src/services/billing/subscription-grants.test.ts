@@ -195,6 +195,36 @@ describe('subscription-grants privacy', () => {
     const b = encryptGrants({ access: 200 });
     expect(a.ciphertext).not.toBe(b.ciphertext);
   });
+
+  test('ciphertext length is bucketed: typical payloads share the same size', () => {
+    const now = Math.floor(Date.now() / 1000) + DAY * 30;
+    const minimal = encryptGrants({ access: now });
+    const typical = encryptGrants({
+      access: now, insider: now, vanguard: now, founder: now,
+      'stream-2k': now, 'stream-4k': now, _lifetime: 1,
+    });
+    const empty = encryptGrants({});
+    // All realistic payloads (< ~254 bytes JSON) fall in the same 256-byte bucket
+    expect(minimal.ciphertext.length).toBe(typical.ciphertext.length);
+    expect(minimal.ciphertext.length).toBe(empty.ciphertext.length);
+  });
+
+  test('large payloads grow to the next power-of-2 bucket, not byte-by-byte', () => {
+    const now = Math.floor(Date.now() / 1000) + DAY * 30;
+    const entries: Record<string, number> = {};
+    for (let i = 0; i < 20; i++) entries[`grant_${i.toString().padStart(3, '0')}`] = now;
+    const large = encryptGrants(entries);
+
+    const entries2: Record<string, number> = {};
+    for (let i = 0; i < 15; i++) entries2[`grant_${i.toString().padStart(3, '0')}`] = now;
+    const alsoLarge = encryptGrants(entries2);
+
+    // Both should land in the same 512-byte bucket
+    expect(large.ciphertext.length).toBe(alsoLarge.ciphertext.length);
+    // And that bucket is larger than the minimal bucket
+    const minimal = encryptGrants({ access: now });
+    expect(large.ciphertext.length).toBeGreaterThan(minimal.ciphertext.length);
+  });
 });
 
 // ---------------------------------------------------------------------------

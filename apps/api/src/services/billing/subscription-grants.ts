@@ -121,15 +121,52 @@ export function buildGrantPayload(billing: UserBilling): GrantPayload {
 // ---------------------------------------------------------------------------
 
 /**
+ * Minimum padded plaintext size. Payloads are padded to the smallest
+ * power-of-2 bucket that fits `2 + jsonLength`. This limits the number
+ * of distinguishable ciphertext sizes to a handful of buckets (256, 512,
+ * 1024, 2048 …) instead of leaking the exact grant count.
+ *
+ * Layout: [2-byte BE payload length][JSON bytes][random fill to bucket size]
+ */
+const GRANT_MIN_PADDED_SIZE = 256;
+
+/**
+ * Rounds up to the next power-of-2 that is >= GRANT_MIN_PADDED_SIZE.
+ * e.g. 100 -> 256, 300 -> 512, 600 -> 1024, 1200 -> 2048.
+ */
+function paddedBucketSize(needed: number): number {
+  let size = GRANT_MIN_PADDED_SIZE;
+  while (size < needed) size *= 2;
+  return size;
+}
+
+/**
  * Encrypts a grant payload.
+ *
+ * The JSON plaintext is padded with random bytes to the next power-of-2
+ * bucket (minimum 256 bytes), so ciphertext length reveals at most which
+ * bucket the payload falls into — not the exact number of grants.
  *
  * @returns `{ ciphertext, key }` — ciphertext is base64 (store in Mongo),
  *          key is base64 (embed in the session cookie).
  */
 export function encryptGrants(payload: GrantPayload): { ciphertext: string; key: string } {
   const key = randomBytes(SYMMETRIC_KEY_SIZE);
-  const plaintext = new TextEncoder().encode(JSON.stringify(payload));
-  const { ciphertext, nonce } = encryptAES256GCM(key, plaintext);
+  const jsonBytes = new TextEncoder().encode(JSON.stringify(payload));
+
+  const bucketSize = paddedBucketSize(2 + jsonBytes.length);
+  const padded = new Uint8Array(bucketSize);
+  // 2-byte big-endian length prefix
+  padded[0] = (jsonBytes.length >> 8) & 0xff;
+  padded[1] = jsonBytes.length & 0xff;
+  padded.set(jsonBytes, 2);
+  // Fill remainder with random bytes (not zeros — avoids leaking structure)
+  const fillLength = bucketSize - 2 - jsonBytes.length;
+  if (fillLength > 0) {
+    padded.set(randomBytes(fillLength), 2 + jsonBytes.length);
+  }
+
+  const { ciphertext, nonce } = encryptAES256GCM(key, padded);
 
   // Pack nonce + ciphertext into a single buffer for storage
   const packed = new Uint8Array(AES_GCM_NONCE_SIZE + ciphertext.length);
@@ -152,13 +189,36 @@ function decryptGrants(encryptedBase64: string, keyBase64: string): GrantPayload
     const key = fromBase64(keyBase64);
 
     const plaintext = decryptAES256GCM(key, ciphertext, nonce);
-    const parsed = JSON.parse(new TextDecoder().decode(plaintext));
+
+    // Try padded format first: [2-byte BE length][JSON][random fill]
+    const parsed = parsePaddedPayload(plaintext) ?? parseLegacyPayload(plaintext);
 
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
       return null;
     }
 
     return parsed as GrantPayload;
+  } catch {
+    return null;
+  }
+}
+
+/** New format: 2-byte BE length prefix + JSON + random padding. */
+function parsePaddedPayload(buf: Uint8Array): unknown | null {
+  if (buf.length < 4) return null;
+  const jsonLength = (buf[0]! << 8) | buf[1]!;
+  if (jsonLength < 2 || 2 + jsonLength > buf.length) return null;
+  try {
+    return JSON.parse(new TextDecoder().decode(buf.slice(2, 2 + jsonLength)));
+  } catch {
+    return null;
+  }
+}
+
+/** Legacy format: raw JSON bytes (no padding). Supports pre-migration sessions. */
+function parseLegacyPayload(buf: Uint8Array): unknown | null {
+  try {
+    return JSON.parse(new TextDecoder().decode(buf));
   } catch {
     return null;
   }
