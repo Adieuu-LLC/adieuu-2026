@@ -14,6 +14,7 @@ const mockRequestUpload = mock(async (): Promise<RequestUploadResult> => ({
   success: true,
   mediaId,
   uploadUrl: 'https://s3.example/upload',
+  uploadFields: { key: 'uploads/avatar/abc123.jpg', 'Content-Type': 'image/png' },
   expiresIn: 300,
 }));
 const mockCompleteUpload = mock(async (): Promise<CompleteUploadResult> => ({ success: true }));
@@ -87,6 +88,7 @@ describe('requestUploadResult', () => {
       success: true,
       mediaId,
       uploadUrl: 'https://s3.example/upload',
+      uploadFields: { key: 'uploads/avatar/abc123.jpg', 'Content-Type': 'image/png' },
       expiresIn: 300,
     });
   });
@@ -114,6 +116,7 @@ describe('requestUploadResult', () => {
       data: {
         mediaId,
         uploadUrl: 'https://s3.example/upload',
+        uploadFields: { key: 'uploads/avatar/abc123.jpg', 'Content-Type': 'image/png' },
         expiresIn: 300,
       },
     });
@@ -318,6 +321,7 @@ describe('upload routes smoke', () => {
       success: true,
       mediaId,
       uploadUrl: 'https://s3.example/upload',
+      uploadFields: { key: 'uploads/avatar/abc123.jpg', 'Content-Type': 'image/png' },
       expiresIn: 300,
     });
     mockCompleteUpload.mockResolvedValue({ success: true });

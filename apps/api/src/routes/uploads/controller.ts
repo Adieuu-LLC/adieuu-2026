@@ -75,7 +75,7 @@ export type RequestUploadData = {
   mediaId: string;
   uploadUrl: string;
   expiresIn: number;
-  uploadHeaders?: Record<string, string>;
+  uploadFields: Record<string, string>;
 };
 
 export async function requestUploadResult(
@@ -110,7 +110,7 @@ export async function requestUploadResult(
     return { ok: false, kind: 'bad_request', message: result.error };
   }
 
-  if (!result.mediaId || !result.uploadUrl || result.expiresIn === undefined) {
+  if (!result.mediaId || !result.uploadUrl || !result.uploadFields || result.expiresIn === undefined) {
     return { ok: false, kind: 'bad_request', message: 'Upload request failed' };
   }
 
@@ -120,7 +120,7 @@ export async function requestUploadResult(
       mediaId: result.mediaId,
       uploadUrl: result.uploadUrl,
       expiresIn: result.expiresIn,
-      ...(result.uploadHeaders ? { uploadHeaders: result.uploadHeaders } : {}),
+      uploadFields: result.uploadFields,
     },
   };
 }

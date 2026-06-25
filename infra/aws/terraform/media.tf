@@ -118,7 +118,7 @@ resource "aws_s3_bucket_cors_configuration" "media" {
 
   cors_rule {
     allowed_headers = ["*"]
-    allowed_methods = ["PUT"]
+    allowed_methods = ["PUT", "POST"]
     allowed_origins = distinct(concat(
       local.media_cors_origins,
       local.cf_signing_enabled ? ["https://${var.media_domain_name}"] : []

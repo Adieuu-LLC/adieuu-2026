@@ -8,18 +8,18 @@
  *
  * SECURITY:
  * - S3 keys use ULIDs + crypto-random suffix: non-guessable, non-sequential.
- * - Presigned PUT URLs are short-lived (5 min) and scoped to a specific
- *   key, content-type, and content-length-range.
+ * - Presigned POST policies are short-lived (5 min) and enforce key,
+ *   content-type, content-length-range, and all metadata via signed conditions.
  * - No AWS credentials reach the client.
  * - Rate-limited per identity.
  */
 
 import {
   S3Client,
-  PutObjectCommand,
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
+import type { Conditions as PostCondition } from '@aws-sdk/s3-presigned-post/dist-types/types';
 import type { SubscriptionTierId } from '@adieuu/shared';
 import { config } from '../config';
 import { getMediaUploadRepository } from '../repositories/media-upload.repository';
@@ -89,8 +89,8 @@ export interface RequestUploadResult {
   mediaId?: string;
   uploadUrl?: string;
   expiresIn?: number;
-  /** Headers the client must include in the PUT request (for CloudFront → S3 metadata forwarding). */
-  uploadHeaders?: Record<string, string>;
+  /** Form fields the client must include in the POST body (presigned POST policy). */
+  uploadFields?: Record<string, string>;
   error?: string;
   errorCode?: 'INVALID_CONTENT_TYPE' | 'FILE_TOO_LARGE' | 'RATE_LIMITED' | 'UPLOAD_DISABLED';
 }
@@ -177,28 +177,44 @@ export async function requestUpload(
   const ext = contentTypeToExtension(input.contentType);
   const s3Key = `uploads/${input.purpose}/${mediaId}.${ext}`;
 
-  const command = new PutObjectCommand({
+  const metadata: Record<string, string> = {
+    'media-id': mediaId,
+    purpose: input.purpose,
+    ...(input.identityId ? { 'identity-id': input.identityId } : {}),
+    ...(input.userId ? { 'user-id': input.userId } : {}),
+    'strip-exif': String(purposeConfig.processingFlags.stripExif),
+    'content-moderation': String(purposeConfig.processingFlags.contentModeration),
+    ...(purposeConfig.processingFlags.resize
+      ? {
+          'resize-max-width': String(purposeConfig.processingFlags.resize.maxWidth),
+          'resize-max-height': String(purposeConfig.processingFlags.resize.maxHeight),
+        }
+      : {}),
+  };
+
+  const conditions: PostCondition[] = [
+    ['content-length-range', 0, maxBytes],
+    ['eq', '$Content-Type', input.contentType],
+    ['eq', '$key', s3Key],
+    ...Object.entries(metadata).map(
+      ([k, v]): PostCondition => ['eq', `$x-amz-meta-${k}`, v],
+    ),
+  ];
+
+  const fields: Record<string, string> = {
+    'Content-Type': input.contentType,
+    key: s3Key,
+    ...Object.fromEntries(
+      Object.entries(metadata).map(([k, v]) => [`x-amz-meta-${k}`, v]),
+    ),
+  };
+
+  const { url: uploadUrl, fields: uploadFields } = await createPresignedPost(getS3Client(), {
     Bucket: config.s3.mediaBucket,
     Key: s3Key,
-    ContentType: input.contentType,
-    Metadata: {
-      'media-id': mediaId,
-      purpose: input.purpose,
-      ...(input.identityId ? { 'identity-id': input.identityId } : {}),
-      ...(input.userId ? { 'user-id': input.userId } : {}),
-      'strip-exif': String(purposeConfig.processingFlags.stripExif),
-      'content-moderation': String(purposeConfig.processingFlags.contentModeration),
-      ...(purposeConfig.processingFlags.resize
-        ? {
-            'resize-max-width': String(purposeConfig.processingFlags.resize.maxWidth),
-            'resize-max-height': String(purposeConfig.processingFlags.resize.maxHeight),
-          }
-        : {}),
-    },
-  });
-
-  const uploadUrl = await getSignedUrl(getS3Client(), command, {
-    expiresIn: PRESIGNED_URL_EXPIRY_SECONDS,
+    Conditions: conditions,
+    Fields: fields,
+    Expires: PRESIGNED_URL_EXPIRY_SECONDS,
   });
 
   const { ObjectId } = await import('mongodb');
@@ -227,6 +243,7 @@ export async function requestUpload(
     success: true,
     mediaId,
     uploadUrl,
+    uploadFields,
     expiresIn: PRESIGNED_URL_EXPIRY_SECONDS,
   };
 }
