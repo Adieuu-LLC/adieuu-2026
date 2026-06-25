@@ -25,7 +25,7 @@ resource "aws_iam_role" "ecs_task" {
 
 # ECS agent uses the execution role to inject Secrets Manager values into the task (not the task role).
 resource "aws_iam_role_policy" "ecs_execution_secrets" {
-  count = length(local.secretsmanager_resource_arns) > 0 || length(var.secretsmanager_kms_key_arns) > 0 ? 1 : 0
+  count = length(var.api_container_secrets) > 0 || local.cf_signing_enabled || length(var.chat_container_secrets) > 0 || length(var.secretsmanager_kms_key_arns) > 0 ? 1 : 0
 
   name = "${local.name_prefix}-exec-secrets"
   role = aws_iam_role.ecs_task_execution.id
