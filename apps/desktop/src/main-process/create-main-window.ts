@@ -72,6 +72,8 @@ export async function createMainWindow(options: {
   attachMainWindowLayoutPersistence(runtime.mainWindow);
 
   runtime.mainWindow.on('close', (event) => {
+    if (runtime.isQuitting) return;
+
     const win = runtime.mainWindow;
     if (!win || win.isDestroyed()) return;
 

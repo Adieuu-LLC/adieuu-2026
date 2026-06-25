@@ -312,6 +312,18 @@ export const config = {
     mediaBaseUrl: process.env.MEDIA_CDN_URL || '',
   },
 
+  /** CloudFront signed URL configuration (set when enable_cloudfront_signed_urls = true in Terraform) */
+  cloudfront: {
+    /** Domain for proxied media uploads via CloudFront (e.g. media.adieuu.com) */
+    mediaUploadDomain: process.env.MEDIA_UPLOAD_DOMAIN || '',
+    /** Domain for E2E encrypted media via CloudFront (e.g. e2e-media.adieuu.com) */
+    e2eMediaDomain: process.env.E2E_MEDIA_DOMAIN || '',
+    /** CloudFront key pair ID for signed URL generation */
+    signingKeyPairId: process.env.CF_SIGNING_KEY_PAIR_ID || '',
+    /** RSA private key PEM for CloudFront signed URL generation (from Secrets Manager) */
+    signingPrivateKey: process.env.CF_SIGNING_PRIVATE_KEY || '',
+  },
+
   /** Shared secret for Lambda media processor callbacks */
   mediaProcessorSecret: optionalEnv('MEDIA_PROCESSOR_SECRET', 'dev-media-processor-secret'),
 

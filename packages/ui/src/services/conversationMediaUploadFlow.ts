@@ -175,11 +175,11 @@ export async function uploadE2EMediaOnly(
         'Failed to prepare E2E upload'
     );
   }
-  const { e2eMediaId: mediaId, uploadUrl: e2eUrl, scanHash: hash } = e2eRes.data;
+  const { e2eMediaId: mediaId, uploadUrl: e2eUrl, scanHash: hash, uploadHeaders: e2eHeaders } = e2eRes.data;
 
   const e2ePut = await fetch(e2eUrl, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/octet-stream' },
+    headers: e2eHeaders ?? { 'Content-Type': 'application/octet-stream' },
     body: encryptedBlob,
     signal,
   });
@@ -274,11 +274,11 @@ export async function uploadModerationScanCopy(
           'Failed to prepare scan upload'
       );
     }
-    const { scanMediaId, uploadUrl: scanUrl } = scanRes.data;
+    const { scanMediaId, uploadUrl: scanUrl, uploadHeaders: scanHeaders } = scanRes.data;
 
     const scanPut = await fetch(scanUrl, {
       method: 'PUT',
-      headers: { 'Content-Type': part.contentType },
+      headers: scanHeaders ?? { 'Content-Type': part.contentType },
       body: part.body,
       signal,
     });

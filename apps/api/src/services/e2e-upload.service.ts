@@ -47,6 +47,10 @@ import {
   isNestedConvScanS3Key,
 } from '../utils/conv-scan-keys';
 import { purgeConvScanCleartextArtifacts } from '../utils/conv-scan-purge';
+import {
+  isCloudFrontSigningEnabled,
+  generateCloudFrontSignedUrl,
+} from '../utils/cloudfront-signer';
 
 const PRESIGNED_PUT_EXPIRY_SECONDS = 300; // 5 minutes
 const PRESIGNED_GET_EXPIRY_SECONDS = 900; // 15 minutes
@@ -141,6 +145,8 @@ export interface RequestE2EUploadResult {
   uploadUrl?: string;
   scanHash?: string;
   expiresIn?: number;
+  /** Headers the client must include in the PUT request (for CloudFront → S3 metadata forwarding). */
+  uploadHeaders?: Record<string, string>;
   error?: string;
   errorCode?:
     | 'INVALID_CONTENT_TYPE'
@@ -239,9 +245,23 @@ export async function requestE2EUpload(
     ContentLength: input.contentLength,
   });
 
-  const uploadUrl = await getSignedUrl(getS3Client(), command, {
-    expiresIn: PRESIGNED_PUT_EXPIRY_SECONDS,
-  });
+  let uploadUrl: string;
+  let uploadHeaders: Record<string, string> | undefined;
+
+  if (isCloudFrontSigningEnabled('e2e-media')) {
+    uploadUrl = generateCloudFrontSignedUrl({
+      s3Key,
+      distribution: 'e2e-media',
+      expiresInSeconds: PRESIGNED_PUT_EXPIRY_SECONDS,
+    });
+    uploadHeaders = {
+      'Content-Type': 'application/octet-stream',
+    };
+  } else {
+    uploadUrl = await getSignedUrl(getS3Client(), command, {
+      expiresIn: PRESIGNED_PUT_EXPIRY_SECONDS,
+    });
+  }
 
   await e2eRepo.createE2EMedia({
     e2eMediaId,
@@ -264,6 +284,7 @@ export async function requestE2EUpload(
     success: true,
     e2eMediaId,
     uploadUrl,
+    uploadHeaders,
     scanHash,
     expiresIn: PRESIGNED_PUT_EXPIRY_SECONDS,
   };
@@ -515,14 +536,23 @@ export async function getE2EMediaDownload(
     };
   }
 
-  const command = new GetObjectCommand({
-    Bucket: doc.s3Bucket,
-    Key: doc.s3Key,
-  });
+  let downloadUrl: string;
 
-  const downloadUrl = await getSignedUrl(getS3Client(), command, {
-    expiresIn: PRESIGNED_GET_EXPIRY_SECONDS,
-  });
+  if (isCloudFrontSigningEnabled('e2e-media')) {
+    downloadUrl = generateCloudFrontSignedUrl({
+      s3Key: doc.s3Key,
+      distribution: 'e2e-media',
+      expiresInSeconds: PRESIGNED_GET_EXPIRY_SECONDS,
+    });
+  } else {
+    const command = new GetObjectCommand({
+      Bucket: doc.s3Bucket,
+      Key: doc.s3Key,
+    });
+    downloadUrl = await getSignedUrl(getS3Client(), command, {
+      expiresIn: PRESIGNED_GET_EXPIRY_SECONDS,
+    });
+  }
 
   return {
     success: true,
@@ -548,6 +578,8 @@ export interface RequestScanUploadResult {
   scanMediaId?: string;
   uploadUrl?: string;
   expiresIn?: number;
+  /** Headers the client must include in the PUT request (for CloudFront → S3 metadata forwarding). */
+  uploadHeaders?: Record<string, string>;
   error?: string;
   errorCode?:
     | 'INVALID_CONTENT_TYPE'

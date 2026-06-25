@@ -86,6 +86,7 @@ Store strings the app must not log in git. Typical keys:
 | `CYBERTIPLINE_COMPANY_TEMPLATE` | Optional CyberTipline company block text. |
 | `CYBERTIPLINE_TERMS_OF_SERVICE_URL` | Optional terms URL for CyberTipline XML. |
 | `CYBERTIPLINE_LEGAL_URL` | Optional legal URL for CyberTipline XML. |
+**Note:** `CF_SIGNING_PRIVATE_KEY` is not part of the user-managed `adieuu/<env>/api` JSON. Terraform generates the signing key and injects it via a dedicated Secrets Manager secret when `enable_cloudfront_signed_urls = true`. Do not add it manually.
 
 Use **`REDIS_URL`** in Secrets Manager (or plain env) **only** when Redis is **not** the Terraform-managed ElastiCache cluster — e.g. you set **`create_elasticache_redis = false`** and point **`REDIS_URL`** at an external endpoint yourself.
 

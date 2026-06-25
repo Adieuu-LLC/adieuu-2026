@@ -153,29 +153,6 @@ function drawGlyph(
 }
 
 /**
- * Returns a copy of the base icon with a filled dot in the bottom-right
- * corner, using the secondary accent colour.  Used for tray unread indicators
- * where a count is unnecessary.
- */
-export function createDotBadgedIcon(iconPath: string): NativeImage | null {
-  const png = loadBasePng(iconPath);
-  if (!png || !cachedBaseSize) return null;
-
-  const fresh = nativeImage.createFromBuffer(png);
-  const { width: w, height: h } = cachedBaseSize;
-  const buf = Buffer.from(fresh.toBitmap());
-
-  const radius = Math.max(3, Math.round(w * 0.19));
-  const margin = Math.round(w * 0.06);
-  const cx = w - margin - radius;
-  const cy = h - margin - radius;
-
-  fillCircle(buf, w, cx, cy, radius, dotR, dotG, dotB, 255);
-
-  return nativeImage.createFromBitmap(buf, { width: w, height: h });
-}
-
-/**
  * Returns a copy of the base icon with all semi/fully opaque pixels recolored
  * to the current accent colour, preserving alpha.  Used for tray icons that
  * should follow the user's theme.

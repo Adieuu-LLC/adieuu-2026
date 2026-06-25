@@ -15,6 +15,8 @@ export interface RequestE2EUploadResponse {
   uploadUrl: string;
   scanHash: string;
   expiresIn: number;
+  /** Headers the client must include in the PUT request (forwarded through CloudFront to S3). */
+  uploadHeaders?: Record<string, string>;
 }
 
 export interface RequestScanUploadParams {
@@ -27,6 +29,8 @@ export interface RequestScanUploadResponse {
   scanMediaId: string;
   uploadUrl: string;
   expiresIn: number;
+  /** Headers the client must include in the PUT request (forwarded through CloudFront to S3). */
+  uploadHeaders?: Record<string, string>;
 }
 
 export interface SealConvScanSessionParams {

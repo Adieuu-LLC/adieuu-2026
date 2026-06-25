@@ -101,6 +101,12 @@ mock.module('../config', () => ({
       e2eMediaBucket: 'e2e-bucket',
       mediaBucket: 'media-bucket',
     },
+    cloudfront: {
+      signingKeyPairId: '',
+      signingPrivateKey: '',
+      mediaUploadDomain: '',
+      e2eMediaDomain: '',
+    },
   },
 }));
 

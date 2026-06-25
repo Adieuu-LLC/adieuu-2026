@@ -12,6 +12,10 @@ import type { ReportDocument } from '../models/report';
 import { getMediaUploadRepository } from '../repositories/media-upload.repository';
 import { getReportRepository } from '../repositories/report.repository';
 import elog from '../utils/adieuuLogger';
+import {
+  isCloudFrontSigningEnabled,
+  generateCloudFrontSignedUrl,
+} from '../utils/cloudfront-signer';
 
 const PRESIGNED_GET_EXPIRY_SECONDS = 900; // 15 minutes
 
@@ -104,19 +108,29 @@ export async function getModerationScanEvidenceForReport(
     .sort((a, b) => a.mediaId.localeCompare(b.mediaId));
 
   const client = getS3Client();
+  const useCf = isCloudFrontSigningEnabled('media');
   const items: ModerationScanEvidenceItem[] = [];
 
   for (const doc of candidates) {
     try {
-      const command = new GetObjectCommand({
-        Bucket: config.s3.mediaBucket,
-        Key: doc.s3Key,
-        ResponseContentType: doc.contentType,
-        ResponseContentDisposition: 'inline',
-      });
-      const downloadUrl = await getSignedUrl(client, command, {
-        expiresIn: PRESIGNED_GET_EXPIRY_SECONDS,
-      });
+      let downloadUrl: string;
+      if (useCf) {
+        downloadUrl = generateCloudFrontSignedUrl({
+          s3Key: doc.s3Key,
+          distribution: 'media',
+          expiresInSeconds: PRESIGNED_GET_EXPIRY_SECONDS,
+        });
+      } else {
+        const command = new GetObjectCommand({
+          Bucket: config.s3.mediaBucket,
+          Key: doc.s3Key,
+          ResponseContentType: doc.contentType,
+          ResponseContentDisposition: 'inline',
+        });
+        downloadUrl = await getSignedUrl(client, command, {
+          expiresIn: PRESIGNED_GET_EXPIRY_SECONDS,
+        });
+      }
       items.push({
         mediaId: doc.mediaId,
         contentType: doc.contentType,

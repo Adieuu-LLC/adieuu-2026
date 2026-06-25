@@ -2,7 +2,7 @@
  * Production CSP manifest for the web client.
  *
  * Merges per-package requirements from `@adieuu/crypto` and `@adieuu/ui`
- * with app-specific origins (API, WebSocket, S3 media, downloads).
+ * with app-specific origins (API, WebSocket, media CDN, downloads).
  * The Vite CSP plugin consumes this at build time to produce the final
  * policy string injected into index.html.
  *
@@ -14,7 +14,7 @@
  */
 
 import { mergeCspManifests } from '../../../packages/shared/src/csp/merge';
-import { mediaS3Origin, e2eMediaS3Origin, livekitWsOrigin, livekitHttpOrigin } from '../../../packages/shared/src/csp/origins';
+import { mediaOrigin, e2eMediaOrigin, livekitWsOrigin, livekitHttpOrigin } from '../../../packages/shared/src/csp/origins';
 import { cryptoCspManifest } from '../../../packages/crypto/src/csp';
 import { uiCspManifest } from '../../../packages/ui/src/csp';
 
@@ -26,10 +26,9 @@ const webCspManifest: Record<string, string[]> = {
   'img-src': [
     "'self'",
     'https:',
-    'https://media.adieuu.com',
     'https://static.klipy.com',
-    mediaS3Origin,
-    e2eMediaS3Origin,
+    mediaOrigin,
+    e2eMediaOrigin,
   ],
   'connect-src': [
     "'self'",
@@ -37,8 +36,8 @@ const webCspManifest: Record<string, string[]> = {
     'wss://api.adieuu.com',
     livekitWsOrigin,
     livekitHttpOrigin,
-    mediaS3Origin,
-    e2eMediaS3Origin,
+    mediaOrigin,
+    e2eMediaOrigin,
     'https://downloads.adieuu.com',
     'https://sandbox.verifymyage.com',
     'https://oauth.verifymyage.com',
@@ -50,7 +49,7 @@ const webCspManifest: Record<string, string[]> = {
     'https://oauth.verifymyage.com',
     'https://verify.verifymyage.com',
   ],
-  'media-src': ["'self'"],
+  'media-src': ["'self'", mediaOrigin, e2eMediaOrigin],
   'worker-src': ["'self'"],
 };
 

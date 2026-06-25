@@ -85,7 +85,7 @@ const ICON_PATH = app.isPackaged
   ? path.join(process.resourcesPath, 'icon.png')
   : path.resolve(__dirname, '../../build/icon.png');
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   if (!isDev) {
     registerProtocolHandler(CUSTOM_SCHEME, RENDERER_DIR);
   }
@@ -103,7 +103,11 @@ app.whenReady().then(() => {
     runtime.pendingDeepLinkPath = extractDeepLinkPath(launchUrl);
   }
 
-  void readClosePreferences();
+  app.on('before-quit', () => {
+    runtime.isQuitting = true;
+  });
+
+  await readClosePreferences();
 
   void createMainWindow({
     __dirname,

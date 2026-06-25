@@ -29,6 +29,13 @@ locals {
     var.cors_additional_origins
   )) : []
 
+  # E2E media CloudFront: enabled when media stack is on and signed URLs are enabled.
+  e2e_media_cf_enabled          = local.media_enabled && var.enable_cloudfront_signed_urls
+  e2e_media_route53_record_name = local.e2e_media_cf_enabled ? replace(var.e2e_media_domain_name, ".${local.route53_zone_root}", "") : ""
+
+  # CloudFront signed URL infrastructure: enabled when media stack + boolean toggle.
+  cf_signing_enabled = local.media_enabled && var.enable_cloudfront_signed_urls
+
   # CloudFront: pay-as-you-go vs flat-rate plan (subscription is console/API; see variables.tf).
   cloudfront_flat_rate_enabled = var.cloudfront_pricing_model != "pay_as_you_go"
 
@@ -106,6 +113,11 @@ locals {
       MEDIA_CDN_URL        = "https://${var.media_domain_name}"
       E2E_MEDIA_S3_BUCKET  = aws_s3_bucket.e2e_media[0].id
     } : {},
+    local.cf_signing_enabled ? {
+      MEDIA_UPLOAD_DOMAIN  = var.media_domain_name
+      E2E_MEDIA_DOMAIN     = var.e2e_media_domain_name
+      CF_SIGNING_KEY_PAIR_ID = aws_cloudfront_public_key.media_signing[0].id
+    } : {},
     local.livekit_enabled ? {
       LIVEKIT_ENABLED = "true"
       LIVEKIT_URL     = "wss://${var.livekit_domain}"
@@ -133,8 +145,15 @@ locals {
 
   # IAM policy Resource ARNs for secretsmanager (strip ECS JSON-key suffix :key:: if present).
   # Use try(regex(...)[0]) instead of regexreplace for compatibility with older Terraform CLIs.
+  api_container_secrets_merged = merge(
+    var.api_container_secrets,
+    local.cf_signing_enabled ? {
+      CF_SIGNING_PRIVATE_KEY = aws_secretsmanager_secret.cf_signing_private_key[0].arn
+    } : {}
+  )
+
   secretsmanager_resource_arns = distinct([
-    for v in values(merge(var.api_container_secrets, var.chat_container_secrets)) :
+    for v in values(merge(local.api_container_secrets_merged, var.chat_container_secrets)) :
     try(regex("^(.+):[^:]+::$", v)[0], v)
   ])
 }

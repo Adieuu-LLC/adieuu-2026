@@ -20,6 +20,8 @@
     "@adieuu/shared": "workspace:*",
     "@aws-sdk/client-s3": "3.1018.0",
     "@aws-sdk/client-secrets-manager": "3.1018.0",
+    "@aws-sdk/cloudfront-signer": "3.1074.0",
+    "@aws-sdk/s3-presigned-post": "3.1018.0",
     "@aws-sdk/s3-request-presigner": "3.1018.0",
     "@simplewebauthn/server": "13.2.2",
     "ioredis": "5.9.3",

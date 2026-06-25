@@ -389,8 +389,29 @@ variable "enable_media_stack" {
 
 variable "media_domain_name" {
   type        = string
-  description = "FQDN for the media CDN (must sit under route53_zone_name). Used for CloudFront ACM (us-east-1), media alias, and CloudFront alternate domain name."
+  description = "FQDN for the media CDN (must sit under route53_zone_name). Used for CloudFront ACM (us-east-1), media alias, and CloudFront alternate domain name. Also serves as the upload proxy domain (uploads/* path)."
   default     = "media.adieuu.com"
+}
+
+variable "e2e_media_domain_name" {
+  type        = string
+  description = "FQDN for the E2E encrypted media CDN (must sit under route53_zone_name). Used for CloudFront signed URL PUT/GET of end-to-end encrypted conversation media."
+  default     = "e2e-media.adieuu.com"
+}
+
+variable "enable_cloudfront_signed_urls" {
+  type        = bool
+  description = <<-EOT
+    Generate an RSA key pair for CloudFront signed URLs and create the upload proxy
+    infrastructure. When true, Terraform:
+      1. Generates a 2048-bit RSA key pair (private key stored in Secrets Manager)
+      2. Creates a CloudFront trusted key group
+      3. Adds an uploads/* behavior to media.adieuu.com requiring signed URLs
+      4. Creates e2e-media.adieuu.com CloudFront distribution for E2E media
+    The private key is injected into the API container as CF_SIGNING_PRIVATE_KEY via
+    Secrets Manager. Requires enable_media_stack = true.
+  EOT
+  default     = false
 }
 
 variable "allow_legacy_conv_scan_video_moderation" {

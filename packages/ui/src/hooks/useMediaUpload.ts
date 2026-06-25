@@ -1,9 +1,9 @@
 /**
  * Reusable media upload hook.
  *
- * Encapsulates the full presigned-URL upload flow:
- * 1. Request presigned PUT URL from the API
- * 2. Upload file directly to S3 via PUT
+ * Encapsulates the full presigned-POST upload flow:
+ * 1. Request presigned POST URL + form fields from the API
+ * 2. Upload file directly to S3 via POST (multipart/form-data)
  * 3. Notify API that upload is complete
  * 4. Poll for processing status until ready/rejected/failed
  *
@@ -164,7 +164,7 @@ export function useMediaUpload(options: UseMediaUploadOptions): UseMediaUploadRe
           return;
         }
 
-        const { mediaId: mid, uploadUrl } = requestRes.data;
+        const { mediaId: mid, uploadUrl, uploadFields } = requestRes.data;
         setMediaId(mid);
 
         if (abort.signal.aborted) return;
@@ -172,17 +172,20 @@ export function useMediaUpload(options: UseMediaUploadOptions): UseMediaUploadRe
         setState('uploading');
         setProgress(10);
 
-        const putResponse = await fetch(uploadUrl, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': file.type,
-          },
-          body: file,
+        const formData = new FormData();
+        for (const [key, value] of Object.entries(uploadFields)) {
+          formData.append(key, value);
+        }
+        formData.append('file', file);
+
+        const postResponse = await fetch(uploadUrl, {
+          method: 'POST',
+          body: formData,
           signal: abort.signal,
         });
 
-        if (!putResponse.ok) {
-          const msg = `Upload failed (${putResponse.status})`;
+        if (postResponse.status !== 204 && !postResponse.ok) {
+          const msg = `Upload failed (${postResponse.status})`;
           setError(msg);
           setState('error');
           onError?.(msg);

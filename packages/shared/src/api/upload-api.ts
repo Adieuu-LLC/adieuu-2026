@@ -17,6 +17,8 @@ export interface RequestUploadResponse {
   mediaId: string;
   uploadUrl: string;
   expiresIn: number;
+  /** Form fields the client must include in the POST body (presigned POST policy). */
+  uploadFields: Record<string, string>;
 }
 
 export interface UploadStatusResponse {
@@ -30,7 +32,7 @@ export class UploadApi {
   constructor(private client: HttpClient) {}
 
   /**
-   * Request a presigned S3 upload URL.
+   * Request a presigned S3 POST URL with form fields.
    */
   async requestUpload(
     params: RequestUploadParams

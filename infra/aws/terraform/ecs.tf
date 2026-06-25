@@ -56,8 +56,8 @@ resource "aws_ecs_task_definition" "api" {
           [for k in sort(keys(local.api_env_for_task)) : { name = k, value = local.api_env_for_task[k] }]
         )
       },
-      length(var.api_container_secrets) > 0 ? {
-        secrets = [for k, v in var.api_container_secrets : { name = k, valueFrom = v }]
+      length(local.api_container_secrets_merged) > 0 ? {
+        secrets = [for k, v in local.api_container_secrets_merged : { name = k, valueFrom = v }]
       } : {}
     )
   ])
