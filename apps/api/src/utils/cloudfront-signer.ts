@@ -27,9 +27,9 @@ export interface CloudFrontSignedUrlOptions {
  */
 export function isCloudFrontSigningEnabled(): boolean {
   return !!(
-    config.cloudfront.signingKeyPairId &&
-    config.cloudfront.signingPrivateKey &&
-    config.cloudfront.mediaUploadDomain
+    config.cloudfront?.signingKeyPairId &&
+    config.cloudfront?.signingPrivateKey &&
+    config.cloudfront?.mediaUploadDomain
   );
 }
 

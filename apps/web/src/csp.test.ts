@@ -111,10 +111,10 @@ describe('web app CSP', () => {
       expect(imgSrc).toContain('data:');
     });
 
-    it('includes the E2E media S3 bucket for conversation images', () => {
+    it('includes the E2E media origin for conversation images', () => {
       const directives = parseDirectives(csp);
       const imgSrc = directives.get('img-src') ?? [];
-      expect(imgSrc.some((v) => v.includes('e2e-media') && v.includes('s3.'))).toBe(true);
+      expect(imgSrc.some((v) => v.includes('e2e-media'))).toBe(true);
     });
 
     it('does not reference external QR code services', () => {
@@ -148,16 +148,16 @@ describe('web app CSP', () => {
       expect(connectSrc).toContain(livekitHttpOrigin);
     });
 
-    it('includes the S3 media bucket', () => {
+    it('includes the media origin', () => {
       const directives = parseDirectives(csp);
       const connectSrc = directives.get('connect-src') ?? [];
-      expect(connectSrc.some((v) => v.includes('s3.us-east-1.amazonaws.com'))).toBe(true);
+      expect(connectSrc.some((v) => v.includes('media.adieuu.com'))).toBe(true);
     });
 
-    it('includes the E2E media S3 bucket', () => {
+    it('includes the E2E media origin', () => {
       const directives = parseDirectives(csp);
       const connectSrc = directives.get('connect-src') ?? [];
-      expect(connectSrc.some((v) => v.includes('e2e-media') && v.includes('s3.'))).toBe(true);
+      expect(connectSrc.some((v) => v.includes('e2e-media'))).toBe(true);
     });
 
     it('includes unpkg for ffmpeg-core.wasm fetch', () => {

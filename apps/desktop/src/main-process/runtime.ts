@@ -6,4 +6,5 @@ import type { BrowserWindow } from 'electron';
 export const runtime = {
   mainWindow: null as BrowserWindow | null,
   pendingDeepLinkPath: null as string | null,
+  isQuitting: false,
 };

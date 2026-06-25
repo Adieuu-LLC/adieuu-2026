@@ -213,11 +213,11 @@ export function IdentityAppearance() {
       { id: 'import-export', label: t('account.appearance.importExportTitle') },
       { id: 'message-display', label: t('identity.appearance.messageDisplayTitle', 'Message Display') },
     );
-    if (hasSystemTray) {
+    if (hasSystemTray && minimizeToTrayLoaded) {
       list.push({ id: 'desktop-behavior', label: t('identity.appearance.desktopBehaviorTitle', 'Desktop Behavior') });
     }
     return list;
-  }, [t, customThemes.length, hasSystemTray]);
+  }, [t, customThemes.length, hasSystemTray, minimizeToTrayLoaded]);
 
   const setSectionRef = useCallback((id: string, el: HTMLElement | null) => {
     if (el) {
