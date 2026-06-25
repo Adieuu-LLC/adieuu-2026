@@ -14,6 +14,8 @@ import { createMainWindow } from './main-process/create-main-window';
 import { initAutoUpdater, clearUpdateCheckTimer } from './main-process/auto-updater';
 import { registerMainProcessIpc } from './main-process/register-main-ipc';
 import { registerDisplayMediaHandler } from './main-process/display-media-handler';
+import { destroyTray, isHiddenInTray, restoreFromTray } from './main-process/tray';
+import { readClosePreferences } from './main-process/close-preferences';
 
 const __dirname = getMainDirname(import.meta.url);
 loadDesktopEnvIfPresent(__dirname);
@@ -44,6 +46,10 @@ function sendToRenderer(channel: string, ...args: unknown[]): void {
 
 function focusMainWindow(): void {
   if (!runtime.mainWindow || runtime.mainWindow.isDestroyed()) return;
+  if (isHiddenInTray()) {
+    restoreFromTray();
+    return;
+  }
   if (runtime.mainWindow.isMinimized()) runtime.mainWindow.restore();
   runtime.mainWindow.focus();
 }
@@ -97,6 +103,8 @@ app.whenReady().then(() => {
     runtime.pendingDeepLinkPath = extractDeepLinkPath(launchUrl);
   }
 
+  void readClosePreferences();
+
   void createMainWindow({
     __dirname,
     isDev,
@@ -110,6 +118,7 @@ app.whenReady().then(() => {
 function cleanupBeforeExit(): void {
   clearUpdateCheckTimer();
   destroyBridgeWindow();
+  destroyTray();
 }
 
 function handleTerminationSignal(signal: string): void {
@@ -140,6 +149,10 @@ app.on('will-quit', () => {
 });
 
 app.on('activate', () => {
+  if (isHiddenInTray()) {
+    restoreFromTray();
+    return;
+  }
   if (BrowserWindow.getAllWindows().length === 0) {
     void createMainWindow({
       __dirname,

@@ -1,4 +1,4 @@
-import { BrowserWindow, Menu, shell } from 'electron';
+import { app, BrowserWindow, Menu, Notification, shell } from 'electron';
 import path from 'path';
 import { runtime } from './runtime';
 import {
@@ -8,6 +8,22 @@ import {
   MIN_WIN_WIDTH,
   resolveInitialWindowPlacement,
 } from './window-state';
+import { getCachedClosePreferences, writeClosePreferences } from './close-preferences';
+import { hideToTray, restoreFromTray } from './tray';
+
+function showFirstMinimizeNotification(win: BrowserWindow, iconPath: string): void {
+  if (!Notification.isSupported()) return;
+  const n = new Notification({
+    title: 'Adieuu is still running',
+    body: 'We minimized Adieuu to your system tray. Click here to change this behavior.',
+    icon: iconPath,
+  });
+  n.on('click', () => {
+    restoreFromTray();
+    win.webContents.send('deep-link', '/identity/appearance#desktop-behavior');
+  });
+  n.show();
+}
 
 export async function createMainWindow(options: {
   __dirname: string;
@@ -54,6 +70,24 @@ export async function createMainWindow(options: {
   });
 
   attachMainWindowLayoutPersistence(runtime.mainWindow);
+
+  runtime.mainWindow.on('close', (event) => {
+    const win = runtime.mainWindow;
+    if (!win || win.isDestroyed()) return;
+
+    const prefs = getCachedClosePreferences();
+
+    if (prefs.behavior === 'minimize-to-tray') {
+      event.preventDefault();
+      hideToTray(iconPath);
+
+      if (!prefs.hasBeenAsked) {
+        showFirstMinimizeNotification(win, iconPath);
+        void writeClosePreferences({ ...prefs, hasBeenAsked: true });
+      }
+      return;
+    }
+  });
 
   runtime.mainWindow.on('closed', () => {
     runtime.mainWindow = null;

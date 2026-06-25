@@ -791,10 +791,11 @@ export function ConversationsSidebarSection({
   const { appWindow } = usePlatformCapabilities();
   const { activeTheme } = useTheme();
   const accentHex = activeTheme?.colors.accentPrimary;
+  const secondaryHex = activeTheme?.colors.accentSecondary;
 
   useEffect(() => {
-    appWindow?.setBadgeCount(totalUnread, accentHex);
-  }, [totalUnread, appWindow, accentHex]);
+    appWindow?.setBadgeCount(totalUnread, accentHex, secondaryHex);
+  }, [totalUnread, appWindow, accentHex, secondaryHex]);
 
   const tabs: SidebarTab[] = [
     {

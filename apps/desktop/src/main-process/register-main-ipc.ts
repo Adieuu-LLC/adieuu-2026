@@ -3,13 +3,21 @@ import fs from 'fs/promises';
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { createCredential, destroyBridgeWindow, getCredential } from '../webauthn-bridge';
 import { runtime } from './runtime';
-import { applyBadgeColor, createBadgedIcon, getBaseIcon } from './taskbar-badge';
+import { applyBadgeColor, applyDotColor, createBadgedIcon, getBaseIcon } from './taskbar-badge';
+import { isTrayActive, setTrayBadge, getTrayUnreadState } from './tray';
 import { clearUpdateCheckTimer, registerAutoUpdaterIpc } from './auto-updater';
 import { registerVerificationWindowIpc } from './verification-window';
 import { isAllowedAudioPath } from './audio-path';
 import { ensureInAppUpdateLogFileForOpen, getInAppUpdateLogPath } from './update-in-app-log';
 import { openExternalHttpsUrl } from './open-external-https';
 import { saveMainWindowLayoutIfChanged } from './window-state';
+import {
+  readClosePreferences,
+  writeClosePreferences,
+  normalizeClosePreferences,
+  getCachedClosePreferences,
+  type ClosePreferences,
+} from './close-preferences';
 
 export function registerMainProcessIpc(options: {
   isDev: boolean;
@@ -118,7 +126,24 @@ export function registerMainProcessIpc(options: {
   });
 
   ipcMain.handle('window:close', () => {
-    runtime.mainWindow?.close();
+    const win = runtime.mainWindow;
+    if (!win || win.isDestroyed()) return;
+    // The actual close/tray logic is handled by the BrowserWindow `close`
+    // event interceptor in create-main-window.ts. Just trigger the native
+    // close flow so the same code path runs for both the custom title bar
+    // and macOS traffic lights.
+    win.close();
+  });
+
+  ipcMain.handle('window:get-close-preferences', async () => {
+    return readClosePreferences();
+  });
+
+  ipcMain.handle('window:set-close-preferences', async (_event, patch: unknown) => {
+    if (typeof patch !== 'object' || patch === null) return;
+    const current = getCachedClosePreferences();
+    const merged = normalizeClosePreferences({ ...current, ...(patch as Partial<ClosePreferences>) });
+    await writeClosePreferences(merged);
   });
 
   ipcMain.handle('window:isMaximized', () => {
@@ -138,12 +163,21 @@ export function registerMainProcessIpc(options: {
     saveMainWindowLayoutIfChanged();
   });
 
-  ipcMain.handle('window:setBadgeCount', (_event, count: unknown, accentHex?: unknown) => {
+  ipcMain.handle('window:setBadgeCount', (_event, count: unknown, accentHex?: unknown, secondaryHex?: unknown) => {
     if (typeof count !== 'number' || count < 0) return;
     const rounded = Math.round(count);
 
+    let trayNeedsRedraw = false;
+
     if (typeof accentHex === 'string') {
-      applyBadgeColor(accentHex);
+      if (applyBadgeColor(accentHex)) trayNeedsRedraw = true;
+    }
+    if (typeof secondaryHex === 'string') {
+      if (applyDotColor(secondaryHex)) trayNeedsRedraw = true;
+    }
+
+    if (trayNeedsRedraw && isTrayActive()) {
+      setTrayBadge(getTrayUnreadState());
     }
 
     app.setBadgeCount(rounded);
@@ -152,6 +186,8 @@ export function registerMainProcessIpc(options: {
       const icon = rounded > 0 ? createBadgedIcon(iconPath, rounded) : getBaseIcon(iconPath);
       if (icon) runtime.mainWindow.setIcon(icon);
     }
+
+    setTrayBadge(rounded > 0);
   });
 
   ipcMain.handle('audio:pick-sound-file', async () => {
