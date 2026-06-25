@@ -578,7 +578,7 @@ export interface RequestScanUploadResult {
   scanMediaId?: string;
   uploadUrl?: string;
   expiresIn?: number;
-  /** Headers the client must include in the PUT request (for CloudFront → S3 metadata forwarding). */
+  /** Headers the client must include in the PUT request (signed metadata headers for S3). */
   uploadHeaders?: Record<string, string>;
   error?: string;
   errorCode?:
@@ -697,6 +697,13 @@ export async function requestScanUpload(
     expiresIn: PRESIGNED_PUT_EXPIRY_SECONDS,
   });
 
+  const uploadHeaders: Record<string, string> = {
+    'Content-Type': input.contentType,
+    ...Object.fromEntries(
+      Object.entries(metadata).map(([k, v]) => [`x-amz-meta-${k}`, v]),
+    ),
+  };
+
   const processingFlags = isVideoScan
     ? {
         stripExif: false,
@@ -727,6 +734,7 @@ export async function requestScanUpload(
     success: true,
     scanMediaId,
     uploadUrl,
+    uploadHeaders,
     expiresIn: PRESIGNED_PUT_EXPIRY_SECONDS,
   };
 }
