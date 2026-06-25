@@ -120,6 +120,9 @@ export function buildGrantPayload(billing: UserBilling): GrantPayload {
 // Encryption / decryption
 // ---------------------------------------------------------------------------
 
+/** Maximum JSON payload size encodable in the 2-byte big-endian length prefix. */
+const MAX_GRANT_JSON_BYTES = 0xffff;
+
 /**
  * Minimum padded plaintext size. Payloads are padded to the smallest
  * power-of-2 bucket that fits `2 + jsonLength`. This limits the number
@@ -155,6 +158,11 @@ function paddedBucketSize(needed: number): number {
 export function encryptGrants(payload: GrantPayload): { ciphertext: string; key: string } {
   const key = randomBytes(SYMMETRIC_KEY_SIZE);
   const jsonBytes = new TextEncoder().encode(JSON.stringify(payload));
+  if (jsonBytes.length > MAX_GRANT_JSON_BYTES) {
+    throw new Error(
+      `Grant payload too large: ${jsonBytes.length} bytes (max ${MAX_GRANT_JSON_BYTES})`,
+    );
+  }
 
   const bucketSize = paddedBucketSize(2 + jsonBytes.length);
   const padded = new Uint8Array(bucketSize);

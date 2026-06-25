@@ -16,6 +16,31 @@ import {
 const HOUR = 60 * 60;
 const DAY = 24 * HOUR;
 const YEAR = 365.25 * DAY;
+/** Must match MAX_GRANT_JSON_BYTES in subscription-grants.ts */
+const MAX_GRANT_JSON_BYTES = 0xffff;
+
+function grantJsonByteLength(payload: Record<string, number>): number {
+  return new TextEncoder().encode(JSON.stringify(payload)).length;
+}
+
+/** Builds a single-entry payload whose JSON encoding is exactly targetBytes. */
+function grantPayloadWithExactJsonBytes(
+  targetBytes: number,
+  expirationUnix = Math.floor(Date.now() / 1000) + DAY * 30,
+): Record<string, number> {
+  const numLen = String(expirationUnix).length;
+  const overhead = 2 + 2 + numLen + 1; // {" + key + ": + num + }
+  const keyLen = targetBytes - overhead;
+  if (keyLen < 1) {
+    throw new Error(`Cannot build grant payload of ${targetBytes} JSON bytes`);
+  }
+  const payload = { ['x'.repeat(keyLen)]: expirationUnix };
+  const actual = grantJsonByteLength(payload);
+  if (actual !== targetBytes) {
+    throw new Error(`Expected ${targetBytes} JSON bytes, got ${actual}`);
+  }
+  return payload;
+}
 
 function makeBilling(overrides: Partial<UserBilling> = {}): UserBilling {
   return {
@@ -224,6 +249,73 @@ describe('subscription-grants privacy', () => {
     // And that bucket is larger than the minimal bucket
     const minimal = encryptGrants({ access: now });
     expect(large.ciphertext.length).toBeGreaterThan(minimal.ciphertext.length);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Grant payload size limits (2-byte length prefix)
+// ---------------------------------------------------------------------------
+describe('subscription-grants payload size limits', () => {
+  test('rejects payloads one byte over the 2-byte length prefix limit', () => {
+    const payload = grantPayloadWithExactJsonBytes(MAX_GRANT_JSON_BYTES + 1);
+    expect(grantJsonByteLength(payload)).toBe(MAX_GRANT_JSON_BYTES + 1);
+    expect(() => encryptGrants(payload)).toThrow(
+      `Grant payload too large: ${MAX_GRANT_JSON_BYTES + 1} bytes (max ${MAX_GRANT_JSON_BYTES})`,
+    );
+  });
+
+  test('rejects payloads well over the limit with a clear error', () => {
+    const now = Math.floor(Date.now() / 1000);
+    const payload: Record<string, number> = {
+      access: now,
+      [`key_${'x'.repeat(70_000)}`]: now,
+    };
+    expect(() => encryptGrants(payload)).toThrow(/Grant payload too large: \d+ bytes \(max 65535\)/);
+  });
+
+  test('accepts payloads exactly at the limit and round-trips', () => {
+    const payload = grantPayloadWithExactJsonBytes(MAX_GRANT_JSON_BYTES);
+    expect(grantJsonByteLength(payload)).toBe(MAX_GRANT_JSON_BYTES);
+
+    const { ciphertext, key } = encryptGrants(payload);
+    const result = evaluateSubscriptionGrants(ciphertext, key);
+
+    expect(Object.keys(result.entitlements)).toHaveLength(1);
+    expect(Object.values(result.entitlements)[0]).toBe('current');
+  });
+
+  test('accepts payloads one byte under the limit and round-trips', () => {
+    const payload = grantPayloadWithExactJsonBytes(MAX_GRANT_JSON_BYTES - 1);
+    expect(grantJsonByteLength(payload)).toBe(MAX_GRANT_JSON_BYTES - 1);
+
+    const { ciphertext, key } = encryptGrants(payload);
+    const result = evaluateSubscriptionGrants(ciphertext, key);
+
+    expect(Object.keys(result.entitlements)).toHaveLength(1);
+    expect(Object.values(result.entitlements)[0]).toBe('current');
+  });
+
+  test('max-size multi-grant payload round-trips without truncation', () => {
+    const now = Math.floor(Date.now() / 1000) + DAY * 30;
+    const payload: Record<string, number> = {};
+    let i = 0;
+    while (grantJsonByteLength(payload) < MAX_GRANT_JSON_BYTES - 120) {
+      payload[`grant_${i.toString().padStart(4, '0')}`] = now;
+      i += 1;
+    }
+    payload.access = now;
+    payload.insider = now;
+    expect(grantJsonByteLength(payload)).toBeLessThanOrEqual(MAX_GRANT_JSON_BYTES);
+
+    const { ciphertext, key } = encryptGrants(payload);
+    const result = evaluateSubscriptionGrants(ciphertext, key);
+
+    expect(result.subscriptions.access).toBe('current');
+    expect(result.subscriptions.insider).toBe('current');
+    expect(Object.keys(result.entitlements).length).toBe(i);
+    for (let j = 0; j < i; j++) {
+      expect(result.entitlements[`grant_${j.toString().padStart(4, '0')}`]).toBe('current');
+    }
   });
 });
 
