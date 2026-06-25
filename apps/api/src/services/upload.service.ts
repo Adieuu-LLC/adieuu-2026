@@ -193,7 +193,7 @@ export async function requestUpload(
   };
 
   const conditions: PostCondition[] = [
-    ['content-length-range', 0, maxBytes],
+    ['content-length-range', 0, input.contentLength],
     ['eq', '$Content-Type', input.contentType],
     ['eq', '$key', s3Key],
     ...Object.entries(metadata).map(
