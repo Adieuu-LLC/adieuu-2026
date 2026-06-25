@@ -82,7 +82,21 @@ mock.module('react-router-dom', () => ({
     state: null,
     key: 'default',
   }),
+  useParams: () => ({}),
+  useNavigationType: () => 'PUSH',
+  Navigate: () => null,
+  Outlet: () => null,
   Link: ({
+    to,
+    children,
+    className,
+    ...rest
+  }: {
+    to: LinkTo;
+    children?: ReactNode;
+    className?: string;
+  }) => createElement('a', { href: linkToHref(to), className, ...rest }, children),
+  NavLink: ({
     to,
     children,
     className,

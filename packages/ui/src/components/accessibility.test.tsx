@@ -155,10 +155,6 @@ describe('Accessibility: Sidebar', () => {
 
 describe('Accessibility: AppLayout', () => {
   test('renders skip link targeting main content', async () => {
-    mock.module('react-router-dom', () => ({
-      useLocation: () => ({ pathname: '/' }),
-      useParams: () => ({}),
-    }));
     mock.module('../hooks/conversations/context', () => ({
       ConversationsContext: { Provider: ({ children }: any) => children },
     }));
