@@ -96,6 +96,7 @@ export type RequestE2EUploadData = {
   uploadUrl: string;
   scanHash: string;
   expiresIn: number;
+  uploadHeaders?: Record<string, string>;
 };
 
 export async function requestE2EUploadResult(
@@ -137,6 +138,7 @@ export async function requestE2EUploadResult(
       uploadUrl: result.uploadUrl,
       scanHash: result.scanHash,
       expiresIn: result.expiresIn,
+      ...(result.uploadHeaders ? { uploadHeaders: result.uploadHeaders } : {}),
     },
   };
 }
@@ -273,6 +275,7 @@ export type RequestScanUploadData = {
   scanMediaId: string;
   uploadUrl: string;
   expiresIn: number;
+  uploadHeaders?: Record<string, string>;
 };
 
 export async function requestScanUploadResult(
@@ -316,6 +319,7 @@ export async function requestScanUploadResult(
       scanMediaId: result.scanMediaId,
       uploadUrl: result.uploadUrl,
       expiresIn: result.expiresIn,
+      ...(result.uploadHeaders ? { uploadHeaders: result.uploadHeaders } : {}),
     },
   };
 }

@@ -164,7 +164,7 @@ export function useMediaUpload(options: UseMediaUploadOptions): UseMediaUploadRe
           return;
         }
 
-        const { mediaId: mid, uploadUrl } = requestRes.data;
+        const { mediaId: mid, uploadUrl, uploadHeaders } = requestRes.data;
         setMediaId(mid);
 
         if (abort.signal.aborted) return;
@@ -174,7 +174,7 @@ export function useMediaUpload(options: UseMediaUploadOptions): UseMediaUploadRe
 
         const putResponse = await fetch(uploadUrl, {
           method: 'PUT',
-          headers: {
+          headers: uploadHeaders ?? {
             'Content-Type': file.type,
           },
           body: file,

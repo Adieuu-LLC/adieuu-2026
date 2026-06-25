@@ -17,6 +17,10 @@ terraform {
       source  = "hashicorp/time"
       version = ">= 0.9.0, < 1.0.0"
     }
+    tls = {
+      source  = "hashicorp/tls"
+      version = ">= 4.0.0"
+    }
   }
 
   # Uncomment and set after creating the bucket (recommended for teams):

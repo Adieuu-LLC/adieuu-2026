@@ -176,6 +176,31 @@ output "e2e_media_s3_bucket_name" {
   value       = local.media_enabled ? aws_s3_bucket.e2e_media[0].id : null
 }
 
+output "e2e_media_cloudfront_distribution_id" {
+  description = "CloudFront distribution ID for E2E media when signed URL infrastructure is enabled; null otherwise."
+  value       = local.e2e_media_cf_enabled ? aws_cloudfront_distribution.e2e_media[0].id : null
+}
+
+output "e2e_media_domain_name" {
+  description = "FQDN for the E2E media CloudFront distribution when enabled; null otherwise."
+  value       = local.e2e_media_cf_enabled ? var.e2e_media_domain_name : null
+}
+
+output "cf_signing_key_pair_id" {
+  description = "CloudFront public key ID for signed URL generation (injected as CF_SIGNING_KEY_PAIR_ID in API env). Null when signed URLs are not enabled."
+  value       = local.cf_signing_enabled ? aws_cloudfront_public_key.media_signing[0].id : null
+}
+
+output "cf_signing_secret_arn" {
+  description = "Secrets Manager ARN for the CloudFront signing private key (auto-injected into API container). Null when signed URLs are not enabled."
+  value       = local.cf_signing_enabled ? aws_secretsmanager_secret.cf_signing_private_key[0].arn : null
+}
+
+output "media_upload_domain" {
+  description = "Domain for media uploads via CloudFront signed URLs (same as media_domain_name). Null when signing is not configured."
+  value       = local.cf_signing_enabled ? var.media_domain_name : null
+}
+
 output "cloudfront_pricing_model" {
   description = "Configured CloudFront pricing model (pay_as_you_go or flat_rate_*)."
   value       = var.cloudfront_pricing_model
