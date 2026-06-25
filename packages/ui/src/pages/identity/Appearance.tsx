@@ -133,7 +133,11 @@ export function IdentityAppearance() {
   const [minimizeToTrayLoaded, setMinimizeToTrayLoaded] = useState(false);
 
   useEffect(() => {
-    if (!hasSystemTray || !appWindow?.getClosePreferences) return;
+    if (!hasSystemTray) return;
+    if (!appWindow?.getClosePreferences) {
+      setMinimizeToTrayLoaded(true);
+      return;
+    }
     appWindow.getClosePreferences().then((prefs) => {
       setMinimizeToTray(prefs.behavior === 'minimize-to-tray');
       setMinimizeToTrayLoaded(true);

@@ -53,7 +53,7 @@ const desktopCspManifest: Record<string, string[]> = {
     'https://oauth.verifymyage.com',
     'https://verify.verifymyage.com',
   ],
-  'media-src': ["'self'"],
+  'media-src': ["'self'", mediaOrigin, e2eMediaOrigin],
   /**
    * `blob:` (from @adieuu/ui): ffmpeg.wasm workers.
    * `'self'`: Vite worker chunks load from `adieuu://app/assets/worker-*.js` in the

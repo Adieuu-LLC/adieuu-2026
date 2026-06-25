@@ -108,7 +108,7 @@ export async function getModerationScanEvidenceForReport(
     .sort((a, b) => a.mediaId.localeCompare(b.mediaId));
 
   const client = getS3Client();
-  const useCf = isCloudFrontSigningEnabled();
+  const useCf = isCloudFrontSigningEnabled('media');
   const items: ModerationScanEvidenceItem[] = [];
 
   for (const doc of candidates) {

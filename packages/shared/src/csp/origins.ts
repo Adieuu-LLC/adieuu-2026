@@ -10,7 +10,8 @@
  *   VITE_E2E_MEDIA_ORIGIN  - CloudFront origin for E2E encrypted media
  *   VITE_LIVEKIT_URL       - LiveKit signaling WebSocket URL (wss://...)
  *
- * All default to the production Adieuu CloudFront domains when unset.
+ * Media variables default to the production Adieuu CloudFront domains when unset.
+ * VITE_LIVEKIT_URL defaults to the production LiveKit signaling WebSocket URL.
  * The HTTP origin for LiveKit is derived automatically from the WebSocket URL.
  *
  * @module csp/origins

@@ -49,7 +49,7 @@ const webCspManifest: Record<string, string[]> = {
     'https://oauth.verifymyage.com',
     'https://verify.verifymyage.com',
   ],
-  'media-src': ["'self'"],
+  'media-src': ["'self'", mediaOrigin, e2eMediaOrigin],
   'worker-src': ["'self'"],
 };
 

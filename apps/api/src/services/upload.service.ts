@@ -32,10 +32,6 @@ import {
 import { resolveMaxUploadBytes } from './media-limits.service';
 import elog from '../utils/adieuuLogger';
 import { sanitizeIpForStorage } from '../utils/sanitize';
-import {
-  isCloudFrontSigningEnabled,
-  generateCloudFrontSignedUrl,
-} from '../utils/cloudfront-signer';
 
 const PRESIGNED_URL_EXPIRY_SECONDS = 300; // 5 minutes
 
@@ -201,39 +197,9 @@ export async function requestUpload(
     },
   });
 
-  const s3Metadata: Record<string, string> = {
-    'x-amz-meta-media-id': mediaId,
-    'x-amz-meta-purpose': input.purpose,
-    ...(input.identityId ? { 'x-amz-meta-identity-id': input.identityId } : {}),
-    ...(input.userId ? { 'x-amz-meta-user-id': input.userId } : {}),
-    'x-amz-meta-strip-exif': String(purposeConfig.processingFlags.stripExif),
-    'x-amz-meta-content-moderation': String(purposeConfig.processingFlags.contentModeration),
-    ...(purposeConfig.processingFlags.resize
-      ? {
-          'x-amz-meta-resize-max-width': String(purposeConfig.processingFlags.resize.maxWidth),
-          'x-amz-meta-resize-max-height': String(purposeConfig.processingFlags.resize.maxHeight),
-        }
-      : {}),
-  };
-
-  let uploadUrl: string;
-  let uploadHeaders: Record<string, string> | undefined;
-
-  if (isCloudFrontSigningEnabled()) {
-    uploadUrl = generateCloudFrontSignedUrl({
-      s3Key,
-      distribution: 'media',
-      expiresInSeconds: PRESIGNED_URL_EXPIRY_SECONDS,
-    });
-    uploadHeaders = {
-      'Content-Type': input.contentType,
-      ...s3Metadata,
-    };
-  } else {
-    uploadUrl = await getSignedUrl(getS3Client(), command, {
-      expiresIn: PRESIGNED_URL_EXPIRY_SECONDS,
-    });
-  }
+  const uploadUrl = await getSignedUrl(getS3Client(), command, {
+    expiresIn: PRESIGNED_URL_EXPIRY_SECONDS,
+  });
 
   const { ObjectId } = await import('mongodb');
   const uploadIpAddress = sanitizeIpForStorage(input.clientIp);
@@ -261,7 +227,6 @@ export async function requestUpload(
     success: true,
     mediaId,
     uploadUrl,
-    uploadHeaders,
     expiresIn: PRESIGNED_URL_EXPIRY_SECONDS,
   };
 }

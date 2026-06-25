@@ -248,7 +248,7 @@ export async function requestE2EUpload(
   let uploadUrl: string;
   let uploadHeaders: Record<string, string> | undefined;
 
-  if (isCloudFrontSigningEnabled()) {
+  if (isCloudFrontSigningEnabled('e2e-media')) {
     uploadUrl = generateCloudFrontSignedUrl({
       s3Key,
       distribution: 'e2e-media',
@@ -538,7 +538,7 @@ export async function getE2EMediaDownload(
 
   let downloadUrl: string;
 
-  if (isCloudFrontSigningEnabled()) {
+  if (isCloudFrontSigningEnabled('e2e-media')) {
     downloadUrl = generateCloudFrontSignedUrl({
       s3Key: doc.s3Key,
       distribution: 'e2e-media',
@@ -693,28 +693,9 @@ export async function requestScanUpload(
     Metadata: metadata,
   });
 
-  const s3Metadata: Record<string, string> = Object.fromEntries(
-    Object.entries(metadata).map(([k, v]) => [`x-amz-meta-${k}`, v])
-  );
-
-  let uploadUrl: string;
-  let uploadHeaders: Record<string, string> | undefined;
-
-  if (isCloudFrontSigningEnabled()) {
-    uploadUrl = generateCloudFrontSignedUrl({
-      s3Key,
-      distribution: 'media',
-      expiresInSeconds: PRESIGNED_PUT_EXPIRY_SECONDS,
-    });
-    uploadHeaders = {
-      'Content-Type': input.contentType,
-      ...s3Metadata,
-    };
-  } else {
-    uploadUrl = await getSignedUrl(getS3Client(), command, {
-      expiresIn: PRESIGNED_PUT_EXPIRY_SECONDS,
-    });
-  }
+  const uploadUrl = await getSignedUrl(getS3Client(), command, {
+    expiresIn: PRESIGNED_PUT_EXPIRY_SECONDS,
+  });
 
   const processingFlags = isVideoScan
     ? {
@@ -746,7 +727,6 @@ export async function requestScanUpload(
     success: true,
     scanMediaId,
     uploadUrl,
-    uploadHeaders,
     expiresIn: PRESIGNED_PUT_EXPIRY_SECONDS,
   };
 }

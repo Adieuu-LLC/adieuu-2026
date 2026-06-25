@@ -22,15 +22,17 @@ export interface CloudFrontSignedUrlOptions {
 }
 
 /**
- * Returns true when CloudFront signed URL infrastructure is available.
- * When false, callers should fall back to S3 presigned URLs.
+ * Returns true when CloudFront signed URL infrastructure is available for the
+ * given distribution. When false, callers should fall back to S3 presigned URLs.
  */
-export function isCloudFrontSigningEnabled(): boolean {
-  return !!(
-    config.cloudfront?.signingKeyPairId &&
-    config.cloudfront?.signingPrivateKey &&
-    config.cloudfront?.mediaUploadDomain
-  );
+export function isCloudFrontSigningEnabled(distribution: 'media' | 'e2e-media' = 'media'): boolean {
+  if (!config.cloudfront?.signingKeyPairId || !config.cloudfront?.signingPrivateKey) {
+    return false;
+  }
+  const domain = distribution === 'media'
+    ? config.cloudfront.mediaUploadDomain
+    : config.cloudfront.e2eMediaDomain;
+  return !!domain;
 }
 
 function getDomain(distribution: 'media' | 'e2e-media'): string {
