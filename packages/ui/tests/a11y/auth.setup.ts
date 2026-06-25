@@ -1,5 +1,5 @@
 /**
- * Playwright global setup: authenticates a test user and saves session state.
+ * Playwright setup project: authenticates a test user and saves session state.
  *
  * Prerequisites:
  *   - API server running (localhost:4000 by default) with DEV_OTP_CODE env set
@@ -9,7 +9,7 @@
  * cookies as storageState for authenticated test projects to reuse.
  */
 
-import { request } from '@playwright/test';
+import { test as setup, request } from '@playwright/test';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -18,22 +18,26 @@ const STORAGE_STATE_PATH = path.resolve(__dirname, '.auth/session.json');
 
 export const AUTH_STORAGE_STATE = STORAGE_STATE_PATH;
 
-async function globalSetup() {
+setup('authenticate', async () => {
   if (process.env.SKIP_A11Y_AUTH === '1') {
     console.log('[a11y auth setup] Skipped (SKIP_A11Y_AUTH=1)');
     return;
   }
 
   const email = process.env.PW_TEST_EMAIL ?? 'local-test@adieuu.com';
-  const otpCode = process.env.DEV_OTP_CODE ?? '123456';
+  const otpCode = process.env.DEV_OTP_CODE;
+  if (!otpCode) {
+    throw new Error('[a11y auth setup] DEV_OTP_CODE must be set for authenticated a11y tests.');
+  }
   const baseURL = process.env.PW_API_URL ?? 'http://localhost:3000';
 
   let context;
   try {
     context = await request.newContext({ baseURL });
   } catch (err) {
-    console.warn(`[a11y auth setup] Could not connect to API at ${baseURL}, skipping auth. Authenticated tests will be skipped.`);
-    return;
+    throw new Error(
+      `[a11y auth setup] Could not connect to API at ${baseURL}. Authenticated tests require auth setup.`,
+    );
   }
 
   try {
@@ -59,12 +63,8 @@ async function globalSetup() {
 
     // Step 3: Save cookie state
     await context.storageState({ path: STORAGE_STATE_PATH });
-    console.log(`[a11y auth setup] Authenticated as ${email}, state saved to ${STORAGE_STATE_PATH}`);
-  } catch (err) {
-    console.warn(`[a11y auth setup] Auth failed: ${err instanceof Error ? err.message : err}. Authenticated tests may be skipped.`);
+    console.log('[a11y auth setup] Authentication succeeded, storage state saved.');
   } finally {
     await context.dispose();
   }
-}
-
-export default globalSetup;
+});

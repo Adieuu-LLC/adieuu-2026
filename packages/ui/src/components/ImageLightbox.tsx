@@ -95,7 +95,15 @@ export const ImageLightbox = memo(function ImageLightbox({
         ref={closeButtonRef}
         type="button"
         className="media-lightbox-close"
-        onClick={onClose}
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.stopPropagation();
+          }
+        }}
         aria-label={t('common.close', 'Close')}
       >
         &times;

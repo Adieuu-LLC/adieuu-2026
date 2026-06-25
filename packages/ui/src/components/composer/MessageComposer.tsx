@@ -171,6 +171,8 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   const [lastMediaTab, setLastMediaTab] = useState<ContentTab>('gifs');
   const [pendingGif, setPendingGif] = useState<GifAttachment | null>(null);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const attachmentsRef = useRef(attachments);
+  attachmentsRef.current = attachments;
   const [stripExif, setStripExif] = useState(true);
   const [moderationEnabled, setModerationEnabled] = useState(true);
   const [sendMp4WithoutReencode, setSendMp4WithoutReencode] = useState(false);
@@ -480,10 +482,9 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     });
   }, []);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     return () => {
-      for (const a of attachments) URL.revokeObjectURL(a.previewUrl);
+      for (const a of attachmentsRef.current) URL.revokeObjectURL(a.previewUrl);
     };
   }, []);
 

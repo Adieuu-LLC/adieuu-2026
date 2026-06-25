@@ -20,8 +20,12 @@ export default defineConfig({
     timeout: 60_000,
     cwd: '../..',
   },
-  globalSetup: './tests/a11y/auth.setup.ts',
   projects: [
+    {
+      name: 'setup',
+      testDir: './tests/a11y',
+      testMatch: 'auth.setup.ts',
+    },
     {
       name: 'public',
       testDir: './tests/a11y',
@@ -31,6 +35,7 @@ export default defineConfig({
       name: 'authenticated',
       testDir: './tests/a11y',
       testMatch: 'authenticated.spec.ts',
+      dependencies: ['setup'],
       use: {
         storageState: AUTH_STATE,
       },

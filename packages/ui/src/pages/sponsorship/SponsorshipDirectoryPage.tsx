@@ -46,7 +46,10 @@ export function SponsorshipDirectoryPage() {
     if (loadingMore || !entries.length) return;
     setLoadingMore(true);
     const lastEntry = entries[entries.length - 1];
-    if (!lastEntry) return;
+    if (!lastEntry) {
+      setLoadingMore(false);
+      return;
+    }
     await fetchDirectory(lastEntry.createdAt);
     setLoadingMore(false);
   }

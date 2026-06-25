@@ -98,7 +98,7 @@ test.describe('sidebar navigation', () => {
     // Tab into sidebar content
     const sidebarLinks = page.locator('.sidebar-item a, .sidebar-item button');
     const count = await sidebarLinks.count();
-    if (count === 0) return;
+    expect(count).toBeGreaterThan(0);
 
     await sidebarLinks.first().focus();
     const focused = await page.evaluate(() => document.activeElement?.tagName.toLowerCase());
@@ -185,13 +185,13 @@ test.describe('dialog accessibility', () => {
 
     // Look for a button that opens a modal
     const modalTrigger = page.locator('button:has-text("Change"), button:has-text("Edit"), button:has-text("Setup")').first();
-    if (await modalTrigger.count() === 0) return;
+    expect(await modalTrigger.count()).toBeGreaterThan(0);
 
     await modalTrigger.click();
     await page.waitForTimeout(300);
 
     const dialog = page.locator('[role="dialog"]:visible');
-    if (await dialog.count() === 0) return;
+    expect(await dialog.count()).toBeGreaterThan(0);
 
     // Verify dialog has aria-modal
     expect(await dialog.getAttribute('aria-modal')).toBe('true');

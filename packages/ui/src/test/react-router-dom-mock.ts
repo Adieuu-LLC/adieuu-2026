@@ -104,6 +104,14 @@ mock.module('react-router-dom', () => ({
   }: {
     to: LinkTo;
     children?: ReactNode;
-    className?: string;
-  }) => createElement('a', { href: linkToHref(to), className, ...rest }, children),
+    className?: string | ((args: { isActive: boolean; isPending: boolean }) => string);
+  }) => {
+    const href = linkToHref(to);
+    const isActive = _pathname === href;
+    const resolvedClassName =
+      typeof className === 'function'
+        ? className({ isActive, isPending: false })
+        : className;
+    return createElement('a', { href, className: resolvedClassName, ...rest }, children);
+  },
 }));

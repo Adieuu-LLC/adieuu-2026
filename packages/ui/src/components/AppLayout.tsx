@@ -64,7 +64,7 @@ export function AppLayout({
       </a>
       <AppNavigationChrome />
       {sidebarWithCallback}
-      <main className="app-content" id="main-content">
+      <main className="app-content" id="main-content" tabIndex={-1}>
         <div className="app-content-inner">
           {children}
           <SiteFooter />

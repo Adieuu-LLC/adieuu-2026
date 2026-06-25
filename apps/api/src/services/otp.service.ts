@@ -330,7 +330,8 @@ export async function verifyOtp(
 
   const devBypass =
     config.env !== 'production' &&
-    code === (process.env.DEV_OTP_CODE || '123456');
+    process.env.DEV_OTP_CODE != null &&
+    code === process.env.DEV_OTP_CODE;
 
   if (isValid || devBypass) {
     // Delete OTP on successful verification (single use)

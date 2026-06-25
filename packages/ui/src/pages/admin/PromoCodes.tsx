@@ -462,7 +462,6 @@ export function AdminPromoCodes() {
                 {form.grantSubscription && (
                   <div className="admin-subscription-form admin-promo-codes__subscription-fields">
                     <div className="input-wrapper">
-                      <span className="input-label">{t('admin.promoCodes.form.tier')}</span>
                       <Select.Root
                         collection={tierCollection}
                         value={[form.subscriptionTier]}
@@ -475,6 +474,7 @@ export function AdminPromoCodes() {
                         disabled={saving}
                         positioning={{ sameWidth: true }}
                       >
+                        <Select.Label className="input-label">{t('admin.promoCodes.form.tier')}</Select.Label>
                         <Select.Control className="report-select-control">
                           <Select.Trigger className="report-select-trigger">
                             <Select.ValueText placeholder={t('admin.promoCodes.form.tier')} />
@@ -623,7 +623,6 @@ export function AdminPromoCodes() {
 
               <div className="admin-promo-codes__field admin-promo-codes__field--wide">
                 <div className="input-wrapper">
-                  <span className="input-label">{t('admin.promoCodes.form.audience')}</span>
                   <Select.Root
                     collection={audienceCollection}
                     value={[form.audience]}
@@ -636,6 +635,7 @@ export function AdminPromoCodes() {
                     disabled={saving}
                     positioning={{ sameWidth: true }}
                   >
+                    <Select.Label className="input-label">{t('admin.promoCodes.form.audience')}</Select.Label>
                     <Select.Control className="report-select-control">
                       <Select.Trigger className="report-select-trigger">
                         <Select.ValueText placeholder={t('admin.promoCodes.form.audience')} />
