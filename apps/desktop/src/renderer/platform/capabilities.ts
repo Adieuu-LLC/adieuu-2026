@@ -211,14 +211,24 @@ export const desktopCapabilities: PlatformCapabilities = {
   // App Window (OS taskbar badge, etc.)
   // --------------------------------------------------------------------------
   appWindow: {
-    setBadgeCount(count: number, accentColorHex?: string) {
-      window.electron.window.setBadgeCount(count, accentColorHex);
+    setBadgeCount(count: number, accentColorHex?: string, secondaryColorHex?: string) {
+      window.electron.window.setBadgeCount(count, accentColorHex, secondaryColorHex);
     },
     setFullScreen(fullScreen: boolean) {
       return window.electron.window.setFullScreen(fullScreen);
     },
     isFullScreen() {
       return window.electron.window.isFullScreen();
+    },
+    async getClosePreferences() {
+      const raw = await window.electron.window.getClosePreferences();
+      return {
+        behavior: raw.behavior as 'close' | 'minimize-to-tray',
+        hasBeenAsked: raw.hasBeenAsked,
+      };
+    },
+    async setClosePreferences(prefs) {
+      await window.electron.window.setClosePreferences(prefs);
     },
   },
 

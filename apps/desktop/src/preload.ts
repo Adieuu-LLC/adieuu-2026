@@ -48,8 +48,15 @@ contextBridge.exposeInMainWorld('electron', {
       ipcRenderer.invoke('window:setFullScreen', fullScreen) as Promise<void>,
     isFullScreen: () => ipcRenderer.invoke('window:isFullScreen') as Promise<boolean>,
     saveBoundsIfChanged: () => ipcRenderer.invoke('window:save-bounds-if-changed'),
-    setBadgeCount: (count: number, accentColorHex?: string) =>
-      ipcRenderer.invoke('window:setBadgeCount', count, accentColorHex),
+    setBadgeCount: (count: number, accentColorHex?: string, secondaryColorHex?: string) =>
+      ipcRenderer.invoke('window:setBadgeCount', count, accentColorHex, secondaryColorHex),
+    getClosePreferences: () =>
+      ipcRenderer.invoke('window:get-close-preferences') as Promise<{
+        behavior: string;
+        hasBeenAsked: boolean;
+      }>,
+    setClosePreferences: (prefs: { behavior?: string; hasBeenAsked?: boolean }) =>
+      ipcRenderer.invoke('window:set-close-preferences', prefs) as Promise<void>,
   },
 
   // Secure storage (safeStorage + local file, managed by main process)
@@ -143,7 +150,15 @@ declare global {
         setFullScreen: (fullScreen: boolean) => Promise<void>;
         isFullScreen: () => Promise<boolean>;
         saveBoundsIfChanged: () => Promise<void>;
-        setBadgeCount: (count: number, accentColorHex?: string) => Promise<void>;
+        setBadgeCount: (count: number, accentColorHex?: string, secondaryColorHex?: string) => Promise<void>;
+        getClosePreferences: () => Promise<{
+          behavior: string;
+          hasBeenAsked: boolean;
+        }>;
+        setClosePreferences: (prefs: {
+          behavior?: string;
+          hasBeenAsked?: boolean;
+        }) => Promise<void>;
       };
       secureStorage: {
         get: (keyId: string) => Promise<string | null>;

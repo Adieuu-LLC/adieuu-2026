@@ -25,6 +25,7 @@ import { loadShowMessageArtifacts, saveShowMessageArtifacts } from '../../servic
 import { loadReactionNotificationsEnabled, saveReactionNotificationsEnabled } from '../../hooks/useReactionNotificationPreference';
 import { useEmbedPreference, type EmbedVisibilityMode, type EmbedPreference, type EmbedMaxWidth } from '../../hooks/useEmbedPreference';
 import { useClaimAchievement } from '../../hooks/useClaimAchievement';
+import { usePlatformCapabilities, usePlatformFeatures } from '../../config';
 import { useMySharedThemeChecksums } from '../../hooks/useMySharedThemeChecksums';
 import { CustomThemeShareButton } from '../../components/CustomThemeShareButton';
 import { ComposerControlsEditor } from '../../components/ComposerControlsEditor';
@@ -125,6 +126,32 @@ export function IdentityAppearance() {
   const [embedPref, setEmbedPref] = useEmbedPreference(identity?.id ?? '');
   const [allowlistInput, setAllowlistInput] = useState('');
 
+  const { appWindow } = usePlatformCapabilities();
+  const { hasSystemTray } = usePlatformFeatures();
+
+  const [minimizeToTray, setMinimizeToTray] = useState(false);
+  const [minimizeToTrayLoaded, setMinimizeToTrayLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!hasSystemTray || !appWindow?.getClosePreferences) return;
+    appWindow.getClosePreferences().then((prefs) => {
+      setMinimizeToTray(prefs.behavior === 'minimize-to-tray');
+      setMinimizeToTrayLoaded(true);
+    }).catch(() => {
+      setMinimizeToTrayLoaded(true);
+    });
+  }, [hasSystemTray, appWindow]);
+
+  const handleMinimizeToTrayToggle = useCallback((enabled: boolean) => {
+    setMinimizeToTray(enabled);
+    appWindow?.setClosePreferences?.({
+      behavior: enabled ? 'minimize-to-tray' : 'close',
+      hasBeenAsked: true,
+    })?.catch(() => {
+      setMinimizeToTray(!enabled);
+    });
+  }, [appWindow]);
+
   const handleEmbedModeChange = useCallback((details: { value: string | null }) => {
     const mode = details.value as EmbedVisibilityMode | null;
     if (mode) setEmbedPref({ ...embedPref, mode });
@@ -186,8 +213,11 @@ export function IdentityAppearance() {
       { id: 'import-export', label: t('account.appearance.importExportTitle') },
       { id: 'message-display', label: t('identity.appearance.messageDisplayTitle', 'Message Display') },
     );
+    if (hasSystemTray) {
+      list.push({ id: 'desktop-behavior', label: t('identity.appearance.desktopBehaviorTitle', 'Desktop Behavior') });
+    }
     return list;
-  }, [t, customThemes.length]);
+  }, [t, customThemes.length, hasSystemTray]);
 
   const setSectionRef = useCallback((id: string, el: HTMLElement | null) => {
     if (el) {
@@ -791,6 +821,32 @@ export function IdentityAppearance() {
             </div>
           </div>
         </Card>
+
+        {hasSystemTray && minimizeToTrayLoaded && (
+          <Card variant="elevated" className="slide-up app-settings-card" ref={(el) => setSectionRef('desktop-behavior', el)} data-section="desktop-behavior">
+            <h2 className="app-settings-section-title">
+              {t('identity.appearance.desktopBehaviorTitle', 'Desktop Behavior')}
+            </h2>
+            <p className="app-settings-section-desc">
+              {t('identity.appearance.desktopBehaviorDescription', 'Control how the desktop app behaves when you close the window.')}
+            </p>
+            <label className="app-settings-toggle">
+              <input
+                type="checkbox"
+                checked={minimizeToTray}
+                onChange={(e) => handleMinimizeToTrayToggle(e.target.checked)}
+              />
+              <span className="app-settings-toggle-label">
+                <span className="app-settings-toggle-title">
+                  {t('identity.appearance.minimizeToTrayTitle', 'Minimize to system tray on close')}
+                </span>
+                <span className="app-settings-toggle-hint">
+                  {t('identity.appearance.minimizeToTrayHint', 'When enabled, closing the window keeps Adieuu running in the system tray. You can restore it by clicking the tray icon.')}
+                </span>
+              </span>
+            </label>
+          </Card>
+        )}
           </div>
         </div>
       </div>

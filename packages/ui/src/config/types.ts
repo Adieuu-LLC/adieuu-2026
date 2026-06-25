@@ -137,17 +137,32 @@ export interface WebAuthnBridge {
 }
 
 /**
+ * Close behavior preference for the desktop app (minimize to tray vs quit).
+ */
+export type CloseBehavior = 'close' | 'minimize-to-tray';
+
+export interface ClosePreferences {
+  behavior: CloseBehavior;
+  hasBeenAsked: boolean;
+}
+
+/**
  * Window-level operations exposed by the desktop shell (Electron).
  * Not present on web or mobile.
  */
 export interface AppWindowCapabilities {
   /** Update the OS taskbar badge / dock count with the given unread total.
-   *  An optional accent colour hex (e.g. "#22d3ee") tints the badge pill. */
-  setBadgeCount(count: number, accentColorHex?: string): void;
+   *  An optional accent colour hex (e.g. "#22d3ee") tints the badge pill.
+   *  An optional secondary colour hex tints the tray unread dot. */
+  setBadgeCount(count: number, accentColorHex?: string, secondaryColorHex?: string): void;
   /** Enter or exit OS-level fullscreen (desktop Electron only). */
   setFullScreen?: (fullScreen: boolean) => Promise<void>;
   /** Whether the host window is in OS-level fullscreen. */
   isFullScreen?: () => Promise<boolean>;
+  /** Read the current close-behavior preference (desktop only). */
+  getClosePreferences?: () => Promise<ClosePreferences>;
+  /** Update the close-behavior preference (desktop only). */
+  setClosePreferences?: (prefs: Partial<ClosePreferences>) => Promise<void>;
 }
 
 /**

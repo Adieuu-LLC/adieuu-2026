@@ -43,6 +43,9 @@ export type {
   AudioCapabilities,
   WebAuthnBridge,
   PlatformProviderProps,
+  AppWindowCapabilities,
+  ClosePreferences,
+  CloseBehavior,
 } from './config';
 
 // ============================================================================

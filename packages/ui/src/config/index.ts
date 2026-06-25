@@ -20,4 +20,7 @@ export type {
   Notifications,
   AudioCapabilities,
   WebAuthnBridge,
+  AppWindowCapabilities,
+  ClosePreferences,
+  CloseBehavior,
 } from './types';
