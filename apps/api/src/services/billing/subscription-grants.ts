@@ -6,8 +6,8 @@
  * stores the ciphertext on the Mongo session document, and embeds the key
  * in the session cookie. This ensures:
  *
- *   - DB-only compromise cannot read subscription dates.
- *   - Cookie-only compromise cannot read subscription dates.
+ *   - DB compromise cannot read subscription dates.
+ *   - Cookie compromise cannot read subscription dates.
  *   - The evaluate function ONLY returns status enums, never raw dates.
  *
  * @module services/billing/subscription-grants
@@ -124,7 +124,7 @@ export function buildGrantPayload(billing: UserBilling): GrantPayload {
  * Minimum padded plaintext size. Payloads are padded to the smallest
  * power-of-2 bucket that fits `2 + jsonLength`. This limits the number
  * of distinguishable ciphertext sizes to a handful of buckets (256, 512,
- * 1024, 2048 …) instead of leaking the exact grant count.
+ * 1024, 2048 …) instead of potentially leaking the exact grant count.
  *
  * Layout: [2-byte BE payload length][JSON bytes][random fill to bucket size]
  */
@@ -146,6 +146,8 @@ function paddedBucketSize(needed: number): number {
  * The JSON plaintext is padded with random bytes to the next power-of-2
  * bucket (minimum 256 bytes), so ciphertext length reveals at most which
  * bucket the payload falls into — not the exact number of grants.
+ * 
+ * Since we only have ~10 possible entitlements presently, pretty much everyone will be in the smallest bucket for now.
  *
  * @returns `{ ciphertext, key }` — ciphertext is base64 (store in Mongo),
  *          key is base64 (embed in the session cookie).
