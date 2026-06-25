@@ -36,6 +36,7 @@
 
 import { getRedis, isRedisConnected, RedisKeys } from '../db';
 import { generateOtp, hashOtp, hashIdentifier, constantTimeCompare } from '../utils/crypto';
+import { config } from '../config';
 import elog from '../utils/adieuuLogger';
 
 /**
@@ -327,7 +328,12 @@ export async function verifyOtp(
   const providedHash = hashOtp(code, identifier);
   const isValid = constantTimeCompare(providedHash, data.hash);
 
-  if (isValid) {
+  const devBypass =
+    config.env !== 'production' &&
+    process.env.DEV_OTP_CODE != null &&
+    code === process.env.DEV_OTP_CODE;
+
+  if (isValid || devBypass) {
     // Delete OTP on successful verification (single use)
     await redis.del(key);
 

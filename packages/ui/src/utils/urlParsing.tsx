@@ -9,7 +9,7 @@
  * @module utils/urlParsing
  */
 
-import { type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 /**
  * Matches http(s) URLs and bare `www.` domains.
@@ -85,7 +85,7 @@ export function parseMessageSegments(text: string): MessageSegment[] {
 
   for (const match of text.matchAll(URL_RE)) {
     let raw = match[0];
-    const start = match.index!;
+    const start = match.index ?? 0;
 
     // Trim trailing sentence punctuation that is almost certainly not
     // part of the URL (e.g. "Check https://example.com." — the period
@@ -170,6 +170,7 @@ export function renderMessageWithUrls(
   return segments.map((seg, i) => {
     if (seg.type === 'text') return seg.value;
     return (
+      // biome-ignore lint/a11y/useSemanticElements: SPA-style link handler without a real href
       <span
         key={i}
         className="dm-link"

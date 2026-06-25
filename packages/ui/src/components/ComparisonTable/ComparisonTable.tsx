@@ -195,7 +195,7 @@ export function ComparisonTable({
   return (
     <div className={cn.shell}>
       {showScrollNudgeBar ? (
-        <div className={cn.nudgeBar} role="region" aria-label={nudgeRegionAriaLabel}>
+        <section className={cn.nudgeBar} aria-label={nudgeRegionAriaLabel}>
           <div className={cn.nudgeBarSide}>
             {scrollState.canLeft ? (
               <button
@@ -225,7 +225,7 @@ export function ComparisonTable({
               <span className={cn.nudgePlaceholder} aria-hidden />
             )}
           </div>
-        </div>
+        </section>
       ) : null}
       <div
         ref={scrollRef}

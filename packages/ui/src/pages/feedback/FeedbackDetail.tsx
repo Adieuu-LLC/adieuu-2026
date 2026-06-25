@@ -451,6 +451,7 @@ export function FeedbackDetail() {
             {currentIdentityId === post.author.identityId ? (
               <div
                 className="feedback-upvote-btn feedback-upvote-btn--large feedback-upvote-btn--readonly"
+                role="status"
                 aria-label={t('feedback.upvoteCount', { count: post.upvoteCount })}
               >
                 <Icon name="plus" />
@@ -518,7 +519,6 @@ export function FeedbackDetail() {
 
           {canManageStatus && (
             <div className="feedback-status-admin">
-              <label className="input-label">{t('feedback.changeStatus')}</label>
               <Select.Root
                 collection={statusCollection}
                 value={[post.status]}
@@ -530,6 +530,7 @@ export function FeedbackDetail() {
                   }
                 }}
               >
+                <Select.Label className="input-label">{t('feedback.changeStatus')}</Select.Label>
                 <Select.Control className="report-select-control">
                   <Select.Trigger className="report-select-trigger">
                     <Select.ValueText />
@@ -766,6 +767,7 @@ export function FeedbackDetail() {
                         }
                         placeholder={t('feedback.replyPlaceholder')}
                         rows={3}
+                        // biome-ignore lint/a11y/noAutofocus: intentional focus when reply form opens
                         autoFocus
                       />
                       <p className="input-hint">

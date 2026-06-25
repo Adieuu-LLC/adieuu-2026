@@ -47,6 +47,7 @@ export function Icon({ name, className, style, size, title, packOverride }: Icon
       className={className}
       style={style}
       size={size}
+      aria-hidden={!title}
       aria-label={title}
     />
   );

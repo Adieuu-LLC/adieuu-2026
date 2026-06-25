@@ -254,7 +254,7 @@ export function MessageContextMenuFrame({
                 {t('conversations.contextMenu.copyImage', 'Copy image')}
               </Menu.Item>
             )}
-            <div className="dm-context-menu-separator" role="separator" aria-orientation="horizontal" />
+            <hr className="dm-context-menu-separator" />
             {chatMenuItems}
           </Menu.Content>
         </Menu.Positioner>

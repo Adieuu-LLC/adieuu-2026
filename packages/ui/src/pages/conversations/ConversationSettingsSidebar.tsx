@@ -253,7 +253,7 @@ export function ConversationSettingsSidebar({
               position="bottom"
               className="content-filter-info-tooltip"
             >
-              <span className="content-filter-info-icon" aria-label={t('gif.contentFilterInfoLabel', 'Filter level details')}>
+              <span className="content-filter-info-icon" role="img" aria-label={t('gif.contentFilterInfoLabel', 'Filter level details')}>
                 <Icon name="info" size="sm" />
               </span>
             </InfoTip>

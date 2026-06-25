@@ -179,6 +179,24 @@ export function ConversationPinsMenu({
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
+
+      if (e.key === 'Tab' && panelRef.current) {
+        const focusable = panelRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (!first || !last) return;
+
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
     document.addEventListener('keydown', onKeyDown, true);
     return () => document.removeEventListener('keydown', onKeyDown, true);
@@ -212,6 +230,19 @@ export function ConversationPinsMenu({
     if (!open) return;
     void loadFirst();
   }, [open, loadFirst, pinnedMessageIdsKey]);
+
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+    requestAnimationFrame(() => {
+      const closeBtn = panelRef.current?.querySelector<HTMLElement>('button[aria-label]');
+      closeBtn?.focus();
+    });
+    return () => {
+      previousFocusRef.current?.focus();
+    };
+  }, [open]);
 
   const loadMore = useCallback(async () => {
     if (!nextCursor || loadingMore || loading) return;
@@ -372,17 +403,10 @@ export function ConversationPinsMenu({
                 : null;
             return (
               <div key={msg.id} className="conversation-pins-panel-row">
-                <div
-                  role="button"
-                  tabIndex={0}
+                <button
+                  type="button"
                   className="conversation-pins-panel-row-main"
                   onClick={() => handleGoTo(msg.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      handleGoTo(msg.id);
-                    }
-                  }}
                 >
                   <div className="conversation-pins-panel-row-body">
                     <div className="conversation-pins-panel-row-avatar-col">
@@ -418,6 +442,7 @@ export function ConversationPinsMenu({
                         </span>
                       </div>
                       {replyQuote ? (
+                        // biome-ignore lint/a11y/noStaticElementInteractions: wrapper stops propagation to parent button
                         <div
                           className="conversation-pins-panel-row-reply-quote"
                           onClick={(e) => e.stopPropagation()}
@@ -427,6 +452,7 @@ export function ConversationPinsMenu({
                         </div>
                       ) : null}
                       {hasGif && (
+                        // biome-ignore lint/a11y/noStaticElementInteractions: wrapper stops propagation to parent button
                         <div
                           className="conversation-pins-panel-row-gifs"
                           onClick={(e) => e.stopPropagation()}
@@ -444,6 +470,7 @@ export function ConversationPinsMenu({
                         </div>
                       )}
                       {hasMedia && (
+                        // biome-ignore lint/a11y/noStaticElementInteractions: wrapper stops propagation to parent button
                         <div
                           className="conversation-pins-panel-row-media"
                           onClick={(e) => e.stopPropagation()}
@@ -459,7 +486,7 @@ export function ConversationPinsMenu({
                       ) : null}
                     </div>
                   </div>
-                </div>
+                </button>
                 {canUnpin && (
                   <Tooltip
                     content={t('conversations.removePinTooltip', 'Remove Pin')}

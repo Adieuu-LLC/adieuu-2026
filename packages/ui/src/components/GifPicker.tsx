@@ -436,6 +436,7 @@ export function GifPicker({ onGifSelect, onGifSendNow, initialTab, onTabChange, 
           <div className="gif-picker__error">
             {state.error}
             <button
+              type="button"
               className="gif-picker__retry"
               onClick={() => fetchPage(state.page || 1)}
             >

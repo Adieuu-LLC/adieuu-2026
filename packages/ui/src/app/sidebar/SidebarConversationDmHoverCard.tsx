@@ -1,4 +1,4 @@
-import { Fragment, type ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { HoverCard } from '../../components/HoverCard';
 import { Icon } from '../../icons/Icon';
@@ -39,7 +39,6 @@ export function SidebarConversationDmHoverCard({
         }
       }}
     >
-      <Fragment>
         {profile ? (
           <IdentityHoverCardContent identity={profile} />
         ) : (
@@ -58,7 +57,6 @@ export function SidebarConversationDmHoverCard({
         <div className="identity-hover-card-dm-conversation-meta">
           <ConversationSidebarHoverMeta conversation={conversation} />
         </div>
-      </Fragment>
     </HoverCard>
   );
 }

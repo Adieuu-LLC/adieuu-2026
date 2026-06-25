@@ -46,7 +46,7 @@ export function RequestSponsorshipPage() {
       if (res.success) {
         setSubmitted(true);
       } else {
-        const code = (res as any).error?.code; // eslint-disable-line @typescript-eslint/no-explicit-any
+        const code = (res as { error?: { code?: string } }).error?.code;
         if (code === 'HAS_SUBSCRIPTION') {
           toast.error(t('sponsorship.errors.hasSubscription'));
         } else if (code === 'ALREADY_REQUESTED') {

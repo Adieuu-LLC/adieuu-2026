@@ -1096,6 +1096,7 @@ export function ConversationView() {
           />
 
           <div className={`conversation-body${isInCallHere ? ' conversation-body--in-call' : ''}`}>
+            {/* biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop event delegation for file attachment */}
             <div
               className="conversation-main conversation-main-drop-target"
               onDragEnter={handleConversationDragEnter}

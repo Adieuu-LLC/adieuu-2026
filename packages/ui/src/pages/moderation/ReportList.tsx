@@ -96,7 +96,6 @@ export function ReportList() {
       {/* Filters */}
       <div className="admin-card" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end', padding: '0.75rem 1rem' }}>
         <div className="input-wrapper" style={{ minWidth: '12rem', flex: '1 1 12rem', maxWidth: '20rem' }}>
-          <label className="input-label">{t('moderation.reports.filterStatus')}</label>
           <Select.Root
             collection={statusCollection}
             value={[statusFilter]}
@@ -106,6 +105,7 @@ export function ReportList() {
             }}
             positioning={{ sameWidth: true }}
           >
+            <Select.Label className="input-label">{t('moderation.reports.filterStatus')}</Select.Label>
             <Select.Control className="report-select-control">
               <Select.Trigger className="report-select-trigger">
                 <Select.ValueText placeholder={t('moderation.reports.filterStatus')} />
@@ -132,7 +132,6 @@ export function ReportList() {
         </div>
 
         <div className="input-wrapper" style={{ minWidth: '12rem', flex: '1 1 12rem', maxWidth: '20rem' }}>
-          <label className="input-label">{t('moderation.reports.filterAssigned')}</label>
           <Select.Root
             collection={assignedCollection}
             value={[assignedFilter]}
@@ -142,6 +141,7 @@ export function ReportList() {
             }}
             positioning={{ sameWidth: true }}
           >
+            <Select.Label className="input-label">{t('moderation.reports.filterAssigned')}</Select.Label>
             <Select.Control className="report-select-control">
               <Select.Trigger className="report-select-trigger">
                 <Select.ValueText placeholder={t('moderation.reports.filterAssigned')} />

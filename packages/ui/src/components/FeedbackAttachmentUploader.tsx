@@ -67,7 +67,7 @@ export function FeedbackAttachmentUploader({
 
   return (
     <div className="admin-form-group">
-      <label className="input-label">{t('feedback.form.attachments')}</label>
+      <label className="input-label" htmlFor="feedback-attachment-input">{t('feedback.form.attachments')}</label>
       <p className="input-hint">{hint}</p>
 
       {attachments.length > 0 && (
@@ -90,6 +90,7 @@ export function FeedbackAttachmentUploader({
       )}
 
       <input
+        id="feedback-attachment-input"
         ref={fileInputRef}
         type="file"
         accept={ACCEPTED_TYPES.join(',')}

@@ -517,6 +517,7 @@ export function IdentityProfile() {
                       />
                     </div>
                   ) : (
+                    // biome-ignore lint/a11y/noStaticElementInteractions: conditionally interactive edit-in-place field
                     <div
                       className={`profile-edit-field ${isEditable ? 'profile-edit-field--clickable' : ''}`}
                       onClick={isEditable ? () => setEditingField('displayName') : undefined}
@@ -560,12 +561,10 @@ export function IdentityProfile() {
                         </span>
                       </div>
                     ) : (
-                      <div
+                      <button
+                        type="button"
                         className="profile-edit-field profile-edit-field--clickable"
                         onClick={() => setEditingField('bio')}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => { if (e.key === 'Enter') setEditingField('bio'); }}
                       >
                         <p className={`profile-preview-bio ${!bio ? 'profile-preview-bio--placeholder' : ''}`}>
                           {bio || t('identity.profile.bioPlaceholder')}
@@ -573,7 +572,7 @@ export function IdentityProfile() {
                         <span className="profile-edit-field-icon">
                           <Icon name="pen" size="xs" />
                         </span>
-                      </div>
+                      </button>
                     )
                   ) : previewProfile.bio ? (
                     <p className="profile-preview-bio">{previewProfile.bio}</p>

@@ -515,11 +515,10 @@ export function ConversationMessageSearchPanel({
   const hasRecents = recents.length > 0;
 
   return (
-    <aside
+    <search
       className={
         'conversation-search-sidebar' + (sidebarVisible ? '' : ' conversation-search-sidebar--hidden')
       }
-      role="search"
       aria-label={t('conversations.messageSearch.title', 'Search messages')}
       aria-hidden={!sidebarVisible}
     >
@@ -917,6 +916,6 @@ export function ConversationMessageSearchPanel({
           </Button>
         </div>
       )}
-    </aside>
+    </search>
   );
 }

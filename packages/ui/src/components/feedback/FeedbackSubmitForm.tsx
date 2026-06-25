@@ -126,12 +126,12 @@ export function FeedbackSubmitForm({ submitting, onSubmit, onCancel }: FeedbackS
   return (
     <form onSubmit={handleSubmit} className="admin-form">
       <div className="admin-form-group">
-        <label className="input-label">{t('feedback.form.category')}</label>
         <Select.Root
           collection={categoryCollection}
           value={category ? [category] : []}
           onValueChange={(d) => setCategory((d.value[0] as FeedbackCategory) ?? '')}
         >
+          <Select.Label className="input-label">{t('feedback.form.category')}</Select.Label>
           <Select.Control className="report-select-control">
             <Select.Trigger className="report-select-trigger">
               <Select.ValueText placeholder={t('feedback.form.categoryPlaceholder')} />
@@ -223,12 +223,12 @@ export function FeedbackSubmitForm({ submitting, onSubmit, onCancel }: FeedbackS
           </Checkbox.Root>
 
           <div className="admin-form-group">
-            <label className="input-label">{t('feedback.form.initialStatus')}</label>
             <Select.Root
               collection={statusCollection}
               value={status ? [status] : []}
               onValueChange={(d) => setStatus((d.value[0] as FeedbackStatus) ?? '')}
             >
+              <Select.Label className="input-label">{t('feedback.form.initialStatus')}</Select.Label>
               <Select.Control className="report-select-control">
                 <Select.Trigger className="report-select-trigger">
                   <Select.ValueText placeholder={t('feedback.form.initialStatusPlaceholder')} />

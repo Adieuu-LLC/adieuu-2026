@@ -23,7 +23,7 @@ export function ComposerShortcodeAutocomplete({
   if (suggestions.length === 0) return null;
 
   return (
-    <ul className="conversation-composer-emoji-ac" role="listbox" id="emoji-ac-listbox">
+    <div className="conversation-composer-emoji-ac" role="listbox" id="emoji-ac-listbox">
       {suggestions.map((item, i) => {
         const isCustom = !Array.isArray(item) && item.type === 'custom';
         const code = isCustom ? item.emoji.shortcode : (item as [string, string])[0];
@@ -31,10 +31,11 @@ export function ComposerShortcodeAutocomplete({
         const key = isCustom ? `custom-${item.emoji.id}` : code;
 
         return (
-          <li
+          <div
             key={key}
             id={`emoji-ac-option-${key}`}
             role="option"
+            tabIndex={0}
             aria-selected={i === selectedIdx}
             className={`conversation-composer-emoji-ac-item${i === selectedIdx ? ' conversation-composer-emoji-ac-item--selected' : ''}`}
             onMouseDown={(e) => {
@@ -53,10 +54,10 @@ export function ComposerShortcodeAutocomplete({
               <span className="conversation-composer-emoji-ac-emoji">{display}</span>
             )}
             <span className="conversation-composer-emoji-ac-code">:{code}:</span>
-          </li>
+          </div>
         );
       })}
-    </ul>
+    </div>
   );
 }
 
@@ -72,12 +73,13 @@ export function ComposerMentionAutocomplete({
   if (suggestions.length === 0) return null;
 
   return (
-    <ul className="conversation-composer-mention-ac" role="listbox" id="mention-ac-listbox">
+    <div className="conversation-composer-mention-ac" role="listbox" id="mention-ac-listbox">
       {suggestions.map((s, i) => (
-        <li
+        <div
           key={s.id}
           id={`mention-ac-option-${s.id}`}
           role="option"
+          tabIndex={0}
           aria-selected={i === selectedIdx}
           className={`conversation-composer-mention-ac-item${i === selectedIdx ? ' conversation-composer-mention-ac-item--selected' : ''}${s.kind === 'group' ? ' conversation-composer-mention-ac-item--group' : ''}`}
           onMouseDown={(ev) => {
@@ -102,9 +104,9 @@ export function ComposerMentionAutocomplete({
           ) : s.user.username ? (
             <span className="conversation-composer-mention-ac-username">@{s.user.username}</span>
           ) : null}
-        </li>
+        </div>
       ))}
-    </ul>
+    </div>
   );
 }
 
@@ -126,12 +128,13 @@ export function ComposerPageTagAutocomplete({
   if (suggestions.length === 0) return null;
 
   return (
-    <ul className="conversation-composer-pagetag-ac" role="listbox" id="pagetag-ac-listbox">
+    <div className="conversation-composer-pagetag-ac" role="listbox" id="pagetag-ac-listbox">
       {suggestions.map((s, i) => (
-        <li
+        <div
           key={s.id}
           id={`pagetag-ac-option-${s.id}`}
           role="option"
+          tabIndex={0}
           aria-selected={i === selectedIdx}
           className={`conversation-composer-pagetag-ac-item${i === selectedIdx ? ' conversation-composer-pagetag-ac-item--selected' : ''}`}
           onMouseDown={(ev) => {
@@ -143,8 +146,8 @@ export function ComposerPageTagAutocomplete({
             {s.icon ? <Icon name={s.icon} /> : '#'}
           </span>
           <span className="conversation-composer-pagetag-ac-name">{s.displayText}</span>
-        </li>
+        </div>
       ))}
-    </ul>
+    </div>
   );
 }

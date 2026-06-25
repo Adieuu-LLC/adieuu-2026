@@ -2,6 +2,8 @@ import { useState, useCallback, useEffect, cloneElement, isValidElement, type Re
 import type { SidebarOrientation } from './Sidebar';
 import { SiteFooter } from './SiteFooter';
 import { AppNavigationChrome } from '../navigation';
+import { useRouteChrome } from '../navigation/useRouteChrome';
+import { useRouteAnnouncer } from '../hooks/useRouteAnnouncer';
 
 export interface AppLayoutProps {
   sidebar: ReactNode;
@@ -29,6 +31,8 @@ export function AppLayout({
   defaultSidebarCollapsed = false,
 }: AppLayoutProps) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(defaultSidebarCollapsed);
+  const routeChrome = useRouteChrome();
+  const announcement = useRouteAnnouncer(routeChrome.title);
 
   const handleSidebarExpandedChange = useCallback((expanded: boolean) => {
     setIsSidebarCollapsed(!expanded);
@@ -55,14 +59,25 @@ export function AppLayout({
 
   return (
     <div className={classNames}>
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
       <AppNavigationChrome />
       {sidebarWithCallback}
-      <main className="app-content">
+      <main className="app-content" id="main-content" tabIndex={-1}>
         <div className="app-content-inner">
           {children}
           <SiteFooter />
         </div>
       </main>
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {announcement}
+      </div>
     </div>
   );
 }

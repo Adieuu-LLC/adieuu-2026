@@ -69,7 +69,6 @@ function OverrideFormFields({
   return (
     <div className="admin-subscription-form">
       <div className="input-wrapper">
-        <label className="input-label">{t('admin.users.modals.tier')}</label>
         <Select.Root
           collection={tierCollection}
           value={[tier]}
@@ -80,6 +79,7 @@ function OverrideFormFields({
           disabled={disabled}
           positioning={{ sameWidth: true }}
         >
+          <Select.Label className="input-label">{t('admin.users.modals.tier')}</Select.Label>
           <Select.Control className="report-select-control">
             <Select.Trigger className="report-select-trigger">
               <Select.ValueText placeholder={t('admin.users.modals.tier')} />

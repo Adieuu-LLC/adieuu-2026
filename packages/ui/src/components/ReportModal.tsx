@@ -235,7 +235,6 @@ export function ReportModal({
               {step === 'form' && (
                 <>
                   <div className="input-wrapper">
-                    <label className="input-label">{t('report.categoryLabel')}</label>
                     <Select.Root
                       collection={categoryCollection}
                       value={category ? [category] : []}
@@ -245,6 +244,7 @@ export function ReportModal({
                       }}
                       positioning={{ sameWidth: true }}
                     >
+                      <Select.Label className="input-label">{t('report.categoryLabel')}</Select.Label>
                       <Select.Control className="report-select-control">
                         <Select.Trigger className="report-select-trigger">
                           <Select.ValueText placeholder={t('report.categoryPlaceholder')} />
@@ -273,10 +273,6 @@ export function ReportModal({
 
                   {mode === 'message' && (
                     <div className="input-wrapper">
-                      <label className="input-label">{t('report.contextLabel')}</label>
-                      <p className="input-hint" style={{ marginBottom: '0.35rem', fontSize: '0.8125rem', opacity: 0.75 }}>
-                        {t('report.contextHint')}
-                      </p>
                       <Select.Root
                         collection={contextCollection}
                         value={[String(contextMessageCount)]}
@@ -289,6 +285,10 @@ export function ReportModal({
                         }}
                         positioning={{ sameWidth: true }}
                       >
+                        <Select.Label className="input-label">{t('report.contextLabel')}</Select.Label>
+                        <p className="input-hint" style={{ marginBottom: '0.35rem', fontSize: '0.8125rem', opacity: 0.75 }}>
+                          {t('report.contextHint')}
+                        </p>
                         <Select.Control className="report-select-control">
                           <Select.Trigger className="report-select-trigger">
                             <Select.ValueText placeholder={t('report.contextLabel')} />
@@ -317,8 +317,9 @@ export function ReportModal({
                   )}
 
                   <div className="input-wrapper">
-                    <label className="input-label">{t('report.reasonLabel')}</label>
+                    <label className="input-label" htmlFor="report-reason">{t('report.reasonLabel')}</label>
                     <textarea
+                      id="report-reason"
                       className="input"
                       value={reason}
                       onChange={(e) => setReason(e.target.value)}

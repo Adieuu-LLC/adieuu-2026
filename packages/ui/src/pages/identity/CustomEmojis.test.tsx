@@ -37,7 +37,7 @@ mock.module('../../components/ConfirmDialog', () => ({
       <div data-testid="confirm-dialog" data-variant={variant}>
         <p data-testid="confirm-title">{title}</p>
         <p data-testid="confirm-description">{description}</p>
-        <button data-testid="confirm-button">{confirmLabel}</button>
+        <button data-testid="confirm-button" type="button">{confirmLabel}</button>
       </div>
     ) : null,
 }));

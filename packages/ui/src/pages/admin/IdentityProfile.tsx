@@ -399,7 +399,7 @@ export function AdminIdentityProfile() {
         variant="warning"
       >
         <div className="admin-form-group">
-          <label>{t('admin.identities.modals.categoryPreset')}</label>
+          <span className="admin-field-label">{t('admin.identities.modals.categoryPreset')}</span>
           <ModerationCategorySelect
             value={suspendCategory}
             onChange={(category) => applyModerationCategory(category, setSuspendCategory, setSuspendReason)}
@@ -408,8 +408,9 @@ export function AdminIdentityProfile() {
           <small>{t('admin.identities.modals.categoryHint')}</small>
         </div>
         <div className="admin-form-group">
-          <label>{t('admin.identities.modals.reason')}</label>
+          <label htmlFor="identity-suspend-reason">{t('admin.identities.modals.reason')}</label>
           <textarea
+            id="identity-suspend-reason"
             className="admin-textarea"
             value={suspendReason}
             onChange={(e) => setSuspendReason(e.target.value)}
@@ -417,8 +418,9 @@ export function AdminIdentityProfile() {
           />
         </div>
         <div className="admin-form-group">
-          <label>{t('admin.identities.modals.durationHours')}</label>
+          <label htmlFor="identity-suspend-duration">{t('admin.identities.modals.durationHours')}</label>
           <input
+            id="identity-suspend-duration"
             type="number"
             min="1"
             placeholder={t('admin.identities.modals.indefinite')}
@@ -455,7 +457,7 @@ export function AdminIdentityProfile() {
       >
         <p className="admin-alert admin-alert--error">{t('admin.identities.modals.banWarning')}</p>
         <div className="admin-form-group">
-          <label>{t('admin.identities.modals.categoryPreset')}</label>
+          <span className="admin-field-label">{t('admin.identities.modals.categoryPreset')}</span>
           <ModerationCategorySelect
             value={banCategory}
             onChange={(category) => applyModerationCategory(category, setBanCategory, setBanReason)}
@@ -464,8 +466,9 @@ export function AdminIdentityProfile() {
           <small>{t('admin.identities.modals.categoryHint')}</small>
         </div>
         <div className="admin-form-group">
-          <label>{t('admin.identities.modals.reason')}</label>
+          <label htmlFor="identity-ban-reason">{t('admin.identities.modals.reason')}</label>
           <textarea
+            id="identity-ban-reason"
             className="admin-textarea"
             value={banReason}
             onChange={(e) => setBanReason(e.target.value)}

@@ -1,5 +1,5 @@
 import type { InputHTMLAttributes, ReactNode } from 'react';
-import { forwardRef } from 'react';
+import { forwardRef, useId } from 'react';
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -21,13 +21,23 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
       rightIcon,
       className = '',
       id,
+      'aria-describedby': externalDescribedBy,
       ...props
     },
     ref
   ) => {
-    const inputId = id ?? `input-${Math.random().toString(36).slice(2, 9)}`;
+    const generatedId = useId();
+    const inputId = id ?? generatedId;
+    const hintId = `${inputId}-hint`;
+    const errorId = `${inputId}-error`;
     const sizeClass = inputSize !== 'md' ? `input-${inputSize}` : '';
     const errorClass = error ? 'input-error' : '';
+
+    const describedByParts: string[] = [];
+    if (externalDescribedBy) describedByParts.push(externalDescribedBy);
+    if (error) describedByParts.push(errorId);
+    else if (hint) describedByParts.push(hintId);
+    const describedBy = describedByParts.length > 0 ? describedByParts.join(' ') : undefined;
 
     return (
       <div className="input-wrapper">
@@ -39,6 +49,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         <div style={{ position: 'relative' }}>
           {leftIcon && (
             <span
+              aria-hidden="true"
               style={{
                 position: 'absolute',
                 left: '0.75rem',
@@ -56,6 +67,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             id={inputId}
             className={`input ${sizeClass} ${errorClass} ${className}`.trim()}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={describedBy}
             style={{
               paddingLeft: leftIcon ? '2.5rem' : undefined,
               paddingRight: rightIcon ? '2.5rem' : undefined,
@@ -64,6 +77,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           />
           {rightIcon && (
             <span
+              aria-hidden="true"
               style={{
                 position: 'absolute',
                 right: '0.75rem',
@@ -78,8 +92,16 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             </span>
           )}
         </div>
-        {hint && !error && <span className="input-hint">{hint}</span>}
-        {error && <span className="input-error-message">{error}</span>}
+        {hint && !error && (
+          <span id={hintId} className="input-hint">
+            {hint}
+          </span>
+        )}
+        {error && (
+          <span id={errorId} className="input-error-message" role="alert">
+            {error}
+          </span>
+        )}
       </div>
     );
   }

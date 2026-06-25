@@ -110,8 +110,9 @@ function AddCipherModal({ open, onOpenChange, onAdd }: AddCipherModalProps) {
                 {error && <Alert variant="error" className="cipher-add-error">{error}</Alert>}
 
                 <div className="form-group">
-                  <label className="form-label">{t('ciphers.addModal.nameLabel')}</label>
+                  <label htmlFor="add-cipher-name" className="form-label">{t('ciphers.addModal.nameLabel')}</label>
                   <Input
+                    id="add-cipher-name"
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -123,7 +124,7 @@ function AddCipherModal({ open, onOpenChange, onAdd }: AddCipherModalProps) {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">{t('ciphers.addModal.entropyLabel')}</label>
+                  <span className="form-label">{t('ciphers.addModal.entropyLabel')}</span>
                   <div className="entropy-rows">
                     {entropyRows.map((row, index) => (
                       <div key={row.id} className="entropy-row">
@@ -142,7 +143,7 @@ function AddCipherModal({ open, onOpenChange, onAdd }: AddCipherModalProps) {
                           disabled={submitting || entropyRows.length <= 1}
                           title={t('common.remove')}
                         >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <line x1="18" y1="6" x2="6" y2="18" />
                             <line x1="6" y1="6" x2="18" y2="18" />
                           </svg>
@@ -156,7 +157,7 @@ function AddCipherModal({ open, onOpenChange, onAdd }: AddCipherModalProps) {
                     onClick={addEntropyRow}
                     disabled={submitting}
                   >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <line x1="12" y1="5" x2="12" y2="19" />
                       <line x1="5" y1="12" x2="19" y2="12" />
                     </svg>
@@ -337,8 +338,9 @@ function EditCipherModal({ cipher, open, onOpenChange, onSave }: EditCipherModal
                     {activeTab === 'details' && (
                       <div className="cipher-edit-details">
                         <div className="form-group">
-                          <label className="form-label">{t('ciphers.editModal.nameLabel')}</label>
+                          <label htmlFor="edit-cipher-name" className="form-label">{t('ciphers.editModal.nameLabel')}</label>
                           <Input
+                            id="edit-cipher-name"
                             type="text"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
@@ -372,7 +374,7 @@ function EditCipherModal({ cipher, open, onOpenChange, onSave }: EditCipherModal
                         )}
 
                         <div className="form-group">
-                          <label className="form-label">{t('ciphers.editModal.entropyLabel')}</label>
+                          <span className="form-label">{t('ciphers.editModal.entropyLabel')}</span>
                           <div className="entropy-rows">
                             {entropyRows.map((row, index) => (
                               <div key={row.id} className="entropy-row">
@@ -391,7 +393,7 @@ function EditCipherModal({ cipher, open, onOpenChange, onSave }: EditCipherModal
                                   disabled={submitting || entropyRows.length <= 1}
                                   title={t('common.remove')}
                                 >
-                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                     <line x1="18" y1="6" x2="6" y2="18" />
                                     <line x1="6" y1="6" x2="18" y2="18" />
                                   </svg>
@@ -405,7 +407,7 @@ function EditCipherModal({ cipher, open, onOpenChange, onSave }: EditCipherModal
                             onClick={addEntropyRow}
                             disabled={submitting}
                           >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                               <line x1="12" y1="5" x2="12" y2="19" />
                               <line x1="5" y1="12" x2="19" y2="12" />
                             </svg>
@@ -542,14 +544,14 @@ function ShareCipherModal({ cipher, open, onOpenChange }: ShareCipherModalProps)
                         >
                           {copied ? (
                             <>
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <polyline points="20 6 9 17 4 12" />
                               </svg>
                               {t('ciphers.shareModal.copied')}
                             </>
                           ) : (
                             <>
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                               </svg>
@@ -568,7 +570,7 @@ function ShareCipherModal({ cipher, open, onOpenChange }: ShareCipherModalProps)
                         <p className="cipher-share-section-desc">{t('ciphers.shareModal.qrDescription')}</p>
 
                         <div className="cipher-share-qr-placeholder">
-                          <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+                          <svg aria-hidden="true" width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
                             <rect x="3" y="3" width="7" height="7" />
                             <rect x="14" y="3" width="7" height="7" />
                             <rect x="3" y="14" width="7" height="7" />
@@ -672,8 +674,9 @@ function DuplicateCipherModal({ cipher, open, onOpenChange, onDuplicate }: Dupli
                     {error && <Alert variant="error">{error}</Alert>}
 
                     <div className="form-group">
-                      <label className="form-label">{t('ciphers.duplicateModal.nameLabel')}</label>
+                      <label htmlFor="duplicate-cipher-name" className="form-label">{t('ciphers.duplicateModal.nameLabel')}</label>
                       <Input
+                        id="duplicate-cipher-name"
                         type="text"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
@@ -743,7 +746,7 @@ function CipherCard({ cipher, onEdit, onShare, onDuplicate, onDelete }: CipherCa
               className="cipher-action-btn"
               onClick={() => onEdit(cipher)}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
               </svg>
@@ -755,7 +758,7 @@ function CipherCard({ cipher, onEdit, onShare, onDuplicate, onDelete }: CipherCa
               className="cipher-action-btn"
               onClick={() => onShare(cipher)}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="18" cy="5" r="3" />
                 <circle cx="6" cy="12" r="3" />
                 <circle cx="18" cy="19" r="3" />
@@ -770,7 +773,7 @@ function CipherCard({ cipher, onEdit, onShare, onDuplicate, onDelete }: CipherCa
               className="cipher-action-btn"
               onClick={() => onDuplicate(cipher)}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
               </svg>
@@ -782,7 +785,7 @@ function CipherCard({ cipher, onEdit, onShare, onDuplicate, onDelete }: CipherCa
               className="cipher-action-btn cipher-action-delete"
               onClick={() => onDelete(cipher)}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <polyline points="3 6 5 6 21 6" />
                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
               </svg>
@@ -981,7 +984,7 @@ export function IdentityCiphers() {
                 {t('ciphers.importBackup', 'Import')}
               </Button>
               <Button onClick={() => setAddModalOpen(true)} className="btn btn-primary btn-md">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '0.5rem' }}>
+                <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '0.5rem' }}>
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
@@ -994,7 +997,7 @@ export function IdentityCiphers() {
         {ciphers.length === 0 ? (
           <Card variant="elevated" className="cipher-empty-state">
             <div className="cipher-empty-icon">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                 <path d="M7 11V7a5 5 0 0 1 10 0v4" />
               </svg>

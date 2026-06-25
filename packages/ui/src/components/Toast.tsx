@@ -162,6 +162,7 @@ export function ToasterOutlet() {
         const expiresAt = meta?.expiresAt;
         return (
           <ArkToast.Root key={toast.id} className={`toast toast-${toast.type}${onClick ? ' toast-clickable' : ''}${expiresAt ? ' toast-expiring' : ''}`}>
+            {/* biome-ignore lint/a11y/noStaticElementInteractions: conditionally interactive — clickable toasts get role="button" */}
             <div
               className="toast-content"
               role={onClick ? 'button' : undefined}
@@ -243,7 +244,7 @@ function ToastExpiryCountdown({ expiresAt }: { expiresAt: string }) {
   }, [expiresAt]);
 
   return (
-    <span className="toast-expiry-countdown" aria-label={`Disappears in ${label}`}>
+    <span className="toast-expiry-countdown" role="timer" aria-label={`Disappears in ${label}`}>
       <Icon name="clock" />
       {label}
     </span>

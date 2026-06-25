@@ -171,6 +171,8 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   const [lastMediaTab, setLastMediaTab] = useState<ContentTab>('gifs');
   const [pendingGif, setPendingGif] = useState<GifAttachment | null>(null);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const attachmentsRef = useRef(attachments);
+  attachmentsRef.current = attachments;
   const [stripExif, setStripExif] = useState(true);
   const [moderationEnabled, setModerationEnabled] = useState(true);
   const [sendMp4WithoutReencode, setSendMp4WithoutReencode] = useState(false);
@@ -475,15 +477,14 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     setAttachments((prev) => {
       const next = [...prev];
       const removed = next.splice(index, 1);
-      removed.forEach((a) => URL.revokeObjectURL(a.previewUrl));
+      for (const a of removed) URL.revokeObjectURL(a.previewUrl);
       return next;
     });
   }, []);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     return () => {
-      attachments.forEach((a) => URL.revokeObjectURL(a.previewUrl));
+      for (const a of attachmentsRef.current) URL.revokeObjectURL(a.previewUrl);
     };
   }, []);
 
@@ -649,7 +650,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       replyContext?.onCancel();
       setSendMp4WithoutReencode(false);
       setAttachments((prev) => {
-        prev.forEach((a) => URL.revokeObjectURL(a.previewUrl));
+        for (const a of prev) URL.revokeObjectURL(a.previewUrl);
         return [];
       });
       inputRef.current?.focus();

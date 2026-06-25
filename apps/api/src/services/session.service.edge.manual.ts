@@ -143,6 +143,10 @@ describe('session.service', () => {
           sessionId: 'mock-session-id-token',
           type: 'identity',
           identityId,
+        }),
+      );
+      expect(mockSessionRepo.createSession).toHaveBeenCalledWith(
+        expect.not.objectContaining({
           userAgent: 'test-agent',
         }),
       );

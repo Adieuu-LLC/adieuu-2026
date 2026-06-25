@@ -48,7 +48,7 @@ export function SidebarTabs({ tabs, activeTab, onTabChange }: SidebarTabsProps) 
             <span className="sidebar-tab-icon">
               {tab.icon}
               {tab.badge != null && tab.badge > 0 && (
-                <span className="sidebar-tab-badge" aria-label={`${tab.badge} new`}>
+                <span className="sidebar-tab-badge" role="status" aria-label={`${tab.badge} new`}>
                   {tab.badge > 99 ? '99+' : tab.badge}
                 </span>
               )}

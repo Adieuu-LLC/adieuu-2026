@@ -180,6 +180,7 @@ export function PlansComparisonTable({
         {cell.included ? (
           <span
             className="subscription-feature-check"
+            role="img"
             aria-label={`${featureLabel}: ${t('account.subscription.comparison.included')}`}
           >
             &#10003;
@@ -461,9 +462,8 @@ export function PlansComparisonTable({
         <tfoot>
           <tr className="comparison-table-footnotes-row">
             <td colSpan={5} className="comparison-table-footnotes-cell">
-              <div
+              <section
                 className="comparison-table-footnotes"
-                role="region"
                 aria-label={t('account.subscription.comparison.footnotesRegionLabel')}
               >
                 {footnoteLines.map((text, i) => {
@@ -479,7 +479,7 @@ export function PlansComparisonTable({
                     </p>
                   );
                 })}
-              </div>
+              </section>
             </td>
           </tr>
         </tfoot>

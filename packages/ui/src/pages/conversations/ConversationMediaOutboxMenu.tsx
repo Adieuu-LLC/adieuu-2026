@@ -116,8 +116,17 @@ export function ConversationMediaOutboxMenu({
       if (panelRef.current?.contains(target)) return;
       setOpen(false);
     };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpen(false);
+      }
+    };
     document.addEventListener('mousedown', onDoc, true);
-    return () => document.removeEventListener('mousedown', onDoc, true);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onDoc, true);
+      document.removeEventListener('keydown', onKeyDown);
+    };
   }, [open]);
 
   const badgeCount = useMemo(

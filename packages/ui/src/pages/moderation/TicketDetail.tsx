@@ -255,6 +255,7 @@ export function TicketDetail() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', marginTop: '1rem' }}>
               {ticket.attachments.map((att) =>
                 att.contentType.startsWith('video/') ? (
+                  // biome-ignore lint/a11y/useMediaCaption: user-uploaded support ticket attachments have no captions
                   <video key={att.mediaId} src={att.cdnUrl} controls style={{ maxHeight: '12rem' }} />
                 ) : (
                   <img key={att.mediaId} src={att.cdnUrl} alt="" style={{ maxHeight: '12rem', borderRadius: 'var(--radius-md)' }} />

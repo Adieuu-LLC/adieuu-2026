@@ -568,7 +568,7 @@ export function AdminUserProfile() {
         variant="warning"
       >
         <div className="admin-form-group">
-          <label>{t('admin.users.modals.categoryPreset')}</label>
+          <span className="admin-field-label">{t('admin.users.modals.categoryPreset')}</span>
           <ModerationCategorySelect
             value={suspendCategory}
             onChange={(category) => applyModerationCategory(category, setSuspendCategory, setSuspendReason)}
@@ -577,8 +577,9 @@ export function AdminUserProfile() {
           <small>{t('admin.users.modals.categoryHint')}</small>
         </div>
         <div className="admin-form-group">
-          <label>{t('admin.users.modals.reason')}</label>
+          <label htmlFor="suspend-reason">{t('admin.users.modals.reason')}</label>
           <textarea
+            id="suspend-reason"
             className="admin-textarea"
             value={suspendReason}
             onChange={(e) => setSuspendReason(e.target.value)}
@@ -586,8 +587,9 @@ export function AdminUserProfile() {
           />
         </div>
         <div className="admin-form-group">
-          <label>{t('admin.users.modals.durationHours')}</label>
+          <label htmlFor="suspend-duration">{t('admin.users.modals.durationHours')}</label>
           <input
+            id="suspend-duration"
             type="number"
             min="1"
             placeholder={t('admin.users.modals.indefinite')}
@@ -624,7 +626,7 @@ export function AdminUserProfile() {
       >
         <p className="admin-alert admin-alert--error">{t('admin.users.modals.banWarning')}</p>
         <div className="admin-form-group">
-          <label>{t('admin.users.modals.categoryPreset')}</label>
+          <span className="admin-field-label">{t('admin.users.modals.categoryPreset')}</span>
           <ModerationCategorySelect
             value={banCategory}
             onChange={(category) => applyModerationCategory(category, setBanCategory, setBanReason)}
@@ -633,8 +635,9 @@ export function AdminUserProfile() {
           <small>{t('admin.users.modals.categoryHint')}</small>
         </div>
         <div className="admin-form-group">
-          <label>{t('admin.users.modals.reason')}</label>
+          <label htmlFor="ban-reason">{t('admin.users.modals.reason')}</label>
           <textarea
+            id="ban-reason"
             className="admin-textarea"
             value={banReason}
             onChange={(e) => setBanReason(e.target.value)}

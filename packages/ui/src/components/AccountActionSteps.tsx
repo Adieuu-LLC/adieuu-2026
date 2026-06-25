@@ -95,11 +95,11 @@ function PrimaryStepAction({
             content={t('home.account.steps.verifyAge.subscribeFirstTooltip')}
             position="top"
           >
-            <div tabIndex={0} role="button" className="action-step-disabled-action" aria-disabled="true">
+            <span className="action-step-disabled-action" aria-disabled="true">
               <Button variant="primary" size="sm" type="button" disabled>
                 {t('home.account.steps.verifyAge.action')}
               </Button>
-            </div>
+            </span>
           </Tooltip>
         );
       }
@@ -115,11 +115,11 @@ function PrimaryStepAction({
             content={createAliasDisabledTooltip(progress, t)}
             position="top"
           >
-            <div tabIndex={0} role="button" className="action-step-disabled-action" aria-disabled="true">
+            <span className="action-step-disabled-action" aria-disabled="true">
               <Button variant="primary" size="sm" type="button" disabled>
                 {t('home.account.steps.createAlias.action')}
               </Button>
-            </div>
+            </span>
           </Tooltip>
         );
       }
@@ -135,11 +135,11 @@ function PrimaryStepAction({
             content={t('home.account.steps.sendFirstMessage.createAliasFirstTooltip')}
             position="top"
           >
-            <div tabIndex={0} role="button" className="action-step-disabled-action" aria-disabled="true">
+            <span className="action-step-disabled-action" aria-disabled="true">
               <Button variant="primary" size="sm" type="button" disabled>
                 {t('home.account.steps.sendFirstMessage.action')}
               </Button>
-            </div>
+            </span>
           </Tooltip>
         );
       }

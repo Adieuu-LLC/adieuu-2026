@@ -69,23 +69,18 @@ export function ChangePassphrasePanel({ api }: ChangePassphrasePanelProps) {
     setStep('processing');
 
     try {
-      let bundleResp;
-      if (identity) {
-        bundleResp = await api.identity.getKeyBundle(identity.id);
-      } else {
-        bundleResp = await api.identity.bundleByPassphrase({
-          signedToken,
-          passphrase: currentPassphrase,
-        });
-      }
+      const bundleResp = identity
+        ? await api.identity.getKeyBundle(identity.id)
+        : await api.identity.bundleByPassphrase({
+            signedToken,
+            passphrase: currentPassphrase,
+          });
       if (!bundleResp.success || !bundleResp.data) {
         throw new Error('Failed to fetch key bundle');
       }
 
-      let decrypted;
-      try {
-        decrypted = await decryptKeyBundle(bundleResp.data, currentPassphrase);
-      } catch {
+      const decrypted = await decryptKeyBundle(bundleResp.data, currentPassphrase).catch(() => null);
+      if (!decrypted) {
         setError(t('identity.privacy.changePassword.errorDecryptFailed'));
         setStep('form');
         return;
