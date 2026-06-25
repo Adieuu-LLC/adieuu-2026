@@ -95,6 +95,9 @@ export interface PublicDevice {
 
 /**
  * Public identity session info for session management.
+ *
+ * PRIVACY: userAgent is intentionally omitted — storing it on identity
+ * sessions would allow cross-session correlation with account sessions.
  */
 export interface PublicIdentitySession {
   /** Session ID (for revocation) */
@@ -103,8 +106,6 @@ export interface PublicIdentitySession {
   createdAt: string;
   /** Last activity timestamp */
   lastActivityAt: string;
-  /** User agent (browser/device info) */
-  userAgent?: string;
   /** Whether this is the current session */
   isCurrent?: boolean;
 }

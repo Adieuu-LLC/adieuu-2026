@@ -37,6 +37,19 @@ mock.module('@fortawesome/react-fontawesome', () => ({
   },
 }));
 
+mock.module('../icons/Icon', () => ({
+  Icon: (props: any) => {
+    const attrs: Record<string, string> = { 'data-icon': props.name };
+    if (props.title) {
+      attrs['aria-label'] = props.title;
+      attrs['role'] = 'img';
+    } else {
+      attrs['aria-hidden'] = 'true';
+    }
+    return <span {...attrs} />;
+  },
+}));
+
 // ============================================================================
 // Input component
 // ============================================================================

@@ -155,12 +155,13 @@ export async function createIdentitySession(
 
   const sessionRepo = getSessionRepository();
 
+  // PRIVACY: userAgent and ipAddress are intentionally NOT stored on identity
+  // sessions to prevent cross-session correlation with account sessions.
   await sessionRepo.createSession({
     sessionId,
     type: 'identity',
     identityId,
     expiresAt,
-    userAgent: metadata?.userAgent,
     maxVideoDurationSeconds: metadata?.maxVideoDurationSeconds,
     subscriptions: metadata?.subscriptions,
     entitlements: metadata?.entitlements,

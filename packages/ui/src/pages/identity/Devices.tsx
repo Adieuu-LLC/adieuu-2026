@@ -549,7 +549,7 @@ function IdentitySessionsList() {
           >
             <div className="session-info">
               <div className="session-device">
-                {parseUserAgent(session.userAgent)}
+                {t('identity.sessions.sessionLabel', 'Session')}
                 {session.isCurrent && (
                   <span className="session-current-badge">
                     {t('identity.sessions.currentSession', 'Current session')}

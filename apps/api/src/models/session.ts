@@ -210,13 +210,15 @@ export function toPublicSession(
 }
 
 /**
- * Public identity session representation (safe to send to client)
+ * Public identity session representation (safe to send to client).
+ *
+ * PRIVACY: userAgent is intentionally omitted — storing it would allow
+ * cross-session correlation between account and identity sessions.
  */
 export interface PublicIdentitySession {
   id: string;
   createdAt: string;
   lastActivityAt: string;
-  userAgent?: string;
   isCurrent?: boolean;
 }
 
@@ -231,7 +233,6 @@ export function toPublicIdentitySession(
     id: doc.sessionId,
     createdAt: doc.createdAt.toISOString(),
     lastActivityAt: doc.lastActivityAt.toISOString(),
-    userAgent: doc.userAgent,
     isCurrent: currentSessionId ? doc.sessionId === currentSessionId : undefined,
   };
 }

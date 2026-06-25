@@ -18,6 +18,9 @@ import { toCachedSession } from '../models/session';
 import { SESSION_ACCOUNT_TTL_SECONDS, SESSION_IDENTITY_TTL_SECONDS } from '../constants/session';
 import elog from '../utils/adieuuLogger';
 
+/** Max random jitter (ms) applied to identity session createdAt to resist temporal correlation. */
+const IDENTITY_CREATED_AT_JITTER_MS = 10 * 60 * 1000;
+
 /**
  * Session repository interface — unified for both account and identity sessions.
  */
@@ -123,43 +126,59 @@ export class SessionRepository
    * Create a new session (account or identity type)
    */
   async createSession(input: CreateSessionInput): Promise<SessionDocument> {
-    const base = {
-      sessionId: input.sessionId,
-      type: input.type,
-      expiresAt: input.expiresAt,
-      lastActivityAt: new Date(),
-      userAgent: input.userAgent,
-      ipAddress: input.ipAddress,
-      revoked: false,
-    };
-
     let doc: Omit<SessionDocument, '_id' | 'createdAt' | 'updatedAt'>;
+    let createdAtOverride: Date | undefined;
 
     if (input.type === 'account') {
       doc = {
-        ...base,
+        sessionId: input.sessionId,
+        type: input.type,
+        expiresAt: input.expiresAt,
+        lastActivityAt: new Date(),
+        userAgent: input.userAgent,
+        ipAddress: input.ipAddress,
+        revoked: false,
         userId: input.userId,
         identifier: input.identifier,
         identifierType: input.identifierType,
       };
     } else {
-      const identityInput = input;
+      // PRIVACY: userAgent and ipAddress are intentionally omitted from
+      // identity sessions to prevent cross-session correlation with account
+      // sessions. createdAt is jittered by 0-10 minutes to resist temporal
+      // correlation between the account bridging token and the identity
+      // session creation.
+      const jitterMs = Math.floor(Math.random() * IDENTITY_CREATED_AT_JITTER_MS);
+      createdAtOverride = new Date(Date.now() - jitterMs);
+
       doc = {
-        ...base,
-        identityId: identityInput.identityId,
-        ...(identityInput.maxVideoDurationSeconds !== undefined
-          ? { maxVideoDurationSeconds: identityInput.maxVideoDurationSeconds }
+        sessionId: input.sessionId,
+        type: input.type,
+        expiresAt: input.expiresAt,
+        lastActivityAt: new Date(),
+        revoked: false,
+        identityId: input.identityId,
+        ...(input.maxVideoDurationSeconds !== undefined
+          ? { maxVideoDurationSeconds: input.maxVideoDurationSeconds }
           : {}),
-        ...(identityInput.encryptedSubscriptionGrants !== undefined
-          ? { encryptedSubscriptionGrants: identityInput.encryptedSubscriptionGrants }
+        ...(input.encryptedSubscriptionGrants !== undefined
+          ? { encryptedSubscriptionGrants: input.encryptedSubscriptionGrants }
           : {}),
-        ...(identityInput.absoluteExpiresAt !== undefined
-          ? { absoluteExpiresAt: identityInput.absoluteExpiresAt }
+        ...(input.absoluteExpiresAt !== undefined
+          ? { absoluteExpiresAt: input.absoluteExpiresAt }
           : {}),
       };
     }
 
     const session = await super.create(doc);
+
+    if (createdAtOverride) {
+      await this.collection.updateOne(
+        { sessionId: input.sessionId },
+        { $set: { createdAt: createdAtOverride } },
+      );
+      session.createdAt = createdAtOverride;
+    }
 
     // Cache the new session
     await this.setCache(input.sessionId, session);
