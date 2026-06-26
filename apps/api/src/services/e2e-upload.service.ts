@@ -22,6 +22,8 @@ import {
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
+import type { Conditions as PostCondition } from '@aws-sdk/s3-presigned-post/dist-types/types';
 import type { ConvScanSealManifestV1, SubscriptionTierId } from '@adieuu/shared';
 import { config } from '../config';
 import { resolveMaxUploadBytes } from './media-limits.service';
@@ -578,8 +580,8 @@ export interface RequestScanUploadResult {
   scanMediaId?: string;
   uploadUrl?: string;
   expiresIn?: number;
-  /** Headers the client must include in the PUT request (signed metadata headers for S3). */
-  uploadHeaders?: Record<string, string>;
+  /** Form fields the client must include in the POST body (presigned POST policy). */
+  uploadFields?: Record<string, string>;
   error?: string;
   errorCode?:
     | 'INVALID_CONTENT_TYPE'
@@ -685,24 +687,34 @@ export async function requestScanUpload(
     metadata['resize-max-height'] = String(purposeConfig.processingFlags.resize.maxHeight);
   }
 
-  const command = new PutObjectCommand({
-    Bucket: config.s3.mediaBucket,
-    Key: s3Key,
-    ContentType: input.contentType,
-    ContentLength: input.contentLength,
-    Metadata: metadata,
-  });
+  const conditions: PostCondition[] = [
+    ['content-length-range', 0, input.contentLength],
+    ['eq', '$Content-Type', input.contentType],
+    ['eq', '$key', s3Key],
+    ...Object.entries(metadata).map(
+      ([k, v]): PostCondition => ['eq', `$x-amz-meta-${k}`, v],
+    ),
+  ];
 
-  const uploadUrl = await getSignedUrl(getS3Client(), command, {
-    expiresIn: PRESIGNED_PUT_EXPIRY_SECONDS,
-  });
-
-  const uploadHeaders: Record<string, string> = {
+  const fields: Record<string, string> = {
     'Content-Type': input.contentType,
+    key: s3Key,
     ...Object.fromEntries(
       Object.entries(metadata).map(([k, v]) => [`x-amz-meta-${k}`, v]),
     ),
   };
+
+  const { url: s3Url, fields: uploadFields } = await createPresignedPost(getS3Client(), {
+    Bucket: config.s3.mediaBucket,
+    Key: s3Key,
+    Conditions: conditions,
+    Fields: fields,
+    Expires: PRESIGNED_PUT_EXPIRY_SECONDS,
+  });
+
+  const uploadUrl = config.cloudfront.mediaUploadDomain
+    ? `https://${config.cloudfront.mediaUploadDomain}`
+    : s3Url;
 
   const processingFlags = isVideoScan
     ? {
@@ -734,7 +746,7 @@ export async function requestScanUpload(
     success: true,
     scanMediaId,
     uploadUrl,
-    uploadHeaders,
+    uploadFields,
     expiresIn: PRESIGNED_PUT_EXPIRY_SECONDS,
   };
 }

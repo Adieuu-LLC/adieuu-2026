@@ -94,6 +94,13 @@ mock.module('@aws-sdk/s3-request-presigner', () => ({
   getSignedUrl: mock(() => Promise.resolve('https://signed.example/upload')),
 }));
 
+mock.module('@aws-sdk/s3-presigned-post', () => ({
+  createPresignedPost: mock(() => Promise.resolve({
+    url: 'https://media-bucket.s3.us-east-1.amazonaws.com',
+    fields: { key: 'uploads/conv_scan/test/scan.jpg', 'Content-Type': 'image/jpeg' },
+  })),
+}));
+
 mock.module('../config', () => ({
   config: {
     s3: {

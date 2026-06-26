@@ -209,13 +209,17 @@ export async function requestUpload(
     ),
   };
 
-  const { url: uploadUrl, fields: uploadFields } = await createPresignedPost(getS3Client(), {
+  const { url: s3Url, fields: uploadFields } = await createPresignedPost(getS3Client(), {
     Bucket: config.s3.mediaBucket,
     Key: s3Key,
     Conditions: conditions,
     Fields: fields,
     Expires: PRESIGNED_URL_EXPIRY_SECONDS,
   });
+
+  const uploadUrl = config.cloudfront.mediaUploadDomain
+    ? `https://${config.cloudfront.mediaUploadDomain}`
+    : s3Url;
 
   const { ObjectId } = await import('mongodb');
   const uploadIpAddress = sanitizeIpForStorage(input.clientIp);

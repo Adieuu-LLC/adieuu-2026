@@ -402,7 +402,8 @@ describe('requestScanUploadResult', () => {
     mockRequestScanUpload.mockResolvedValue({
       success: true,
       scanMediaId: 'scan-part-1',
-      uploadUrl: 'https://s3.example/scan',
+      uploadUrl: 'https://media.adieuu.com',
+      uploadFields: { key: 'uploads/conv_scan/abc/scan-part-1.jpg', 'Content-Type': 'image/jpeg' },
       expiresIn: 300,
     });
   });
@@ -423,7 +424,8 @@ describe('requestScanUploadResult', () => {
       ok: true,
       data: {
         scanMediaId,
-        uploadUrl: 'https://s3.example/scan',
+        uploadUrl: 'https://media.adieuu.com',
+        uploadFields: { key: 'uploads/conv_scan/abc/scan-part-1.jpg', 'Content-Type': 'image/jpeg' },
         expiresIn: 300,
       },
     });
@@ -665,7 +667,8 @@ describe('e2e upload routes smoke', () => {
     mockRequestScanUpload.mockResolvedValue({
       success: true,
       scanMediaId,
-      uploadUrl: 'https://s3.example/scan',
+      uploadUrl: 'https://media.adieuu.com',
+      uploadFields: { key: 'uploads/conv_scan/abc/scan-part-1.jpg', 'Content-Type': 'image/jpeg' },
       expiresIn: 300,
     });
     mockCompleteScanUpload.mockResolvedValue({ success: true });

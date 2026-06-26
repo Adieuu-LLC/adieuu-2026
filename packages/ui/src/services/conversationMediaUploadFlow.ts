@@ -274,15 +274,20 @@ export async function uploadModerationScanCopy(
           'Failed to prepare scan upload'
       );
     }
-    const { scanMediaId, uploadUrl: scanUrl, uploadHeaders: scanHeaders } = scanRes.data;
+    const { scanMediaId, uploadUrl: scanUrl, uploadFields } = scanRes.data;
 
-    const scanPut = await fetch(scanUrl, {
-      method: 'PUT',
-      headers: scanHeaders ?? { 'Content-Type': part.contentType },
-      body: part.body,
+    const formData = new FormData();
+    for (const [key, value] of Object.entries(uploadFields)) {
+      formData.append(key, value);
+    }
+    formData.append('file', part.body);
+
+    const scanPost = await fetch(scanUrl, {
+      method: 'POST',
+      body: formData,
       signal,
     });
-    if (!scanPut.ok) throw new Error(`Scan upload failed (${scanPut.status})`);
+    if (scanPost.status !== 204 && !scanPost.ok) throw new Error(`Scan upload failed (${scanPost.status})`);
 
     const scanComplete = await api.e2eUploads.completeScanUpload(
       scanMediaId,
