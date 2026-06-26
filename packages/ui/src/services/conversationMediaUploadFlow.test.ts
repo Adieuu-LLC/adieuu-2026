@@ -90,7 +90,7 @@ describe('conversationMediaUploadFlow', () => {
         }),
         requestScanUpload: async () => ({
           success: true,
-          data: { scanMediaId: 'scan1', uploadUrl: 'https://scan.example/put' },
+          data: { scanMediaId: 'scan1', uploadUrl: 'https://media.adieuu.com', uploadFields: { key: 'uploads/conv_scan/test/scan1.jpg', 'Content-Type': 'image/jpeg' } },
         }),
         completeE2EUpload: async () => {
           sequence.push('completeE2E');
@@ -146,7 +146,7 @@ describe('conversationMediaUploadFlow', () => {
           scanSeq += 1;
           return {
             success: true,
-            data: { scanMediaId: `scan-${scanSeq}`, uploadUrl: 'https://scan.example/put' },
+            data: { scanMediaId: `scan-${scanSeq}`, uploadUrl: 'https://media.adieuu.com', uploadFields: { key: `uploads/conv_scan/test/scan-${scanSeq}.jpg`, 'Content-Type': 'image/jpeg' } },
           };
         },
         completeScanUpload: async () => {
