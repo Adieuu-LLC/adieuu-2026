@@ -282,8 +282,13 @@ resource "aws_cloudfront_function" "media_upload_max_size" {
     function handler(event) {
       var request = event.request;
       var method = request.method;
-      if (method !== 'PUT' && method !== 'POST') {
-        return request;
+      if (method !== 'PUT') {
+        return {
+          statusCode: 405,
+          statusDescription: 'Method Not Allowed',
+          headers: { 'content-type': { value: 'application/json' } },
+          body: { encoding: 'text', data: '{"error":"Only PUT is permitted for uploads"}' }
+        };
       }
       var cl = request.headers['content-length'];
       if (!cl) {
@@ -1336,8 +1341,16 @@ resource "aws_cloudfront_function" "e2e_media_upload_max_size" {
     function handler(event) {
       var request = event.request;
       var method = request.method;
-      if (method !== 'PUT' && method !== 'POST') {
+      if (method === 'GET' || method === 'HEAD') {
         return request;
+      }
+      if (method !== 'PUT') {
+        return {
+          statusCode: 405,
+          statusDescription: 'Method Not Allowed',
+          headers: { 'content-type': { value: 'application/json' } },
+          body: { encoding: 'text', data: '{"error":"Only PUT and GET are permitted"}' }
+        };
       }
       var cl = request.headers['content-length'];
       if (!cl) {
