@@ -275,7 +275,8 @@ export type RequestScanUploadData = {
   scanMediaId: string;
   uploadUrl: string;
   expiresIn: number;
-  uploadFields: Record<string, string>;
+  uploadFields?: Record<string, string>;
+  uploadHeaders?: Record<string, string>;
 };
 
 export async function requestScanUploadResult(
@@ -309,7 +310,7 @@ export async function requestScanUploadResult(
     }
   }
 
-  if (!result.scanMediaId || !result.uploadUrl || !result.uploadFields || result.expiresIn === undefined) {
+  if (!result.scanMediaId || !result.uploadUrl || (!result.uploadFields && !result.uploadHeaders) || result.expiresIn === undefined) {
     return { ok: false, kind: 'bad_request', message: 'Scan upload request failed' };
   }
 
@@ -320,6 +321,7 @@ export async function requestScanUploadResult(
       uploadUrl: result.uploadUrl,
       expiresIn: result.expiresIn,
       uploadFields: result.uploadFields,
+      uploadHeaders: result.uploadHeaders,
     },
   };
 }

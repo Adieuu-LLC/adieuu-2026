@@ -414,6 +414,12 @@ variable "enable_cloudfront_signed_urls" {
   default     = false
 }
 
+variable "media_upload_max_bytes" {
+  type        = number
+  description = "Hard ceiling (bytes) for Content-Length on PUT uploads through CloudFront. Requests exceeding this are rejected at the edge with 413. Should be >= the highest subscription-tier upload limit (Lifetime Founder: ~9 GB)."
+  default     = 10737418240 # 10 GiB
+}
+
 variable "allow_legacy_conv_scan_video_moderation" {
   type        = bool
   description = "When true (default), conv_scan sealed batches accept a single MP4 (skipped for hash checking since CSAM hash checks are image-only). Set false after all clients migrate to frame JPEG batches."

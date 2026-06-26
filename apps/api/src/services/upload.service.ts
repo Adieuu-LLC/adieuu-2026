@@ -32,6 +32,10 @@ import {
 import { resolveMaxUploadBytes } from './media-limits.service';
 import elog from '../utils/adieuuLogger';
 import { sanitizeIpForStorage } from '../utils/sanitize';
+import {
+  isCloudFrontSigningEnabled,
+  generateCloudFrontSignedUrl,
+} from '../utils/cloudfront-signer';
 
 const PRESIGNED_URL_EXPIRY_SECONDS = 300; // 5 minutes
 
@@ -89,8 +93,10 @@ export interface RequestUploadResult {
   mediaId?: string;
   uploadUrl?: string;
   expiresIn?: number;
-  /** Form fields the client must include in the POST body (presigned POST policy). */
+  /** Form fields the client must include in the POST body (presigned POST policy). Absent in CloudFront signed URL mode. */
   uploadFields?: Record<string, string>;
+  /** Headers the client must include in the PUT request (CloudFront signed URL mode). */
+  uploadHeaders?: Record<string, string>;
   error?: string;
   errorCode?: 'INVALID_CONTENT_TYPE' | 'FILE_TOO_LARGE' | 'RATE_LIMITED' | 'UPLOAD_DISABLED';
 }
@@ -192,34 +198,52 @@ export async function requestUpload(
       : {}),
   };
 
-  const conditions: PostCondition[] = [
-    ['content-length-range', 0, input.contentLength],
-    ['eq', '$Content-Type', input.contentType],
-    ['eq', '$key', s3Key],
-    ...Object.entries(metadata).map(
-      ([k, v]): PostCondition => ['eq', `$x-amz-meta-${k}`, v],
-    ),
-  ];
+  let uploadUrl: string;
+  let uploadFields: Record<string, string> | undefined;
+  let uploadHeaders: Record<string, string> | undefined;
 
-  const fields: Record<string, string> = {
-    'Content-Type': input.contentType,
-    key: s3Key,
-    ...Object.fromEntries(
-      Object.entries(metadata).map(([k, v]) => [`x-amz-meta-${k}`, v]),
-    ),
-  };
+  if (isCloudFrontSigningEnabled('media')) {
+    uploadUrl = generateCloudFrontSignedUrl({
+      s3Key,
+      distribution: 'media',
+      expiresInSeconds: PRESIGNED_URL_EXPIRY_SECONDS,
+    });
+    uploadHeaders = {
+      'Content-Type': input.contentType,
+      'Content-Length': String(input.contentLength),
+      ...Object.fromEntries(
+        Object.entries(metadata).map(([k, v]) => [`x-amz-meta-${k}`, v]),
+      ),
+    };
+  } else {
+    const conditions: PostCondition[] = [
+      ['content-length-range', 0, input.contentLength],
+      ['eq', '$Content-Type', input.contentType],
+      ['eq', '$key', s3Key],
+      ...Object.entries(metadata).map(
+        ([k, v]): PostCondition => ['eq', `$x-amz-meta-${k}`, v],
+      ),
+    ];
 
-  const { url: s3Url, fields: uploadFields } = await createPresignedPost(getS3Client(), {
-    Bucket: config.s3.mediaBucket,
-    Key: s3Key,
-    Conditions: conditions,
-    Fields: fields,
-    Expires: PRESIGNED_URL_EXPIRY_SECONDS,
-  });
+    const fields: Record<string, string> = {
+      'Content-Type': input.contentType,
+      key: s3Key,
+      ...Object.fromEntries(
+        Object.entries(metadata).map(([k, v]) => [`x-amz-meta-${k}`, v]),
+      ),
+    };
 
-  const uploadUrl = config.cloudfront.mediaUploadDomain
-    ? `https://${config.cloudfront.mediaUploadDomain}`
-    : s3Url;
+    const { url: s3Url, fields: postFields } = await createPresignedPost(getS3Client(), {
+      Bucket: config.s3.mediaBucket,
+      Key: s3Key,
+      Conditions: conditions,
+      Fields: fields,
+      Expires: PRESIGNED_URL_EXPIRY_SECONDS,
+    });
+
+    uploadUrl = s3Url;
+    uploadFields = postFields;
+  }
 
   const { ObjectId } = await import('mongodb');
   const uploadIpAddress = sanitizeIpForStorage(input.clientIp);
@@ -248,6 +272,7 @@ export async function requestUpload(
     mediaId,
     uploadUrl,
     uploadFields,
+    uploadHeaders,
     expiresIn: PRESIGNED_URL_EXPIRY_SECONDS,
   };
 }
