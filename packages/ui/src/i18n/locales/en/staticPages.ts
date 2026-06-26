@@ -376,17 +376,22 @@ export const staticPages = {
             aliasPrivacy: {
               title: 'How Aliases protect your privacy',
               content:
-                'Adieuu separates your account (email or phone) from your Alias (your public identity). Your Alias is cryptographically unlinkable to your account, so no one -- not even Adieuu -- can connect the two. This means your real-world identity stays private while you communicate freely.',
+                'Adieuu separates your Account (email or phone, billing) from your Alias (your public identity). The two are cryptographically unlinkable, meaning no one, not even Adieuu, can connect them. Your real-world identity stays private while you communicate freely under a name you choose.',
             },
             ageVerification: {
               title: 'Age verification without compromising identity',
               content:
-                'Where required by law, Adieuu verifies your age through a third-party provider. The verification result is stored on your account, not your Alias, and is never shared with the people you talk to. Your ID documents are processed by the verification provider and are not stored by Adieuu.',
+                'Where required by law, Adieuu verifies your age through a third-party provider. The verification result is stored on your Account, never on your Alias, and is never shared with the people you talk to. Your ID documents are processed by the verification provider and are not stored by Adieuu. We only ever receive a pass or fail result.',
             },
             dataCollection: {
               title: 'What data Adieuu collects (and what it does not)',
               content:
-                'Adieuu collects only the minimum data required to operate the service: an email or phone number for account authentication, and the encrypted messages you send. We do not read your messages, build advertising profiles, or sell any of your data. Usage analytics, when collected, are aggregated and anonymous.',
+                'Adieuu collects only what is needed to operate the service: an email or phone number for authentication, and the encrypted messages you send (which we cannot read). We do not build advertising profiles, track your conversations, or sell any of your data. Usage analytics, when collected, are aggregated and anonymous.',
+            },
+            noTracking: {
+              title: 'No tracking, no profiling, no algorithmic feeds',
+              content:
+                'There are no tracking pixels, no behavioural analytics, and no feed algorithm deciding what you see. Adieuu does not monitor what you read, how long you stay, or who you talk to. Your attention is yours.',
             },
           },
         },
@@ -396,12 +401,17 @@ export const staticPages = {
             metadataProtection: {
               title: 'Metadata protection and traffic analysis resistance',
               content:
-                'Message content is only part of the picture -- who talks to whom and when can be just as revealing. Adieuu minimises metadata exposure by keeping contact graphs encrypted and avoiding long-lived identifiers in network traffic. We are actively researching additional techniques such as sealed sender and padding to further resist traffic analysis.',
+                'Message content is only part of the picture. Who talks to whom and when can be just as revealing. Adieuu minimises metadata exposure by keeping contact graphs encrypted and avoiding long-lived identifiers in network traffic. We are actively researching additional techniques such as sealed sender and padding to further resist traffic analysis.',
             },
             unlinkability: {
               title: 'Cryptographic unlinkability between Accounts and Aliases',
               content:
-                'The separation between your Account and your Alias is enforced cryptographically, not just by policy. Alias credentials are derived through a one-way process that prevents correlation, even by Adieuu infrastructure. This means a database breach cannot link your Alias activity back to your account email or phone number.',
+                'The separation between your Account and your Alias is enforced cryptographically, not just by policy. Alias credentials are derived through a one-way process that prevents correlation, even by Adieuu infrastructure. A database breach cannot link your Alias activity back to your account email or phone number.',
+            },
+            forwardSecrecy: {
+              title: 'Forward secrecy',
+              content:
+                'Adieuu supports forward secrecy, which means that encryption keys are rotated regularly during a conversation. If a key were ever compromised, only a small window of messages would be affected. Past and future messages remain protected.',
             },
           },
         },
@@ -411,12 +421,17 @@ export const staticPages = {
             encryption: {
               title: 'End-to-end encryption',
               content:
-                'Every message is encrypted on your device before it leaves. Only you and your intended recipients hold the keys to decrypt it. Adieuu uses proven, well-audited cryptographic algorithms so that no intermediary -- including Adieuu servers -- can read your conversations.',
+                'Every message is encrypted on your device before it leaves. Only you and your intended recipients hold the keys to decrypt it. Adieuu uses proven, well-audited cryptographic algorithms so that no intermediary, including Adieuu servers, can read your conversations.',
             },
             securityModel: {
               title: 'Platform security model',
               content:
-                'Adieuu is built on a zero-trust architecture. Session tokens are short-lived and scoped. Passwordless authentication eliminates credential-stuffing attacks. Multi-factor authentication adds a second layer of protection. All data at rest is encrypted, and all traffic uses TLS. We do not sell data, serve ads, or track your conversations.',
+                'Adieuu is built on a zero-trust architecture. Session tokens are short-lived and scoped. Passwordless authentication eliminates credential-stuffing attacks. Multi-factor authentication adds a second layer of protection. All data at rest is encrypted, and all traffic uses TLS.',
+            },
+            passwordless: {
+              title: 'Passwordless authentication',
+              content:
+                'You never create a password for Adieuu. Instead, you sign in with a passkey (WebAuthn) or a one-time code sent to your email or phone. This eliminates entire classes of attack: there is no password to phish, reuse, or stuff into a breach database.',
             },
           },
         },
@@ -426,12 +441,17 @@ export const staticPages = {
             postQuantum: {
               title: 'Post-quantum cryptography',
               content:
-                'Future quantum computers may be able to break today\'s public-key cryptography. Adieuu uses a hybrid approach that combines classical algorithms with post-quantum key encapsulation (ML-KEM). This means your messages are protected against both current attacks and future quantum threats, without sacrificing compatibility or performance.',
+                'Quantum computers may eventually be able to break today\'s public-key cryptography. Adieuu already uses a hybrid approach that combines classical algorithms with post-quantum key encapsulation (ML-KEM). Your messages are protected against both current attacks and future quantum threats, without sacrificing compatibility or performance.',
             },
             keyManagement: {
               title: 'Key management and device trust',
               content:
                 'Your encryption keys are generated and stored on your own devices, never uploaded in plaintext. When you add a new device, a secure key-transfer protocol ensures that your existing conversations remain accessible without exposing key material to the server. Revoking a device immediately removes its access to future messages.',
+            },
+            openSourceSecurity: {
+              title: 'Security through transparency',
+              content:
+                'Our cryptographic implementation is open source. Security researchers can audit the code, review our choices, and report issues through our responsible disclosure process. We publish software bills of materials (SBOMs) with every release so you can verify exactly what is in each build.',
             },
           },
         },
@@ -441,12 +461,17 @@ export const staticPages = {
             whySeparation: {
               title: 'Why Adieuu separates Accounts from Aliases',
               content:
-                'Your Account is your administrative identity -- it holds your email or phone, billing, and security settings. Your Alias is your social identity -- it is what other people see. By keeping these separate, Adieuu ensures that sharing your public profile never reveals the personal details behind your account.',
+                'Your Account is your administrative identity. It holds your email or phone, billing, and security settings. Your Alias is your social identity: it is what other people see. By keeping these separate at a cryptographic level, Adieuu ensures that sharing your public profile never reveals the personal details behind your account.',
             },
             switchingAliases: {
               title: 'Switching between Aliases',
               content:
-                'You can create multiple Aliases under one Account, each with its own display name, avatar, and theme. Switching between them is instant and does not require signing out. Other users cannot tell that two Aliases belong to the same Account.',
+                'You can create multiple Aliases under one Account, each with its own display name, avatar, and theme. Switching between them is instant and does not require signing out. Other users cannot tell that two Aliases belong to the same Account, because even Adieuu cannot make that connection.',
+            },
+            aliasPassword: {
+              title: 'Your Alias password',
+              content:
+                'When you create an Alias, you set a password that only you know. This password is what makes unlinkability possible. It is never sent to the server; it is used locally to derive the cryptographic keys that connect your Account to your Alias. Without it, there is no link.',
             },
             lostAccess: {
               title: 'What happens if you lose access',
@@ -458,15 +483,20 @@ export const staticPages = {
         subscriptions: {
           label: 'Subscriptions',
           sections: {
+            whyPaid: {
+              title: 'Why Adieuu requires a subscription',
+              content:
+                'Subscriptions are how Adieuu stays independent. By funding the platform directly, users remove the need for advertising, data monetisation, or venture capital that might compromise privacy down the line. A subscription also raises the cost of creating bot or spam accounts, which keeps the platform healthier for everyone.',
+            },
             plans: {
               title: 'Available plans',
               content:
-                'Adieuu offers a free tier with core messaging and encryption, plus paid plans that unlock additional features such as multiple Aliases, extended message history, and priority support. All plans include the same strong encryption and privacy guarantees.',
+                'Adieuu offers tiered plans (Access and Insider) that unlock different levels of features, such as the number of Aliases you can create, upload limits, and stream quality. All plans include the same strong encryption and privacy guarantees. Unauthenticated visitors can browse public Spaces but cannot post or message without a subscription.',
             },
             whatUnlocked: {
               title: 'What a subscription unlocks',
               content:
-                'A paid subscription lets you create Aliases, participate in Spaces, and access social features like friend requests and group conversations. It also supports the ongoing development of Adieuu so we never need to rely on advertising or data sales.',
+                'A subscription lets you create Aliases, send messages, participate in Spaces, add friends, and access voice and video calls. It also supports the ongoing development of Adieuu so we never need to rely on advertising or data sales.',
             },
             billing: {
               title: 'Billing and cancellation',
@@ -486,17 +516,22 @@ export const staticPages = {
                 jurisdiction: {
                   title: 'When your jurisdiction requires verification',
                   content:
-                    'Your jurisdiction may require age verification before you can create or access Aliases. Adieuu enforces these requirements based on your location and applicable legislation.',
+                    'Some jurisdictions have laws requiring age verification before you can access social or messaging platforms. Adieuu enforces these requirements based on your location and applicable legislation. If verification is required, you will be prompted to complete it before creating or accessing an Alias.',
                 },
                 subscriptionGate: {
                   title: 'Verification and subscriptions',
                   content:
-                    'An active subscription (Access or Insider) is required to create or log into an Alias. Age verification is a separate compliance step that may be required in addition to an active plan.',
+                    'An active subscription (Access or Insider) is required to create or log into an Alias. Age verification is a separate compliance step that may be required in addition to an active plan. You will need to subscribe first, then verify if your jurisdiction requires it.',
                 },
                 geofencing: {
                   title: 'Regional availability',
                   content:
-                    'Due to local legislation, Adieuu may not be available in some jurisdictions. When a region is blocked, the service cannot be accessed regardless of verification status.',
+                    'Due to local legislation, Adieuu may not be available in some jurisdictions. When a region is blocked, the service cannot be accessed regardless of verification status. We publish our jurisdiction list transparently so you know what applies to you.',
+                },
+                whyNotJustBlock: {
+                  title: 'Why not just block under-18s without verification?',
+                  content:
+                    'Age-gating by self-declaration (clicking "I am over 18") does not satisfy the legal requirements in many jurisdictions. Where the law mandates verification, Adieuu complies, but we do it in a way that preserves your privacy: verification lives on your Account, not your Alias, and we never see your documents or exact age.',
                 },
               },
             },
@@ -517,17 +552,17 @@ export const staticPages = {
                 providerFlow: {
                   title: 'Third-party verification provider',
                   content:
-                    'Adieuu verifies your age through a third-party provider. When you start verification, a secure session opens where you complete the provider\'s checks. Adieuu receives only the pass/fail result, not your ID documents.',
+                    'Adieuu verifies your age through a third-party provider (currently VerifyMy). When you start verification, a secure session opens where you complete the provider\'s checks. Adieuu receives only the pass/fail result. We cannot see your ID documents, your exact age, or any other details you provide to the verification provider.',
                 },
                 sessionStates: {
                   title: 'During verification',
                   content:
-                    'After starting, complete the verification in the opened window. Adieuu checks status periodically while processing. If your session expires before completion, you may retry after the cooldown period.',
+                    'After starting, complete the verification in the opened window. Adieuu checks the status periodically while processing. If your session expires before completion, you can retry after a short cooldown period.',
                 },
                 outcomes: {
                   title: 'Outcomes and retries',
                   content:
-                    'If verification succeeds, you may proceed to create or log into an Alias. If verification fails due to local legislation, access cannot be granted until you retry after the cooldown period. Expired sessions can also be retried once the cooldown ends.',
+                    'If verification succeeds, you can proceed to create or log into an Alias immediately. If it fails or expires, you can retry once the cooldown period ends. The cooldown exists to prevent abuse of the verification system.',
                 },
               },
             },
@@ -535,19 +570,19 @@ export const staticPages = {
               label: 'Privacy and choice',
               sections: {
                 dataHandling: {
-                  title: 'Age verification without compromising identity',
+                  title: 'How your verification data is handled',
                   content:
-                    'Where required by law, Adieuu verifies your age through a third-party provider. The verification result is stored on your account, not your Alias, and is never shared with the people you talk to. Your ID documents are processed by the verification provider and are not stored by Adieuu.',
+                    'The verification result (pass or fail, nothing more) is stored on your Account. It is never attached to your Alias and is never shared with other users. Your ID documents are processed entirely by the verification provider and are not stored or accessed by Adieuu. This is a deliberate architectural choice: verification satisfies legal requirements while the Alias system preserves your privacy.',
                 },
                 voluntaryOptIn: {
                   title: 'Voluntary verification',
                   content:
-                    'If we cannot determine your jurisdiction, you are responsible for adhering to local age verification laws. You may opt in to verification voluntarily by choosing the jurisdiction whose rules should apply.',
+                    'If we cannot determine your jurisdiction automatically, you are responsible for adhering to local age verification laws. You can opt in to verification voluntarily by choosing the jurisdiction whose rules should apply to you.',
                 },
                 unresolvedJurisdiction: {
                   title: 'When jurisdiction is unknown',
                   content:
-                    'When your jurisdiction cannot be determined automatically, Adieuu shows an advisory rather than blocking access outright. You may choose to verify voluntarily, or proceed while ensuring you comply with local laws yourself.',
+                    'When your jurisdiction cannot be determined automatically, Adieuu shows an advisory rather than blocking access outright. You can choose to verify voluntarily, or proceed while ensuring you comply with local laws yourself.',
                 },
               },
             },
