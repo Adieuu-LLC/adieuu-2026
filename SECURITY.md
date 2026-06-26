@@ -16,11 +16,11 @@ Include as much of the following as possible:
 
 ## Response Timeline
 
-- **Acknowledgment:** Within 48 hours of receipt
-- **Initial assessment:** Within 7 days
+- **Acknowledgment:** Within 48 hours of receipt (normally much sooner, but we all have lives/kids: please give us a bit of grace here, especially over holidays :) )
+- **Initial assessment:** Within 3 business days following acknowledgement
 - **Fix timeline:** Depends on severity; critical issues are prioritized immediately
 
-We ask that you keep the vulnerability confidential until we've had reasonable time to investigate and deploy a fix. We'll coordinate with you on disclosure timing.
+We ask that you keep the vulnerability confidential until we've had reasonable time to investigate and deploy a fix. We'll coordinate with you on disclosure timing: if the vulnerability has potential impact on customer data, we'd like to know what the impact is and notify affected parties first (and that can take a bit of time, depending on the type of vuln).
 
 ## Scope
 
@@ -38,19 +38,19 @@ The following are in scope:
 Out of scope:
 
 - Denial of service attacks against production infrastructure
-- Social engineering
-- Issues in third-party dependencies (report upstream; let us know if it affects us)
+- Social engineering (we would have no way of knowing your campaign isn't malicious and it would be treated as such)
+- Issues in third-party dependencies (report upstream; let us know if it affects us - though this is part of what we use Manifest for, they're great at this!)
 - Self-hosted instances you control (though we appreciate reports if the default configuration is insecure)
 
 ## Recognition
 
-We don't currently have a paid bug bounty program, but we are grateful for responsible disclosures and offer:
+We don't currently have a paid bug bounty program, but we are grateful for responsible disclosures and can (at the least) offer:
 
 - Complimentary in-app subscriptions and entitlements
-- Permanent recognition on our in-app acknowledgments wall
-- Credit in the security advisory (if you'd like to be named)
+- Permanent recognition on our in-app acknowledgments wall (if you'd like)
+- Credit in the security advisory (if you'd like)
 
-We hope to offer financial bounties in the future as the project grows.
+We hope to offer financial bounties and other benefits in the future as project growth allows.
 
 ## Supported Versions
 

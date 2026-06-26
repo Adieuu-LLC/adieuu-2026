@@ -86,6 +86,7 @@ Store strings the app must not log in git. Typical keys:
 | `CYBERTIPLINE_COMPANY_TEMPLATE` | Optional CyberTipline company block text. |
 | `CYBERTIPLINE_TERMS_OF_SERVICE_URL` | Optional terms URL for CyberTipline XML. |
 | `CYBERTIPLINE_LEGAL_URL` | Optional legal URL for CyberTipline XML. |
+| `MEDIA_PROCESSOR_SECRET` | HMAC secret for Lambda-to-API webhook authentication (when media stack enabled). |
 **Note:** `CF_SIGNING_PRIVATE_KEY` is not part of the user-managed `adieuu/<env>/api` JSON. Terraform generates the signing key and injects it via a dedicated Secrets Manager secret when `enable_cloudfront_signed_urls = true`. Do not add it manually.
 
 Use **`REDIS_URL`** in Secrets Manager (or plain env) **only** when Redis is **not** the Terraform-managed ElastiCache cluster — e.g. you set **`create_elasticache_redis = false`** and point **`REDIS_URL`** at an external endpoint yourself.
@@ -175,8 +176,20 @@ Set these in **`terraform.tfvars`** as maps. Values are **plain text** in the ta
 | `VERIFYMY_SANDBOX_BASE_URL` | Optional; default `https://sandbox.verifymyage.com`. |
 | `VERIFYMY_PRODUCTION_BASE_URL` | Optional; default `https://oauth.verifymyage.com`. |
 | `VERIFYMY_TIMEOUT_MS` | Optional; default `10000`. |
+| `KLIPY_BASE_URL` | Optional; default `https://api.klipy.com/api/v1`. |
+| `KLIPY_CONTENT_FILTER` | Optional; default `off`. |
+| `KLIPY_CACHE_TTL_SEARCH` | Redis TTL seconds for search results (default `30`). |
+| `KLIPY_CACHE_TTL_TRENDING` | Redis TTL seconds for trending results (default `120`). |
+| `LIVEKIT_TOKEN_TTL_SEC` | LiveKit access token TTL in seconds (default `600`). |
+| `CALL_REAPER_INTERVAL_SEC` | Interval for call cleanup checks (default `60`). |
+| `CALL_REAPER_EMPTY_TIMEOUT_SEC` | Timeout before reaping empty calls (default `120`). |
+| `CALL_REAPER_MAX_DURATION_SEC` | Max call duration before forced cleanup (default `86400`). |
+| `EMAIL_FROM_NAME` | Sender display name for emails (default `Adieuu`). |
+| `LOG_LEVEL` | Application log level (default `info`). |
+| `STRIPE_COUPON_MFA_BASIC` | Optional Stripe coupon ID for MFA basic discount. |
+| `STRIPE_COUPON_MFA_HARDWARE_KEY` | Optional Stripe coupon ID for hardware key MFA discount. |
 
-**Platform settings (MongoDB, not env):** The API stores typed configuration in the `platform_settings` collection (see `apps/api/src/constants/platform-settings-keys.ts`). Most knobs are Mongo-only; **geo** also reads **`platform-geo-lookup-enabled`** (boolean) and **age verification** reads **`AGE_VERIFICATION_ENABLED`** (boolean, default `false`) so operators can toggle these features without redeploying. **NCMEC CyberTipline** reads **`platform-ncmec-cybertipline-env`** (`test` | `production`, default `test`) for moderator LE submissions. The auth allowlist is edited via **`/api/admin/platform-settings`** (identity session with `manage-platform-settings`).
+**Platform settings (MongoDB, not env):** The API stores typed configuration in the `platform_settings` collection (see `apps/api/src/constants/platform-settings-keys.ts`). Most knobs are Mongo-only; **geo** also reads **`platform-geo-lookup-enabled`** (boolean) and **age verification** reads **`platform-age-verification-enabled`** (boolean, default `false`) so operators can toggle these features without redeploying. **NCMEC CyberTipline** reads **`platform-ncmec-cybertipline-env`** (`test` | `production`, default `test`) for moderator LE submissions. The auth allowlist is edited via **`/api/admin/platform-settings`** (identity session with `manage-platform-settings`).
 
 **Platform RBAC (identities, not platform_settings):** Staff roles (`admin`, `moderator`, `support_agent`) are stored on each identity document’s **`platformRoles`** array in the `identities` collection — not in platform settings. Before using admin routes, bootstrap at least one admin in MongoDB (see [Platform RBAC](../../apps/api/README.md#platform-rbac) in `apps/api/README.md`). Role assignment after bootstrap uses **`POST /api/admin/identities/:id/roles`** and related endpoints (requires identity session + `manage-roles`).
 

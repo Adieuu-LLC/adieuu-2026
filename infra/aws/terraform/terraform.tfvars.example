@@ -87,6 +87,7 @@ single_nat_gateway        = true
 #   REDIS_KEY_PREFIX      = "adieuu:"
 #   EMAIL_PROVIDER        = "ses"
 #   EMAIL_FROM_ADDRESS    = "noreply@example.com"
+#   EMAIL_FROM_NAME       = "Adieuu"
 #   AWS_REGION            = "us-east-1"
 #   SMS_PROVIDER          = "textmagic"
 #   SMS_FROM_NAME         = "Adieuu"
@@ -95,6 +96,7 @@ single_nat_gateway        = true
 #   WEBAUTHN_ORIGINS      = "https://app.example.com"
 #   REQUIRE_DATABASE      = "true"
 #   INITIALIZE_COLLECTIONS = "false"
+#   CSRF_ENFORCEMENT      = "enforce"  # "off" | "warn" (default) | "enforce" — set "enforce" in production
 #   RATE_LIMIT_ENABLED    = "true"
 #   # RATE_LIMIT_AUTH_REQUEST_IDENTIFIER = "3"
 #   # RATE_LIMIT_AUTH_REQUEST_IDENTIFIER_WINDOW = "900"
@@ -117,7 +119,7 @@ single_nat_gateway        = true
 #   # STRIPE_CANCEL_URL      = "https://app.example.com/account/subscription?status=cancelled"
 #   # STRIPE_PORTAL_RETURN_URL = "https://app.example.com/account/subscription"
 #   # Age verification (VerifyMy v3). VERIFYMY_API_KEY and VERIFYMY_API_SECRET go in Secrets Manager (api_container_secrets).
-#   # Controlled by AGE_VERIFICATION_ENABLED platform setting (default: false).
+#   # Controlled by platform-age-verification-enabled platform setting in MongoDB (default: false).
 #   # API_BASE_URL             = "https://api.example.com" # public API URL for VerifyMy OAuth callbacks
 #   # VERIFYMY_ENVIRONMENT     = "sandbox"                 # "sandbox" or "production"; separate key pairs per environment
 #   # VERIFYMY_SANDBOX_BASE_URL    = "https://sandbox.verifymyage.com"  # default
@@ -144,6 +146,7 @@ single_nat_gateway        = true
 # TOKEN_SIGNING_KEY, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, TEXTMAGIC_USERNAME,
 # TEXTMAGIC_API_KEY, KLIPY_API_KEY, IPLOCATE_API_KEY, STRIPE_SECRET_KEY,
 # STRIPE_WEBHOOK_SECRET, VERIFYMY_API_KEY, VERIFYMY_API_SECRET, LIVEKIT_API_SECRET,
+# MEDIA_PROCESSOR_SECRET (when enable_media_stack),
 # CYBERTIPLINE_USERNAME, CYBERTIPLINE_PASSWORD, CYBERTIPLINE_REPORTER_FIRST_NAME,
 # CYBERTIPLINE_REPORTER_LAST_NAME, CYBERTIPLINE_REPORTER_EMAIL
 # (see ecs-environment.md).

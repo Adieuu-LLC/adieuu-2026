@@ -89,8 +89,8 @@ docs/
 ## Prerequisites for Local Runs
 (This is targeted at local dev runs - see [docs/SELF-HOSTING.md](docs/SELF-HOSTING.md) if you're looking for Self-Hosting setup)
 
-- Node.js 25+
-- pnpm 9+
+- Node.js 26+
+- pnpm 10+
 - **Font Awesome Pro:** This project uses Font Awesome Pro icons. Internal contributors authenticate with GitHub Packages (`export NODE_AUTH_TOKEN=$(gh auth token)` with `read:packages`). External contributors and self-hosters: see [docs/SELF-HOSTING.md](docs/SELF-HOSTING.md#font-awesome-pro-setup) for how to use pnpm overrides with your own FA Pro license.
 
 ## Super Basic - Local Dev w/ Defaults
@@ -102,7 +102,7 @@ pnpm install
 # Build shared packages (or build all by omitting filters)
 pnpm build --filter @adieuu/shared --filter @adieuu/ui
 
-# Start Mongo and Redis via Docker (omit if running locally)
+# Start Mongo, Redis, and LiveKit via Docker (omit if running locally)
 pnpm services:up
 
 # Start development
@@ -146,6 +146,12 @@ Key regression commands:
 Configure branch protection so these jobs are required (adjust for `development` vs `main` if you use different rules):
 - `lint-and-typecheck`
 - `test-api`
+- `test-chat`
+- `test-web`
+- `test-desktop`
+- `test-ui`
+- `test-crypto`
+- `test-a11y`
 - `test-fs`
 - `test-security`
 - For PRs into `main`, also require `build-web`, `build-api`, and `build-desktop-dist`.

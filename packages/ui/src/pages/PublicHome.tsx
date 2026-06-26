@@ -42,12 +42,41 @@ export function PublicHome() {
               <p style={{ color: 'var(--color-text-secondary)', lineHeight: 1.7 }}>
                 {t('home.public.whatIsText2')}
               </p>
+            </Card>
 
-              <h2 style={{ color: 'var(--color-text-primary)' }}>
+            <Card variant="elevated" className="slide-up" style={{ marginTop: 'var(--spacing-lg)' }}>
+              <h2 style={{ marginTop: 0, color: 'var(--color-text-primary)' }}>
+                {t('home.public.fundingTitle')}
+              </h2>
+              <p style={{ color: 'var(--color-text-secondary)', lineHeight: 1.7 }}>
+                {t('home.public.fundingText')}
+              </p>
+            </Card>
+
+            <Card variant="elevated" className="slide-up" style={{ marginTop: 'var(--spacing-lg)' }}>
+              <h2 style={{ marginTop: 0, color: 'var(--color-text-primary)' }}>
                 {t('home.public.securityTitle')}
               </h2>
               <p style={{ color: 'var(--color-text-secondary)', lineHeight: 1.7 }}>
                 {t('home.public.securityText')}
+              </p>
+            </Card>
+
+            <Card variant="elevated" className="slide-up" style={{ marginTop: 'var(--spacing-lg)' }}>
+              <h2 style={{ marginTop: 0, color: 'var(--color-text-primary)' }}>
+                {t('home.public.transparencyTitle')}
+              </h2>
+              <p style={{ color: 'var(--color-text-secondary)', lineHeight: 1.7 }}>
+                {t('home.public.transparencyText')}
+              </p>
+            </Card>
+
+            <Card variant="elevated" className="slide-up" style={{ marginTop: 'var(--spacing-lg)' }}>
+              <h2 style={{ marginTop: 0, color: 'var(--color-text-primary)' }}>
+                {t('home.public.humanTitle')}
+              </h2>
+              <p style={{ color: 'var(--color-text-secondary)', lineHeight: 1.7 }}>
+                {t('home.public.humanText')}
               </p>
             </Card>
 

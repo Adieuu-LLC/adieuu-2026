@@ -1,8 +1,8 @@
 # GitHub Actions: AWS deploy (main)
 
-Production deploys are **invoked from the [Release](../../.github/workflows/release.yml) workflow** (job `deploy-aws`) so they run **once per merge**, **after** the `release` job finishes: either the **version bump is on `main`** (`released=true`) or we still ship **without** a new tag when the tag already exists (`tag_exists` path). That matches **web `package.json` / `version.json`** to the commit on **`main`**, avoids racing the release bump, and avoids a **second** deploy from the follow-up CI run on `chore(release):` commits.
+Production deploys are **invoked from the [Release](../../.github/workflows/release.yml) workflow** (job `deploy-aws`) so they run **once per merge**, **after** the `release` job finishes (when `released=true`). That matches **web `package.json` / `version.json`** to the commit on **`main`**, avoids racing the release bump, and avoids a **second** deploy from the follow-up CI run on `chore(release):` commits.
 
-Manual redeploys use [Deploy AWS](../../.github/workflows/deploy-aws.yml) (**`workflow_dispatch`** only), which calls the reusable workflow [deploy-aws-reusable.yml](../../.github/workflows/deploy-aws-reusable.yml) and deploys **current `main`** (full web + API + chat when variables are set).
+Manual redeploys use [Deploy AWS](../../.github/workflows/deploy-aws.yml) (**`workflow_dispatch`** only), which calls the reusable workflow [deploy-aws-reusable.yml](../../.github/workflows/deploy-aws-reusable.yml) and deploys **current `main`** with `force_all: true` (all targets regardless of path changes).
 
 ## Prerequisites
 
@@ -68,11 +68,11 @@ GitHub Releases remain the **source of truth**; the downloads stack is an additi
 
 ## Behavior
 
-- **Order** — Automatic deploys run **inside the Release workflow** after the **`release`** job (not in parallel with the version bump). They do **not** use path filters: each deploy builds **full** web + API + chat + lambdas from **`main`** at that moment so release-only commits (version bumps across `package.json` files) still produce correct images and `version.json`.
-- **When deploy runs** — `deploy_aws` is true if **`released`** is true (new version pushed) **or** if the new tag **already existed** (`tag_exists`): we still deploy the merged code at **`main`**. Release skips (chore commit, stale CI) set `deploy_aws` to false.
-- **Images** — Each service is tagged with the commit SHA and `latest`; ECR moves `latest` to the new digest on push. ECS uses **`force-new-deployment`** so tasks pull the updated `latest` image.
+- **Order** — Automatic deploys run **inside the Release workflow** after the **`release`** job (not in parallel with the version bump). The reusable deploy workflow uses **git-diff path detection**: API and chat always deploy, while web, lambdas, and the sharp layer deploy only when their source paths have changed (unless `force_all` is true via manual dispatch).
+- **When deploy runs** — `deploy_aws` is true when **`released`** is true (new version pushed). Release skips (chore commit, stale CI) set `deploy_aws` to false.
+- **Images** — Each service is tagged with the commit SHA and `latest`; ECR moves `latest` to the new digest on push. ECS receives a **new task definition revision** pinned to the SHA-tagged image, and the service is updated to use that revision.
 - **Branch** — The IAM role trust policy allows only `refs/heads/main` for the configured repository.
 
 ## Staging
 
-A second environment (e.g. staging) will use a separate Terraform workspace or stack, different repository variables, and optionally a dedicated IAM role with a narrower trust policy or environment-based GitHub `sub` claims when you add that workflow.
+Multiple environments are supported by creating separate Terraform workspaces or stacks, using different repository variables, and optionally dedicated IAM roles with narrower trust policies or environment-based GitHub `sub` claims.

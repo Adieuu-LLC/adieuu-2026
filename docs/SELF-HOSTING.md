@@ -2,13 +2,17 @@
 
 This guide walks through deploying Adieuu on your own infrastructure. It assumes basic familiarity with AWS, Terraform, and Docker. Make sure you read and understand how this code is licensed.
 
+While this guide and the referenced code is a good indication of how we *generally* deploy, we do have some local tooling and configuration that may differ (e.g. this won't be quite 1:1 with what we've deployed, especially w.r.t WAF, ALBs, and some networking & security configs).
+
+> Looking for a two-line Docker run-and-gun? Sorry to disappoint. This isn't a tiny app - you are deploying a *platform*. Minimum AWS cost with current stack, all optionals disabled and no traffic (as of early 2026) is ~$170 USD/mo on-demand. We don't currently have plans to support other cloud providers, or offering minimal footprint options (though we'll accept PRs that might better suit community needs).
+
 For detailed architecture documentation, see [docs/deployment/aws.md](deployment/aws.md).
 
 ## Prerequisites
 
 - **AWS account** with admin access (or scoped IAM for Terraform)
 - **Terraform** 1.5+
-- **Node.js** 25+ and **pnpm** 9+
+- **Node.js** 26+ and **pnpm** 10+
 - **Docker** (for building API and chat images)
 - **MongoDB** (Atlas M10+ recommended, or self-hosted)
 - **Font Awesome Pro** license (for icons — see [Font Awesome Setup](#font-awesome-pro-setup) below)
@@ -137,9 +141,9 @@ Set the secret ARN(s) in `terraform.tfvars` under `api_container_secrets` and `c
 ### Docker images (API + Chat)
 
 ```bash
-# Build
-docker build -f apps/api/Dockerfile -t myapp-api .
-docker build -f apps/chat/Dockerfile -t myapp-chat .
+# Build (default Terraform uses ARM64/Graviton — match the platform)
+docker build --platform linux/arm64 -f apps/api/Dockerfile -t myapp-api .
+docker build --platform linux/arm64 -f apps/chat/Dockerfile -t myapp-chat .
 
 # Tag and push to ECR (use URLs from terraform output)
 docker tag myapp-api:latest <account-id>.dkr.ecr.<region>.amazonaws.com/myapp-production-api:latest

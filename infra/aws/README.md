@@ -6,7 +6,7 @@ Terraform code for Adieuu on AWS lives in `terraform/`. It is intended to be **s
 
 - [Terraform](https://www.terraform.io/downloads) `>= 1.5`
 - AWS credentials (e.g. `aws configure` or environment variables)
-- **Docker images** for API and chat built for **`linux/amd64`** (Fargate in this stack uses `X86_64`) and **pushed to ECR** after the repositories exist (`terraform apply` creates the repos; push tags such as `latest` or your release tag)
+- **Docker images** for API and chat built for **`linux/arm64`** (Fargate in this stack uses `ARM64` / Graviton) and **pushed to ECR** after the repositories exist (`terraform apply` creates the repos; push tags such as `latest` or your release tag)
 
 ## Quick start
 
@@ -67,6 +67,8 @@ Replace `adieuu-staging-api` with the repository name shown in the AWS console o
 | `atlas_peering.tf` | Optional MongoDB Atlas network container + VPC peering, routes, DNS resolution on the peering |
 | `iam_github_actions_deploy.tf` | GitHub OIDC IAM role (S3/CloudFront + ECR + ECS + Lambda) for CI deploys; see [github-actions-aws.md](../../docs/deployment/github-actions-aws.md) |
 | `media.tf` | Media stack: S3 (media + E2E + CSAM evidence), CloudFront, CSAM hash Lambdas, DynamoDB NCMEC table |
+| `downloads.tf` | Desktop downloads mirror: S3 + CloudFront dual-origin for update binaries, SBOMs, `releases.json` |
+| `livekit.tf` | Optional self-hosted LiveKit SFU: EC2 ASG, ALB host-header rule, security groups, DNS |
 | `outputs.tf` | ALB DNS, ECR URLs, subnet IDs, optional Redis endpoint, SNS topic for alarms |
 | `terraform.tfvars.example` | **Committed** — placeholders; commented env/secrets templates (see [ecs-environment.md](../../docs/deployment/ecs-environment.md)) |
 | `terraform.tfvars` | **Local / private** — gitignored |

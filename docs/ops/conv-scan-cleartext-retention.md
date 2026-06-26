@@ -19,5 +19,5 @@ This note documents retention and admin expectations for conversation scan clear
 
 ## Trust & safety
 
-- Frame sampling is sparse; policy owners should document acceptable coverage and escalation (see plan §4.2).
+- Frame sampling is sparse; policy owners should document acceptable coverage and escalation procedures.
 - Access to scan evidence in staff tools should follow least-privilege and audit expectations already applied to moderation queues.

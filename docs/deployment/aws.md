@@ -1,6 +1,6 @@
 # AWS deployment (Adieuu)
 
-This document captures the agreed target architecture and operational choices for running Adieuu on AWS. It is written so a **public clone** of the repo can deploy in another account without leaking your secrets: **only examples and variables belong in git**; real credentials and connection strings stay in private state or secret stores.
+This document captures the agreed target architecture and operational choices for running Adieuu on AWS. It is written so a **public clone** of the repo can deploy in another account without leaking your secrets: **only examples and variables belong in git**. Ensure real credentials/secrets stay in private state.
 
 ## Components and mapping
 
@@ -59,7 +59,7 @@ The repository includes **Terraform** under `infra/aws/terraform/` as the single
 - **Route 53** — **A alias** for **`api_domain_name`** → ALB; **`app_domain_name`** → **CloudFront** (not the ALB). **Apex** (`adieuu.com`) and marketing DNS stay outside this stack.
 - **ACM** — separate certificates: **API** in the **ALB region**; **app** in **`us-east-1`** (required for CloudFront). DNS validation records in your public zone.
 - **S3 + CloudFront** — private bucket + OAC, SPA-friendly error routing to `index.html`, **`app_domain_name`** on the distribution.
-- **WAFv2** — optional **`enable_waf`** (default **true**): **REGIONAL** ACL on the ALB + **CLOUDFRONT**-scoped ACL in `us-east-1` on the distribution (managed rule groups; tune if APIs/WebSockets are blocked).
+- **WAFv2** — optional **`enable_waf`** (default **false**): **REGIONAL** ACL on the ALB + **CLOUDFRONT**-scoped ACL in `us-east-1` on the distribution (managed rule groups; tune if APIs/WebSockets are blocked).
 
 **Also configured in Terraform (typical):**
 
@@ -71,7 +71,7 @@ The repository includes **Terraform** under `infra/aws/terraform/` as the single
 
 **Web deploy:** after `pnpm build` for `apps/web`, sync artifacts to **`terraform output web_s3_bucket_id`** and run a CloudFront invalidation (`cloudfront_distribution_id`).
 
-**Operational order:** run `terraform apply`, note **ECR** URLs from `terraform output`, **build and push** `linux/amd64` images, create **Secrets Manager** secrets in the console/CLI, then add their ARNs to `api_container_secrets` / `chat_container_secrets` and **`terraform apply`** again.
+**Operational order:** run `terraform apply`, note **ECR** URLs from `terraform output`, **build and push** `linux/arm64` images, create **Secrets Manager** secrets in the console/CLI, then add their ARNs to `api_container_secrets` / `chat_container_secrets` and **`terraform apply`** again.
 
 ## Public repository: safety and customization
 
@@ -91,7 +91,7 @@ For more interactive flows later (e.g. prompting for region and bucket name), ex
 
 Before relying on ECS:
 
-1. Add **Dockerfiles** for `apps/api` (Bun) and `apps/chat` (Node; match **linux/amd64** or **arm64** to Fargate platform).
+1. **Build** the existing Dockerfiles at `apps/api/Dockerfile` (Bun) and `apps/chat/Dockerfile` (Node; the default Terraform config uses **ARM64**/Graviton — build with `--platform linux/arm64`). See [containers.md](./containers.md) for details.
 2. `docker build` / `docker run` locally with the same env vars you will inject in ECS (non-secret via env, secrets via Secrets Manager in AWS).
 3. Push images to **ECR**; point Terraform task definitions at image URIs + tags (often via variables).
 
