@@ -164,7 +164,7 @@ export function useMediaUpload(options: UseMediaUploadOptions): UseMediaUploadRe
           return;
         }
 
-        const { mediaId: mid, uploadUrl, uploadFields } = requestRes.data;
+        const { mediaId: mid, uploadUrl, uploadFields, uploadHeaders } = requestRes.data;
         setMediaId(mid);
 
         if (abort.signal.aborted) return;
@@ -172,20 +172,43 @@ export function useMediaUpload(options: UseMediaUploadOptions): UseMediaUploadRe
         setState('uploading');
         setProgress(10);
 
-        const formData = new FormData();
-        for (const [key, value] of Object.entries(uploadFields)) {
-          formData.append(key, value);
-        }
-        formData.append('file', file);
+        if (uploadHeaders) {
+          const putResponse = await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: uploadHeaders,
+            body: file,
+            signal: abort.signal,
+          });
 
-        const postResponse = await fetch(uploadUrl, {
-          method: 'POST',
-          body: formData,
-          signal: abort.signal,
-        });
+          if (!putResponse.ok) {
+            const msg = `Upload failed (${putResponse.status})`;
+            setError(msg);
+            setState('error');
+            onError?.(msg);
+            return;
+          }
+        } else if (uploadFields) {
+          const formData = new FormData();
+          for (const [key, value] of Object.entries(uploadFields)) {
+            formData.append(key, value);
+          }
+          formData.append('file', file);
 
-        if (postResponse.status !== 204 && !postResponse.ok) {
-          const msg = `Upload failed (${postResponse.status})`;
+          const postResponse = await fetch(uploadUrl, {
+            method: 'POST',
+            body: formData,
+            signal: abort.signal,
+          });
+
+          if (postResponse.status !== 204 && !postResponse.ok) {
+            const msg = `Upload failed (${postResponse.status})`;
+            setError(msg);
+            setState('error');
+            onError?.(msg);
+            return;
+          }
+        } else {
+          const msg = 'Upload response missing both uploadHeaders and uploadFields';
           setError(msg);
           setState('error');
           onError?.(msg);

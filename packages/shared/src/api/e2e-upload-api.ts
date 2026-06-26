@@ -29,8 +29,10 @@ export interface RequestScanUploadResponse {
   scanMediaId: string;
   uploadUrl: string;
   expiresIn: number;
-  /** Form fields the client must include in the POST body (presigned POST policy). */
-  uploadFields: Record<string, string>;
+  /** Form fields the client must include in the POST body (presigned POST policy). Absent when uploadHeaders is set. */
+  uploadFields?: Record<string, string>;
+  /** Headers the client must include in the PUT request (CloudFront signed URL mode). When present, use PUT instead of POST. */
+  uploadHeaders?: Record<string, string>;
 }
 
 export interface SealConvScanSessionParams {
