@@ -65,7 +65,7 @@ The repository includes **Terraform** under `infra/aws/terraform/` as the single
 
 - **Secrets Manager** — set `api_container_secrets` / `chat_container_secrets` to map environment variable names to **ARN-style `valueFrom`** strings (including `:JsonKey::` for JSON secrets). The **ECS task execution role** is granted `secretsmanager:GetSecretValue` (and optional `kms:Decrypt` for CMKs via `secretsmanager_kms_key_arns`). Secret **values** are not stored in Terraform state—only ARNs in your `tfvars`. Recommended keys and non-sensitive env names: [ecs-environment.md](./ecs-environment.md).
 
-**Still not in this stack** (typical next steps): **Route 53** for apex/marketing (managed elsewhere). MongoDB remains **Atlas**; supply **`MONGODB_URI`** via Secrets Manager or plain env as above.
+**Explicitly not in this stack**: **Route 53** for apex (we manage this elsewhere). **MongoDB**: supply your own: we use Atlas; supply **`MONGODB_URI`** via Secrets Manager or plain env as above.
 
 **ECS autoscaling**, **VPC interface endpoints**, and **CloudWatch → SNS operational alarms** are configured in Terraform (`ecs_autoscaling.tf`, `vpc_endpoints.tf`, `alarms.tf`).
 

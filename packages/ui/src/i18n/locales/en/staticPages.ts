@@ -125,7 +125,7 @@ export const staticPages = {
         'There are no ads on Adieuu. We do not sell your data, build ad profiles, or track what you talk about. The platform is funded by the people who use it. That keeps our incentives simple: build something worth paying for.',
       securityTitle: 'Serious security, without the friction',
       securityText:
-        'Login is passwordless, so there are no credentials to steal. Messages use forward secrecy, and we are actively preparing for post-quantum cryptography. Alias identities cannot be linked back to your account, even by us. All data at rest is encrypted, and all traffic uses TLS.',
+        'Login is passwordless, so there are no credentials to steal. Messages use forward secrecy and post-quantum cryptography. Alias identities cannot be linked back to your account, even by us. All data at rest is encrypted, and all traffic uses TLS.',
       transparencyTitle: 'Open source and verifiable',
       transparencyText:
         'Our code is public. You can read it, audit it, and self-host it. We publish software bills of materials for every release and maintain a public roadmap shaped by community input. We would rather prove it than promise it.',
@@ -291,17 +291,22 @@ export const staticPages = {
                 whatIsAdieuu: {
                   title: 'What is Adieuu?',
                   content:
-                    'Adieuu is a secure messaging platform that puts your privacy first. Every message is end-to-end encrypted using proven, audited cryptographic algorithms -- no one can read your conversations, not even us. Unlike other platforms, we do not sell your data, track your conversations, or serve targeted ads. Your privacy is not our business model.',
+                    'Adieuu is a messaging and social platform where privacy is built into the architecture, not bolted on as an afterthought. Every message is end-to-end encrypted, and the platform is designed so that your identity and your activity are cryptographically separated. Even we cannot connect the two.',
                 },
                 mission: {
                   title: 'Our mission',
                   content:
-                    'Adieuu was built with privacy at its core. We believe that private communication is a fundamental right, not a luxury. Our platform uses end-to-end encryption to ensure that your messages remain private between you and your intended recipients.',
+                    'We believe private communication is a fundamental right. Adieuu exists to prove that a social platform can be secure, transparent, and community-driven without relying on advertising or data collection. We want online spaces to feel more human again, with less noise and more genuine connection.',
                 },
                 privacyStance: {
-                  title: 'Privacy is not our business model',
+                  title: 'Pay with a subscription, not surveillance',
                   content:
-                    'Unlike other messaging platforms, we do not sell your data, track your conversations, or serve you targeted ads. Your privacy is not our business model -- we fund the service through subscriptions, not surveillance.',
+                    'Adieuu is funded entirely by the people who use it. There are no ads, no data sales, no tracking pixels, and no algorithmic feeds designed to keep you scrolling. Our incentives are straightforward: build something worth paying for.',
+                },
+                openSource: {
+                  title: 'Open source and verifiable',
+                  content:
+                    'Our source code is publicly available. You can read it, audit it, and self-host your own instance. We publish a software bill of materials (SBOM) with every release and maintain a public roadmap shaped by community votes. We would rather prove our claims than ask you to trust them.',
                 },
               },
             },
@@ -311,17 +316,27 @@ export const staticPages = {
                 securityByDesign: {
                   title: 'Security by design',
                   content:
-                    'Passwordless authentication eliminates credential-stuffing attacks. Alias identities are cryptographically unlinkable to your account, so your real-world identity stays private. All data at rest is encrypted, and all traffic uses TLS.',
+                    'Login is passwordless, so there are no credentials for attackers to steal or stuff. Alias identities are cryptographically unlinkable to your account. All data at rest is encrypted, all traffic uses TLS, and sessions are short-lived and scoped. Security is not a feature we added; it is how the platform works.',
                 },
                 encryptionAndAuth: {
                   title: 'Encryption and authentication',
                   content:
-                    'All messages are encrypted using industry-standard cryptographic algorithms. Our passwordless authentication system eliminates the risk of password breaches while providing a seamless user experience.',
+                    'Messages are encrypted on your device before they leave. Only you and your intended recipients can decrypt them. Authentication uses WebAuthn passkeys or one-time codes, eliminating the risk of password breaches entirely.',
+                },
+                spacesAndCommunities: {
+                  title: 'Spaces and communities',
+                  content:
+                    'Spaces are shared communities for groups of people with common interests. Content within a Space is encrypted, and you interact through your Alias, keeping your real identity private. Think of them as group hubs where you can have ongoing conversations with a broader community.',
+                },
+                voiceAndVideo: {
+                  title: 'Voice and video calls',
+                  content:
+                    'Adieuu supports end-to-end encrypted voice and video calls, including screen sharing. Calls are routed through our self-hosted infrastructure, not third-party services, so your call metadata stays within the platform.',
                 },
                 desktopApp: {
                   title: 'Desktop app',
                   content:
-                    'The Adieuu desktop app is built with Electron, providing a native experience on Windows, macOS, and Linux. It shares the same secure codebase as our web application, ensuring consistent security across all platforms.',
+                    'The Adieuu desktop app runs natively on Windows, macOS, and Linux. It shares the same secure codebase as the web app and adds system-level features like persistent notifications, tray access, and OS keychain storage for your cryptographic keys.',
                 },
               },
             },
@@ -331,17 +346,22 @@ export const staticPages = {
                 accountAndAlias: {
                   title: 'Account vs Alias',
                   content:
-                    'Adieuu has two sign-ins: your account (where your personal info lives, like email or phone) and your Alias (your public identity you use for chatting and other activities). Your Alias is separate from your account login for privacy.',
+                    'Adieuu has two layers of identity. Your Account holds your email or phone, billing, and security settings. Your Alias is your social presence: it has its own username, profile, and conversations. The two are cryptographically separated, so sharing your Alias never reveals the personal details behind your Account.',
                 },
                 createAlias: {
                   title: 'Create your first Alias',
                   content:
-                    'Your Alias is how others find you. It is separate from your account login for privacy. An active subscription unlocks Alias creation, messaging, and social features.',
+                    'Once you have an active subscription, you can create an Alias. Pick a username and display name, set up a profile, and you are ready to message, add friends, and join Spaces. If your subscription tier allows it, you can create multiple Aliases for different contexts.',
+                },
+                firstSteps: {
+                  title: 'Your first steps',
+                  content:
+                    'After creating your Alias, try adding a friend by searching for their username, joining a Space that interests you, or starting a direct conversation. Everything you send is encrypted before it leaves your device.',
                 },
                 readyToStart: {
                   title: 'Ready to get started?',
                   content:
-                    'Create an account in seconds -- all you need is an email or phone number. Once your account is set up, you can create an Alias and start messaging securely.',
+                    'Creating an account takes seconds. All you need is an email or phone number. From there, choose a plan, create your Alias, and start talking.',
                 },
               },
             },

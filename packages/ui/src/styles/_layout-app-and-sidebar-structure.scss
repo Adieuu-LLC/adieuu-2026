@@ -179,6 +179,17 @@
   margin-top: var(--spacing-lg);
 }
 
+.home-strengths-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-lg);
+  margin-top: var(--spacing-lg);
+
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+  }
+}
+
 // Learn page header
 .learn-page-header {
   display: flex;
