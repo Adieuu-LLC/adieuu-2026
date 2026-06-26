@@ -231,8 +231,10 @@ export function registerAutoUpdaterIpc(options: {
       try {
         const pid = process.pid;
         const cmd = [
+          `orig=$(awk '{print $22}' /proc/${pid}/stat 2>/dev/null)`,
           `sleep ${INSTALL_TIMEOUT_S}`,
-          `[ -e /proc/${pid}/exe ] && kill -9 ${pid} 2>/dev/null || true`,
+          `curr=$(awk '{print $22}' /proc/${pid}/stat 2>/dev/null)`,
+          `[ -n "$orig" ] && [ "$orig" = "$curr" ] && kill -9 ${pid} 2>/dev/null || true`,
         ].join('; ');
         const watchdog = spawn('/bin/sh', ['-c', cmd], {
           detached: true,

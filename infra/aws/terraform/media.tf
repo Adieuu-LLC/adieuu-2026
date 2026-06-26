@@ -290,7 +290,7 @@ resource "aws_cloudfront_function" "media_upload_max_size" {
           statusCode: 405,
           statusDescription: 'Method Not Allowed',
           headers: { 'content-type': { value: 'application/json' } },
-          body: { encoding: 'text', data: '{"error":"Only PUT is permitted for uploads"}' }
+          body: { encoding: 'text', data: '{"error":"Only PUT and OPTIONS are permitted for uploads"}' }
         };
       }
       var cl = request.headers['content-length'];
