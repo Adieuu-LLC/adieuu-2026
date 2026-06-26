@@ -21,7 +21,7 @@ import { BrowserWindow } from 'electron';
 // The page itself is intentionally empty; we only need the correct origin.
 // ---------------------------------------------------------------------------
 
-const BRIDGE_ORIGIN = 'https://app.adieuu.com';
+const BRIDGE_ORIGIN = process.env.ADIEUU_APP_ORIGIN || 'https://app.adieuu.com';
 const BRIDGE_URL = `${BRIDGE_ORIGIN}/webauthn-bridge.html`;
 const PAGE_LOAD_TIMEOUT_MS = 15_000;
 

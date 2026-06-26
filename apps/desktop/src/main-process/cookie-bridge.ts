@@ -1,6 +1,7 @@
 import type { Session } from 'electron';
 
-export const PRODUCTION_APP_ORIGIN = 'https://app.adieuu.com';
+export const PRODUCTION_APP_ORIGIN =
+  process.env.ADIEUU_APP_ORIGIN || 'https://app.adieuu.com';
 
 /**
  * Default hostnames for the cookie + CORS bridge when `ADIEUU_COOKIE_BRIDGE_HOSTS`

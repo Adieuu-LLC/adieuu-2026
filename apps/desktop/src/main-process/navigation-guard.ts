@@ -12,16 +12,19 @@ export function registerWillNavigateGuard(
         return;
       }
 
+      const envHosts = process.env.ADIEUU_ALLOWED_NAVIGATION_HOSTS;
       const ALLOWED_NAVIGATION_HOSTS: readonly string[] = options.isDev
         ? ['localhost', '127.0.0.1']
-        : [
-            'localhost',
-            '127.0.0.1',
-            'adieuu.com',
-            'api.adieuu.com',
-            'media.adieuu.com',
-            'downloads.adieuu.com',
-          ];
+        : envHosts
+          ? ['localhost', '127.0.0.1', ...envHosts.split(',').map((h) => h.trim()).filter(Boolean)]
+          : [
+              'localhost',
+              '127.0.0.1',
+              'adieuu.com',
+              'api.adieuu.com',
+              'media.adieuu.com',
+              'downloads.adieuu.com',
+            ];
 
       const allowed = ALLOWED_NAVIGATION_HOSTS.includes(parsedUrl.hostname);
 

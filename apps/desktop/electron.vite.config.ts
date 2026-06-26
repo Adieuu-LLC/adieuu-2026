@@ -86,6 +86,9 @@ export default defineConfig({
     // Inject static app version; endpoint defaults are handled in renderer config.
     define: {
       __APP_VERSION__: JSON.stringify(pkg.version),
+      __APP_ORIGIN__: JSON.stringify(
+        process.env.VITE_APP_ORIGIN || 'https://adieuu.com',
+      ),
       __DOWNLOADS_BASE_URL__: JSON.stringify(
         process.env.VITE_DOWNLOADS_BASE_URL || 'https://downloads.adieuu.com',
       ),

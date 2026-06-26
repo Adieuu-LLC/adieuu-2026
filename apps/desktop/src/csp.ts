@@ -18,7 +18,7 @@
  */
 
 import { mergeCspManifests } from '../../../packages/shared/src/csp/merge';
-import { mediaOrigin, e2eMediaOrigin, livekitWsOrigin, livekitHttpOrigin } from '../../../packages/shared/src/csp/origins';
+import { apiOrigin, apiWsOrigin, downloadsOrigin, mediaOrigin, e2eMediaOrigin, livekitWsOrigin, livekitHttpOrigin } from '../../../packages/shared/src/csp/origins';
 import { cryptoCspManifest } from '../../../packages/crypto/src/csp';
 import { uiCspManifest } from '../../../packages/ui/src/csp';
 
@@ -36,13 +36,13 @@ const desktopCspManifest: Record<string, string[]> = {
   ],
   'connect-src': [
     "'self'",
-    'https://api.adieuu.com',
-    'wss://api.adieuu.com',
+    apiOrigin,
+    apiWsOrigin,
     livekitWsOrigin,
     livekitHttpOrigin,
     mediaOrigin,
     e2eMediaOrigin,
-    'https://downloads.adieuu.com',
+    downloadsOrigin,
     'https://sandbox.verifymyage.com',
     'https://oauth.verifymyage.com',
     'https://verify.verifymyage.com',
