@@ -29,8 +29,8 @@ export interface RequestScanUploadResponse {
   scanMediaId: string;
   uploadUrl: string;
   expiresIn: number;
-  /** Headers the client must include in the PUT request (forwarded through CloudFront to S3). */
-  uploadHeaders?: Record<string, string>;
+  /** Form fields the client must include in the POST body (presigned POST policy). */
+  uploadFields: Record<string, string>;
 }
 
 export interface SealConvScanSessionParams {
