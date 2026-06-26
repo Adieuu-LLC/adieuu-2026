@@ -169,7 +169,7 @@ export async function createMainWindow(options: {
     }
 
     if (!ctrlOrCmd && !input.alt && !input.shift && input.code === 'F1') {
-      shell.openExternal(process.env.ADIEUU_APP_ORIGIN || 'https://adieuu.com');
+      shell.openExternal(process.env.ADIEUU_WEB_ORIGIN || 'https://adieuu.com');
       event.preventDefault();
       return;
     }

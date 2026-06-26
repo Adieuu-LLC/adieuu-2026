@@ -21,6 +21,7 @@ export function registerWillNavigateGuard(
               'localhost',
               '127.0.0.1',
               'adieuu.com',
+              'app.adieuu.com',
               'api.adieuu.com',
               'media.adieuu.com',
               'downloads.adieuu.com',

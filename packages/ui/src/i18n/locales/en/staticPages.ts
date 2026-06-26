@@ -552,17 +552,17 @@ export const staticPages = {
                 providerFlow: {
                   title: 'Third-party verification provider',
                   content:
-                    'Adieuu verifies your age through a third-party provider (currently VerifyMy). When you start verification, a secure session opens where you complete the provider\'s checks. Adieuu receives only the pass/fail result. We cannot see your ID documents, your exact age, or any other details you provide to the verification provider.',
+                    'Adieuu verifies your age through a third-party provider (currently VerifyMy). When you start verification, a secure session opens where you complete the provider\'s checks. Adieuu receives only the verification status needed to enforce access. We cannot see your ID documents, your exact age, or any other details you provide to the verification provider.',
                 },
                 sessionStates: {
                   title: 'During verification',
                   content:
-                    'After starting, complete the verification in the opened window. Adieuu checks the status periodically while processing. If your session expires before completion, you can retry after a short cooldown period.',
+                    'After starting, complete the verification in the opened window. The session remains active while you complete the provider\'s checks. If your session expires before completion, you can retry after a short cooldown period.',
                 },
                 outcomes: {
                   title: 'Outcomes and retries',
                   content:
-                    'If verification succeeds, you can proceed to create or log into an Alias immediately. If it fails or expires, you can retry once the cooldown period ends. The cooldown exists to prevent abuse of the verification system.',
+                    'If your verification status is a pass, you can proceed to create or log into an Alias immediately. If it fails or expires, you can retry once the cooldown period ends. The cooldown exists to prevent abuse of the verification system.',
                 },
               },
             },
@@ -572,7 +572,7 @@ export const staticPages = {
                 dataHandling: {
                   title: 'How your verification data is handled',
                   content:
-                    'The verification result (pass or fail, nothing more) is stored on your Account. It is never attached to your Alias and is never shared with other users. Your ID documents are processed entirely by the verification provider and are not stored or accessed by Adieuu. This is a deliberate architectural choice: verification satisfies legal requirements while the Alias system preserves your privacy.',
+                    'The verification status (pass or fail, nothing more) is stored on your Account. It is never attached to your Alias and is never shared with other users. Your ID documents are processed entirely by the verification provider and are not stored or accessed by Adieuu. This is a deliberate architectural choice: verification satisfies legal requirements while the Alias system preserves your privacy.',
                 },
                 voluntaryOptIn: {
                   title: 'Voluntary verification',

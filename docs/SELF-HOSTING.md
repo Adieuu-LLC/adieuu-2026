@@ -161,7 +161,7 @@ docker push <account-id>.dkr.ecr.<region>.amazonaws.com/myapp-production-chat:la
 export VITE_API_ORIGIN=https://api.example.com
 export VITE_API_BASE_URL=https://api.example.com
 export VITE_CHAT_WS_URL=wss://api.example.com/ws/chat
-export VITE_APP_ORIGIN=https://example.com
+export VITE_APP_ORIGIN=https://app.example.com
 export VITE_DOWNLOADS_BASE_URL=https://downloads.example.com
 export VITE_MEDIA_ORIGIN=https://media.example.com
 export VITE_E2E_MEDIA_ORIGIN=https://e2e-media.example.com
@@ -203,7 +203,7 @@ cd apps/desktop
 # Set environment for your deployment
 export VITE_API_URL=https://api.example.com
 export VITE_CHAT_WS_URL=wss://api.example.com/ws/chat
-export VITE_APP_ORIGIN=https://example.com
+export VITE_APP_ORIGIN=https://app.example.com
 export VITE_DOWNLOADS_BASE_URL=https://downloads.example.com
 export ADIEUU_APP_ORIGIN=https://app.example.com
 export ADIEUU_UPDATE_SERVER_URL=https://downloads.example.com/latest

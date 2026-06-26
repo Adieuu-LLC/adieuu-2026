@@ -63,7 +63,7 @@ Please see our Privacy Policy (and other relevant policies) for full details, bu
 
 ## Structure
 
-```
+```text
 apps/
   web/        # Vite + React web app
   api/        # Bun HTTP API server
