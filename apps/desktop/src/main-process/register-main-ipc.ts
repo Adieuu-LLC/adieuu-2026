@@ -1,11 +1,12 @@
 import path from 'path';
 import fs from 'fs/promises';
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
-import { createCredential, destroyBridgeWindow, getCredential } from '../webauthn-bridge';
+import { createCredential, getCredential } from '../webauthn-bridge';
 import { runtime } from './runtime';
 import { applyBadgeColor, applyDotColor, createBadgedIcon, getBaseIcon } from './taskbar-badge';
 import { isTrayActive, setTrayBadge, getTrayUnreadState } from './tray';
-import { clearUpdateCheckTimer, registerAutoUpdaterIpc } from './auto-updater';
+import { registerAutoUpdaterIpc } from './auto-updater';
+import { forceQuitApp } from './force-quit';
 import { registerVerificationWindowIpc } from './verification-window';
 import { isAllowedAudioPath } from './audio-path';
 import { ensureInAppUpdateLogFileForOpen, getInAppUpdateLogPath } from './update-in-app-log';
@@ -53,18 +54,7 @@ export function registerMainProcessIpc(options: {
 
   /** Terminate the application (all windows). Distinct from `window:close`, which closes one window. */
   ipcMain.handle('app:quit', () => {
-    // Renderer `beforeunload` (e.g. pending media upload outbox) can block a graceful unload;
-    // `destroy()` terminates windows without vetoing shutdown.
-    clearUpdateCheckTimer();
-    destroyBridgeWindow();
-    for (const win of BrowserWindow.getAllWindows()) {
-      try {
-        if (!win.isDestroyed()) win.destroy();
-      } catch {
-        // ignore teardown races
-      }
-    }
-    app.quit();
+    forceQuitApp();
   });
 
   ipcMain.handle('restart-app', () => {

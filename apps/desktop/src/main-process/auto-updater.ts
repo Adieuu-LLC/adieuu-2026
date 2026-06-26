@@ -1,5 +1,6 @@
 import path from 'path';
 import fs from 'fs/promises';
+import { spawn } from 'child_process';
 import { app, ipcMain } from 'electron';
 import electronUpdater from 'electron-updater';
 import {
@@ -216,7 +217,42 @@ export function registerAutoUpdaterIpc(options: {
       void appendInAppUpdateLog('install-update IPC (dev no-op)');
       return;
     }
-    void appendInAppUpdateLog('install-update IPC → quitAndInstall');
+
+    const INSTALL_TIMEOUT_S = 60;
+
+    void appendInAppUpdateLog(
+      `install-update IPC → quitAndInstall pid=${process.pid} platform=${process.platform} arch=${process.arch}`,
+    );
+
+    // On Linux, quitAndInstall() can block the event loop indefinitely via
+    // a synchronous package-manager install (spawnSync + pkexec). Spawn a
+    // watchdog process that force-kills us if we don't exit in time.
+    if (process.platform === 'linux') {
+      try {
+        const pid = process.pid;
+        const cmd = [
+          `sleep ${INSTALL_TIMEOUT_S}`,
+          `[ -e /proc/${pid}/exe ] && kill -9 ${pid} 2>/dev/null || true`,
+        ].join('; ');
+        const watchdog = spawn('/bin/sh', ['-c', cmd], {
+          detached: true,
+          stdio: 'ignore',
+        });
+        watchdog.unref();
+      } catch (e) {
+        console.warn('[AutoUpdater] Failed to spawn install watchdog:', e);
+      }
+    }
+
+    // Fallback for non-blocking failures: if quitAndInstall() returns
+    // without exiting the process, force-exit after the timeout.
+    const fallback = setTimeout(() => {
+      console.error('[AutoUpdater] quitAndInstall did not exit, forcing exit');
+      void appendInAppUpdateLog('install-update fallback force exit');
+      process.exit(1);
+    }, INSTALL_TIMEOUT_S * 1000);
+    fallback.unref();
+
     autoUpdater.quitAndInstall();
   });
 

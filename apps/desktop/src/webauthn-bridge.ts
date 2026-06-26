@@ -232,7 +232,7 @@ export async function getCredential(optionsJSON: unknown): Promise<WebAuthnIpcRe
 
 export function destroyBridgeWindow(): void {
   if (bridgeWindow && !bridgeWindow.isDestroyed()) {
-    bridgeWindow.close();
+    bridgeWindow.destroy();
   }
   bridgeWindow = null;
   bridgeReady = null;

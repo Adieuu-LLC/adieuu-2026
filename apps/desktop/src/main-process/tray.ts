@@ -1,6 +1,7 @@
 import { app, Menu, Tray } from 'electron';
 import { runtime } from './runtime';
 import { createTintedIcon, createTintedDotIcon } from './taskbar-badge';
+import { forceQuitApp } from './force-quit';
 
 let tray: Tray | null = null;
 let storedIconPath: string | null = null;
@@ -27,7 +28,7 @@ export function createTray(iconPath: string): void {
       label: 'Quit',
       click: () => {
         destroyTray();
-        app.quit();
+        forceQuitApp();
       },
     },
   ]);
