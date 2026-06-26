@@ -274,23 +274,46 @@ resource "aws_cloudfront_function" "media_upload_max_size" {
   name    = "${local.name_prefix}-media-upload-max-size"
   runtime = "cloudfront-js-2.0"
   publish = true
-  comment = "Reject uploads exceeding max Content-Length (${var.media_upload_max_bytes} bytes)"
+  comment = "Reject uploads exceeding max Content-Length per path prefix"
 
   code = <<-JS
-    var MAX_BYTES = ${var.media_upload_max_bytes};
+    var MAX_BYTES_DEFAULT = ${var.media_upload_max_bytes};
+    var MAX_BYTES_CONV_SCAN = 52428800;
     function handler(event) {
       var request = event.request;
       var method = request.method;
-      if (method === 'PUT' || method === 'POST') {
-        var cl = request.headers['content-length'];
-        if (cl && parseInt(cl.value, 10) > MAX_BYTES) {
-          return {
-            statusCode: 413,
-            statusDescription: 'Content Too Large',
-            headers: { 'content-type': { value: 'application/json' } },
-            body: { encoding: 'text', data: '{"error":"File exceeds maximum upload size"}' }
-          };
-        }
+      if (method !== 'PUT' && method !== 'POST') {
+        return request;
+      }
+      var cl = request.headers['content-length'];
+      if (!cl) {
+        return {
+          statusCode: 411,
+          statusDescription: 'Length Required',
+          headers: { 'content-type': { value: 'application/json' } },
+          body: { encoding: 'text', data: '{"error":"Content-Length header is required"}' }
+        };
+      }
+      var bytes = parseInt(cl.value, 10);
+      if (isNaN(bytes) || bytes < 0) {
+        return {
+          statusCode: 400,
+          statusDescription: 'Bad Request',
+          headers: { 'content-type': { value: 'application/json' } },
+          body: { encoding: 'text', data: '{"error":"Invalid Content-Length"}' }
+        };
+      }
+      var limit = MAX_BYTES_DEFAULT;
+      if (request.uri.indexOf('/uploads/conv_scan/') === 0) {
+        limit = MAX_BYTES_CONV_SCAN;
+      }
+      if (bytes > limit) {
+        return {
+          statusCode: 413,
+          statusDescription: 'Content Too Large',
+          headers: { 'content-type': { value: 'application/json' } },
+          body: { encoding: 'text', data: '{"error":"File exceeds maximum upload size"}' }
+        };
       }
       return request;
     }
@@ -335,9 +358,9 @@ resource "aws_cloudfront_distribution" "media" {
     }
   }
 
-  # Default behavior: processed media GETs (cached, Function prepends processed/ prefix) + presigned POST uploads
+  # Default behavior: serve processed media via GET/HEAD (cached, CF Function prepends processed/ prefix)
   default_cache_behavior {
-    allowed_methods          = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+    allowed_methods          = ["GET", "HEAD", "OPTIONS"]
     cached_methods           = ["GET", "HEAD"]
     target_origin_id         = "s3-media"
     compress                 = true
@@ -1300,6 +1323,53 @@ resource "aws_acm_certificate_validation" "e2e_media" {
   ]
 }
 
+resource "aws_cloudfront_function" "e2e_media_upload_max_size" {
+  count = local.e2e_media_cf_enabled ? 1 : 0
+
+  name    = "${local.name_prefix}-e2e-media-upload-max-size"
+  runtime = "cloudfront-js-2.0"
+  publish = true
+  comment = "Reject E2E media uploads exceeding max Content-Length (${var.media_upload_max_bytes} bytes)"
+
+  code = <<-JS
+    var MAX_BYTES = ${var.media_upload_max_bytes};
+    function handler(event) {
+      var request = event.request;
+      var method = request.method;
+      if (method !== 'PUT' && method !== 'POST') {
+        return request;
+      }
+      var cl = request.headers['content-length'];
+      if (!cl) {
+        return {
+          statusCode: 411,
+          statusDescription: 'Length Required',
+          headers: { 'content-type': { value: 'application/json' } },
+          body: { encoding: 'text', data: '{"error":"Content-Length header is required"}' }
+        };
+      }
+      var bytes = parseInt(cl.value, 10);
+      if (isNaN(bytes) || bytes < 0) {
+        return {
+          statusCode: 400,
+          statusDescription: 'Bad Request',
+          headers: { 'content-type': { value: 'application/json' } },
+          body: { encoding: 'text', data: '{"error":"Invalid Content-Length"}' }
+        };
+      }
+      if (bytes > MAX_BYTES) {
+        return {
+          statusCode: 413,
+          statusDescription: 'Content Too Large',
+          headers: { 'content-type': { value: 'application/json' } },
+          body: { encoding: 'text', data: '{"error":"File exceeds maximum upload size"}' }
+        };
+      }
+      return request;
+    }
+  JS
+}
+
 resource "aws_cloudfront_distribution" "e2e_media" {
   count = local.e2e_media_cf_enabled ? 1 : 0
 
@@ -1326,6 +1396,11 @@ resource "aws_cloudfront_distribution" "e2e_media" {
     origin_request_policy_id = "b689b0a8-53d0-40ab-baf2-68738e2966ac" # Managed-AllViewerExceptHostHeader
 
     trusted_key_groups = [aws_cloudfront_key_group.media_signing[0].id]
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.e2e_media_upload_max_size[0].arn
+    }
   }
 
   restrictions {
