@@ -1,0 +1,1511 @@
+# User-uploaded media (avatars, banners, conversation attachments): S3 + CloudFront.
+#
+# Private S3 bucket with two key prefixes:
+#   - uploads/   : raw files uploaded via presigned PUT URLs (never served publicly)
+#   - processed/ : Lambda-processed files (EXIF stripped, resized, moderated) served via CloudFront
+#
+# Conversation media uses a dual-upload approach for E2E privacy with content moderation:
+#   1. E2E encrypted media goes to a separate bucket (aws_s3_bucket.e2e_media) — no Lambda, no CDN
+#   2. A cleartext thumbnail (scan copy) goes to uploads/conv_scan/ in this bucket for CSAM hash checks.
+#      The media-processor deletes the raw object after checks and does not retain processed/
+#      assets for conv_scan. The expire-stale-uploads rule (uploads/) and
+#      expire-conv-scan-processed-legacy (processed/conv_scan/) are safety nets for stragglers.
+#
+# Gated on enable_media_stack (requires public_dns_tls_enabled).
+
+# ---------------------------------------------------------------------------
+# Media bucket
+# ---------------------------------------------------------------------------
+
+resource "aws_s3_bucket" "media" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = "${local.name_prefix}-media-${data.aws_caller_identity.current.account_id}"
+
+  tags = merge(local.common_tags, { Name = "${local.name_prefix}-media" })
+}
+
+resource "aws_s3_bucket_public_access_block" "media" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.media[0].id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_versioning" "media" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.media[0].id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "media" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.media[0].id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+    bucket_key_enabled = true
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "media" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.media[0].id
+
+  rule {
+    id     = "abort-incomplete-multipart"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+  }
+
+  rule {
+    id     = "expire-stale-uploads"
+    status = "Enabled"
+
+    filter {
+      prefix = "uploads/"
+    }
+
+    expiration {
+      days = 1
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 1
+    }
+  }
+
+  # Legacy processed WebP objects from older conv_scan pipeline (or failed deletes).
+  rule {
+    id     = "expire-conv-scan-processed-legacy"
+    status = "Enabled"
+
+    filter {
+      prefix = "processed/conv_scan/"
+    }
+
+    expiration {
+      days = 14
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 14
+    }
+  }
+}
+
+resource "aws_s3_bucket_cors_configuration" "media" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.media[0].id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["PUT", "POST"]
+    allowed_origins = distinct(concat(
+      local.media_cors_origins,
+      local.cf_signing_enabled ? ["https://${var.media_domain_name}"] : []
+    ))
+    max_age_seconds = 3600
+  }
+}
+
+# ---------------------------------------------------------------------------
+# OAC for media bucket (CloudFront -> S3)
+# ---------------------------------------------------------------------------
+
+resource "aws_cloudfront_origin_access_control" "media" {
+  count = local.media_enabled ? 1 : 0
+
+  name                              = "${local.name_prefix}-media-oac"
+  description                       = "OAC for ${local.name_prefix} media bucket"
+  origin_access_control_origin_type = "s3"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
+}
+
+# ---------------------------------------------------------------------------
+# CloudFront signed URL key pair + key group (shared by media uploads + E2E media)
+#
+# Terraform generates the RSA key pair. The public key is registered with
+# CloudFront; the private key is stored in Secrets Manager and injected into
+# the API container as CF_SIGNING_PRIVATE_KEY for runtime signed URL generation.
+# ---------------------------------------------------------------------------
+
+resource "tls_private_key" "cf_signing" {
+  count = local.cf_signing_enabled ? 1 : 0
+
+  algorithm = "RSA"
+  rsa_bits  = 2048
+}
+
+resource "aws_secretsmanager_secret" "cf_signing_private_key" {
+  count = local.cf_signing_enabled ? 1 : 0
+
+  name        = "${local.name_prefix}-cf-signing-private-key"
+  description = "CloudFront signed URL RSA private key for ${local.name_prefix} media uploads"
+
+  tags = local.common_tags
+}
+
+resource "aws_secretsmanager_secret_version" "cf_signing_private_key" {
+  count = local.cf_signing_enabled ? 1 : 0
+
+  secret_id     = aws_secretsmanager_secret.cf_signing_private_key[0].id
+  secret_string = tls_private_key.cf_signing[0].private_key_pem
+}
+
+resource "aws_cloudfront_public_key" "media_signing" {
+  count = local.cf_signing_enabled ? 1 : 0
+
+  name        = "${local.name_prefix}-media-signing"
+  comment     = "Public key for ${local.name_prefix} media upload + E2E signed URLs"
+  encoded_key = tls_private_key.cf_signing[0].public_key_pem
+}
+
+resource "aws_cloudfront_key_group" "media_signing" {
+  count = local.cf_signing_enabled ? 1 : 0
+
+  name    = "${local.name_prefix}-media-signing"
+  comment = "Key group for ${local.name_prefix} media signed URLs (uploads + E2E)"
+  items   = [aws_cloudfront_public_key.media_signing[0].id]
+}
+
+# ---------------------------------------------------------------------------
+# ACM certificate for media hostname (us-east-1, CloudFront requirement)
+# ---------------------------------------------------------------------------
+
+resource "aws_acm_certificate" "media" {
+  count = local.media_enabled ? 1 : 0
+
+  provider = aws.us_east_1
+
+  domain_name       = var.media_domain_name
+  validation_method = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_route53_record" "cert_validation_media" {
+  for_each = local.media_enabled ? {
+    for dvo in aws_acm_certificate.media[0].domain_validation_options : dvo.domain_name => {
+      name   = dvo.resource_record_name
+      record = dvo.resource_record_value
+      type   = dvo.resource_record_type
+    }
+  } : {}
+
+  allow_overwrite = true
+  name            = each.value.name
+  records         = [each.value.record]
+  ttl             = 60
+  type            = each.value.type
+  zone_id         = data.aws_route53_zone.public[0].zone_id
+}
+
+resource "aws_acm_certificate_validation" "media" {
+  count = local.media_enabled ? 1 : 0
+
+  provider = aws.us_east_1
+
+  certificate_arn = aws_acm_certificate.media[0].arn
+  validation_record_fqdns = [
+    for r in aws_route53_record.cert_validation_media : r.fqdn
+  ]
+}
+
+# ---------------------------------------------------------------------------
+# CloudFront distribution (media.adieuu.com)
+#
+# Single origin (s3-media) pointing to the media bucket root.
+# A CloudFront Function prepends "processed/" for GET/HEAD requests so
+# processed media is served from the correct S3 prefix without exposing the
+# prefix in CDN URLs. POST requests (presigned POST uploads) pass through to
+# the bucket root unmodified.
+#
+# The upload ordered behavior (uploads/*) is gated by a trusted key group.
+# CloudFront OAC re-signs the request to S3 so no S3 credentials are needed
+# by the client and no S3 bucket URL is exposed.
+# ---------------------------------------------------------------------------
+
+resource "aws_cloudfront_function" "media_processed_prefix" {
+  count = local.media_enabled ? 1 : 0
+
+  name    = "${local.name_prefix}-media-get-rewrite"
+  runtime = "cloudfront-js-2.0"
+  publish = true
+  comment = "Prepend processed/ prefix for GET/HEAD requests"
+
+  code = <<-JS
+    function handler(event) {
+      var request = event.request;
+      if (request.method === 'GET' || request.method === 'HEAD') {
+        request.uri = '/processed' + request.uri;
+      }
+      return request;
+    }
+  JS
+}
+
+resource "aws_cloudfront_function" "media_upload_max_size" {
+  count = local.cf_signing_enabled ? 1 : 0
+
+  name    = "${local.name_prefix}-media-upload-max-size"
+  runtime = "cloudfront-js-2.0"
+  publish = true
+  comment = "Reject uploads exceeding max Content-Length per path prefix"
+
+  code = <<-JS
+    var MAX_BYTES_DEFAULT = ${var.media_upload_max_bytes};
+    var MAX_BYTES_CONV_SCAN = 52428800;
+    function handler(event) {
+      var request = event.request;
+      var method = request.method;
+      if (method !== 'PUT') {
+        if (method === 'OPTIONS') {
+          return request;
+        }
+        return {
+          statusCode: 405,
+          statusDescription: 'Method Not Allowed',
+          headers: { 'content-type': { value: 'application/json' } },
+          body: { encoding: 'text', data: '{"error":"Only PUT and OPTIONS are permitted for uploads"}' }
+        };
+      }
+      var cl = request.headers['content-length'];
+      if (!cl) {
+        return {
+          statusCode: 411,
+          statusDescription: 'Length Required',
+          headers: { 'content-type': { value: 'application/json' } },
+          body: { encoding: 'text', data: '{"error":"Content-Length header is required"}' }
+        };
+      }
+      var bytes = parseInt(cl.value, 10);
+      if (isNaN(bytes) || bytes < 0) {
+        return {
+          statusCode: 400,
+          statusDescription: 'Bad Request',
+          headers: { 'content-type': { value: 'application/json' } },
+          body: { encoding: 'text', data: '{"error":"Invalid Content-Length"}' }
+        };
+      }
+      var limit = MAX_BYTES_DEFAULT;
+      if (request.uri.indexOf('/uploads/conv_scan/') === 0) {
+        limit = MAX_BYTES_CONV_SCAN;
+      }
+      if (bytes > limit) {
+        return {
+          statusCode: 413,
+          statusDescription: 'Content Too Large',
+          headers: { 'content-type': { value: 'application/json' } },
+          body: { encoding: 'text', data: '{"error":"File exceeds maximum upload size"}' }
+        };
+      }
+      return request;
+    }
+  JS
+}
+
+resource "aws_cloudfront_distribution" "media" {
+  count = local.media_enabled ? 1 : 0
+
+  enabled         = true
+  is_ipv6_enabled = true
+  comment         = "Media CDN ${local.name_prefix}"
+  price_class     = "PriceClass_100"
+  aliases         = [var.media_domain_name]
+
+  # Single origin: media bucket (no origin_path — CloudFront Function handles processed/ prefix for GETs)
+  origin {
+    domain_name              = aws_s3_bucket.media[0].bucket_regional_domain_name
+    origin_id                = "s3-media"
+    origin_access_control_id = aws_cloudfront_origin_access_control.media[0].id
+  }
+
+  # Upload behavior: uploads/* path, write-enabled, uncached, requires signed URL
+  dynamic "ordered_cache_behavior" {
+    for_each = local.cf_signing_enabled ? [1] : []
+    content {
+      path_pattern             = "uploads/*"
+      allowed_methods          = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+      cached_methods           = ["GET", "HEAD"]
+      target_origin_id         = "s3-media"
+      compress                 = false
+      viewer_protocol_policy   = "https-only"
+      cache_policy_id          = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad" # Managed-CachingDisabled
+      origin_request_policy_id = "b689b0a8-53d0-40ab-baf2-68738e2966ac" # Managed-AllViewerExceptHostHeader
+
+      trusted_key_groups = [aws_cloudfront_key_group.media_signing[0].id]
+
+      function_association {
+        event_type   = "viewer-request"
+        function_arn = aws_cloudfront_function.media_upload_max_size[0].arn
+      }
+    }
+  }
+
+  # Default behavior: serve processed media via GET/HEAD (cached, CF Function prepends processed/ prefix)
+  default_cache_behavior {
+    allowed_methods          = ["GET", "HEAD", "OPTIONS"]
+    cached_methods           = ["GET", "HEAD"]
+    target_origin_id         = "s3-media"
+    compress                 = true
+    viewer_protocol_policy   = "redirect-to-https"
+    cache_policy_id          = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized
+    origin_request_policy_id = "88a5eaf4-2fd4-4709-b370-b4c650ea3fcf" # Managed-CORS-S3Origin
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.media_processed_prefix[0].arn
+    }
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    acm_certificate_arn      = aws_acm_certificate_validation.media[0].certificate_arn
+    ssl_support_method       = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021"
+  }
+
+  depends_on = [aws_acm_certificate_validation.media]
+
+  tags = merge(local.common_tags, {
+    Name = "${local.name_prefix}-media"
+  })
+}
+
+# ---------------------------------------------------------------------------
+# Bucket policy: CloudFront OAC read processed/* + write uploads/*
+# ---------------------------------------------------------------------------
+
+data "aws_iam_policy_document" "media_bucket" {
+  count = local.media_enabled ? 1 : 0
+
+  statement {
+    sid    = "AllowCloudFrontServiceRead"
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["cloudfront.amazonaws.com"]
+    }
+
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.media[0].arn}/processed/*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceArn"
+      values   = [aws_cloudfront_distribution.media[0].arn]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = local.cf_signing_enabled ? [1] : []
+    content {
+      sid    = "AllowCloudFrontServiceWrite"
+      effect = "Allow"
+
+      principals {
+        type        = "Service"
+        identifiers = ["cloudfront.amazonaws.com"]
+      }
+
+      actions   = ["s3:PutObject"]
+      resources = ["${aws_s3_bucket.media[0].arn}/uploads/*"]
+
+      condition {
+        test     = "StringEquals"
+        variable = "AWS:SourceArn"
+        values   = [aws_cloudfront_distribution.media[0].arn]
+      }
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "media" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.media[0].id
+  policy = data.aws_iam_policy_document.media_bucket[0].json
+
+  depends_on = [
+    aws_s3_bucket_public_access_block.media,
+    aws_cloudfront_distribution.media,
+  ]
+}
+
+# ---------------------------------------------------------------------------
+# Route53 alias: media.<domain> -> CloudFront
+# ---------------------------------------------------------------------------
+
+resource "aws_route53_record" "media_alias" {
+  count = local.media_enabled ? 1 : 0
+
+  zone_id = data.aws_route53_zone.public[0].zone_id
+  name    = local.media_route53_record_name
+  type    = "A"
+
+  alias {
+    name                   = aws_cloudfront_distribution.media[0].domain_name
+    zone_id                = aws_cloudfront_distribution.media[0].hosted_zone_id
+    evaluate_target_health = false
+  }
+
+  depends_on = [aws_cloudfront_distribution.media]
+}
+
+# ---------------------------------------------------------------------------
+# ECS task role: S3 permissions for presigned URL generation + media management
+# ---------------------------------------------------------------------------
+
+resource "aws_iam_role_policy" "ecs_task_media" {
+  count = local.media_enabled ? 1 : 0
+
+  name = "${local.name_prefix}-ecs-task-media"
+  role = aws_iam_role.ecs_task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "MediaUploads"
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:DeleteObject",
+        ]
+        Resource = "${aws_s3_bucket.media[0].arn}/uploads/*"
+      },
+      {
+        Sid    = "MediaProcessed"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:DeleteObject",
+        ]
+        Resource = "${aws_s3_bucket.media[0].arn}/processed/*"
+      },
+    ]
+  })
+}
+
+# ---------------------------------------------------------------------------
+# ECS task role: read CSAM evidence for CyberTipline uploads
+# CyberTipline API credentials live in adieuu/prod/api (api_container_secrets).
+# ---------------------------------------------------------------------------
+
+resource "aws_iam_role_policy" "ecs_task_csam_evidence" {
+  count = local.media_enabled ? 1 : 0
+
+  name = "${local.name_prefix}-ecs-task-csam-evidence"
+  role = aws_iam_role.ecs_task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "CsamEvidenceRead"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject"]
+        Resource = "${aws_s3_bucket.csam_evidence[0].arn}/*"
+      },
+    ]
+  })
+}
+
+# ---------------------------------------------------------------------------
+# Lambda layer: sharp (image processing native binaries for linux-x64)
+# ---------------------------------------------------------------------------
+
+resource "aws_lambda_layer_version" "sharp" {
+  count = local.media_enabled ? 1 : 0
+
+  layer_name          = "${local.name_prefix}-sharp"
+  description         = "sharp image processing library for nodejs24.x linux-x64"
+  filename            = "${path.module}/../lambda/layers/sharp/sharp-layer.zip"
+  source_code_hash    = fileexists("${path.module}/../lambda/layers/sharp/sharp-layer.zip") ? filebase64sha256("${path.module}/../lambda/layers/sharp/sharp-layer.zip") : null
+  compatible_runtimes = ["nodejs24.x"]
+
+  lifecycle {
+    ignore_changes = [filename, source_code_hash]
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Lambda: image processor (EXIF strip, resize, CSAM hash checks)
+# ---------------------------------------------------------------------------
+
+resource "aws_iam_role" "media_processor" {
+  count = local.media_enabled ? 1 : 0
+
+  name = "${local.name_prefix}-media-processor"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      },
+    ]
+  })
+
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy" "media_processor" {
+  count = local.media_enabled ? 1 : 0
+
+  name = "media-processor"
+  role = aws_iam_role.media_processor[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = concat(
+      [
+        {
+          Sid    = "S3ListConvScanPrefixes"
+          Effect = "Allow"
+          Action = [
+            "s3:ListBucket",
+          ]
+          Resource = aws_s3_bucket.media[0].arn
+          Condition = {
+            StringLike = {
+              "s3:prefix" = [
+                "uploads/conv_scan/*",
+              ]
+            }
+          }
+        },
+        {
+          Sid    = "S3ReadUploads"
+          Effect = "Allow"
+          Action = [
+            "s3:GetObject",
+            "s3:DeleteObject",
+          ]
+          Resource = "${aws_s3_bucket.media[0].arn}/uploads/*"
+        },
+        {
+          Sid    = "S3WriteProcessed"
+          Effect = "Allow"
+          Action = [
+            "s3:PutObject",
+          ]
+          Resource = "${aws_s3_bucket.media[0].arn}/processed/*"
+        },
+        {
+          Sid    = "S3WriteEvidence"
+          Effect = "Allow"
+          Action = [
+            "s3:PutObject",
+            "s3:PutObjectTagging",
+          ]
+          Resource = "${aws_s3_bucket.csam_evidence[0].arn}/csam-evidence/*"
+        },
+        {
+          Sid    = "DynamoDBNcmecHashLookup"
+          Effect = "Allow"
+          Action = [
+            "dynamodb:GetItem",
+          ]
+          Resource = aws_dynamodb_table.ncmec_hashes[0].arn
+        },
+        {
+          Sid    = "SQSConsume"
+          Effect = "Allow"
+          Action = [
+            "sqs:ReceiveMessage",
+            "sqs:DeleteMessage",
+            "sqs:GetQueueAttributes",
+          ]
+          Resource = aws_sqs_queue.media_uploads[0].arn
+        },
+        {
+          Sid    = "InvokeDbWriter"
+          Effect = "Allow"
+          Action = [
+            "lambda:InvokeFunction",
+          ]
+          Resource = aws_lambda_function.media_db_writer[0].arn
+        },
+        {
+          Sid    = "CloudWatchLogs"
+          Effect = "Allow"
+          Action = [
+            "logs:CreateLogGroup",
+            "logs:CreateLogStream",
+            "logs:PutLogEvents",
+          ]
+          Resource = "arn:aws:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:*"
+        },
+        {
+          Sid    = "SecretsManagerMediaCredentials"
+          Effect = "Allow"
+          Action = [
+            "secretsmanager:GetSecretValue",
+          ]
+          Resource = var.media_db_mongodb_secret_arn
+        },
+      ],
+      length(trimspace(var.media_db_mongodb_secret_kms_key_arn)) > 0 ? [
+        {
+          Sid    = "KMSDecrypt"
+          Effect = "Allow"
+          Action = [
+            "kms:Decrypt",
+          ]
+          Resource = var.media_db_mongodb_secret_kms_key_arn
+        },
+      ] : [],
+    )
+  })
+}
+
+resource "aws_lambda_function" "media_processor" {
+  count = local.media_enabled ? 1 : 0
+
+  function_name = "${local.name_prefix}-media-processor"
+  role          = aws_iam_role.media_processor[0].arn
+  handler       = "index.handler"
+  runtime       = "nodejs24.x"
+  timeout       = 120
+  memory_size   = 1024
+
+  filename         = "${path.module}/../lambda/media-processor/dist/function.zip"
+  source_code_hash = fileexists("${path.module}/../lambda/media-processor/dist/function.zip") ? filebase64sha256("${path.module}/../lambda/media-processor/dist/function.zip") : null
+
+  layers = [aws_lambda_layer_version.sharp[0].arn]
+
+  environment {
+    variables = {
+      MEDIA_BUCKET                 = aws_s3_bucket.media[0].id
+      DB_WRITER_FUNCTION_NAME      = aws_lambda_function.media_db_writer[0].function_name
+      NCMEC_HASH_TABLE             = aws_dynamodb_table.ncmec_hashes[0].name
+      EVIDENCE_BUCKET              = aws_s3_bucket.csam_evidence[0].id
+      ALLOW_LEGACY_CONV_SCAN_VIDEO = var.allow_legacy_conv_scan_video_moderation ? "true" : "false"
+      MEDIA_CREDENTIALS_SECRET_ARN = var.media_db_mongodb_secret_arn
+      ARACHNID_USERNAME_KEY        = var.media_credentials_arachnid_username_key
+      ARACHNID_PASSWORD_KEY        = var.media_credentials_arachnid_password_key
+    }
+  }
+
+  tags = local.common_tags
+
+  lifecycle {
+    ignore_changes = [filename, source_code_hash, layers]
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Lambda: media DB writer (updates media_uploads in MongoDB Atlas)
+#
+# Runs inside the VPC to reach Atlas via VPC peering. The media processor
+# Lambda invokes this synchronously after processing. Has MongoDB + optional
+# S3 conv_scan purge (after clean hash-check pass); no broad media bucket write.
+# ---------------------------------------------------------------------------
+
+resource "aws_iam_role" "media_db_writer" {
+  count = local.media_enabled ? 1 : 0
+
+  name = "${local.name_prefix}-media-db-writer"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      },
+    ]
+  })
+
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy" "media_db_writer" {
+  count = local.media_enabled ? 1 : 0
+
+  name = "media-db-writer"
+  role = aws_iam_role.media_db_writer[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = concat(
+      [
+        {
+          Sid    = "SecretsManagerRead"
+          Effect = "Allow"
+          Action = [
+            "secretsmanager:GetSecretValue",
+          ]
+          Resource = var.media_db_mongodb_secret_arn
+        },
+        {
+          Sid    = "VPCNetworkInterface"
+          Effect = "Allow"
+          Action = [
+            "ec2:CreateNetworkInterface",
+            "ec2:DescribeNetworkInterfaces",
+            "ec2:DeleteNetworkInterface",
+          ]
+          Resource = "*"
+        },
+        {
+          Sid    = "CloudWatchLogs"
+          Effect = "Allow"
+          Action = [
+            "logs:CreateLogGroup",
+            "logs:CreateLogStream",
+            "logs:PutLogEvents",
+          ]
+          Resource = "arn:aws:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:*"
+        },
+        {
+          Sid      = "S3ListConvScanPrefixes"
+          Effect   = "Allow"
+          Action   = ["s3:ListBucket"]
+          Resource = aws_s3_bucket.media[0].arn
+          Condition = {
+            StringLike = {
+              "s3:prefix" = ["uploads/conv_scan/*"]
+            }
+          }
+        },
+        {
+          Sid      = "S3DeleteConvScan"
+          Effect   = "Allow"
+          Action   = ["s3:DeleteObject"]
+          Resource = "${aws_s3_bucket.media[0].arn}/uploads/conv_scan/*"
+        },
+      ],
+      length(trimspace(var.media_db_mongodb_secret_kms_key_arn)) > 0 ? [
+        {
+          Sid    = "KMSDecrypt"
+          Effect = "Allow"
+          Action = [
+            "kms:Decrypt",
+          ]
+          Resource = var.media_db_mongodb_secret_kms_key_arn
+        },
+      ] : [],
+    )
+  })
+}
+
+resource "aws_lambda_function" "media_db_writer" {
+  count = local.media_enabled ? 1 : 0
+
+  function_name = "${local.name_prefix}-media-db-writer"
+  role          = aws_iam_role.media_db_writer[0].arn
+  handler       = "index.handler"
+  runtime       = "nodejs24.x"
+  timeout       = 15
+  memory_size   = 256
+
+  filename         = "${path.module}/../lambda/media-db-writer/dist/function.zip"
+  source_code_hash = fileexists("${path.module}/../lambda/media-db-writer/dist/function.zip") ? filebase64sha256("${path.module}/../lambda/media-db-writer/dist/function.zip") : null
+
+  environment {
+    variables = {
+      MONGODB_SECRET_ARN = var.media_db_mongodb_secret_arn
+      MONGODB_SECRET_KEY = var.media_db_mongodb_secret_key
+      MONGODB_DB_NAME    = var.media_db_mongodb_db_name
+      MEDIA_CDN_URL      = "https://${var.media_domain_name}"
+      MEDIA_BUCKET       = aws_s3_bucket.media[0].id
+    }
+  }
+
+  vpc_config {
+    subnet_ids         = module.vpc.private_subnets
+    security_group_ids = [aws_security_group.media_db_writer[0].id]
+  }
+
+  tags = local.common_tags
+
+  lifecycle {
+    ignore_changes = [filename, source_code_hash]
+  }
+}
+
+resource "aws_security_group" "media_db_writer" {
+  count = local.media_enabled ? 1 : 0
+
+  name_prefix = "${local.name_prefix}-media-dbw-"
+  description = "Media DB writer Lambda (VPC, reaches Atlas via peering)"
+  vpc_id      = module.vpc.vpc_id
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "All outbound"
+  }
+
+  tags = merge(local.common_tags, { Name = "${local.name_prefix}-media-db-writer" })
+}
+
+# ---------------------------------------------------------------------------
+# SQS: media upload processing queue + dead-letter queue
+#
+# S3 sends ObjectCreated events to SQS; Lambda polls the queue. This gives
+# durable delivery, automatic retries, and a DLQ for events that fail
+# repeatedly — preventing silent event loss during throttling or errors.
+# ---------------------------------------------------------------------------
+
+resource "aws_sqs_queue" "media_uploads_dlq" {
+  count = local.media_enabled ? 1 : 0
+
+  name                      = "${local.name_prefix}-media-uploads-dlq"
+  message_retention_seconds = 1209600 # 14 days
+
+  tags = merge(local.common_tags, { Name = "${local.name_prefix}-media-uploads-dlq" })
+}
+
+resource "aws_sqs_queue" "media_uploads" {
+  count = local.media_enabled ? 1 : 0
+
+  name                       = "${local.name_prefix}-media-uploads"
+  visibility_timeout_seconds = 360   # 6x Lambda timeout (60s) per AWS best practice
+  message_retention_seconds  = 86400 # 1 day
+  receive_wait_time_seconds  = 20    # long polling
+
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.media_uploads_dlq[0].arn
+    maxReceiveCount     = 3
+  })
+
+  tags = merge(local.common_tags, { Name = "${local.name_prefix}-media-uploads" })
+}
+
+resource "aws_sqs_queue_policy" "media_uploads" {
+  count = local.media_enabled ? 1 : 0
+
+  queue_url = aws_sqs_queue.media_uploads[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowS3SendMessage"
+        Effect = "Allow"
+        Principal = {
+          Service = "s3.amazonaws.com"
+        }
+        Action   = "sqs:SendMessage"
+        Resource = aws_sqs_queue.media_uploads[0].arn
+        Condition = {
+          ArnEquals = {
+            "aws:SourceArn" = aws_s3_bucket.media[0].arn
+          }
+        }
+      },
+    ]
+  })
+}
+
+resource "aws_s3_bucket_notification" "media_uploads" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.media[0].id
+
+  queue {
+    queue_arn     = aws_sqs_queue.media_uploads[0].arn
+    events        = ["s3:ObjectCreated:*"]
+    filter_prefix = "uploads/"
+  }
+
+  depends_on = [aws_sqs_queue_policy.media_uploads]
+}
+
+resource "aws_lambda_event_source_mapping" "media_uploads" {
+  count = local.media_enabled ? 1 : 0
+
+  event_source_arn                   = aws_sqs_queue.media_uploads[0].arn
+  function_name                      = aws_lambda_function.media_processor[0].arn
+  batch_size                         = 1
+  maximum_batching_window_in_seconds = 0
+  enabled                            = true
+}
+
+# ---------------------------------------------------------------------------
+# CSAM evidence bucket: isolated, encrypted, no public access, law enforcement hold
+# 105-day lifecycle (90 days legal requirement + 15 days buffer)
+# ---------------------------------------------------------------------------
+
+resource "aws_s3_bucket" "csam_evidence" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = "${local.name_prefix}-csam-evidence-${data.aws_caller_identity.current.account_id}"
+
+  tags = merge(local.common_tags, { Name = "${local.name_prefix}-csam-evidence" })
+}
+
+resource "aws_s3_bucket_public_access_block" "csam_evidence" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.csam_evidence[0].id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_versioning" "csam_evidence" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.csam_evidence[0].id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "csam_evidence" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.csam_evidence[0].id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+    bucket_key_enabled = true
+  }
+}
+
+resource "aws_s3_bucket" "csam_evidence_access_logs" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = "${local.name_prefix}-csam-evidence-logs-${data.aws_caller_identity.current.account_id}"
+
+  tags = merge(local.common_tags, { Name = "${local.name_prefix}-csam-evidence-logs" })
+}
+
+resource "aws_s3_bucket_public_access_block" "csam_evidence_access_logs" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.csam_evidence_access_logs[0].id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "csam_evidence_access_logs" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.csam_evidence_access_logs[0].id
+
+  rule {
+    id     = "expire-access-logs"
+    status = "Enabled"
+
+    filter {}
+
+    expiration {
+      days = 365
+    }
+  }
+
+  rule {
+    id     = "abort-incomplete-multipart"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+  }
+}
+
+resource "aws_s3_bucket_logging" "csam_evidence" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.csam_evidence[0].id
+
+  target_bucket = aws_s3_bucket.csam_evidence_access_logs[0].id
+  target_prefix = "evidence-access/"
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "csam_evidence" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.csam_evidence[0].id
+
+  rule {
+    id     = "evidence-retention"
+    status = "Enabled"
+
+    filter {
+      prefix = "csam-evidence/"
+    }
+
+    expiration {
+      days = 105
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 105
+    }
+  }
+
+  rule {
+    id     = "abort-incomplete-multipart"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+  }
+}
+
+# ---------------------------------------------------------------------------
+# DynamoDB: NCMEC hash table (MD5/SHA1 exact-match lookups)
+# ---------------------------------------------------------------------------
+
+resource "aws_dynamodb_table" "ncmec_hashes" {
+  count = local.media_enabled ? 1 : 0
+
+  name         = "${local.name_prefix}-ncmec-hashes"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "hashValue"
+  range_key    = "hashType"
+
+  attribute {
+    name = "hashValue"
+    type = "S"
+  }
+
+  attribute {
+    name = "hashType"
+    type = "S"
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+
+  tags = merge(local.common_tags, { Name = "${local.name_prefix}-ncmec-hashes" })
+}
+
+# ---------------------------------------------------------------------------
+# E2E media bucket (conversation attachments, encrypted client-side)
+#
+# Stores E2E encrypted media blobs uploaded via presigned PUT. Clients fetch
+# via presigned GET and decrypt locally. No Lambda processing.
+# Access is gated server-side: presigned GETs are only issued after the
+# companion scan copy passes CSAM hash checks.
+#
+# When cf_signing_enabled, a CloudFront distribution at e2e-media.adieuu.com
+# fronts all client access (PUT + GET) so the raw S3 bucket URL is never
+# exposed to browsers.
+# ---------------------------------------------------------------------------
+
+resource "aws_s3_bucket" "e2e_media" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = "${local.name_prefix}-e2e-media-${data.aws_caller_identity.current.account_id}"
+
+  tags = merge(local.common_tags, { Name = "${local.name_prefix}-e2e-media" })
+}
+
+resource "aws_s3_bucket_public_access_block" "e2e_media" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.e2e_media[0].id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_versioning" "e2e_media" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.e2e_media[0].id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "e2e_media" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.e2e_media[0].id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+    bucket_key_enabled = true
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "e2e_media" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.e2e_media[0].id
+
+  rule {
+    id     = "abort-incomplete-multipart"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+  }
+
+  # Confirmed E2E media lives until the host message is deleted (the API
+  # calls DeleteObjectCommand at that point).  Noncurrent versions are
+  # cleaned up after 7 days so versioning doesn't accumulate indefinitely.
+  rule {
+    id     = "expire-noncurrent-versions"
+    status = "Enabled"
+
+    filter {}
+
+    noncurrent_version_expiration {
+      noncurrent_days = 7
+    }
+  }
+}
+
+resource "aws_s3_bucket_cors_configuration" "e2e_media" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.e2e_media[0].id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["PUT", "GET"]
+    allowed_origins = distinct(concat(
+      local.media_cors_origins,
+      local.e2e_media_cf_enabled ? ["https://${var.e2e_media_domain_name}"] : []
+    ))
+    max_age_seconds = 3600
+  }
+}
+
+# ECS task role: S3 permissions for the E2E media bucket (presigned PUT/GET + cleanup)
+resource "aws_iam_role_policy" "ecs_task_e2e_media" {
+  count = local.media_enabled ? 1 : 0
+
+  name = "${local.name_prefix}-ecs-task-e2e-media"
+  role = aws_iam_role.ecs_task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "E2EMediaUploads"
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+        ]
+        Resource = "${aws_s3_bucket.e2e_media[0].arn}/uploads/*"
+      },
+      {
+        Sid    = "E2EMediaRead"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:DeleteObject",
+        ]
+        Resource = "${aws_s3_bucket.e2e_media[0].arn}/*"
+      },
+    ]
+  })
+}
+
+# ---------------------------------------------------------------------------
+# E2E media CloudFront distribution (e2e-media.adieuu.com)
+#
+# Fronts all client access to the E2E media bucket so the raw S3 URL (which
+# contains the AWS account ID) is never exposed. All paths require a valid
+# CloudFront signed URL generated by the API.
+#
+# Supports both PUT (upload encrypted blob) and GET (download for decryption).
+# ---------------------------------------------------------------------------
+
+resource "aws_cloudfront_origin_access_control" "e2e_media" {
+  count = local.e2e_media_cf_enabled ? 1 : 0
+
+  name                              = "${local.name_prefix}-e2e-media-oac"
+  description                       = "OAC for ${local.name_prefix} E2E media bucket"
+  origin_access_control_origin_type = "s3"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
+}
+
+# ACM certificate for E2E media hostname (us-east-1, CloudFront requirement)
+resource "aws_acm_certificate" "e2e_media" {
+  count = local.e2e_media_cf_enabled ? 1 : 0
+
+  provider = aws.us_east_1
+
+  domain_name       = var.e2e_media_domain_name
+  validation_method = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_route53_record" "cert_validation_e2e_media" {
+  for_each = local.e2e_media_cf_enabled ? {
+    for dvo in aws_acm_certificate.e2e_media[0].domain_validation_options : dvo.domain_name => {
+      name   = dvo.resource_record_name
+      record = dvo.resource_record_value
+      type   = dvo.resource_record_type
+    }
+  } : {}
+
+  allow_overwrite = true
+  name            = each.value.name
+  records         = [each.value.record]
+  ttl             = 60
+  type            = each.value.type
+  zone_id         = data.aws_route53_zone.public[0].zone_id
+}
+
+resource "aws_acm_certificate_validation" "e2e_media" {
+  count = local.e2e_media_cf_enabled ? 1 : 0
+
+  provider = aws.us_east_1
+
+  certificate_arn = aws_acm_certificate.e2e_media[0].arn
+  validation_record_fqdns = [
+    for r in aws_route53_record.cert_validation_e2e_media : r.fqdn
+  ]
+}
+
+resource "aws_cloudfront_function" "e2e_media_upload_max_size" {
+  count = local.e2e_media_cf_enabled ? 1 : 0
+
+  name    = "${local.name_prefix}-e2e-media-upload-max-size"
+  runtime = "cloudfront-js-2.0"
+  publish = true
+  comment = "Reject E2E media uploads exceeding max Content-Length (${var.media_upload_max_bytes} bytes)"
+
+  code = <<-JS
+    var MAX_BYTES = ${var.media_upload_max_bytes};
+    function handler(event) {
+      var request = event.request;
+      var method = request.method;
+      if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
+        return request;
+      }
+      if (method !== 'PUT') {
+        return {
+          statusCode: 405,
+          statusDescription: 'Method Not Allowed',
+          headers: { 'content-type': { value: 'application/json' } },
+          body: { encoding: 'text', data: '{"error":"Only PUT and GET are permitted"}' }
+        };
+      }
+      var cl = request.headers['content-length'];
+      if (!cl) {
+        return {
+          statusCode: 411,
+          statusDescription: 'Length Required',
+          headers: { 'content-type': { value: 'application/json' } },
+          body: { encoding: 'text', data: '{"error":"Content-Length header is required"}' }
+        };
+      }
+      var bytes = parseInt(cl.value, 10);
+      if (isNaN(bytes) || bytes < 0) {
+        return {
+          statusCode: 400,
+          statusDescription: 'Bad Request',
+          headers: { 'content-type': { value: 'application/json' } },
+          body: { encoding: 'text', data: '{"error":"Invalid Content-Length"}' }
+        };
+      }
+      if (bytes > MAX_BYTES) {
+        return {
+          statusCode: 413,
+          statusDescription: 'Content Too Large',
+          headers: { 'content-type': { value: 'application/json' } },
+          body: { encoding: 'text', data: '{"error":"File exceeds maximum upload size"}' }
+        };
+      }
+      return request;
+    }
+  JS
+}
+
+resource "aws_cloudfront_distribution" "e2e_media" {
+  count = local.e2e_media_cf_enabled ? 1 : 0
+
+  enabled         = true
+  is_ipv6_enabled = true
+  comment         = "E2E Media CDN ${local.name_prefix}"
+  price_class     = "PriceClass_100"
+  aliases         = [var.e2e_media_domain_name]
+
+  origin {
+    domain_name              = aws_s3_bucket.e2e_media[0].bucket_regional_domain_name
+    origin_id                = "s3-e2e-media"
+    origin_access_control_id = aws_cloudfront_origin_access_control.e2e_media[0].id
+  }
+
+  # All paths require a signed URL (PUT for uploads, GET for downloads)
+  default_cache_behavior {
+    allowed_methods          = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+    cached_methods           = ["GET", "HEAD"]
+    target_origin_id         = "s3-e2e-media"
+    compress                 = false
+    viewer_protocol_policy   = "https-only"
+    cache_policy_id          = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad" # Managed-CachingDisabled
+    origin_request_policy_id = "b689b0a8-53d0-40ab-baf2-68738e2966ac" # Managed-AllViewerExceptHostHeader
+
+    trusted_key_groups = [aws_cloudfront_key_group.media_signing[0].id]
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.e2e_media_upload_max_size[0].arn
+    }
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    acm_certificate_arn      = aws_acm_certificate_validation.e2e_media[0].certificate_arn
+    ssl_support_method       = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021"
+  }
+
+  depends_on = [aws_acm_certificate_validation.e2e_media]
+
+  tags = merge(local.common_tags, {
+    Name = "${local.name_prefix}-e2e-media"
+  })
+}
+
+# Bucket policy: CloudFront OAC may read and write E2E media objects
+data "aws_iam_policy_document" "e2e_media_bucket" {
+  count = local.e2e_media_cf_enabled ? 1 : 0
+
+  statement {
+    sid    = "AllowCloudFrontServiceRead"
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["cloudfront.amazonaws.com"]
+    }
+
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.e2e_media[0].arn}/*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceArn"
+      values   = [aws_cloudfront_distribution.e2e_media[0].arn]
+    }
+  }
+
+  statement {
+    sid    = "AllowCloudFrontServiceWrite"
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["cloudfront.amazonaws.com"]
+    }
+
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.e2e_media[0].arn}/uploads/*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceArn"
+      values   = [aws_cloudfront_distribution.e2e_media[0].arn]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "e2e_media" {
+  count = local.e2e_media_cf_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.e2e_media[0].id
+  policy = data.aws_iam_policy_document.e2e_media_bucket[0].json
+
+  depends_on = [
+    aws_s3_bucket_public_access_block.e2e_media,
+    aws_cloudfront_distribution.e2e_media,
+  ]
+}
+
+# Route53 alias: e2e-media.<domain> -> CloudFront
+resource "aws_route53_record" "e2e_media_alias" {
+  count = local.e2e_media_cf_enabled ? 1 : 0
+
+  zone_id = data.aws_route53_zone.public[0].zone_id
+  name    = local.e2e_media_route53_record_name
+  type    = "A"
+
+  alias {
+    name                   = aws_cloudfront_distribution.e2e_media[0].domain_name
+    zone_id                = aws_cloudfront_distribution.e2e_media[0].hosted_zone_id
+    evaluate_target_health = false
+  }
+
+  depends_on = [aws_cloudfront_distribution.e2e_media]
+}

@@ -1,0 +1,240 @@
+# Copy to terraform.tfvars and customize. Do not commit secrets.
+# cp terraform.tfvars.example terraform.tfvars
+
+aws_region   = "us-east-1"
+project_name = "adieuu"
+environment  = "staging"
+
+# Public DNS + TLS (optional). Non-empty route53_zone_name sets locals.public_dns_tls_enabled:
+# ACM, HTTPS on the ALB, Route53 for api/app (and CloudFront/WAF if defined in this stack). Does not
+# change apex, MX, TXT, or other existing records.
+# route53_zone_name = "adieuu.com"
+# api_domain_name   = "api.adieuu.com"
+# app_domain_name   = "app.adieuu.com"
+#
+# CloudFront: pay_as_you_go (default) or flat_rate_free | flat_rate_pro | flat_rate_business | flat_rate_premium.
+# Flat-rate subscription is done in the AWS console after apply (Manage plan); then set cloudfront_pricing_plan_web_acl_arn.
+# cloudfront_pricing_model           = "pay_as_you_go"
+# cloudfront_pricing_plan_web_acl_arn = "" # set after console subscribe to the plan-managed WAF ARN
+
+# ECS autoscaling (API + chat): min/max and target tracking on CPU/memory. Initial desired_count must stay in range;
+# after apply, desired count is managed by autoscaling (Terraform ignores drift on desired_count).
+# ecs_autoscaling_min_capacity    = 1
+# ecs_autoscaling_max_capacity    = 3
+# ecs_autoscaling_cpu_target      = 70
+# ecs_autoscaling_memory_target   = 80
+
+# Private VPC endpoints (ECR, Logs, Secrets Manager, STS, KMS) + S3 gateway — reduces NAT usage for AWS APIs.
+# At low traffic volumes the endpoint cost (~$87/mo) exceeds NAT data processing savings; enable when
+# NAT data transfer for AWS API calls alone justifies the per-endpoint-per-AZ hourly charge.
+# enable_vpc_interface_endpoints = false
+
+# Operational alarms → SNS (confirm the email subscription after first apply).
+# alarm_notification_email = "ops@example.com"
+
+# Must not overlap peered networks (e.g. MongoDB Atlas VPC peering).
+vpc_cidr = "10.42.0.0/16"
+
+# MongoDB Atlas VPC peering (optional). Requires Terraform Atlas API keys (Organization → Access Manager).
+# Prefer env MONGODB_ATLAS_PUBLIC_KEY / MONGODB_ATLAS_PRIVATE_KEY over tfvars for secrets.
+# Cluster must be M10+ (or dedicated) in the same region; atlas_network_cidr_block must not overlap vpc_cidr.
+# enable_mongodb_atlas_peering = false
+# atlas_project_id = "your-atlas-project-id"
+# atlas_network_cidr_block = "10.43.0.0/16"
+# atlas_api_public_key  = ""
+# atlas_api_private_key = ""
+
+availability_zone_count = 2
+enable_nat_gateway        = true
+single_nat_gateway        = true
+
+# NCMEC CyberTipline (moderator LE reports). Endpoints are hardcoded in the API; use platform
+# setting platform-ncmec-cybertipline-env (admin UI) to switch test vs production.
+# api_environment = { CYBERTIPLINE_ENV = "production" }  # optional guard when on production
+# Populate CYBERTIPLINE_* keys in adieuu/prod/api (see docs/deployment/ecs-environment.md).
+
+# Optional — defaults are fine for a first apply:
+# log_retention_days        = 14
+# enable_container_insights = false
+# public_allowed_cidr_blocks = ["0.0.0.0/0"] # or e.g. ["203.0.113.10/32", "198.51.100.0/24"] — ALB SG + WAF (when enable_waf)
+# alb_idle_timeout_seconds  = 3600
+# node_env                  = "production"
+# api_max_request_body_bytes = 256000 # API + ALB WAF max body (250 KiB; must match @adieuu/shared DEFAULT_MAX_REQUEST_BODY_BYTES)
+# api_image_tag             = "latest"
+# chat_image_tag            = "latest"
+# api_task_cpu              = 256
+# api_task_memory           = 512
+# chat_task_cpu             = 256
+# chat_task_memory          = 512
+# api_desired_count         = 1
+# chat_desired_count        = 1
+
+# Optional: merged into API CORS_ORIGINS (with api_environment.CORS_ORIGINS or default https://<app_domain_name>).
+# cors_additional_origins = ["http://localhost:3000", "https://staging.app.example.com"]
+
+# Non-secret env only (plain strings in the task definition). Full key list:
+# docs/deployment/ecs-environment.md
+# Do not set PORT, HOST, NODE_ENV (API) or CHAT_PORT, CHAT_HOST, NODE_ENV (chat) here — Terraform sets them.
+#
+# api_environment = {
+#   APP_NAME              = "Adieuu"
+#   CORS_ORIGINS          = "https://app.example.com"
+#   CORS_CREDENTIALS      = "true"
+#   COOKIE_DOMAIN         = ".example.com"
+#   MONGODB_DB_NAME       = "adieuu"
+#   MONGODB_MIN_POOL_SIZE = "5"
+#   MONGODB_MAX_POOL_SIZE = "20"
+#   REDIS_KEY_PREFIX      = "adieuu:"
+#   EMAIL_PROVIDER        = "ses"
+#   EMAIL_FROM_ADDRESS    = "noreply@example.com"
+#   EMAIL_FROM_NAME       = "Adieuu"
+#   AWS_REGION            = "us-east-1"
+#   SMS_PROVIDER          = "textmagic"
+#   SMS_FROM_NAME         = "Adieuu"
+#   WEB_APP_URL           = "https://app.example.com"
+#   WEBAUTHN_RP_ID        = "example.com"
+#   WEBAUTHN_ORIGINS      = "https://app.example.com"
+#   REQUIRE_DATABASE      = "true"
+#   INITIALIZE_COLLECTIONS = "false"
+#   CSRF_ENFORCEMENT      = "enforce"  # "off" | "warn" (default) | "enforce" — set "enforce" in production
+#   RATE_LIMIT_ENABLED    = "true"
+#   # RATE_LIMIT_AUTH_REQUEST_IDENTIFIER = "3"
+#   # RATE_LIMIT_AUTH_REQUEST_IDENTIFIER_WINDOW = "900"
+#   # ...see ecs-environment.md for remaining RATE_LIMIT_* keys
+#   # IP geolocation (IPLocate.io). Set TRUST_PROXY_HEADERS=true behind the ALB so client IP is trusted.
+#   # GEO_LOOKUP_ENABLED = "false"  # default; or "true" after IPLOCATE_API_KEY is in Secrets Manager. Runtime toggle also: platform-geo-lookup-enabled in Mongo.
+#   # TRUST_PROXY_HEADERS = "true"
+#   # GEO_CACHE_TTL_SECONDS      = "86400"
+#   # GEO_RECHECK_INTERVAL_DAYS  = "30"
+#   # IPLOCATE_BASE_URL          = "https://www.iplocate.io/api/lookup"
+#   # IPLOCATE_TIMEOUT_MS        = "2500"
+#   # Stripe billing. STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET go in Secrets Manager (api_container_secrets).
+#   # STRIPE_ENABLED         = "false"   # routes return 503 when false; flip after Dashboard setup
+#   # STRIPE_PUBLISHABLE_KEY = "pk_test_..." # safe for client; exposed via subscription config endpoint
+#   # STRIPE_PRICE_ACCESS_ANNUAL    = "price_..." # Access annual subscription
+#   # STRIPE_PRICE_INSIDER_ANNUAL   = "price_..." # Insider annual subscription
+#   # STRIPE_PRICE_VANGUARD_LIFETIME = "price_..." # Vanguard one-time lifetime purchase
+#   # STRIPE_PRICE_FOUNDER_LIFETIME  = "price_..." # Founder one-time lifetime purchase
+#   # STRIPE_SUCCESS_URL     = "https://app.example.com/account/subscription?status=success&session_id={CHECKOUT_SESSION_ID}"
+#   # STRIPE_CANCEL_URL      = "https://app.example.com/account/subscription?status=cancelled"
+#   # STRIPE_PORTAL_RETURN_URL = "https://app.example.com/account/subscription"
+#   # Age verification (VerifyMy v3). VERIFYMY_API_KEY and VERIFYMY_API_SECRET go in Secrets Manager (api_container_secrets).
+#   # Controlled by platform-age-verification-enabled platform setting in MongoDB (default: false).
+#   # API_BASE_URL             = "https://api.example.com" # public API URL for VerifyMy OAuth callbacks
+#   # VERIFYMY_ENVIRONMENT     = "sandbox"                 # "sandbox" or "production"; separate key pairs per environment
+#   # VERIFYMY_SANDBOX_BASE_URL    = "https://sandbox.verifymyage.com"  # default
+#   # VERIFYMY_PRODUCTION_BASE_URL = "https://oauth.verifymyage.com"    # default
+#   # VERIFYMY_TIMEOUT_MS          = "10000"                            # default
+# }
+#
+# chat_environment = {
+#   MONGODB_DB_NAME       = "adieuu"
+#   MONGODB_MIN_POOL_SIZE = "2"
+#   MONGODB_MAX_POOL_SIZE = "10"
+#   REDIS_KEY_PREFIX      = "adieuu:"
+#   WS_IDLE_TIMEOUT       = "120"
+#   WS_MAX_PAYLOAD_LENGTH = "1048576"
+#   WS_COMPRESSION        = "true"
+#   PRESENCE_HEARTBEAT_TTL       = "30"
+#   PRESENCE_HEARTBEAT_INTERVAL  = "15"
+#   REQUIRE_DATABASE      = "true"
+# }
+
+# Secrets Manager -> ECS (execution role gets GetSecretValue). Values are ARNs, not secret text.
+# Prefer one JSON secret per service; for a key inside JSON use :KeyName:: at the end of the ARN.
+# Typical API keys: MONGODB_URI, CSRF_SECRET, SESSION_SECRET, OTP_SECRET, ACCOUNT_HASH_SECRET,
+# TOKEN_SIGNING_KEY, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, TEXTMAGIC_USERNAME,
+# TEXTMAGIC_API_KEY, KLIPY_API_KEY, IPLOCATE_API_KEY, STRIPE_SECRET_KEY,
+# STRIPE_WEBHOOK_SECRET, VERIFYMY_API_KEY, VERIFYMY_API_SECRET, LIVEKIT_API_SECRET,
+# MEDIA_PROCESSOR_SECRET (when enable_media_stack),
+# CYBERTIPLINE_USERNAME, CYBERTIPLINE_PASSWORD, CYBERTIPLINE_REPORTER_FIRST_NAME,
+# CYBERTIPLINE_REPORTER_LAST_NAME, CYBERTIPLINE_REPORTER_EMAIL
+# (see ecs-environment.md).
+# Typical chat keys: MONGODB_URI (and optionally REDIS_URL if not from ElastiCache / plain env).
+#
+# api_container_secrets = {
+#   MONGODB_URI           = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:MONGODB_URI::"
+#   CSRF_SECRET           = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:CSRF_SECRET::"
+#   SESSION_SECRET        = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:SESSION_SECRET::"
+#   OTP_SECRET            = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:OTP_SECRET::"
+#   ACCOUNT_HASH_SECRET   = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:ACCOUNT_HASH_SECRET::"
+#   TOKEN_SIGNING_KEY     = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:TOKEN_SIGNING_KEY::"
+#   AWS_ACCESS_KEY_ID     = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:AWS_ACCESS_KEY_ID::"
+#   AWS_SECRET_ACCESS_KEY = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:AWS_SECRET_ACCESS_KEY::"
+#   TEXTMAGIC_USERNAME    = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:TEXTMAGIC_USERNAME::"
+#   TEXTMAGIC_API_KEY     = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:TEXTMAGIC_API_KEY::"
+#   KLIPY_API_KEY         = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:KLIPY_API_KEY::"
+#   IPLOCATE_API_KEY      = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:IPLOCATE_API_KEY::"
+#   STRIPE_SECRET_KEY     = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:STRIPE_SECRET_KEY::"
+#   STRIPE_WEBHOOK_SECRET = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:STRIPE_WEBHOOK_SECRET::"
+#   VERIFYMY_API_KEY      = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:VERIFYMY_API_KEY::"
+#   VERIFYMY_API_SECRET   = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:VERIFYMY_API_SECRET::"
+#   LIVEKIT_API_SECRET    = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:LIVEKIT_API_SECRET::"
+#   CYBERTIPLINE_USERNAME              = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:CYBERTIPLINE_USERNAME::"
+#   CYBERTIPLINE_PASSWORD              = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:CYBERTIPLINE_PASSWORD::"
+#   CYBERTIPLINE_REPORTER_FIRST_NAME   = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:CYBERTIPLINE_REPORTER_FIRST_NAME::"
+#   CYBERTIPLINE_REPORTER_LAST_NAME    = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:CYBERTIPLINE_REPORTER_LAST_NAME::"
+#   CYBERTIPLINE_REPORTER_EMAIL        = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:CYBERTIPLINE_REPORTER_EMAIL::"
+# }
+# chat_container_secrets = {
+#   MONGODB_URI = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/chat-AbCdEf:MONGODB_URI::"
+# }
+# secretsmanager_kms_key_arns = [] # CMK ARNs if secrets use customer-managed KMS
+
+# Desktop downloads mirror: S3 + CloudFront for desktop update binaries, SBOMs, and releases.json.
+# Requires route53_zone_name. See docs/deployment/desktop-updates-s3-cf.md for architecture.
+# enable_downloads_stack = true
+# downloads_domain_name  = "downloads.adieuu.com"
+
+# GitHub Actions AWS deploy (OIDC role). See docs/deployment/github-actions-aws.md
+# enable_github_actions_deploy_role = true
+# github_actions_repository       = "Adieuu-LLC/adieuu-2026"
+# If GitHub OIDC already exists in this account (e.g. marketing), set its ARN and Terraform will not create a second:
+# github_oidc_provider_arn = "arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com"
+
+# Media uploads: S3 + CloudFront + Lambda processors (avatars, banners, attachments).
+# Requires route53_zone_name. Injects MEDIA_S3_BUCKET, MEDIA_S3_REGION, MEDIA_CDN_URL into API env.
+# CSAM hash moderation runs automatically when enable_media_stack = true (no separate moderation toggle).
+# enable_media_stack                    = true
+# media_domain_name                     = "media.adieuu.com"
+# e2e_media_domain_name                 = "e2e-media.adieuu.com"
+# allow_legacy_conv_scan_video_moderation = true     # false = JPEG frame scans only (sealed conv_scan batch)
+# Add ARACHNID_USERNAME / ARACHNID_PASSWORD to the media-processor secret (same ARN as media_db_mongodb_secret_arn).
+# media_credentials_arachnid_username_key = "ARACHNID_USERNAME"
+# media_credentials_arachnid_password_key = "ARACHNID_PASSWORD"
+# media_db_mongodb_secret_arn           = "arn:aws:secretsmanager:us-east-1:123456789012:secret:media-db-mongodb-AbCdEf"
+# media_db_mongodb_secret_key           = "MONGODB_URI" # JSON key in the secret containing the connection string
+# media_db_mongodb_db_name              = "adieuu"      # MongoDB database name for media uploads
+# media_db_mongodb_secret_kms_key_arn   = ""             # KMS key ARN if using CMK for the secret
+#
+# CloudFront signed URLs for media uploads and E2E media (hides S3 bucket URLs from clients).
+# When enabled, Terraform generates an RSA key pair, stores the private key in Secrets Manager
+# (injected as CF_SIGNING_PRIVATE_KEY into the API container), and creates:
+#   - uploads/* behavior on media.adieuu.com requiring signed URLs
+#   - e2e-media.adieuu.com distribution for E2E conversation media
+# enable_cloudfront_signed_urls = true
+# e2e_media_domain_name         = "e2e-media.adieuu.com"
+
+# ElastiCache Valkey 8.2 (default) — REDIS_URL injected for API + chat. Set false only with external REDIS_URL.
+# create_elasticache_redis      = true
+# redis_node_type               = "cache.t4g.micro"
+# redis_engine_version          = "8.2"
+# redis_snapshot_retention_days = 0
+
+# LiveKit self-hosted SFU (optional). Deploys an EC2 Auto Scaling Group with host networking
+# for direct UDP WebRTC media. WebSocket signaling is fronted by the existing ALB via host header.
+# Requires route53_zone_name (for ACM cert + DNS) and LIVEKIT_API_SECRET in Secrets Manager.
+#
+# Setup:
+#   1. Generate a secret: openssl rand -base64 32
+#   2. Store it in AWS Secrets Manager (e.g. as a JSON key in the existing API secret,
+#      or as a standalone secret). Note the ARN.
+#   3. Add the ARN to api_container_secrets below as LIVEKIT_API_SECRET.
+#   4. Set livekit_enabled = true and apply.
+#
+# livekit_enabled       = true
+# livekit_domain        = "livestream.adieuu.com"   # subdomain for signaling (Route53 + ACM)
+# livekit_api_key       = "adieuu"               # public key name (not secret); JWT issuer identifier
+# livekit_instance_type = "c7g.large"            # ARM64 Graviton; tune for expected concurrency
+# livekit_min_count     = 1
+# livekit_max_count     = 10

@@ -1,0 +1,691 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [development, main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: write
+  pull-requests: write
+  packages: read
+
+env:
+  NODE_VERSION: '26'
+  PNPM_VERSION: '9'
+  TURBO_TELEMETRY_DISABLED: 1
+  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  lint-and-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.13
+
+      - name: Supply chain audit
+        run: node scripts/audit-supply-chain.mjs
+
+      - name: Summarize lockfile changes
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git show origin/${{ github.base_ref }}:pnpm-lock.yaml > /tmp/base-lockfile.yaml 2>/dev/null || true
+          SUMMARY=$(node scripts/summarize-lockfile-changes.mjs --base /tmp/base-lockfile.yaml --head pnpm-lock.yaml)
+          if [ -n "$SUMMARY" ]; then
+            echo "$SUMMARY" > /tmp/lockfile-summary.md
+            gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/lockfile-summary.md --edit-last 2>/dev/null || \
+              gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/lockfile-summary.md
+          fi
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Turbo cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: turbo-${{ runner.os }}-
+
+      - name: Build workspace apps and transitive dependencies
+        run: pnpm build --filter @adieuu/api... --filter @adieuu/web... --filter @adieuu/desktop... --filter @adieuu/chat... --filter @adieuu/mobile...
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+  test-api:
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.13
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore Turbo cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: turbo-${{ runner.os }}-
+
+      - name: Build API and transitive workspace dependencies
+        run: pnpm build --filter @adieuu/api...
+
+      - name: Install lcov (merge main + edge-manual coverage)
+        run: sudo apt-get update && sudo apt-get install -y lcov
+
+      - name: Run API tests with coverage
+        run: pnpm run test:ci
+        working-directory: apps/api
+
+      - name: Fix coverage paths
+        run: sed -i 's|SF:src/|SF:apps/api/src/|g' apps/api/coverage/lcov.info
+
+      - name: Fix test result paths
+        run: sed -i 's|file="src/|file="apps/api/src/|g' apps/api/junit.xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: api
+          name: api-coverage
+          report_type: coverage
+          files: ./apps/api/coverage/lcov.info
+          fail_ci_if_error: false
+
+  test-web:
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.13
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore Turbo cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: turbo-${{ runner.os }}-
+
+      - name: Build web and transitive workspace dependencies
+        run: pnpm build --filter @adieuu/web...
+
+      - name: Run web tests with coverage
+        run: pnpm run test:ci
+        working-directory: apps/web
+
+      - name: Fix coverage paths
+        if: ${{ hashFiles('apps/web/coverage/lcov.info') != '' }}
+        run: sed -i 's|SF:src/|SF:apps/web/src/|g' apps/web/coverage/lcov.info
+
+      - name: Upload coverage to Codecov
+        if: ${{ hashFiles('apps/web/coverage/lcov.info') != '' }}
+        uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: web
+          name: web-coverage
+          report_type: coverage
+          files: ./apps/web/coverage/lcov.info
+          fail_ci_if_error: false
+
+  test-chat:
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore Turbo cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: turbo-${{ runner.os }}-
+
+      - name: Build chat and transitive workspace dependencies
+        run: pnpm build --filter @adieuu/chat...
+
+      - name: Run chat tests with coverage
+        run: pnpm run test:ci
+        working-directory: apps/chat
+
+      - name: Fix coverage paths
+        if: ${{ hashFiles('apps/chat/coverage/lcov.info') != '' }}
+        run: sed -i 's|SF:src/|SF:apps/chat/src/|g' apps/chat/coverage/lcov.info
+
+      - name: Upload coverage to Codecov
+        if: ${{ hashFiles('apps/chat/coverage/lcov.info') != '' }}
+        uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: chat
+          name: chat-coverage
+          report_type: coverage
+          files: ./apps/chat/coverage/lcov.info
+          fail_ci_if_error: false
+
+  test-desktop:
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.13
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore Turbo cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: turbo-${{ runner.os }}-
+
+      - name: Build desktop and transitive workspace dependencies
+        run: pnpm build --filter @adieuu/desktop...
+
+      - name: Run desktop tests with coverage
+        run: pnpm run test:ci
+        working-directory: apps/desktop
+
+      - name: Fix coverage paths
+        if: ${{ hashFiles('apps/desktop/coverage/lcov.info') != '' }}
+        run: sed -i 's|SF:src/|SF:apps/desktop/src/|g' apps/desktop/coverage/lcov.info
+
+      - name: Upload coverage to Codecov
+        if: ${{ hashFiles('apps/desktop/coverage/lcov.info') != '' }}
+        uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: desktop
+          name: desktop-coverage
+          report_type: coverage
+          files: ./apps/desktop/coverage/lcov.info
+          fail_ci_if_error: false
+
+  test-ui:
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.13
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore Turbo cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: turbo-${{ runner.os }}-
+
+      - name: Build UI and transitive workspace dependencies
+        run: pnpm build --filter @adieuu/ui...
+
+      - name: Run UI tests with coverage
+        run: pnpm run test:ci
+        working-directory: packages/ui
+
+      - name: Fix coverage paths
+        if: ${{ hashFiles('packages/ui/coverage/lcov.info') != '' }}
+        run: sed -i 's|SF:src/|SF:packages/ui/src/|g' packages/ui/coverage/lcov.info
+
+      - name: Upload coverage to Codecov
+        if: ${{ hashFiles('packages/ui/coverage/lcov.info') != '' }}
+        uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: ui
+          name: ui-coverage
+          report_type: coverage
+          files: ./packages/ui/coverage/lcov.info
+          fail_ci_if_error: false
+
+  test-a11y:
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore Turbo cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: turbo-${{ runner.os }}-
+
+      - name: Build web and transitive workspace dependencies
+        run: pnpm build --filter @adieuu/web...
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+        working-directory: packages/ui
+
+      - name: Run a11y audit (public pages)
+        run: pnpm run test:a11y
+        working-directory: packages/ui
+        env:
+          SKIP_A11Y_AUTH: '1'
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: a11y-report
+          path: packages/ui/playwright-report
+          retention-days: 7
+
+  test-crypto:
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.13
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore Turbo cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: turbo-${{ runner.os }}-
+
+      - name: Build crypto and transitive workspace dependencies
+        run: pnpm build --filter @adieuu/crypto...
+
+      - name: Run crypto tests with coverage
+        run: pnpm run test:ci
+        working-directory: packages/crypto
+
+      - name: Fix coverage paths
+        if: ${{ hashFiles('packages/crypto/coverage/lcov.info') != '' }}
+        run: sed -i 's|SF:src/|SF:packages/crypto/src/|g' packages/crypto/coverage/lcov.info
+
+      - name: Upload coverage to Codecov
+        if: ${{ hashFiles('packages/crypto/coverage/lcov.info') != '' }}
+        uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: crypto
+          name: crypto-coverage
+          report_type: coverage
+          files: ./packages/crypto/coverage/lcov.info
+          fail_ci_if_error: false
+
+  test-security:
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.13
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore Turbo cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: turbo-${{ runner.os }}-
+
+      - name: Build API and transitive workspace dependencies
+        run: pnpm build --filter @adieuu/api...
+
+      - name: Run security regression suite
+        run: pnpm test:security
+
+  test-fs:
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.13
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore Turbo cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: turbo-${{ runner.os }}-
+
+      - name: Build UI/API and transitive workspace dependencies
+        run: pnpm build --filter @adieuu/ui... --filter @adieuu/api...
+
+      - name: Run forward secrecy regression suite
+        run: pnpm test:fs
+
+  # Product builds: PRs targeting main (validated before merge; release runs separately on push)
+  build-web:
+    if: ${{ github.event_name == 'pull_request' && github.base_ref == 'main' }}
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck, test-web, test-security, test-fs]
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore Turbo cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: turbo-${{ runner.os }}-
+
+      - name: Build web
+        run: pnpm build --filter @adieuu/web...
+
+      - name: Attest web build provenance
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26
+        with:
+          subject-path: apps/web/dist/**
+
+      - name: Upload web artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: web-dist
+          path: apps/web/dist
+          retention-days: 15
+
+  build-api:
+    if: ${{ github.event_name == 'pull_request' && github.base_ref == 'main' }}
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck, test-api, test-security, test-fs]
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.13
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore Turbo cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: turbo-${{ runner.os }}-
+
+      - name: Build API
+        run: pnpm build --filter @adieuu/api...
+
+      - name: Attest API build provenance
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26
+        with:
+          subject-path: apps/api/dist/**
+
+      - name: Upload API artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: api-dist
+          path: apps/api/dist
+          retention-days: 15
+
+  # Build the desktop app once on Linux (electron-vite output is platform-independent JS/HTML/CSS)
+  build-desktop-dist:
+    if: ${{ github.event_name == 'pull_request' && github.base_ref == 'main' }}
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck, test-desktop]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore Turbo cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: turbo-${{ runner.os }}-
+
+      - name: Build desktop and transitive workspace dependencies
+        run: pnpm build --filter @adieuu/desktop...
+
+  sbom:
+    runs-on: ubuntu-latest
+    needs:
+      - lint-and-typecheck
+      - test-api
+      - test-web
+      - test-chat
+      - test-desktop
+      - test-ui
+      - test-crypto
+      - test-security
+      - test-fs
+      - build-web
+      - build-api
+      - build-desktop-dist
+    if: |
+      needs.lint-and-typecheck.result == 'success' &&
+      needs.test-api.result == 'success' &&
+      needs.test-web.result == 'success' &&
+      needs.test-chat.result == 'success' &&
+      needs.test-desktop.result == 'success' &&
+      needs.test-ui.result == 'success' &&
+      needs.test-crypto.result == 'success' &&
+      needs.test-security.result == 'success' &&
+      needs.test-fs.result == 'success' &&
+      (needs.build-web.result == 'skipped' || needs.build-web.result == 'success') &&
+      (needs.build-api.result == 'skipped' || needs.build-api.result == 'success') &&
+      (needs.build-desktop-dist.result == 'skipped' || needs.build-desktop-dist.result == 'success')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: api
+            path: apps/api
+          - app: web
+            path: apps/web
+          - app: chat
+            path: apps/chat
+          - app: desktop
+            path: apps/desktop
+          - app: mobile
+            path: apps/mobile
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - name: Get app version
+        id: version
+        run: echo "version=$(jq -r .version ${{ matrix.path }}/package.json)" >> $GITHUB_OUTPUT
+
+      - name: Generate and upload SBOM
+        continue-on-error: true
+        uses: manifest-cyber/manifest-github-action@a90e8d22cb1a607317ec76cc9c53f61769c06213
+        with:
+          # apiKey: ${{ secrets.MANIFEST_API_KEY }}
+          sbomPublish: false
+          path: ${{ matrix.path }}
+          relationship: 'first'
+          sbomName: 'adieuu-${{ matrix.app }}'
+          sbomVersion: '${{ steps.version.outputs.version }}'
+          sbomGenerator: 'cdxgen'
+          asset-labels: 'adieuu,environment-${{ matrix.app }},v${{ steps.version.outputs.version }},oss,generated-pipeline'
+          active: true
+          sbomArtifactName: 'adieuu-${{ matrix.app }}-${{ steps.version.outputs.version }}-sbom.json'

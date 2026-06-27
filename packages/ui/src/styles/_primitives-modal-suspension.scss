@@ -1,0 +1,69 @@
+@use 'variables' as *;
+
+// ============================================================================
+// Suspension Modal
+// ============================================================================
+
+.suspension-modal {
+  max-width: 460px;
+
+  &-title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+  }
+
+  &-icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+
+  &-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+
+  &-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xxs);
+  }
+
+  &-label {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-tertiary);
+  }
+
+  &-value {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+  }
+
+  &-code {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    background: var(--color-bg-tertiary);
+    padding: var(--spacing-xxs) var(--spacing-xs);
+    border-radius: var(--radius-sm);
+    user-select: all;
+    word-break: break-all;
+  }
+
+  &-appeal {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+    margin-top: var(--spacing-xs);
+  }
+
+  &-email {
+    color: var(--color-accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+}

@@ -1,0 +1,73 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+/build/
+out/
+.next/
+
+# Local Lambda repackage fingerprint cache (see package-lambdas.sh)
+.lambda-package-fingerprints
+.sharp-layer-package-fingerprint
+
+# Turborepo
+.turbo/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Test coverage
+coverage/
+junit.xml
+
+# TypeScript
+*.tsbuildinfo
+
+# Electron
+apps/desktop/out/
+
+# Capacitor native projects (generated)
+apps/mobile/ios/
+apps/mobile/android/
+
+# OS files
+Thumbs.db
+
+# Terraform (infra/aws/terraform)
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+*.auto.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Local video samples for scripts/test-video-processing.mjs (not committed)
+video-tests/
+
+# Copied from @ffmpeg/core in packages/ui postinstall (large wasm; do not commit)
+packages/ui/public/ffmpeg-core/
+
+scripts/sync-local*
+packages/ui/playwright-report/*
+packages/ui/test-results/

@@ -1,0 +1,858 @@
+name: Release
+
+on:
+  # Merge to main (PR CI already validated the code on the PR head).
+  push:
+    branches: [main]
+    paths-ignore:
+      # chore(release) only touches package.json — do not re-trigger release.
+      - '**/package.json'
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump type (leave empty for auto-detection from commits)'
+        required: false
+        type: choice
+        options:
+          - ''
+          - patch
+          - minor
+          - major
+
+env:
+  NODE_VERSION: '26'
+  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+concurrency:
+  # Only one release at a time; latest merge wins if two land while packaging.
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: read
+  packages: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+    outputs:
+      new_version: ${{ steps.version.outputs.new_version }}
+      released: ${{ steps.version.outputs.released }}
+      deploy_aws: ${{ steps.decide_deploy_aws.outputs.deploy || 'false' }}
+      desktop_changed: ${{ steps.detect_changes.outputs.desktop || 'true' }}
+      force_all: ${{ steps.detect_changes.outputs.force_all || 'false' }}
+    steps:
+      # adieuu-release-bot GitHub App: bypasses main ruleset for chore(release) pushes.
+      # Repo variable ADIEUU_RELEASE_BOT_APP_ID + secret ADIEUU_RELEASE_BOT_PRIVATE_KEY required.
+      - name: Generate adieuu-release-bot token
+        id: release-bot-token
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547
+        with:
+          app-id: ${{ vars.ADIEUU_RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.ADIEUU_RELEASE_BOT_PRIVATE_KEY }}
+          # repositories is repo name(s) only, not owner/repo — github.repository would 404.
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-metadata: read
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          token: ${{ steps.release-bot-token.outputs.token }}
+          # Auto-release: merge commit on push. Manual: latest main.
+          ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
+
+      - name: Check if release should be skipped
+        id: check_release
+        env:
+          RELEASE_BOT_TOKEN: ${{ steps.release-bot-token.outputs.token }}
+        run: |
+          git remote set-url origin "https://x-access-token:${RELEASE_BOT_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          # Manual dispatch: never skip — the user explicitly requested a release.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Auto-trigger (push): belt-and-suspenders guard if paths-ignore did not apply.
+          COMMIT_MSG=$(git log -1 --pretty=format:"%s")
+          if [[ "$COMMIT_MSG" == chore\(release\):* ]]; then
+            echo "Skipping auto-release to prevent re-release loop (HEAD is already a release commit: $COMMIT_MSG)"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Detect app changes
+        id: detect_changes
+        if: steps.check_release.outputs.skip != 'true'
+        run: |
+          release_all() {
+            echo "desktop=true" >> "$GITHUB_OUTPUT"
+            echo "force_all=true" >> "$GITHUB_OUTPUT"
+          }
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual release — building all apps and deploying all targets"
+            release_all
+            exit 0
+          fi
+
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD --match 'v*' 2>/dev/null || echo "")
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous release tag — building all apps"
+            release_all
+            exit 0
+          fi
+
+          echo "Comparing ${PREV_TAG}..HEAD"
+
+          ALL_CHANGES=$(git diff --name-only "$PREV_TAG"..HEAD || true)
+          if [ -z "$ALL_CHANGES" ]; then
+            echo "No changes since ${PREV_TAG} — building all apps and deploying all targets"
+            release_all
+            exit 0
+          fi
+
+          # Exclude version-bump-only package.json edits (chore(release) commits).
+          MEANINGFUL_CHANGES=$(git diff --name-only "$PREV_TAG"..HEAD -- \
+            apps/desktop/ \
+            apps/web/ \
+            apps/api/ \
+            apps/chat/ \
+            packages/shared/ \
+            packages/ui/ \
+            packages/crypto/ \
+            packages/tsconfig/ \
+            pnpm-lock.yaml \
+          | grep -Ev '^(apps|packages)/[^/]+/package\.json$' || true)
+
+          if [ -z "$MEANINGFUL_CHANGES" ]; then
+            echo "No meaningful app changes since ${PREV_TAG} — building all apps and deploying all targets"
+            release_all
+            exit 0
+          fi
+
+          echo "Comparing ${PREV_TAG}..HEAD for desktop-relevant paths"
+
+          DESKTOP_CHANGES=$(git diff --name-only "$PREV_TAG"..HEAD -- \
+            apps/desktop/ \
+            packages/shared/ \
+            packages/ui/ \
+            packages/crypto/ \
+            packages/tsconfig/ \
+            pnpm-lock.yaml)
+
+          echo "force_all=false" >> "$GITHUB_OUTPUT"
+
+          if [ -n "$DESKTOP_CHANGES" ]; then
+            echo "desktop=true" >> "$GITHUB_OUTPUT"
+            echo "Desktop-relevant changes detected:"
+            echo "$DESKTOP_CHANGES"
+          else
+            echo "desktop=false" >> "$GITHUB_OUTPUT"
+            echo "No desktop-relevant changes — skipping desktop build"
+          fi
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+        if: steps.check_release.outputs.skip != 'true'
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        if: steps.check_release.outputs.skip != 'true'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Configure Git for signed commits
+        if: steps.check_release.outputs.skip != 'true'
+        run: |
+          git config user.name "adieuu-release-bot[bot]"
+          git config user.email "${{ vars.ADIEUU_RELEASE_BOT_APP_ID }}+adieuu-release-bot[bot]@users.noreply.github.com"
+
+      - name: Resolve current version baseline
+        if: steps.check_release.outputs.skip != 'true'
+        id: current
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            TAG_VERSION="${LAST_TAG#v}"
+          else
+            TAG_VERSION="0.0.0"
+          fi
+
+          # Baseline = max(tag, max(package.json versions in release-managed packages)).
+          # Lets you advance package.json ahead of tags (or vice versa) without the lower one blocking bumps.
+          TAG_VERSION="$TAG_VERSION" node <<'NODE'
+          const fs = require('fs');
+          const tagVersion = process.env.TAG_VERSION || '0.0.0';
+          const paths = [
+            'apps/desktop/package.json',
+            'apps/web/package.json',
+            'apps/api/package.json',
+            'apps/mobile/package.json',
+            'apps/chat/package.json',
+            'packages/shared/package.json',
+            'packages/ui/package.json',
+          ];
+          function parse(v) {
+            const parts = String(v).trim().split('.');
+            const n = (i) => {
+              const x = parseInt(parts[i], 10);
+              return Number.isFinite(x) ? x : 0;
+            };
+            return [n(0), n(1), n(2)];
+          }
+          function cmp(a, b) {
+            const A = parse(a);
+            const B = parse(b);
+            for (let i = 0; i < 3; i++) {
+              if (A[i] !== B[i]) return A[i] - B[i];
+            }
+            return 0;
+          }
+          let pkgMax = '0.0.0';
+          for (const p of paths) {
+            try {
+              const v = JSON.parse(fs.readFileSync(p, 'utf8')).version;
+              if (typeof v === 'string' && cmp(v, pkgMax) > 0) pkgMax = v;
+            } catch {
+              /* ignore missing or invalid */
+            }
+          }
+          const baseline = cmp(tagVersion, pkgMax) >= 0 ? tagVersion : pkgMax;
+          const out = process.env.GITHUB_OUTPUT;
+          if (!out) throw new Error('GITHUB_OUTPUT is not set');
+          fs.appendFileSync(out, `version=${baseline}\n`);
+          fs.appendFileSync(out, `tag_version=${tagVersion}\n`);
+          fs.appendFileSync(out, `package_max_version=${pkgMax}\n`);
+          console.log(
+            `Baseline: max(tag=${tagVersion}, packages=${pkgMax}) => ${baseline}`,
+          );
+          NODE
+
+      - name: Determine version bump
+        if: steps.check_release.outputs.skip != 'true'
+        id: bump
+        run: |
+          # Use manual input if provided
+          if [ -n "${{ github.event.inputs.bump }}" ]; then
+            echo "type=${{ github.event.inputs.bump }}" >> $GITHUB_OUTPUT
+            echo "Using manual bump: ${{ github.event.inputs.bump }}"
+            exit 0
+          fi
+
+          # Auto-detect from commit messages since last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          if [ -z "$LAST_TAG" ]; then
+            # No tags yet, check all commits
+            COMMITS=$(git log --pretty=format:"%s" HEAD)
+          else
+            COMMITS=$(git log --pretty=format:"%s" ${LAST_TAG}..HEAD)
+          fi
+
+          # Check for breaking changes (major)
+          if echo "$COMMITS" | grep -qiE "^.*!:|BREAKING CHANGE:"; then
+            echo "type=major" >> $GITHUB_OUTPUT
+            echo "Detected: major (breaking change)"
+            exit 0
+          fi
+
+          # Check for features (minor)
+          if echo "$COMMITS" | grep -qiE "^feat(\(.*\))?:"; then
+            echo "type=minor" >> $GITHUB_OUTPUT
+            echo "Detected: minor (new feature)"
+            exit 0
+          fi
+
+          # Default to patch
+          echo "type=patch" >> $GITHUB_OUTPUT
+          echo "Detected: patch (default)"
+
+      - name: Calculate new version
+        if: steps.check_release.outputs.skip != 'true'
+        id: version
+        run: |
+          CURRENT="${{ steps.current.outputs.version }}"
+          BUMP="${{ steps.bump.outputs.type }}"
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+
+          if [ "$CURRENT" = "0.0.0" ]; then
+            NEW_VERSION="0.1.0"
+          else
+            case $BUMP in
+              major)
+                NEW_VERSION="$((MAJOR + 1)).0.0"
+                ;;
+              minor)
+                NEW_VERSION="${MAJOR}.$((MINOR + 1)).0"
+                ;;
+              patch)
+                NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+                ;;
+            esac
+          fi
+
+          # Increment patch past any existing tags (handles stale checkout or
+          # manual tag creation that would otherwise block the release).
+          while git rev-parse "v${NEW_VERSION}" >/dev/null 2>&1; do
+            echo "Tag v${NEW_VERSION} already exists, incrementing patch..."
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$NEW_VERSION"
+            NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          done
+
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "released=true" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_VERSION"
+
+      - name: Decide AWS deploy
+        id: decide_deploy_aws
+        if: steps.check_release.outputs.skip != 'true'
+        run: |
+          if [ "${{ steps.version.outputs.released }}" = "true" ]; then
+            echo "deploy=true" >> $GITHUB_OUTPUT
+          else
+            echo "deploy=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update package versions
+        if: steps.version.outputs.released == 'true'
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+
+          # Update all app package.json files
+          for pkg in apps/desktop apps/web apps/api apps/mobile apps/chat; do
+            if [ -f "$pkg/package.json" ]; then
+              node -e "
+                const fs = require('fs');
+                const pkg = JSON.parse(fs.readFileSync('$pkg/package.json', 'utf8'));
+                pkg.version = '$NEW_VERSION';
+                fs.writeFileSync('$pkg/package.json', JSON.stringify(pkg, null, 2) + '\n');
+              "
+              echo "Updated $pkg to $NEW_VERSION"
+            fi
+          done
+
+          # Update shared packages too
+          for pkg in packages/shared packages/ui; do
+            if [ -f "$pkg/package.json" ]; then
+              node -e "
+                const fs = require('fs');
+                const pkg = JSON.parse(fs.readFileSync('$pkg/package.json', 'utf8'));
+                pkg.version = '$NEW_VERSION';
+                fs.writeFileSync('$pkg/package.json', JSON.stringify(pkg, null, 2) + '\n');
+              "
+              echo "Updated $pkg to $NEW_VERSION"
+            fi
+          done
+
+      - name: Commit version bump
+        if: steps.version.outputs.released == 'true'
+        env:
+          RELEASE_BOT_TOKEN: ${{ steps.release-bot-token.outputs.token }}
+        run: |
+          git remote set-url origin "https://x-access-token:${RELEASE_BOT_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+          # Push trigger checks out the merge commit (detached HEAD), so create main at HEAD.
+          git checkout -B main
+          git add .
+          git commit -m "chore(release): v${NEW_VERSION}"
+          git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION}"
+          git push origin main --follow-tags
+
+      - name: Create draft release
+        if: steps.version.outputs.released == 'true'
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        with:
+          tag_name: v${{ steps.version.outputs.new_version }}
+          name: v${{ steps.version.outputs.new_version }}
+          draft: true
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ steps.release-bot-token.outputs.token }}
+
+  deploy-aws:
+    needs: release
+    if: needs.release.outputs.deploy_aws == 'true'
+    # Reusable workflow uses OIDC for AWS; caller must grant id-token: write (default is none).
+    permissions:
+      id-token: write
+      contents: read
+      packages: read
+    uses: ./.github/workflows/deploy-aws-reusable.yml
+    with:
+      force_all: ${{ needs.release.outputs.force_all == 'true' }}
+    secrets: inherit
+
+  # Build the desktop app once on Linux (electron-vite output is platform-independent JS/HTML/CSS)
+  build-desktop-dist:
+    needs: release
+    if: needs.release.outputs.released == 'true' && needs.release.outputs.desktop_changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: main
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Desktop main process reads ADIEUU_COOKIE_BRIDGE_* at runtime from the OS env (not compile-time).
+      # To test staging hosts in release builds, set job env here or in apps/desktop/.env — see apps/desktop/README.md.
+      - name: Build desktop and transitive workspace dependencies
+        run: pnpm build --filter @adieuu/desktop...
+
+      - name: Upload desktop dist
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: desktop-dist
+          path: apps/desktop/dist
+          retention-days: 1
+
+  # Package the pre-built dist per platform. Packaging output is saved as
+  # immutable artifacts so that the publish step can be rerun independently
+  # without re-packaging (which would produce different hashes).
+  package-desktop:
+    needs: [release, build-desktop-dist]
+    if: needs.release.outputs.released == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact-name: packaged-desktop-linux
+          - os: windows-latest
+            artifact-name: packaged-desktop-windows
+          - os: macos-latest
+            artifact-name: packaged-desktop-macos
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+      packages: read
+    env:
+      ELECTRON_CACHE: ${{ github.workspace }}/.electron-cache
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Disable Windows Defender real-time monitoring
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: Set-MpPreference -DisableRealtimeMonitoring $true
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Cache Electron binaries
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: ${{ env.ELECTRON_CACHE }}
+          key: electron-${{ runner.os }}-${{ hashFiles('apps/desktop/package.json') }}
+          restore-keys: |
+            electron-${{ runner.os }}-
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          attempt=1
+          max_attempts=3
+          until pnpm install --frozen-lockfile --prefer-offline; do
+            if [ "$attempt" -ge "$max_attempts" ]; then
+              echo "pnpm install failed after $attempt attempts"
+              exit 1
+            fi
+            echo "pnpm install failed (attempt $attempt/$max_attempts), retrying in 30s..."
+            attempt=$((attempt + 1))
+            sleep 30
+          done
+
+      - name: Download pre-built desktop dist
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          name: desktop-dist
+          path: apps/desktop/dist
+
+      - name: Package Electron app
+        run: pnpm --filter @adieuu/desktop run package:ci
+
+      - name: Attest desktop package provenance
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26
+        with:
+          subject-path: |
+            apps/desktop/out/*.exe
+            apps/desktop/out/*.exe.blockmap
+            apps/desktop/out/*.dmg
+            apps/desktop/out/*.zip
+            apps/desktop/out/*.zip.blockmap
+            apps/desktop/out/*.AppImage
+            apps/desktop/out/*.deb
+            apps/desktop/out/*.rpm
+            apps/desktop/out/latest.yml
+            apps/desktop/out/latest-mac.yml
+            apps/desktop/out/latest-linux.yml
+
+      - name: Upload packaging output
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: |
+            apps/desktop/out/*.exe
+            apps/desktop/out/*.exe.blockmap
+            apps/desktop/out/*.dmg
+            apps/desktop/out/*.zip
+            apps/desktop/out/*.zip.blockmap
+            apps/desktop/out/*.AppImage
+            apps/desktop/out/*.deb
+            apps/desktop/out/*.rpm
+            apps/desktop/out/latest.yml
+            apps/desktop/out/latest-mac.yml
+            apps/desktop/out/latest-linux.yml
+          if-no-files-found: warn
+          retention-days: 3
+
+  # Publish packaged desktop artifacts to GitHub Release and S3. Downloads
+  # the immutable artifacts produced by package-desktop, so rerunning after
+  # a transient failure (e.g. AWS credential flake) reuses the same binaries
+  # and manifests -- no checksum mismatch.
+  publish-desktop:
+    needs: [release, package-desktop]
+    if: needs.release.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+    env:
+      AWS_REQUEST_CHECKSUM_CALCULATION: WHEN_REQUIRED
+      AWS_RESPONSE_CHECKSUM_VALIDATION: WHEN_REQUIRED
+    steps:
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          pattern: packaged-desktop-*
+          path: artifacts
+          merge-multiple: true
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        with:
+          tag_name: v${{ needs.release.outputs.new_version }}
+          draft: true
+          files: |
+            artifacts/*.exe
+            artifacts/*.exe.blockmap
+            artifacts/*.dmg
+            artifacts/*.zip
+            artifacts/*.zip.blockmap
+            artifacts/*.AppImage
+            artifacts/*.deb
+            artifacts/*.rpm
+            artifacts/latest.yml
+            artifacts/latest-mac.yml
+            artifacts/latest-linux.yml
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check downloads stack variables
+        id: check_downloads
+        run: |
+          if [ -z "${{ vars.DEPLOY_DOWNLOADS_S3_BUCKET_ADIEUU }}" ] || \
+             [ -z "${{ vars.DEPLOY_RELEASE_MANIFESTS_S3_BUCKET_ADIEUU }}" ] || \
+             [ -z "${{ vars.DEPLOY_DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID_ADIEUU }}" ]; then
+            echo "Downloads stack variables not set, skipping S3 push."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure AWS credentials
+        if: steps.check_downloads.outputs.skip != 'true'
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_ADIEUU }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Push binaries to S3 downloads bucket
+        if: steps.check_downloads.outputs.skip != 'true'
+        run: |
+          VERSION="v${{ needs.release.outputs.new_version }}"
+          BUCKET="${{ vars.DEPLOY_DOWNLOADS_S3_BUCKET_ADIEUU }}"
+
+          INCLUDE_FLAGS=(
+            --exclude "*"
+            --include "*.exe" --include "*.dmg" --include "*.zip"
+            --include "*.AppImage" --include "*.deb" --include "*.rpm"
+            --include "*.blockmap"
+          )
+
+          echo "Syncing binaries -> latest/"
+          aws s3 sync "artifacts" "s3://${BUCKET}/latest/" "${INCLUDE_FLAGS[@]}" --no-progress
+
+          echo "Syncing binaries -> ${VERSION}/desktop/"
+          aws s3 sync "artifacts" "s3://${BUCKET}/${VERSION}/desktop/" "${INCLUDE_FLAGS[@]}" --no-progress
+
+      - name: Push manifests to private bucket
+        if: steps.check_downloads.outputs.skip != 'true'
+        run: |
+          MANIFESTS_BUCKET="${{ vars.DEPLOY_RELEASE_MANIFESTS_S3_BUCKET_ADIEUU }}"
+
+          for f in latest.yml latest-mac.yml latest-linux.yml; do
+            if [ -f "artifacts/${f}" ]; then
+              echo "Uploading manifest: ${f}"
+              aws s3 cp "artifacts/${f}" "s3://${MANIFESTS_BUCKET}/${f}" --no-progress
+            fi
+          done
+
+  # Generate a monorepo-wide SBOM from the workspace root so that cdxgen can
+  # resolve the full dependency tree via pnpm-lock.yaml. Per-app SBOMs are not
+  # easil until pnpm 11 stabilises (native `pnpm sbom --filter` support);
+  # cdxgen and syft both fail to resolve transitive deps when pointed at
+  # individual workspace subdirectories (cdxgen/cdxgen#3570, anchore/syft#2574).
+  generate-sboms:
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: main
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate SBOM
+        continue-on-error: true
+        uses: manifest-cyber/manifest-github-action@a90e8d22cb1a607317ec76cc9c53f61769c06213
+        with:
+          # apiKey: ${{ secrets.MANIFEST_API_KEY }}
+          sbomPublish: false
+          path: .
+          relationship: 'first'
+          sbomName: 'adieuu'
+          sbomVersion: '${{ needs.release.outputs.new_version }}'
+          sbomGenerator: 'cdxgen'
+          asset-labels: 'adieuu,v${{ needs.release.outputs.new_version }},oss,generated-pipeline'
+          active: true
+          sbomArtifactName: 'adieuu-${{ needs.release.outputs.new_version }}-sbom.json'
+
+  # Attach generated SBOM artifacts to draft release.
+  attach-sboms:
+    needs: [release, generate-sboms]
+    if: needs.release.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download SBOM artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          pattern: adieuu-*-sbom.json
+          path: sboms
+          merge-multiple: true
+
+      - name: List downloaded SBOMs
+        run: |
+          echo "Downloaded SBOM files:"
+          find sboms -type f -name "*.json" 2>/dev/null || echo "No SBOM files found"
+
+      - name: Upload SBOMs to GitHub Release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        with:
+          tag_name: v${{ needs.release.outputs.new_version }}
+          draft: true
+          files: sboms/**/*.json
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Finalize downloads mirror: sync SBOMs, generate releases.json, and
+  # invalidate CloudFront. Desktop binaries and manifests are pushed by
+  # the publish-desktop job.
+  sync-downloads-mirror:
+    needs: [release, publish-desktop, attach-sboms]
+    if: |
+      always() &&
+      needs.release.outputs.released == 'true' &&
+      needs.publish-desktop.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AWS_REQUEST_CHECKSUM_CALCULATION: WHEN_REQUIRED
+      AWS_RESPONSE_CHECKSUM_VALIDATION: WHEN_REQUIRED
+    steps:
+      - name: Check downloads stack variables
+        id: check_vars
+        run: |
+          if [ -z "${{ vars.DEPLOY_DOWNLOADS_S3_BUCKET_ADIEUU }}" ] || \
+             [ -z "${{ vars.DEPLOY_RELEASE_MANIFESTS_S3_BUCKET_ADIEUU }}" ] || \
+             [ -z "${{ vars.DEPLOY_DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID_ADIEUU }}" ]; then
+            echo "Downloads stack variables not set, skipping S3 mirror sync."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download SBOM artifacts
+        if: steps.check_vars.outputs.skip != 'true'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          pattern: adieuu-*-sbom.json
+          path: sboms
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Configure AWS credentials
+        if: steps.check_vars.outputs.skip != 'true'
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_ADIEUU }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Sync SBOMs to downloads bucket
+        if: steps.check_vars.outputs.skip != 'true'
+        run: |
+          VERSION="v${{ needs.release.outputs.new_version }}"
+          BUCKET="${{ vars.DEPLOY_DOWNLOADS_S3_BUCKET_ADIEUU }}"
+
+          if [ -d sboms ] && [ "$(find sboms -name '*.json' 2>/dev/null | head -1)" ]; then
+            echo "Syncing SBOMs to s3://${BUCKET}/${VERSION}/sbom/"
+            aws s3 sync sboms/ "s3://${BUCKET}/${VERSION}/sbom/" --exclude "*" --include "*.json"
+          else
+            echo "No SBOM files found, skipping."
+          fi
+
+      - name: Generate and upload releases.json
+        if: steps.check_vars.outputs.skip != 'true'
+        run: |
+          VERSION="${{ needs.release.outputs.new_version }}"
+          BUCKET="${{ vars.DEPLOY_DOWNLOADS_S3_BUCKET_ADIEUU }}"
+          BASE_URL="https://${{ vars.DEPLOY_DOWNLOADS_DOMAIN_ADIEUU || 'downloads.adieuu.com' }}"
+
+          # Enumerate actual files uploaded to the versioned desktop prefix
+          aws s3 ls "s3://${BUCKET}/v${VERSION}/desktop/" \
+            | awk '{print $NF}' > desktop-files.txt 2>/dev/null || true
+
+          # Download existing releases.json (if any) and append the new version
+          aws s3 cp "s3://${BUCKET}/releases.json" existing-releases.json 2>/dev/null || echo '[]' > existing-releases.json
+
+          node -e "
+            const fs = require('fs');
+            const existing = JSON.parse(fs.readFileSync('existing-releases.json', 'utf8'));
+            const entries = Array.isArray(existing) ? existing : [];
+            const fileList = fs.readFileSync('desktop-files.txt', 'utf8')
+              .split('\n').map(l => l.trim()).filter(Boolean);
+
+            const baseUrl = '${BASE_URL}/v${VERSION}/desktop';
+            const skipExts = new Set(['.blockmap', '.yml', '.yaml']);
+
+            // Classify files by OS using electron-builder artifact naming:
+            // \${productName}-\${version}-\${os}-\${arch}.\${ext}
+            const osMap = { win: 'windows', mac: 'mac', linux: 'linux' };
+            const formatMap = {
+              exe: 'nsis', dmg: 'dmg', zip: 'zip',
+              AppImage: 'AppImage', deb: 'deb', rpm: 'rpm',
+            };
+
+            const downloads = { windows: [], mac: [], linux: [] };
+
+            for (const filename of fileList) {
+              const dotIdx = filename.lastIndexOf('.');
+              if (dotIdx < 0) continue;
+              const ext = filename.substring(dotIdx);
+              if (skipExts.has(ext)) continue;
+
+              // Parse: Adieuu-0.1.33-win-x64.exe
+              const match = filename.match(/^.+-(.+?)-(.+?)\.(.+)$/);
+              if (!match) continue;
+              const [, osKey, arch, rawExt] = match;
+              const os = osMap[osKey];
+              if (!os) continue;
+              const format = formatMap[rawExt] || rawExt;
+
+              downloads[os].push({
+                filename,
+                url: baseUrl + '/' + filename,
+                arch,
+                format,
+              });
+            }
+
+            // Avoid duplicate entries for the same version
+            const filtered = entries.filter(e => e.version !== '${VERSION}');
+
+            const newEntry = {
+              version: '${VERSION}',
+              date: new Date().toISOString(),
+              downloads,
+              sboms: '${BASE_URL}/v${VERSION}/sbom/bom.json',
+              github: 'https://github.com/Adieuu-LLC/adieuu-2026/releases/tag/v${VERSION}',
+            };
+
+            filtered.unshift(newEntry);
+
+            // Keep last 50 releases
+            const trimmed = filtered.slice(0, 50);
+            fs.writeFileSync('releases.json', JSON.stringify(trimmed, null, 2));
+          "
+
+          aws s3 cp releases.json "s3://${BUCKET}/releases.json" \
+            --content-type "application/json"
+
+      - name: Invalidate CloudFront
+        if: steps.check_vars.outputs.skip != 'true'
+        run: |
+          VERSION="v${{ needs.release.outputs.new_version }}"
+          DISTRIBUTION_ID="${{ vars.DEPLOY_DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID_ADIEUU }}"
+
+          aws cloudfront create-invalidation \
+            --distribution-id "${DISTRIBUTION_ID}" \
+            --paths "/latest/*" "/${VERSION}/*" "/releases.json"
+
+  publish-release:
+    needs: [release, publish-desktop, attach-sboms]
+    # Run when desktop publish succeeded or was skipped (no desktop changes).
+    # Do not publish if packaging was cancelled or failed mid-flight.
+    if: |
+      always() &&
+      needs.release.outputs.released == 'true' &&
+      (needs.publish-desktop.result == 'success' || needs.publish-desktop.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        with:
+          tag_name: v${{ needs.release.outputs.new_version }}
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

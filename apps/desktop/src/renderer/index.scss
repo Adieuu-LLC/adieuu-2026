@@ -1,0 +1,11 @@
+// =============================================================================
+// Desktop-specific styles that extend the base UI styles
+// =============================================================================
+
+@use './styles/tokens' as *;
+@use './styles/window-chrome';
+@use './styles/layout-and-pages';
+@use './styles/account-pages';
+@use './styles/dm';
+@use './styles/tooltip';
+@use './styles/conversation-overrides';

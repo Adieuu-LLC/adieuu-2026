@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Share your screen</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    #content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    h2 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: #ffffff;
+    }
+
+    .section + .section { margin-top: 20px; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+    }
+
+    .source-card {
+      border: 2px solid transparent;
+      border-radius: 8px;
+      background: #2a2a40;
+      padding: 8px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    .source-card:hover {
+      background: #33334d;
+      border-color: #5555aa;
+    }
+
+    .source-card.selected {
+      border-color: #7c6aff;
+      background: #33334d;
+    }
+
+    .source-card img {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+      border-radius: 4px;
+      background: #111;
+    }
+
+    .source-card .name {
+      margin-top: 6px;
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-align: center;
+    }
+
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      padding: 16px 20px;
+      border-top: 1px solid #333;
+      background: #1a1a2e;
+      flex-shrink: 0;
+    }
+
+    button {
+      font-size: 13px;
+      padding: 8px 20px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.15s;
+    }
+
+    .btn-cancel {
+      background: #3a3a50;
+      color: #ccc;
+    }
+
+    .btn-cancel:hover { background: #4a4a60; }
+
+    .btn-share {
+      background: #7c6aff;
+      color: #fff;
+    }
+
+    .btn-share:hover { background: #6a58e0; }
+    .btn-share:disabled { background: #4a4a60; color: #888; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <div id="content">
+    <div id="screens-section" class="section" hidden>
+      <h2>Screens</h2>
+      <div id="screens-grid" class="grid"></div>
+    </div>
+    <div id="windows-section" class="section" hidden>
+      <h2>Windows</h2>
+      <div id="windows-grid" class="grid"></div>
+    </div>
+  </div>
+  <div class="actions">
+    <button class="btn-cancel" id="cancel-btn">Cancel</button>
+    <button class="btn-share" id="share-btn" disabled>Share</button>
+  </div>
+
+  <script>
+    let selectedId = null;
+
+    function createCard(source) {
+      const card = document.createElement('div');
+      card.className = 'source-card';
+      card.dataset.id = source.id;
+
+      const img = document.createElement('img');
+      img.src = source.thumbnail;
+      img.alt = source.name;
+      card.appendChild(img);
+
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = source.name;
+      name.title = source.name;
+      card.appendChild(name);
+
+      card.addEventListener('click', () => {
+        document.querySelectorAll('.source-card.selected').forEach(el => el.classList.remove('selected'));
+        card.classList.add('selected');
+        selectedId = source.id;
+        document.getElementById('share-btn').disabled = false;
+      });
+
+      card.addEventListener('dblclick', () => {
+        selectedId = source.id;
+        window.screenPicker.select(selectedId);
+      });
+
+      return card;
+    }
+
+    async function init() {
+      const sources = await window.screenPicker.getSources();
+      const screens = sources.filter(s => s.id.startsWith('screen:'));
+      const windows = sources.filter(s => !s.id.startsWith('screen:'));
+
+      if (screens.length > 0) {
+        document.getElementById('screens-section').hidden = false;
+        const grid = document.getElementById('screens-grid');
+        screens.forEach(s => grid.appendChild(createCard(s)));
+      }
+
+      if (windows.length > 0) {
+        document.getElementById('windows-section').hidden = false;
+        const grid = document.getElementById('windows-grid');
+        windows.forEach(s => grid.appendChild(createCard(s)));
+      }
+    }
+
+    document.getElementById('cancel-btn').addEventListener('click', () => {
+      window.close();
+    });
+
+    document.getElementById('share-btn').addEventListener('click', () => {
+      if (selectedId) {
+        window.screenPicker.select(selectedId);
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>

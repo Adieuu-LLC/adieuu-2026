@@ -1,0 +1,6 @@
+[test]
+# Coverage configuration
+# Note: Some lines (browser fallbacks, rare error paths) are environment-specific
+# and not reachable in Bun runtime. 95%+ is excellent for this module.
+coverage = true
+coverageThreshold = { line = 95, function = 100, statement = 95 }

@@ -1,0 +1,134 @@
+{
+  "name": "@adieuu/desktop",
+  "version": "0.2.39",
+  "description": "Adieuu Desktop - Secure encrypted messaging application",
+  "author": {
+    "name": "Adieuu Team",
+    "email": "team@adieuu.com"
+  },
+  "homepage": "https://adieuu.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Adieuu-LLC/adieuu-2026.git"
+  },
+  "private": true,
+  "main": "dist/main/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node ../../scripts/desktop-dev.mjs",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "package": "electron-builder",
+    "package:ci": "electron-builder --publish never",
+    "test": "bun test",
+    "test:ci": "bun test --coverage --coverage-reporter=lcov --coverage-dir=coverage",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist out"
+  },
+  "dependencies": {
+    "@adieuu/shared": "workspace:*",
+    "@adieuu/ui": "workspace:*",
+    "dotenv": "17.3.1",
+    "electron-updater": "6.8.3",
+    "i18next": "24.2.3",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-i18next": "15.7.4",
+    "react-router-dom": "7.13.0"
+  },
+  "devDependencies": {
+    "@adieuu/tsconfig": "workspace:*",
+    "@swc/core": "1.15.11",
+    "@types/react": "18.3.28",
+    "@types/react-dom": "18.3.7",
+    "@vitejs/plugin-react": "4.7.0",
+    "electron": "39.8.6",
+    "electron-builder": "26.8.1",
+    "electron-vite": "5.0.0",
+    "sass-embedded": "1.97.3",
+    "typescript": "5.9.3",
+    "vite": "6.4.2"
+  },
+  "build": {
+    "appId": "com.adieuu.desktop",
+    "productName": "Adieuu",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "output": "out"
+    },
+    "protocols": [
+      {
+        "name": "Adieuu",
+        "schemes": [
+          "adieuu"
+        ]
+      }
+    ],
+    "icon": "build/icon.png",
+    "files": [
+      "dist/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "include": "build/installer.nsh"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.productivity",
+      "extendInfo": {
+        "NSScreenCaptureUsageDescription": "Adieuu needs screen recording access to share your screen during calls.",
+        "NSMicrophoneUsageDescription": "Adieuu needs microphone access for voice and video calls.",
+        "NSCameraUsageDescription": "Adieuu needs camera access for video calls."
+      }
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb",
+        "rpm"
+      ],
+      "category": "Network;InstantMessaging;",
+      "maintainer": "Adieuu Team <team@adieuu.com>",
+      "vendor": "Adieuu Team",
+      "extraFiles": [
+        {
+          "from": "build/linux/com.adieuu.desktop.metainfo.xml",
+          "to": "."
+        },
+        {
+          "from": "build/linux/com.adieuu.desktop.update.policy",
+          "to": "."
+        }
+      ]
+    },
+    "deb": {
+      "afterInstall": "build/linux/after-install.sh",
+      "afterRemove": "build/linux/after-remove.sh"
+    },
+    "rpm": {
+      "afterInstall": "build/linux/after-install.sh",
+      "afterRemove": "build/linux/after-remove.sh",
+      "fpm": [
+        "--rpm-rpmbuild-define",
+        "_build_id_links none"
+      ]
+    },
+    "publish": {
+      "provider": "generic",
+      "url": "https://downloads.adieuu.com/latest/"
+    }
+  }
+}

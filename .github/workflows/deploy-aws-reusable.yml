@@ -1,0 +1,425 @@
+name: Deploy AWS (reusable)
+
+# Called from release.yml (after the release job) or from deploy-aws.yml (manual).
+# Services (api, chat) always deploy. Web rebuilds when its source tree changed since
+# the previous release tag, when release passed force_all, or when there are no changes
+# (or only version-bump package.json edits) since that tag — for re-releases.
+# Lambdas (media-processor, media-db-writer) deploy when their source trees or
+# pnpm-lock.yaml changed. The sharp layer deploys when infra/aws/lambda/layers/sharp/
+# changed. Skipped when DEPLOY_LAMBDA_NAME_PREFIX_ADIEUU is unset.
+# Manual deploy-aws.yml dispatches always pass force_all.
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Git ref to checkout (branch or SHA)'
+        type: string
+        required: false
+        default: 'main'
+      force_all:
+        description: 'Deploy all targets regardless of detected changes'
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: deploy-aws-main
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+  packages: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  NODE_VERSION: '26'
+  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  AWS_REQUEST_CHECKSUM_CALCULATION: WHEN_REQUIRED
+  AWS_RESPONSE_CHECKSUM_VALIDATION: WHEN_REQUIRED
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      web: ${{ steps.set.outputs.web }}
+      api: ${{ steps.set.outputs.api }}
+      chat: ${{ steps.set.outputs.chat }}
+      lambdas: ${{ steps.set.outputs.lambdas }}
+      sharp_layer: ${{ steps.set.outputs.sharp_layer }}
+      deploy_sha: ${{ steps.meta.outputs.sha }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ inputs.ref }}
+
+      - name: Record deploy commit
+        id: meta
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Detect deploy targets
+        id: set
+        run: |
+          echo "api=true"  >> "$GITHUB_OUTPUT"
+          echo "chat=true" >> "$GITHUB_OUTPUT"
+
+          if [ "${{ inputs.force_all }}" = "true" ]; then
+            echo "web=true" >> "$GITHUB_OUTPUT"
+            echo "lambdas=true" >> "$GITHUB_OUTPUT"
+            echo "sharp_layer=true" >> "$GITHUB_OUTPUT"
+            echo "force_all requested — deploying all targets"
+            exit 0
+          fi
+
+          # Find the previous release tag to diff against.
+          CURRENT_TAG=$(git describe --tags --exact-match HEAD --match 'v*' 2>/dev/null || echo "")
+          if [ -n "$CURRENT_TAG" ]; then
+            PREV_TAG=$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" --match 'v*' 2>/dev/null || echo "")
+          else
+            PREV_TAG=$(git describe --tags --abbrev=0 HEAD --match 'v*' 2>/dev/null || echo "")
+          fi
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous release tag — deploying all targets"
+            echo "web=true" >> "$GITHUB_OUTPUT"
+            echo "lambdas=true" >> "$GITHUB_OUTPUT"
+            echo "sharp_layer=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Comparing ${PREV_TAG}..HEAD for deploy-relevant paths"
+
+          # --- Web ---
+          # Web and its transitive workspace dependencies.
+          # Exclude top-level package.json files touched by release version-bump commits.
+          WEB_CHANGES=$(git diff --name-only "$PREV_TAG"..HEAD -- \
+            apps/web/ \
+            packages/shared/ \
+            packages/ui/ \
+            packages/crypto/ \
+            packages/tsconfig/ \
+            pnpm-lock.yaml \
+          | grep -Ev '^(apps|packages)/[^/]+/package\.json$' || true)
+
+          if [ -n "$WEB_CHANGES" ]; then
+            echo "web=true"  >> "$GITHUB_OUTPUT"
+            echo "Web-relevant changes detected:"
+            echo "$WEB_CHANGES"
+          fi
+
+          # --- Lambdas ---
+          LAMBDA_CHANGES=$(git diff --name-only "$PREV_TAG"..HEAD -- \
+            infra/aws/lambda/media-processor/ \
+            infra/aws/lambda/media-db-writer/ \
+            pnpm-lock.yaml \
+          || true)
+
+          if [ -n "$LAMBDA_CHANGES" ]; then
+            echo "lambdas=true" >> "$GITHUB_OUTPUT"
+            echo "Lambda-relevant changes detected:"
+            echo "$LAMBDA_CHANGES"
+          fi
+
+          # --- Sharp layer ---
+          SHARP_LAYER_CHANGES=$(git diff --name-only "$PREV_TAG"..HEAD -- \
+            infra/aws/lambda/layers/sharp/ \
+          || true)
+
+          if [ -n "$SHARP_LAYER_CHANGES" ]; then
+            echo "sharp_layer=true" >> "$GITHUB_OUTPUT"
+            echo "Sharp layer changes detected:"
+            echo "$SHARP_LAYER_CHANGES"
+          fi
+
+          # Re-release / no meaningful changes: deploy web + lambdas + sharp layer anyway.
+          if [ -z "$WEB_CHANGES" ] || [ -z "$LAMBDA_CHANGES" ] || [ -z "$SHARP_LAYER_CHANGES" ]; then
+            ALL_CHANGES=$(git diff --name-only "$PREV_TAG"..HEAD || true)
+            MEANINGFUL_CHANGES=$(git diff --name-only "$PREV_TAG"..HEAD -- \
+              apps/desktop/ \
+              apps/web/ \
+              apps/api/ \
+              apps/chat/ \
+              packages/shared/ \
+              packages/ui/ \
+              packages/crypto/ \
+              packages/tsconfig/ \
+              infra/aws/lambda/ \
+              pnpm-lock.yaml \
+            | grep -Ev '^(apps|packages)/[^/]+/package\.json$' || true)
+
+            if [ -z "$ALL_CHANGES" ] || [ -z "$MEANINGFUL_CHANGES" ]; then
+              echo "No changes (or only release version bumps) since ${PREV_TAG} — deploying all"
+              [ -z "$WEB_CHANGES" ] && echo "web=true" >> "$GITHUB_OUTPUT"
+              [ -z "$LAMBDA_CHANGES" ] && echo "lambdas=true" >> "$GITHUB_OUTPUT"
+              [ -z "$SHARP_LAYER_CHANGES" ] && echo "sharp_layer=true" >> "$GITHUB_OUTPUT"
+            else
+              [ -z "$WEB_CHANGES" ] && echo "web=false" >> "$GITHUB_OUTPUT" && echo "No web-relevant changes — skipping web deploy"
+              [ -z "$LAMBDA_CHANGES" ] && echo "lambdas=false" >> "$GITHUB_OUTPUT" && echo "No Lambda-relevant changes — skipping lambda deploy"
+              [ -z "$SHARP_LAYER_CHANGES" ] && echo "sharp_layer=false" >> "$GITHUB_OUTPUT" && echo "No sharp layer changes — skipping sharp layer deploy"
+            fi
+          fi
+
+  deploy-web:
+    needs: changes
+    if: |
+      needs.changes.outputs.web == 'true' &&
+      vars.DEPLOY_WEB_S3_BUCKET_ADIEUU != '' &&
+      vars.DEPLOY_CLOUDFRONT_DISTRIBUTION_ID_ADIEUU != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ needs.changes.outputs.deploy_sha }}
+
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_ADIEUU }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web
+        env:
+          # Public API/WebSocket URLs for the browser bundle (cross-origin to app hostname).
+          VITE_API_BASE_URL: ${{ vars.DEPLOY_WEB_VITE_API_BASE_URL_ADIEUU }}
+          VITE_CHAT_WS_URL: ${{ vars.DEPLOY_WEB_VITE_CHAT_WS_URL_ADIEUU }}
+          # S3 origins for CSP (presigned PUT/GET). Optional; defaults to production buckets.
+          VITE_MEDIA_S3_ORIGIN: ${{ vars.DEPLOY_WEB_VITE_MEDIA_S3_ORIGIN_ADIEUU || '' }}
+          VITE_E2E_MEDIA_S3_ORIGIN: ${{ vars.DEPLOY_WEB_VITE_E2E_MEDIA_S3_ORIGIN_ADIEUU || '' }}
+          # LiveKit signaling URL for CSP and client fallback. Optional; defaults to wss://livestream.adieuu.com.
+          VITE_LIVEKIT_URL: ${{ vars.DEPLOY_WEB_VITE_LIVEKIT_URL_ADIEUU || '' }}
+        run: |
+          if [ -z "${VITE_API_BASE_URL:-}" ]; then
+            echo "::error::Set Actions variable DEPLOY_WEB_VITE_API_BASE_URL_ADIEUU (e.g. https://api.example.com)"
+            exit 1
+          fi
+          if [ -z "${VITE_CHAT_WS_URL:-}" ]; then
+            echo "::error::Set Actions variable DEPLOY_WEB_VITE_CHAT_WS_URL_ADIEUU (e.g. wss://api.example.com/ws/chat)"
+            exit 1
+          fi
+          pnpm build --filter @adieuu/web...
+
+      - name: Sync to S3
+        run: aws s3 sync apps/web/dist "s3://${{ vars.DEPLOY_WEB_S3_BUCKET_ADIEUU }}/" --delete
+
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.DEPLOY_CLOUDFRONT_DISTRIBUTION_ID_ADIEUU }}" \
+            --paths "/*"
+
+  deploy-api:
+    needs: changes
+    if: |
+      needs.changes.outputs.api == 'true' &&
+      vars.DEPLOY_ECR_API_REPOSITORY_URL_ADIEUU != '' &&
+      vars.DEPLOY_ECS_CLUSTER_NAME_ADIEUU != '' &&
+      vars.DEPLOY_ECS_SERVICE_API_ADIEUU != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ needs.changes.outputs.deploy_sha }}
+
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_ADIEUU }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419
+
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130
+        with:
+          platforms: arm64
+
+      - name: Build and push API image
+        env:
+          DEPLOY_SHA: ${{ needs.changes.outputs.deploy_sha }}
+        run: |
+          IMG="${{ vars.DEPLOY_ECR_API_REPOSITORY_URL_ADIEUU }}"
+          docker build --platform linux/arm64 -f apps/api/Dockerfile \
+            -t "api:${DEPLOY_SHA}" .
+          docker tag "api:${DEPLOY_SHA}" "${IMG}:${DEPLOY_SHA}"
+          docker tag "api:${DEPLOY_SHA}" "${IMG}:latest"
+          docker push "${IMG}:${DEPLOY_SHA}"
+          docker push "${IMG}:latest"
+
+      # Register a new task-def revision pinned to the immutable :${DEPLOY_SHA} image so
+      # every release has a runnable revision to roll back / downgrade to. The base is the
+      # family's latest ACTIVE revision, which carries the Terraform-managed env/secrets/sizing.
+      - name: Register task definition and deploy
+        env:
+          DEPLOY_SHA: ${{ needs.changes.outputs.deploy_sha }}
+        run: |
+          set -euo pipefail
+          CLUSTER="${{ vars.DEPLOY_ECS_CLUSTER_NAME_ADIEUU }}"
+          SERVICE="${{ vars.DEPLOY_ECS_SERVICE_API_ADIEUU }}"
+          IMG="${{ vars.DEPLOY_ECR_API_REPOSITORY_URL_ADIEUU }}"
+          CONTAINER="api"
+
+          CURRENT_TD=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" \
+            --query 'services[0].taskDefinition' --output text)
+          FAMILY="${CURRENT_TD##*/}"; FAMILY="${FAMILY%:*}"
+          echo "Basing new revision on latest ACTIVE revision of family: $FAMILY"
+
+          aws ecs describe-task-definition --task-definition "$FAMILY" \
+            --query 'taskDefinition' --output json > base-td.json
+
+          jq --arg IMAGE "${IMG}:${DEPLOY_SHA}" --arg NAME "$CONTAINER" '
+            .containerDefinitions |= map(if .name == $NAME then .image = $IMAGE else . end)
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                  .compatibilities, .registeredAt, .registeredBy)
+          ' base-td.json > new-td.json
+
+          NEW_TD_ARN=$(aws ecs register-task-definition --cli-input-json file://new-td.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "Registered $NEW_TD_ARN"
+
+          aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" \
+            --task-definition "$NEW_TD_ARN" --region "${{ env.AWS_REGION }}"
+
+          echo "Waiting for service to stabilize..."
+          aws ecs wait services-stable --cluster "$CLUSTER" --service "$SERVICE"
+
+  deploy-chat:
+    needs: changes
+    if: |
+      needs.changes.outputs.chat == 'true' &&
+      vars.DEPLOY_ECR_CHAT_REPOSITORY_URL_ADIEUU != '' &&
+      vars.DEPLOY_ECS_CLUSTER_NAME_ADIEUU != '' &&
+      vars.DEPLOY_ECS_SERVICE_CHAT_ADIEUU != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ needs.changes.outputs.deploy_sha }}
+
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_ADIEUU }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419
+
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130
+        with:
+          platforms: arm64
+
+      - name: Build and push chat image
+        env:
+          DEPLOY_SHA: ${{ needs.changes.outputs.deploy_sha }}
+        run: |
+          IMG="${{ vars.DEPLOY_ECR_CHAT_REPOSITORY_URL_ADIEUU }}"
+          docker build --platform linux/arm64 -f apps/chat/Dockerfile \
+            -t "chat:${DEPLOY_SHA}" .
+          docker tag "chat:${DEPLOY_SHA}" "${IMG}:${DEPLOY_SHA}"
+          docker tag "chat:${DEPLOY_SHA}" "${IMG}:latest"
+          docker push "${IMG}:${DEPLOY_SHA}"
+          docker push "${IMG}:latest"
+
+      # Register a new task-def revision pinned to the immutable :${DEPLOY_SHA} image so
+      # every release has a runnable revision to roll back / downgrade to. The base is the
+      # family's latest ACTIVE revision, which carries the Terraform-managed env/secrets/sizing.
+      - name: Register task definition and deploy
+        env:
+          DEPLOY_SHA: ${{ needs.changes.outputs.deploy_sha }}
+        run: |
+          set -euo pipefail
+          CLUSTER="${{ vars.DEPLOY_ECS_CLUSTER_NAME_ADIEUU }}"
+          SERVICE="${{ vars.DEPLOY_ECS_SERVICE_CHAT_ADIEUU }}"
+          IMG="${{ vars.DEPLOY_ECR_CHAT_REPOSITORY_URL_ADIEUU }}"
+          CONTAINER="chat"
+
+          CURRENT_TD=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" \
+            --query 'services[0].taskDefinition' --output text)
+          FAMILY="${CURRENT_TD##*/}"; FAMILY="${FAMILY%:*}"
+          echo "Basing new revision on latest ACTIVE revision of family: $FAMILY"
+
+          aws ecs describe-task-definition --task-definition "$FAMILY" \
+            --query 'taskDefinition' --output json > base-td.json
+
+          jq --arg IMAGE "${IMG}:${DEPLOY_SHA}" --arg NAME "$CONTAINER" '
+            .containerDefinitions |= map(if .name == $NAME then .image = $IMAGE else . end)
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                  .compatibilities, .registeredAt, .registeredBy)
+          ' base-td.json > new-td.json
+
+          NEW_TD_ARN=$(aws ecs register-task-definition --cli-input-json file://new-td.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "Registered $NEW_TD_ARN"
+
+          aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" \
+            --task-definition "$NEW_TD_ARN" --region "${{ env.AWS_REGION }}"
+
+          echo "Waiting for service to stabilize..."
+          aws ecs wait services-stable --cluster "$CLUSTER" --service "$SERVICE"
+
+  deploy-lambdas:
+    needs: changes
+    if: |
+      (needs.changes.outputs.lambdas == 'true' || needs.changes.outputs.sharp_layer == 'true') &&
+      vars.DEPLOY_LAMBDA_NAME_PREFIX_ADIEUU != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ needs.changes.outputs.deploy_sha }}
+
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_ADIEUU }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Build and deploy sharp layer
+        if: needs.changes.outputs.sharp_layer == 'true' || inputs.force_all == true
+        run: |
+          ARGS=(--deploy --prefix "${{ vars.DEPLOY_LAMBDA_NAME_PREFIX_ADIEUU }}" --region "${{ env.AWS_REGION }}")
+          if [ "${{ inputs.force_all }}" = "true" ]; then
+            ARGS+=(--force)
+          fi
+          bash package-sharp-layer.sh "${ARGS[@]}"
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        if: needs.changes.outputs.lambdas == 'true' || inputs.force_all == true
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        if: needs.changes.outputs.lambdas == 'true' || inputs.force_all == true
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        if: needs.changes.outputs.lambdas == 'true' || inputs.force_all == true
+        run: pnpm install --frozen-lockfile
+
+      - name: Package and deploy lambdas
+        if: needs.changes.outputs.lambdas == 'true' || inputs.force_all == true
+        run: |
+          ARGS=(--deploy --prefix "${{ vars.DEPLOY_LAMBDA_NAME_PREFIX_ADIEUU }}" --region "${{ env.AWS_REGION }}")
+          if [ "${{ inputs.force_all }}" = "true" ]; then
+            ARGS+=(--force)
+          fi
+          bash package-lambdas.sh "${ARGS[@]}"

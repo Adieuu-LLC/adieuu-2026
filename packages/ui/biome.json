@@ -1,0 +1,37 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.1/schema.json",
+  "files": {
+    "includes": ["src/**/*.tsx", "src/**/*.jsx"]
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "a11y": {
+        "preset": "recommended",
+        "noAriaUnsupportedElements": "error",
+        "noNoninteractiveElementToInteractiveRole": "warn",
+        "useAltText": "error",
+        "useAriaPropsForRole": "error",
+        "useValidAriaProps": "error",
+        "useValidAriaValues": "error",
+        "useKeyWithClickEvents": "warn",
+        "useButtonType": "warn",
+        "noAccessKey": "warn",
+        "useHeadingContent": "error",
+        "useValidAnchor": "warn",
+        "useAnchorContent": "warn",
+        "noHeaderScope": "error",
+        "noDistractingElements": "error",
+        "useMediaCaption": "warn",
+        "noRedundantAlt": "warn",
+        "useIframeTitle": "error",
+        "noPositiveTabindex": "warn",
+        "noAriaHiddenOnFocusable": "error",
+        "useSemanticElements": "warn"
+      }
+    }
+  },
+  "formatter": {
+    "enabled": false
+  }
+}

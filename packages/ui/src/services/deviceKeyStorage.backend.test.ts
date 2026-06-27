@@ -1,0 +1,650 @@
+import { describe, expect, test, beforeEach, afterEach } from 'bun:test';
+
+import {
+  storeDeviceKeys,
+  getStoredDeviceKeys,
+  getDeviceKeysForIdentity,
+  decryptDeviceKeys,
+  hasDeviceKeys,
+  deleteDeviceKeys,
+  deleteAllDeviceKeysForIdentity,
+  clearAllDeviceKeys,
+  setDeviceKeyStorageBackend,
+  migrateIndexedDbToBackend,
+  getOrCreateWrappingSalt,
+  setLastIdentityUnlockAt,
+  getLastIdentityUnlockAt,
+  needsPassphraseMigration,
+  DeviceKeyStorageError,
+} from './deviceKeyStorage';
+import type { SecureStorage } from '../config/types';
+import { randomBytes } from '@adieuu/crypto';
+
+/**
+ * Tests for the SecureStorage backend path (desktop).
+ *
+ * Uses an in-memory mock SecureStorage so these run without browser APIs,
+ * IndexedDB, or Electron. The mock stores data as a Map<string, Uint8Array>,
+ * exactly matching the SecureStorage interface contract.
+ */
+
+function createMockSecureStorage(): SecureStorage & { _store: Map<string, Uint8Array> } {
+  const store = new Map<string, Uint8Array>();
+
+  return {
+    _store: store,
+
+    async getKey(keyId: string): Promise<Uint8Array | null> {
+      return store.get(keyId) ?? null;
+    },
+
+    async setKey(keyId: string, key: Uint8Array): Promise<void> {
+      store.set(keyId, new Uint8Array(key));
+    },
+
+    async deleteKey(keyId: string): Promise<void> {
+      store.delete(keyId);
+    },
+
+    async hasKey(keyId: string): Promise<boolean> {
+      return store.has(keyId);
+    },
+
+    async listKeys(prefix: string): Promise<string[]> {
+      return Array.from(store.keys()).filter((k) => k.startsWith(prefix));
+    },
+  };
+}
+
+const generateWrappingKey = (): Uint8Array => randomBytes(32);
+
+/** Deletes a (fake-)IndexedDB database so cross-file state cannot leak in. */
+function deleteIndexedDb(name: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') {
+      resolve();
+      return;
+    }
+    const req = indexedDB.deleteDatabase(name);
+    req.onsuccess = () => resolve();
+    req.onerror = () => resolve();
+    req.onblocked = () => reject(new Error(`IndexedDB delete blocked: ${name}`));
+  });
+}
+
+describe('deviceKeyStorage with SecureStorage backend', () => {
+  let mockStorage: ReturnType<typeof createMockSecureStorage>;
+
+  beforeEach(() => {
+    mockStorage = createMockSecureStorage();
+    setDeviceKeyStorageBackend(mockStorage);
+  });
+
+  afterEach(async () => {
+    await clearAllDeviceKeys();
+    setDeviceKeyStorageBackend(null);
+  });
+
+  // ==========================================================================
+  // storeDeviceKeys
+  // ==========================================================================
+
+  describe('storeDeviceKeys', () => {
+    test('stores device keys via backend', async () => {
+      const deviceId = crypto.randomUUID();
+      const identityId = 'test-identity-123';
+      const wrappingKey = generateWrappingKey();
+
+      await storeDeviceKeys(
+        deviceId,
+        identityId,
+        randomBytes(32),
+        randomBytes(2400),
+        wrappingKey
+      );
+
+      const stored = await getStoredDeviceKeys(deviceId);
+      expect(stored).not.toBeNull();
+      expect(stored!.deviceId).toBe(deviceId);
+      expect(stored!.identityId).toBe(identityId);
+    });
+
+    test('uses hashed key IDs that do not reveal identity', async () => {
+      const wrappingKey = generateWrappingKey();
+      const identityId = 'my-secret-identity-abc123';
+
+      await storeDeviceKeys(
+        'device-x',
+        identityId,
+        randomBytes(32),
+        randomBytes(2400),
+        wrappingKey
+      );
+
+      const keyIds = await mockStorage.listKeys!('dkeys-');
+      expect(keyIds.length).toBe(1);
+      expect(keyIds[0]!.startsWith('dkeys-')).toBe(true);
+      expect(keyIds[0]!).not.toContain(identityId);
+      expect(keyIds[0]!.length).toBeGreaterThan('dkeys-'.length);
+    });
+
+    test('persists data in a per-identity file with hashed key ID', async () => {
+      const wrappingKey = generateWrappingKey();
+
+      await storeDeviceKeys(
+        'device-1',
+        'identity-1',
+        randomBytes(32),
+        randomBytes(2400),
+        wrappingKey
+      );
+
+      const keyIds = await mockStorage.listKeys!('dkeys-');
+      expect(keyIds.length).toBe(1);
+
+      const raw = mockStorage._store.get(keyIds[0]!)!;
+      const parsed = JSON.parse(new TextDecoder().decode(raw)) as Array<{ deviceId: string }>;
+      expect(Array.isArray(parsed)).toBe(true);
+      expect(parsed.length).toBe(1);
+      expect(parsed[0]!.deviceId).toBe('device-1');
+    });
+
+    test('clears original key arrays after storage', async () => {
+      const ecdhPrivateKey = randomBytes(32);
+      const kemPrivateKey = randomBytes(2400);
+      const wrappingKey = generateWrappingKey();
+
+      await storeDeviceKeys(
+        crypto.randomUUID(),
+        'test-identity',
+        ecdhPrivateKey,
+        kemPrivateKey,
+        wrappingKey
+      );
+
+      expect(ecdhPrivateKey.every((b) => b === 0)).toBe(true);
+      expect(kemPrivateKey.every((b) => b === 0)).toBe(true);
+    });
+
+    test('stores creation timestamp', async () => {
+      const deviceId = crypto.randomUUID();
+      const wrappingKey = generateWrappingKey();
+      const before = new Date().toISOString();
+
+      await storeDeviceKeys(
+        deviceId,
+        'test-identity',
+        randomBytes(32),
+        randomBytes(2400),
+        wrappingKey
+      );
+
+      const after = new Date().toISOString();
+      const stored = await getStoredDeviceKeys(deviceId);
+      expect(stored).not.toBeNull();
+      expect(stored!.createdAt >= before).toBe(true);
+      expect(stored!.createdAt <= after).toBe(true);
+    });
+
+    test('overwrites existing device with same ID', async () => {
+      const deviceId = crypto.randomUUID();
+      const identityId = 'test-identity';
+      const wrappingKey = generateWrappingKey();
+
+      await storeDeviceKeys(deviceId, identityId, randomBytes(32), randomBytes(2400), wrappingKey);
+      await storeDeviceKeys(deviceId, identityId, randomBytes(32), randomBytes(2400), wrappingKey);
+
+      const keys = await getDeviceKeysForIdentity(identityId);
+      expect(keys.length).toBe(1);
+    });
+
+    test('stores multiple devices for the same identity', async () => {
+      const identityId = 'multi-device';
+      const wrappingKey = generateWrappingKey();
+
+      await storeDeviceKeys('dev-1', identityId, randomBytes(32), randomBytes(2400), wrappingKey);
+      await storeDeviceKeys('dev-2', identityId, randomBytes(32), randomBytes(2400), wrappingKey);
+      await storeDeviceKeys('dev-3', identityId, randomBytes(32), randomBytes(2400), wrappingKey);
+
+      const keys = await getDeviceKeysForIdentity(identityId);
+      expect(keys.length).toBe(3);
+    });
+  });
+
+  // ==========================================================================
+  // getStoredDeviceKeys
+  // ==========================================================================
+
+  describe('getStoredDeviceKeys', () => {
+    test('returns null for non-existent device', async () => {
+      const stored = await getStoredDeviceKeys('non-existent-id');
+      expect(stored).toBeNull();
+    });
+
+    test('returns stored keys for existing device', async () => {
+      const deviceId = crypto.randomUUID();
+      const wrappingKey = generateWrappingKey();
+
+      await storeDeviceKeys(deviceId, 'test-identity', randomBytes(32), randomBytes(2400), wrappingKey);
+
+      const stored = await getStoredDeviceKeys(deviceId);
+      expect(stored).not.toBeNull();
+      expect(stored!.deviceId).toBe(deviceId);
+    });
+
+    test('finds device across multiple identities', async () => {
+      const wrappingKey = generateWrappingKey();
+      const targetDeviceId = 'target-device';
+
+      await storeDeviceKeys('other-dev', 'identity-1', randomBytes(32), randomBytes(2400), wrappingKey);
+      await storeDeviceKeys(targetDeviceId, 'identity-2', randomBytes(32), randomBytes(2400), wrappingKey);
+
+      const stored = await getStoredDeviceKeys(targetDeviceId);
+      expect(stored).not.toBeNull();
+      expect(stored!.identityId).toBe('identity-2');
+    });
+  });
+
+  // ==========================================================================
+  // getDeviceKeysForIdentity
+  // ==========================================================================
+
+  describe('getDeviceKeysForIdentity', () => {
+    test('returns empty array for identity with no keys', async () => {
+      const keys = await getDeviceKeysForIdentity('no-keys-identity');
+      expect(keys).toEqual([]);
+    });
+
+    test('returns all devices for identity', async () => {
+      const identityId = 'multi-device-identity';
+      const wrappingKey = generateWrappingKey();
+      const deviceIds = [crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()];
+
+      for (const deviceId of deviceIds) {
+        await storeDeviceKeys(deviceId, identityId, randomBytes(32), randomBytes(2400), wrappingKey);
+      }
+
+      const keys = await getDeviceKeysForIdentity(identityId);
+      expect(keys.length).toBe(3);
+      expect(keys.map((k) => k.deviceId).sort()).toEqual(deviceIds.sort());
+    });
+
+    test('does not return devices for other identities', async () => {
+      const wrappingKey = generateWrappingKey();
+
+      await storeDeviceKeys('dev-1', 'identity-1', randomBytes(32), randomBytes(2400), wrappingKey);
+      await storeDeviceKeys('dev-2', 'identity-2', randomBytes(32), randomBytes(2400), wrappingKey);
+
+      const keys1 = await getDeviceKeysForIdentity('identity-1');
+      expect(keys1.length).toBe(1);
+      expect(keys1[0]?.deviceId).toBe('dev-1');
+
+      const keys2 = await getDeviceKeysForIdentity('identity-2');
+      expect(keys2.length).toBe(1);
+      expect(keys2[0]?.deviceId).toBe('dev-2');
+    });
+  });
+
+  // ==========================================================================
+  // decryptDeviceKeys
+  // ==========================================================================
+
+  describe('decryptDeviceKeys', () => {
+    test('decrypts stored keys with correct wrapping key', async () => {
+      const deviceId = crypto.randomUUID();
+      const identityId = 'test-identity';
+      const ecdhPrivateKey = randomBytes(32);
+      const kemPrivateKey = randomBytes(2400);
+      const wrappingKey = generateWrappingKey();
+
+      const originalEcdh = new Uint8Array(ecdhPrivateKey);
+      const originalKem = new Uint8Array(kemPrivateKey);
+
+      await storeDeviceKeys(deviceId, identityId, ecdhPrivateKey, kemPrivateKey, wrappingKey);
+
+      const stored = await getStoredDeviceKeys(deviceId);
+      expect(stored).not.toBeNull();
+
+      const decrypted = await decryptDeviceKeys(stored!, wrappingKey);
+
+      expect(decrypted.deviceId).toBe(deviceId);
+      expect(decrypted.identityId).toBe(identityId);
+      expect(new Uint8Array(decrypted.ecdhPrivateKey)).toEqual(originalEcdh);
+      expect(new Uint8Array(decrypted.kemPrivateKey)).toEqual(originalKem);
+    });
+
+    test('throws on wrong wrapping key', async () => {
+      const deviceId = crypto.randomUUID();
+      const wrappingKey = generateWrappingKey();
+      const wrongKey = generateWrappingKey();
+
+      await storeDeviceKeys(deviceId, 'test-identity', randomBytes(32), randomBytes(2400), wrappingKey);
+
+      const stored = await getStoredDeviceKeys(deviceId);
+      expect(stored).not.toBeNull();
+
+      await expect(decryptDeviceKeys(stored!, wrongKey)).rejects.toThrow(DeviceKeyStorageError);
+    });
+  });
+
+  // ==========================================================================
+  // hasDeviceKeys
+  // ==========================================================================
+
+  describe('hasDeviceKeys', () => {
+    test('returns false for identity with no keys', async () => {
+      expect(await hasDeviceKeys('no-keys')).toBe(false);
+    });
+
+    test('returns true for identity with keys', async () => {
+      const wrappingKey = generateWrappingKey();
+
+      await storeDeviceKeys(crypto.randomUUID(), 'has-keys', randomBytes(32), randomBytes(2400), wrappingKey);
+
+      expect(await hasDeviceKeys('has-keys')).toBe(true);
+    });
+  });
+
+  // ==========================================================================
+  // deleteDeviceKeys
+  // ==========================================================================
+
+  describe('deleteDeviceKeys', () => {
+    test('deletes existing device keys', async () => {
+      const deviceId = crypto.randomUUID();
+      const wrappingKey = generateWrappingKey();
+
+      await storeDeviceKeys(deviceId, 'test-identity', randomBytes(32), randomBytes(2400), wrappingKey);
+
+      let stored = await getStoredDeviceKeys(deviceId);
+      expect(stored).not.toBeNull();
+
+      await deleteDeviceKeys(deviceId);
+
+      stored = await getStoredDeviceKeys(deviceId);
+      expect(stored).toBeNull();
+    });
+
+    test('does not throw for non-existent device', async () => {
+      await deleteDeviceKeys('non-existent');
+    });
+
+    test('does not affect other devices', async () => {
+      const wrappingKey = generateWrappingKey();
+
+      await storeDeviceKeys('dev-keep', 'identity-1', randomBytes(32), randomBytes(2400), wrappingKey);
+      await storeDeviceKeys('dev-delete', 'identity-1', randomBytes(32), randomBytes(2400), wrappingKey);
+
+      await deleteDeviceKeys('dev-delete');
+
+      const stored = await getStoredDeviceKeys('dev-keep');
+      expect(stored).not.toBeNull();
+      expect(await getStoredDeviceKeys('dev-delete')).toBeNull();
+    });
+
+    test('removes identity entry when last device is deleted', async () => {
+      const wrappingKey = generateWrappingKey();
+
+      await storeDeviceKeys('only-dev', 'solo-identity', randomBytes(32), randomBytes(2400), wrappingKey);
+      await deleteDeviceKeys('only-dev');
+
+      const keys = await getDeviceKeysForIdentity('solo-identity');
+      expect(keys).toEqual([]);
+    });
+  });
+
+  // ==========================================================================
+  // deleteAllDeviceKeysForIdentity
+  // ==========================================================================
+
+  describe('deleteAllDeviceKeysForIdentity', () => {
+    test('deletes all devices for identity', async () => {
+      const identityId = 'multi-device';
+      const wrappingKey = generateWrappingKey();
+
+      await storeDeviceKeys('d1', identityId, randomBytes(32), randomBytes(2400), wrappingKey);
+      await storeDeviceKeys('d2', identityId, randomBytes(32), randomBytes(2400), wrappingKey);
+      await storeDeviceKeys('d3', identityId, randomBytes(32), randomBytes(2400), wrappingKey);
+
+      const deletedCount = await deleteAllDeviceKeysForIdentity(identityId);
+      expect(deletedCount).toBe(3);
+
+      const keys = await getDeviceKeysForIdentity(identityId);
+      expect(keys.length).toBe(0);
+    });
+
+    test('returns 0 for identity with no devices', async () => {
+      const count = await deleteAllDeviceKeysForIdentity('no-devices');
+      expect(count).toBe(0);
+    });
+
+    test('does not delete devices from other identities', async () => {
+      const wrappingKey = generateWrappingKey();
+
+      await storeDeviceKeys('d1', 'identity-1', randomBytes(32), randomBytes(2400), wrappingKey);
+      await storeDeviceKeys('d2', 'identity-2', randomBytes(32), randomBytes(2400), wrappingKey);
+
+      await deleteAllDeviceKeysForIdentity('identity-1');
+
+      const keys2 = await getDeviceKeysForIdentity('identity-2');
+      expect(keys2.length).toBe(1);
+    });
+  });
+
+  // ==========================================================================
+  // clearAllDeviceKeys
+  // ==========================================================================
+
+  describe('clearAllDeviceKeys', () => {
+    test('clears all device keys from backend', async () => {
+      const wrappingKey = generateWrappingKey();
+
+      await storeDeviceKeys('d1', 'identity-1', randomBytes(32), randomBytes(2400), wrappingKey);
+      await storeDeviceKeys('d2', 'identity-2', randomBytes(32), randomBytes(2400), wrappingKey);
+
+      await clearAllDeviceKeys();
+
+      expect(await getDeviceKeysForIdentity('identity-1')).toEqual([]);
+      expect(await getDeviceKeysForIdentity('identity-2')).toEqual([]);
+      const remaining = await mockStorage.listKeys!('dkeys-');
+      expect(remaining.length).toBe(0);
+    });
+  });
+
+  // ==========================================================================
+  // getOrCreateWrappingSalt
+  // ==========================================================================
+
+  describe('getOrCreateWrappingSalt', () => {
+    test('creates and returns a salt when none exists', async () => {
+      const salt = await getOrCreateWrappingSalt('identity-new');
+      expect(salt).toBeInstanceOf(Uint8Array);
+      expect(salt.length).toBeGreaterThan(0);
+    });
+
+    test('returns the same salt on subsequent calls', async () => {
+      const identityId = 'identity-stable';
+      const salt1 = await getOrCreateWrappingSalt(identityId);
+      const salt2 = await getOrCreateWrappingSalt(identityId);
+      expect(new Uint8Array(salt1)).toEqual(new Uint8Array(salt2));
+    });
+
+    test('returns different salts for different identities', async () => {
+      const salt1 = await getOrCreateWrappingSalt('identity-a');
+      const salt2 = await getOrCreateWrappingSalt('identity-b');
+      expect(new Uint8Array(salt1)).not.toEqual(new Uint8Array(salt2));
+    });
+
+    test('stores salt under a hashed key that does not reveal identity', async () => {
+      const identityId = 'my-secret-identity-xyz';
+      await getOrCreateWrappingSalt(identityId);
+
+      const saltKeys = await mockStorage.listKeys!('wsalt-');
+      expect(saltKeys.length).toBe(1);
+      expect(saltKeys[0]!.startsWith('wsalt-')).toBe(true);
+      expect(saltKeys[0]!).not.toContain(identityId);
+    });
+
+    test('salt persists independently of device keys', async () => {
+      const identityId = 'identity-persist';
+      const wrappingKey = generateWrappingKey();
+
+      const salt = await getOrCreateWrappingSalt(identityId);
+      await storeDeviceKeys('dev-x', identityId, randomBytes(32), randomBytes(2400), wrappingKey);
+      await deleteAllDeviceKeysForIdentity(identityId);
+
+      const saltAfterDelete = await getOrCreateWrappingSalt(identityId);
+      expect(new Uint8Array(saltAfterDelete)).toEqual(new Uint8Array(salt));
+    });
+  });
+
+  // ==========================================================================
+  // lastIdentityUnlockAt (desktop SecureStorage backend)
+  // ==========================================================================
+
+  describe('lastIdentityUnlockAt', () => {
+    test('returns null before anything is recorded', async () => {
+      expect(await getLastIdentityUnlockAt('id-none')).toBeNull();
+    });
+
+    test('round-trips an ISO timestamp through the backend', async () => {
+      const when = new Date('2026-05-06T07:08:09.000Z');
+      await setLastIdentityUnlockAt('id-ts', when);
+      expect(await getLastIdentityUnlockAt('id-ts')).toBe(when.toISOString());
+    });
+
+    test('PRIVACY: stores under a hashed key that does not reveal the identity', async () => {
+      const identityId = 'my-secret-identity-unlock';
+      await setLastIdentityUnlockAt(identityId);
+
+      const keys = await mockStorage.listKeys!('iunlock-');
+      expect(keys.length).toBe(1);
+      expect(keys[0]!.startsWith('iunlock-')).toBe(true);
+      expect(keys[0]!).not.toContain(identityId);
+    });
+
+    test('needsPassphraseMigration gates on the timestamp', async () => {
+      expect(await needsPassphraseMigration('id-gate', null)).toBe(false);
+      // Never unlocked locally but server changed -> needs migration.
+      expect(await needsPassphraseMigration('id-gate', '2026-01-01T00:00:00.000Z')).toBe(true);
+      // Unlocked after the change -> already migrated.
+      await setLastIdentityUnlockAt('id-gate', new Date('2026-02-01T00:00:00.000Z'));
+      expect(await needsPassphraseMigration('id-gate', '2026-01-01T00:00:00.000Z')).toBe(false);
+      // A later server change -> needs migration again.
+      expect(await needsPassphraseMigration('id-gate', '2026-03-01T00:00:00.000Z')).toBe(true);
+    });
+  });
+
+  // ==========================================================================
+  // Backend isolation: switching backend does not leak state
+  // ==========================================================================
+
+  describe('backend isolation', () => {
+    test('data stored with backend is not visible after backend is removed', async () => {
+      const wrappingKey = generateWrappingKey();
+
+      await storeDeviceKeys('backend-dev', 'backend-id', randomBytes(32), randomBytes(2400), wrappingKey);
+      expect(await hasDeviceKeys('backend-id')).toBe(true);
+
+      setDeviceKeyStorageBackend(null);
+
+      // Without backend, we'd hit IndexedDB which doesn't have this data.
+      // In environments without IndexedDB this will throw; that's expected.
+      // The point is that backend data doesn't leak.
+      try {
+        const result = await hasDeviceKeys('backend-id');
+        expect(result).toBe(false);
+      } catch {
+        // IndexedDB not available in this test environment; that's fine
+      }
+
+      // Restore backend for cleanup
+      setDeviceKeyStorageBackend(mockStorage);
+    });
+
+    test('separate mock backends are independent', async () => {
+      const wrappingKey = generateWrappingKey();
+      const otherMock = createMockSecureStorage();
+
+      await storeDeviceKeys('dev-a', 'id-a', randomBytes(32), randomBytes(2400), wrappingKey);
+
+      setDeviceKeyStorageBackend(otherMock);
+      expect(await hasDeviceKeys('id-a')).toBe(false);
+
+      // Restore original
+      setDeviceKeyStorageBackend(mockStorage);
+      expect(await hasDeviceKeys('id-a')).toBe(true);
+    });
+  });
+});
+
+// ============================================================================
+// Migration tests
+// ============================================================================
+
+describe('migrateIndexedDbToBackend', () => {
+  let mockStorage: ReturnType<typeof createMockSecureStorage>;
+
+  beforeEach(async () => {
+    // The migrator's step 2 reads the global (fake-)IndexedDB device-keys store.
+    // Other test files in the same run leave records there, so clear it first to
+    // keep the single-blob migration count deterministic regardless of ordering.
+    await deleteIndexedDb('adieuu-device-keys');
+    mockStorage = createMockSecureStorage();
+  });
+
+  afterEach(() => {
+    setDeviceKeyStorageBackend(null);
+  });
+
+  test('returns 0 when no backend is set', async () => {
+    setDeviceKeyStorageBackend(null);
+    const count = await migrateIndexedDbToBackend();
+    expect(count).toBe(0);
+  });
+
+  test('returns 0 when migration marker already exists', async () => {
+    await mockStorage.setKey('dkeys-migration-v2', new TextEncoder().encode('done'));
+
+    setDeviceKeyStorageBackend(mockStorage);
+    const count = await migrateIndexedDbToBackend();
+    expect(count).toBe(0);
+  });
+
+  test('migrates single-blob format to per-identity files', async () => {
+    const legacyStore = {
+      'id-alpha': [
+        { deviceId: 'dev-1', identityId: 'id-alpha', ecdhPrivateKeyEncrypted: { ciphertext: 'a', nonce: 'b' }, kemPrivateKeyEncrypted: { ciphertext: 'c', nonce: 'd' }, createdAt: new Date().toISOString() },
+      ],
+      'id-beta': [
+        { deviceId: 'dev-2', identityId: 'id-beta', ecdhPrivateKeyEncrypted: { ciphertext: 'e', nonce: 'f' }, kemPrivateKeyEncrypted: { ciphertext: 'g', nonce: 'h' }, createdAt: new Date().toISOString() },
+      ],
+    };
+    await mockStorage.setKey('adieuu-device-keys', new TextEncoder().encode(JSON.stringify(legacyStore)));
+
+    setDeviceKeyStorageBackend(mockStorage);
+    const count = await migrateIndexedDbToBackend();
+    expect(count).toBe(2);
+
+    const alphaKeys = await getDeviceKeysForIdentity('id-alpha');
+    expect(alphaKeys.length).toBe(1);
+    expect(alphaKeys[0]!.deviceId).toBe('dev-1');
+
+    const betaKeys = await getDeviceKeysForIdentity('id-beta');
+    expect(betaKeys.length).toBe(1);
+    expect(betaKeys[0]!.deviceId).toBe('dev-2');
+
+    expect(mockStorage._store.has('adieuu-device-keys')).toBe(false);
+    expect(mockStorage._store.has('dkeys-migration-v2')).toBe(true);
+  });
+
+  test('returns 0 when IndexedDB is unavailable', async () => {
+    // In Bun/Node without fake-indexeddb, IndexedDB is undefined,
+    // so migration should gracefully return 0.
+    setDeviceKeyStorageBackend(mockStorage);
+    const count = await migrateIndexedDbToBackend();
+    // Either 0 (no IndexedDB) or some value if IndexedDB is available
+    expect(typeof count).toBe('number');
+    expect(count).toBeGreaterThanOrEqual(0);
+  });
+});

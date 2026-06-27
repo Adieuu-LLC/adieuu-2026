@@ -1,0 +1,275 @@
+/**
+ * Report repository — data access for platform_reports collection.
+ */
+
+import { ObjectId, type Filter, type Sort } from 'mongodb';
+import { BaseRepository } from './base.repository';
+import { Collections } from '../db';
+import type {
+  ReportDocument,
+  CreateReportInput,
+  ReportStatus,
+  ReportResolution,
+} from '../models/report';
+
+export interface ReportListFilter {
+  status?: ReportStatus | ReportStatus[];
+  assignedTo?: string | null;
+  reportType?: string;
+  category?: string;
+  scopeType?: string;
+  targetIdentityId?: string;
+  reporterIdentityId?: string;
+}
+
+export interface ReportListOptions {
+  filter?: ReportListFilter;
+  page?: number;
+  limit?: number;
+  sort?: Sort;
+}
+
+export interface ReportListResult {
+  reports: ReportDocument[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export type NcmecSubmissionFinalizeResult =
+  | { ok: true; ncmecReportId: string; actorId: string; filedAt: Date }
+  | { ok: false; ncmecError: string };
+
+export class ReportRepository extends BaseRepository<ReportDocument> {
+  constructor() {
+    super(Collections.PLATFORM_REPORTS);
+  }
+
+  async createReport(input: CreateReportInput): Promise<ReportDocument> {
+    const doc: Omit<ReportDocument, '_id' | 'createdAt' | 'updatedAt'> = {
+      reportType: input.reportType,
+      source: input.source,
+      status: 'open',
+      category: input.category,
+      scopeType: input.scopeType,
+      scopeId: input.scopeId,
+      targetRef: input.targetRef,
+      targetIdentityId: input.targetIdentityId,
+      reporterIdentityId: input.reporterIdentityId,
+      detectionMetadata: input.detectionMetadata,
+      evidence: input.evidence,
+      reporterReason: input.reporterReason,
+      idempotencyKey: input.idempotencyKey,
+    };
+
+    return await super.create(doc);
+  }
+
+  async findByIdempotencyKey(key: string): Promise<ReportDocument | null> {
+    return await this.findOne({ idempotencyKey: key } as Filter<ReportDocument>);
+  }
+
+  /** Open/escalated automated hash-check reports tied to this scan session. */
+  async countOpenAutomatedByScanHash(scanHash: string): Promise<number> {
+    return await this.count({
+      source: 'automated_hash_check',
+      status: { $in: ['open', 'escalated'] },
+      'detectionMetadata.scanHash': scanHash,
+    } as Filter<ReportDocument>);
+  }
+
+  async list(options: ReportListOptions = {}): Promise<ReportListResult> {
+    const page = Math.max(1, options.page ?? 1);
+    const limit = Math.min(100, Math.max(1, options.limit ?? 25));
+    const skip = (page - 1) * limit;
+    const sort: Sort = options.sort ?? { createdAt: -1 };
+
+    const filter: Filter<ReportDocument> = {};
+    const f = options.filter;
+    if (f) {
+      if (f.status) {
+        filter.status = Array.isArray(f.status) ? { $in: f.status } : f.status;
+      }
+      if (f.assignedTo !== undefined) {
+        filter.assignedTo = f.assignedTo === null ? { $exists: false } : f.assignedTo;
+      }
+      if (f.reportType) filter.reportType = f.reportType as ReportDocument['reportType'];
+      if (f.category) filter.category = f.category as ReportDocument['category'];
+      if (f.scopeType) filter.scopeType = f.scopeType as ReportDocument['scopeType'];
+      if (f.targetIdentityId) filter.targetIdentityId = f.targetIdentityId;
+      if (f.reporterIdentityId) filter.reporterIdentityId = f.reporterIdentityId;
+    }
+
+    const [reports, total] = await Promise.all([
+      this.collection.find(filter).sort(sort).skip(skip).limit(limit).toArray() as Promise<ReportDocument[]>,
+      this.collection.countDocuments(filter),
+    ]);
+
+    return { reports, total, page, limit };
+  }
+
+  async assign(reportId: string | ObjectId, identityId: string): Promise<ReportDocument | null> {
+    return await this.updateById(reportId, { assignedTo: identityId } as Partial<ReportDocument>);
+  }
+
+  async unassign(reportId: string | ObjectId): Promise<ReportDocument | null> {
+    const objectId = this.toObjectId(reportId);
+    const result = await this.collection.findOneAndUpdate(
+      { _id: objectId },
+      { $unset: { assignedTo: '' }, $set: { updatedAt: new Date() } },
+      { returnDocument: 'after' },
+    );
+    return result as ReportDocument | null;
+  }
+
+  async escalate(
+    reportId: string | ObjectId,
+    escalatedByIdentityId: string,
+  ): Promise<ReportDocument | null> {
+    return await this.updateById(reportId, {
+      status: 'escalated',
+      escalatedByIdentityId,
+      escalatedAt: new Date(),
+    } as Partial<ReportDocument>);
+  }
+
+  async resolve(
+    reportId: string | ObjectId,
+    resolution: ReportResolution,
+  ): Promise<ReportDocument | null> {
+    return await this.updateById(reportId, {
+      status: 'resolved',
+      resolution,
+    } as Partial<ReportDocument>);
+  }
+
+  async close(
+    reportId: string | ObjectId,
+    closedByIdentityId: string,
+    closureReason: string,
+  ): Promise<ReportDocument | null> {
+    return await this.updateById(reportId, {
+      status: 'closed',
+      closedByIdentityId,
+      closureReason,
+      closedAt: new Date(),
+    } as Partial<ReportDocument>);
+  }
+
+  async reopen(reportId: string | ObjectId, reopenedBy: string): Promise<ReportDocument | null> {
+    const objectId = this.toObjectId(reportId);
+    const result = await this.collection.findOneAndUpdate(
+      { _id: objectId },
+      {
+        $set: { status: 'open' as ReportStatus, updatedAt: new Date() },
+        $unset: {
+          resolution: '',
+          closureReason: '',
+          closedByIdentityId: '',
+          closedAt: '',
+        },
+      },
+      { returnDocument: 'after' },
+    );
+    return result as ReportDocument | null;
+  }
+
+  async updateCategory(
+    reportId: string | ObjectId,
+    category: string,
+  ): Promise<ReportDocument | null> {
+    return await this.updateById(reportId, { category } as Partial<ReportDocument>);
+  }
+
+  /** Stale in-flight NCMEC claims older than this may be reclaimed. */
+  static readonly NCMEC_CLAIM_STALE_MS = 15 * 60 * 1000;
+
+  /**
+   * Atomically claim a report for NCMEC submission.
+   * Only one concurrent request can proceed past this point.
+   */
+  async claimNcmecSubmission(
+    reportId: string | ObjectId,
+    _actorId: string,
+  ): Promise<ReportDocument | null> {
+    const objectId = this.toObjectId(reportId);
+    const now = new Date();
+    const staleBefore = new Date(now.getTime() - ReportRepository.NCMEC_CLAIM_STALE_MS);
+
+    const result = await this.collection.findOneAndUpdate(
+      {
+        _id: objectId,
+        status: { $ne: 'closed' },
+        $or: [
+          { ncmecStatus: { $exists: false } },
+          { ncmecStatus: 'failed' },
+          { ncmecStatus: 'claiming', updatedAt: { $lt: staleBefore } },
+        ],
+      },
+      {
+        $set: {
+          ncmecStatus: 'claiming',
+          updatedAt: now,
+        },
+      },
+      { returnDocument: 'after' },
+    );
+
+    return result as ReportDocument | null;
+  }
+
+  /**
+   * Commit NCMEC submission outcome after external CyberTipline call.
+   * Only updates reports still in `claiming` state.
+   */
+  async finalizeNcmecSubmission(
+    reportId: string | ObjectId,
+    result: NcmecSubmissionFinalizeResult,
+  ): Promise<ReportDocument | null> {
+    const objectId = this.toObjectId(reportId);
+    const now = new Date();
+
+    if (result.ok) {
+      const updateResult = await this.collection.findOneAndUpdate(
+        { _id: objectId, ncmecStatus: 'claiming' },
+        {
+          $set: {
+            ncmecStatus: 'submitted',
+            leReportFiled: true,
+            leReportFiledAt: result.filedAt,
+            leReportFiledBy: result.actorId,
+            ncmecReportId: result.ncmecReportId,
+            updatedAt: now,
+          },
+          $addToSet: { tags: 'le_report_filed' },
+          $unset: { ncmecError: '' },
+        },
+        { returnDocument: 'after' },
+      );
+      return updateResult as ReportDocument | null;
+    }
+
+    const updateResult = await this.collection.findOneAndUpdate(
+      { _id: objectId, ncmecStatus: 'claiming' },
+      {
+        $set: {
+          ncmecStatus: 'failed',
+          ncmecError: result.ncmecError,
+          updatedAt: now,
+        },
+        $unset: { ncmecReportId: '' },
+      },
+      { returnDocument: 'after' },
+    );
+    return updateResult as ReportDocument | null;
+  }
+}
+
+let reportRepository: ReportRepository | null = null;
+
+export function getReportRepository(): ReportRepository {
+  if (!reportRepository) {
+    reportRepository = new ReportRepository();
+  }
+  return reportRepository;
+}

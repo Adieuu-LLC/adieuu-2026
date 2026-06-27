@@ -1,0 +1,83 @@
+# Adieuu Production Caddyfile
+#
+# Usage:
+#   caddy run --config Caddyfile.production
+#
+# Requirements:
+#   - DNS A records for api.adieuu.com, chat.adieuu.com, ws.adieuu.com
+#   - Ports 80/443 open (Caddy handles Let's Encrypt automatically)
+#
+# Environment variables required:
+#   - COOKIE_DOMAIN=.adieuu.com (for cross-subdomain cookie sharing)
+#   - VITE_API_BASE_URL=https://api.adieuu.com (for web app build)
+#   - VITE_CHAT_WS_URL=wss://api.adieuu.com/ws/chat (for web app build; ALB routes /ws/* to chat)
+
+# API subdomain
+api.adieuu.com {
+	reverse_proxy localhost:4000 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	request_body {
+		max_size 10MB
+	}
+
+	log {
+		output file /var/log/caddy/api.log {
+			roll_size 100mb
+			roll_keep 5
+		}
+		format json
+	}
+}
+
+# WebSocket subdomain (chat service)
+ws.adieuu.com {
+	reverse_proxy localhost:9001 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	log {
+		output file /var/log/caddy/ws.log {
+			roll_size 100mb
+			roll_keep 5
+		}
+		format json
+	}
+}
+
+# Web app subdomain
+chat.adieuu.com {
+	# Option 1: Reverse proxy to SSR/Node server
+	reverse_proxy localhost:3000
+
+	# Option 2: Serve static files (uncomment if using static build)
+	# root * /var/www/adieuu/web/dist
+	# file_server
+	# try_files {path} /index.html
+
+	log {
+		output file /var/log/caddy/chat.log {
+			roll_size 100mb
+			roll_keep 5
+		}
+		format json
+	}
+}
+
+# Redirect www to main app
+www.adieuu.com {
+	redir https://chat.adieuu.com{uri} permanent
+}
+
+# Redirect bare domain to main app
+adieuu.com {
+	redir https://chat.adieuu.com{uri} permanent
+}
+
+# Note: For additional edge rate limiting, consider:
+# - Cloudflare (free tier includes rate limiting)
+# - AWS WAF + CloudFront
+# - Custom Caddy build with caddy-ratelimit plugin

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+  "-//freedesktop//DTD polkit Policy Configuration 1.0//EN"
+  "https://www.freedesktop.org/standards/polkit/1.0/policyconfig.dtd">
+<policyconfig>
+  <vendor>Adieuu Team</vendor>
+  <vendor_url>https://adieuu.com</vendor_url>
+
+  <action id="com.adieuu.desktop.update-install">
+    <description>Install Adieuu Desktop Update</description>
+    <message>Authentication is required to install an Adieuu update.</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/dnf</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+</policyconfig>

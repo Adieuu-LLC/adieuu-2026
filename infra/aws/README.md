@@ -1,0 +1,96 @@
+# AWS infrastructure (Terraform)
+
+Terraform code for Adieuu on AWS lives in `terraform/`. It is intended to be **safe to use from a public clone**: copy `terraform.tfvars.example` to `terraform.tfvars`, fill in **your** account-specific values, and **never commit** secrets.
+
+## Prerequisites
+
+- [Terraform](https://www.terraform.io/downloads) `>= 1.5`
+- AWS credentials (e.g. `aws configure` or environment variables)
+- **Docker images** for API and chat built for **`linux/arm64`** (Fargate in this stack uses `ARM64` / Graviton) and **pushed to ECR** after the repositories exist (`terraform apply` creates the repos; push tags such as `latest` or your release tag)
+
+## Quick start
+
+From the repository root:
+
+```bash
+./scripts/deploy-wizard.sh
+cd infra/aws/terraform
+terraform init
+terraform plan
+```
+
+Review the plan, then `terraform apply` when ready.
+
+After apply:
+
+```bash
+terraform output
+```
+
+CI deploys: copy `github_actions_deploy_role_arn` into the GitHub repository secret `AWS_DEPLOY_ROLE_ARN_ADIEUU`, and set the repository variables described in [docs/deployment/github-actions-aws.md](../../docs/deployment/github-actions-aws.md).
+
+Use `ecr_api_repository_url` and `ecr_chat_repository_url` to tag and push images manually, for example:
+
+```bash
+AWS_REGION=us-east-1
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+docker tag adieuu-api:local "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/adieuu-staging-api:latest"
+docker push "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/adieuu-staging-api:latest"
+# repeat for chat with the chat repository name from terraform output / ECR console
+```
+
+Replace `adieuu-staging-api` with the repository name shown in the AWS console or `terraform output` (it follows the pattern `{project}-{environment}-api`).
+
+## Layout
+
+| File / pattern | Purpose |
+|----------------|---------|
+| `main.tf` | Data sources (caller identity, region, AZs) |
+| `locals.tf` | Naming, subnet CIDR math |
+| `variables.tf` | Inputs (VPC, ECS sizing, env maps) |
+| `vpc.tf` | VPC module |
+| `ecr.tf` | ECR repositories + lifecycle |
+| `iam_ecs.tf` | ECS execution + task roles; optional `GetSecretValue` / `kms:Decrypt` for container secrets |
+| `security_groups.tf` | ALB and ECS task security groups |
+| `alb.tf` | ALB, target groups, listener rules (HTTP + HTTPS when custom domain) |
+| `dns.tf` | Route 53 aliases + ACM DNS validation (API + app certs) |
+| `cloudfront.tf` | S3 web bucket (OAC) + CloudFront for `app_domain_name` |
+| `waf.tf` | WAFv2 for ALB + CloudFront (`enable_waf`) |
+| `cloudwatch.tf` | Log groups for ECS |
+| `ecs.tf` | ECS cluster, task definitions, services |
+| `elasticache.tf` | In-VPC ElastiCache **Valkey** (`redis_engine_version`, default `8.2`); injects `REDIS_URL` for API/chat |
+| `ecs_autoscaling.tf` | Application Auto Scaling for API + chat (CPU/memory target tracking) |
+| `vpc_endpoints.tf` | Interface VPC endpoints (ECR, logs, secrets, STS, KMS) + S3 gateway (optional via `enable_vpc_interface_endpoints`) |
+| `alarms.tf` | SNS + CloudWatch alarms (ALB/ECS/ElastiCache) |
+| `atlas_peering.tf` | Optional MongoDB Atlas network container + VPC peering, routes, DNS resolution on the peering |
+| `iam_github_actions_deploy.tf` | GitHub OIDC IAM role (S3/CloudFront + ECR + ECS + Lambda) for CI deploys; see [github-actions-aws.md](../../docs/deployment/github-actions-aws.md) |
+| `media.tf` | Media stack: S3 (media + E2E + CSAM evidence), CloudFront, CSAM hash Lambdas, DynamoDB NCMEC table |
+| `downloads.tf` | Desktop downloads mirror: S3 + CloudFront dual-origin for update binaries, SBOMs, `releases.json` |
+| `livekit.tf` | Optional self-hosted LiveKit SFU: EC2 ASG, ALB host-header rule, security groups, DNS |
+| `outputs.tf` | ALB DNS, ECR URLs, subnet IDs, optional Redis endpoint, SNS topic for alarms |
+| `terraform.tfvars.example` | **Committed** — placeholders; commented env/secrets templates (see [ecs-environment.md](../../docs/deployment/ecs-environment.md)) |
+| `terraform.tfvars` | **Local / private** — gitignored |
+
+## Backend state
+
+By default Terraform uses **local state** (`terraform.tfstate`) in this directory — suitable for experiments. For teams, configure a **remote S3 backend** with DynamoDB locking in `versions.tf`. Keep state files private.
+
+## Lambda code deploys
+
+Lambda function code (`media-processor`, `media-db-writer`) is deployed automatically via the release CI workflow when their source trees or `pnpm-lock.yaml` change. The workflow runs `package-lambdas.sh --deploy` using the OIDC deploy role.
+
+The **sharp Lambda layer** (`layers/sharp/build.sh`) is built and deployed automatically when files under `infra/aws/lambda/layers/sharp/` change. The workflow runs `package-sharp-layer.sh --deploy`, which publishes a new layer version and attaches it to `media-processor`.
+
+Set `DEPLOY_LAMBDA_NAME_PREFIX_ADIEUU` in GitHub repo variables after `terraform apply` (see [github-actions-aws.md](../../docs/deployment/github-actions-aws.md)). Media Lambdas use the **`nodejs24.x`** runtime; CI builds the sharp layer under **Node 26**.
+
+**Terraform infrastructure** changes (VPC, IAM, new resources) still require manual `terraform apply`. After merging runtime or IAM changes, apply once so live functions and the deploy role policy match.
+
+**Node.js 26 follow-up:** when AWS releases the `nodejs26.x` managed runtime (~Nov 2026), bump Terraform `runtime` + layer `compatible_runtimes`, esbuild targets, `package-sharp-layer.sh`, re-publish the layer, and `terraform apply`.
+
+## Related documentation
+
+- [docs/deployment/aws.md](../../docs/deployment/aws.md) — architecture, what Terraform covers, secrets
+- [docs/deployment/ecs-environment.md](../../docs/deployment/ecs-environment.md) — sensitive vs non-sensitive env vars, Secrets Manager keys, `terraform.tfvars` maps
+- [docs/deployment/containers.md](../../docs/deployment/containers.md) — building API/chat images

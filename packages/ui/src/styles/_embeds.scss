@@ -1,0 +1,304 @@
+// ============================================================================
+// Message Embeds
+// ============================================================================
+
+.message-embeds {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
+  max-width: 100%;
+  min-width: 0;
+}
+
+// ============================================================================
+// YouTube Embed
+// ============================================================================
+
+.embed-youtube {
+  position: relative;
+  width: 100%;
+  max-width: var(--embed-max-width, none);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-bg-tertiary);
+
+  &--hero {
+    max-width: 100%;
+  }
+
+  &-iframe {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: none;
+  }
+}
+
+// ============================================================================
+// Generic Link Embed
+// ============================================================================
+
+.embed-link {
+  display: flex;
+  flex-direction: column;
+  max-width: var(--embed-max-width, none);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-bg-secondary);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+
+  &:hover {
+    border-color: var(--color-border-hover, var(--color-text-tertiary));
+    background: var(--color-bg-hover);
+  }
+
+  &--loading {
+    pointer-events: none;
+  }
+
+  &-skeleton {
+    height: 72px;
+    background: linear-gradient(
+      90deg,
+      var(--color-bg-tertiary) 25%,
+      var(--color-bg-secondary) 50%,
+      var(--color-bg-tertiary) 75%
+    );
+    background-size: 200% 100%;
+    animation: embed-skeleton-shimmer 1.5s infinite;
+  }
+
+  &-image {
+    width: 100%;
+    max-height: 200px;
+    overflow: hidden;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+  }
+
+  &-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  &-site {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &-favicon {
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+  }
+
+  &-title {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-accent-primary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  &-description {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+@keyframes embed-skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+// ============================================================================
+// Hidden Embed Toggle (inline eye-slash icon after links)
+// ============================================================================
+
+.dm-link-embed-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  margin-left: 3px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  opacity: 0.6;
+  vertical-align: baseline;
+  line-height: 1;
+  font-size: 1.1em;
+  transition: opacity var(--transition-fast), color var(--transition-fast);
+
+  &:hover,
+  &:focus-visible {
+    opacity: 1;
+    color: var(--color-text-secondary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-accent-primary);
+    outline-offset: 1px;
+    border-radius: 2px;
+  }
+}
+
+// ============================================================================
+// Hidden Embed Actions (below message)
+// ============================================================================
+
+.embed-hidden-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-xs);
+  flex-wrap: wrap;
+
+  &-show,
+  &-enable-all {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    padding: 2px 0;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 2px;
+    transition: color var(--transition-fast);
+
+    &:hover {
+      color: var(--color-text-secondary);
+    }
+  }
+
+  &-enable-all {
+    color: var(--color-accent-primary);
+
+    &:hover {
+      color: var(--color-accent-primary-hover, var(--color-accent-primary));
+    }
+  }
+}
+
+// ============================================================================
+// Embed Allowlist Prompt (below individual embed card)
+// ============================================================================
+
+.embed-allowlist-prompt {
+  display: block;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  padding: 4px 0 0;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+  transition: color var(--transition-fast);
+
+  &:hover {
+    color: var(--color-text-secondary);
+  }
+}
+
+.message-embed-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+// ============================================================================
+// Enable Embeds Modal
+// ============================================================================
+
+.enable-embeds-modal {
+  &-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: var(--z-modal-backdrop, 999);
+  }
+
+  &-positioner {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: var(--z-modal, 1000);
+    padding: var(--spacing-lg);
+  }
+
+  &-content {
+    background: var(--color-bg-primary);
+    border-radius: var(--radius-lg);
+    max-width: 420px;
+    width: 100%;
+    box-shadow: var(--shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.2));
+    overflow: hidden;
+  }
+
+  &-header {
+    padding: var(--spacing-lg) var(--spacing-lg) 0;
+  }
+
+  &-title {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    margin: 0;
+  }
+
+  &-body {
+    padding: var(--spacing-md) var(--spacing-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+
+  &-description {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  &-note {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    line-height: 1.4;
+    margin: 0;
+  }
+
+  &-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md) var(--spacing-lg) var(--spacing-lg);
+  }
+}

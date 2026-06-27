@@ -1,0 +1,78 @@
+# GitHub Actions: AWS deploy (main)
+
+Production deploys are **invoked from the [Release](../../.github/workflows/release.yml) workflow** (job `deploy-aws`) so they run **once per merge**, **after** the `release` job finishes (when `released=true`). That matches **web `package.json` / `version.json`** to the commit on **`main`**, avoids racing the release bump, and avoids a **second** deploy from the follow-up CI run on `chore(release):` commits.
+
+Manual redeploys use [Deploy AWS](../../.github/workflows/deploy-aws.yml) (**`workflow_dispatch`** only), which calls the reusable workflow [deploy-aws-reusable.yml](../../.github/workflows/deploy-aws-reusable.yml) and deploys **current `main`** with `force_all: true` (all targets regardless of path changes).
+
+## Prerequisites
+
+1. **OIDC provider** — Terraform **creates** the account-level GitHub OIDC provider (`token.actions.githubusercontent.com`) when `github_oidc_provider_arn` is left empty. If that provider **already exists** in this account (e.g. from marketing or another stack), set `github_oidc_provider_arn` in `terraform.tfvars` to that ARN so Terraform does not try to create a duplicate (`EntityAlreadyExists`).
+
+2. **Terraform** — Apply the stack so `github_actions_deploy_role_arn` exists (`enable_github_actions_deploy_role` defaults to `true`). Override `github_actions_repository` if the repo name differs.
+
+3. **GitHub configuration** — Add the following.
+
+### Repository secret
+
+| Name | Value |
+|------|--------|
+| `AWS_DEPLOY_ROLE_ARN_ADIEUU` | Output `github_actions_deploy_role_arn` from `terraform output` |
+
+### Repository variables
+
+Copy from `terraform output` (non-secret; using variables keeps them out of workflow YAML).
+
+| Variable | Terraform output |
+|----------|------------------|
+| `AWS_REGION` | `aws_region` (optional; workflow defaults to `us-east-1`) |
+| `DEPLOY_WEB_S3_BUCKET_ADIEUU` | `web_s3_bucket_name` (requires public DNS + TLS / CloudFront stack) |
+| `DEPLOY_CLOUDFRONT_DISTRIBUTION_ID_ADIEUU` | `cloudfront_distribution_id` |
+| `DEPLOY_WEB_VITE_API_BASE_URL_ADIEUU` | Not from Terraform: public API origin for the Vite build, e.g. `https://api.adieuu.com` (align with `api_domain_name` and API `CORS_ORIGINS`). |
+| `DEPLOY_WEB_VITE_CHAT_WS_URL_ADIEUU` | Not from Terraform: chat WebSocket URL for the web build, e.g. `wss://api.adieuu.com/ws/chat` (ALB routes `/ws/*` on the API host). |
+| `DEPLOY_ECR_API_REPOSITORY_URL_ADIEUU` | `ecr_api_repository_url` |
+| `DEPLOY_ECR_CHAT_REPOSITORY_URL_ADIEUU` | `ecr_chat_repository_url` |
+| `DEPLOY_ECS_CLUSTER_NAME_ADIEUU` | `ecs_cluster_name` |
+| `DEPLOY_ECS_SERVICE_API_ADIEUU` | `ecs_service_api_name` |
+| `DEPLOY_ECS_SERVICE_CHAT_ADIEUU` | `ecs_service_chat_name` |
+
+If `DEPLOY_WEB_S3_BUCKET_ADIEUU` or `DEPLOY_CLOUDFRONT_DISTRIBUTION_ID_ADIEUU` is unset, the web deploy job is skipped (e.g. stack without `route53_zone_name`). Container jobs are skipped if their ECR/ECS variables are incomplete.
+
+### Lambda deploy (optional; after Terraform with `enable_media_stack = true`)
+
+When the media stack is enabled, Lambda function code for `media-processor` and `media-db-writer` is deployed automatically on release when their source files change. The **sharp Lambda layer** is deployed automatically when files under `infra/aws/lambda/layers/sharp/` change. After `terraform apply` (which grants Lambda deploy permissions to the OIDC role, including `PublishLayerVersion` and `UpdateFunctionConfiguration`), add:
+
+| Variable | Terraform output |
+|----------|------------------|
+| `DEPLOY_LAMBDA_NAME_PREFIX_ADIEUU` | `lambda_name_prefix` (e.g. `adieuu-production`) |
+
+If unset, the lambda deploy job is skipped. Terraform infrastructure changes (VPC, IAM, new resources) still require manual `terraform apply`.
+
+**One-time after upgrading Lambda runtime to `nodejs24.x`:** run `terraform apply` so live function `runtime` values and the deploy role IAM policy update. CI handles ongoing function code and sharp layer publishes.
+
+**Node.js 26 follow-up (when AWS ships `nodejs26.x`, ~Nov 2026):** bump Terraform `runtime` and layer `compatible_runtimes`, esbuild `--target=node26`, `build.sh` / `package-sharp-layer.sh` runtime strings, re-publish the sharp layer, and `terraform apply`. Confirm sharp prebuilds support Node 26 on Amazon Linux 2023 before cutting over.
+
+### Downloads stack (optional; after Terraform with `enable_downloads_stack = true`)
+
+When the **dedicated downloads** stack exists (`downloads.adieuu.com` -- dual-origin S3 + CloudFront for desktop update mirror, SBOMs, and `releases.json`), add variables from `terraform output`. The [release workflow](../../.github/workflows/release.yml) `sync-downloads-mirror` job uses these to sync desktop artifacts, manifests, and SBOMs. If the variables are unset, the job is skipped gracefully.
+
+See [desktop-updates-s3-cf.md](./desktop-updates-s3-cf.md) for the full architecture (dual-origin CloudFront with private manifest bucket).
+
+| Variable | Terraform output |
+|----------|------------------|
+| `DEPLOY_DOWNLOADS_S3_BUCKET_ADIEUU` | `downloads_s3_bucket_name` |
+| `DEPLOY_RELEASE_MANIFESTS_S3_BUCKET_ADIEUU` | `release_manifests_s3_bucket_name` |
+| `DEPLOY_DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID_ADIEUU` | `downloads_cloudfront_distribution_id` |
+| `DEPLOY_DOWNLOADS_DOMAIN_ADIEUU` | Domain only from `downloads_base_url`, e.g. `downloads.adieuu.com`. Used in `releases.json` download URLs. Falls back to `downloads.adieuu.com` if unset. |
+
+GitHub Releases remain the **source of truth**; the downloads stack is an additional public mirror.
+
+## Behavior
+
+- **Order** — Automatic deploys run **inside the Release workflow** after the **`release`** job (not in parallel with the version bump). The reusable deploy workflow uses **git-diff path detection**: API and chat always deploy, while web, lambdas, and the sharp layer deploy only when their source paths have changed (unless `force_all` is true via manual dispatch).
+- **When deploy runs** — `deploy_aws` is true when **`released`** is true (new version pushed). Release skips (chore commit, stale CI) set `deploy_aws` to false.
+- **Images** — Each service is tagged with the commit SHA and `latest`; ECR moves `latest` to the new digest on push. ECS receives a **new task definition revision** pinned to the SHA-tagged image, and the service is updated to use that revision.
+- **Branch** — The IAM role trust policy allows only `refs/heads/main` for the configured repository.
+
+## Staging
+
+Multiple environments are supported by creating separate Terraform workspaces or stacks, using different repository variables, and optionally dedicated IAM roles with narrower trust policies or environment-based GitHub `sub` claims.

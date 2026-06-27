@@ -1,0 +1,126 @@
+@use 'tokens' as *;
+
+// =============================================================================
+// Layout Utilities
+// =============================================================================
+
+.page-content {
+  padding: var(--spacing-xl);
+  min-height: calc(100vh - $title-bar-height);
+}
+
+.container {
+  width: 100%;
+  max-width: 80rem;
+  margin: 0 auto;
+  padding: var(--spacing-xl);
+}
+
+// Desktop: Sidebar header should be draggable for window moving
+.sidebar-header {
+  -webkit-app-region: drag;
+
+  .auth-logo,
+  .app-logo-link {
+    -webkit-app-region: no-drag;
+  }
+}
+
+// =============================================================================
+// Page Header
+// =============================================================================
+
+.page-header {
+  margin-bottom: var(--spacing-xl);
+}
+
+.page-title {
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  margin: 0 0 var(--spacing-xs) 0;
+}
+
+.page-subtitle {
+  font-size: var(--font-size-lg);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+// =============================================================================
+// Grid System
+// =============================================================================
+
+.grid {
+  display: grid;
+  gap: var(--spacing-lg);
+
+  &-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  &-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .grid-2,
+  .grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+// =============================================================================
+// General Utilities
+// =============================================================================
+
+.actions {
+  display: flex;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+a {
+  text-decoration: none;
+}
+
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+}
+
+// =============================================================================
+// Sidebar Logout Button
+// =============================================================================
+
+.sidebar-logout-btn {
+  width: 100%;
+  justify-content: flex-start;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  color: var(--color-text-secondary);
+
+  &:hover {
+    color: var(--color-error);
+  }
+
+  svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+}
+
+.sidebar-collapsed {
+  .sidebar-logout-btn {
+    justify-content: center;
+    padding: var(--spacing-sm);
+  }
+
+  .sidebar-logout-label {
+    display: none;
+  }
+}

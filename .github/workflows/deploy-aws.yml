@@ -1,0 +1,26 @@
+name: Deploy AWS
+
+# Automatic production deploys are invoked from the Release workflow (see release.yml) so we ship
+# once per merge: after the version bump commit exists on main (or after tag-exists skip when we
+# still need to deploy code). Manual runs redeploy current main for all targets.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-aws-main
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    permissions:
+      id-token: write
+      contents: read
+    uses: ./.github/workflows/deploy-aws-reusable.yml
+    with:
+      force_all: true
+    secrets: inherit

@@ -1,0 +1,31 @@
+{
+  "name": "@adieuu/chat",
+  "version": "0.2.39",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=.env src/index.ts",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node25 --outfile=dist/index.mjs --packages=external",
+    "start": "node --env-file=.env dist/index.mjs",
+    "test": "vitest run --passWithNoTests",
+    "test:ci": "vitest run --passWithNoTests --coverage.enabled --coverage.reporter=lcov --coverage.reportsDirectory=coverage",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist coverage"
+  },
+  "dependencies": {
+    "ioredis": "5.9.3",
+    "mongodb": "6.21.0",
+    "uWebSockets.js": "github:uNetworking/uWebSockets.js#v20.68.0",
+    "winston": "3.19.0",
+    "winston-transport": "4.9.0"
+  },
+  "devDependencies": {
+    "@adieuu/tsconfig": "workspace:*",
+    "@types/node": "25.5.0",
+    "@vitest/coverage-v8": "3.2.4",
+    "esbuild": "0.25.12",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3",
+    "vitest": "3.2.4"
+  }
+}

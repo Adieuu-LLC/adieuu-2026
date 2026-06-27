@@ -1,0 +1,26 @@
+{
+  "name": "@adieuu/mobile",
+  "version": "0.2.39",
+  "private": true,
+  "scripts": {
+    "sync": "cap sync",
+    "open:ios": "cap open ios",
+    "open:android": "cap open android",
+    "run:ios": "cap run ios",
+    "run:android": "cap run android",
+    "build": "echo 'Build web app first, then run cap sync'"
+  },
+  "dependencies": {
+    "@capacitor/android": "6.2.1",
+    "@capacitor/app": "6.0.3",
+    "@capacitor/core": "6.2.1",
+    "@capacitor/haptics": "6.0.3",
+    "@capacitor/ios": "6.2.1",
+    "@capacitor/keyboard": "6.0.4",
+    "@capacitor/splash-screen": "6.0.4",
+    "@capacitor/status-bar": "6.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "6.2.1"
+  }
+}

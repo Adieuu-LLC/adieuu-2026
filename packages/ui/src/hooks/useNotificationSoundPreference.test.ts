@@ -1,0 +1,204 @@
+import { describe, it, expect, beforeEach } from 'bun:test';
+import {
+  getNotificationSoundEnabled,
+  setNotificationSoundEnabled,
+  getNotificationSoundId,
+  setNotificationSoundId,
+  getNotificationSoundCustomPath,
+  setNotificationSoundCustomPath,
+  getNotificationSoundSuppressWhenFocused,
+  setNotificationSoundSuppressWhenFocused,
+  getNotificationSoundVolume,
+  setNotificationSoundVolume,
+  getMentionNotificationSoundId,
+  setMentionNotificationSoundId,
+  getMentionNotificationSoundCustomPath,
+  setMentionNotificationSoundCustomPath,
+  getMentionNotificationSoundVolume,
+  setMentionNotificationSoundVolume,
+  getTtlNotificationSoundId,
+  setTtlNotificationSoundId,
+  getTtlNotificationSoundVolume,
+  setTtlNotificationSoundVolume,
+} from './notificationSoundPreferenceStorage';
+
+class MemoryStorage implements Storage {
+  private map = new Map<string, string>();
+
+  get length(): number {
+    return this.map.size;
+  }
+
+  clear(): void {
+    this.map.clear();
+  }
+
+  getItem(key: string): string | null {
+    return this.map.get(key) ?? null;
+  }
+
+  setItem(key: string, value: string): void {
+    this.map.set(key, value);
+  }
+
+  removeItem(key: string): void {
+    this.map.delete(key);
+  }
+
+  key(index: number): string | null {
+    return [...this.map.keys()][index] ?? null;
+  }
+}
+
+describe('notification sound preference (localStorage)', () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: new MemoryStorage(),
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  it('defaults enabled to true', () => {
+    expect(getNotificationSoundEnabled()).toBe(true);
+  });
+
+  it('persists enabled', () => {
+    setNotificationSoundEnabled(false);
+    expect(getNotificationSoundEnabled()).toBe(false);
+    setNotificationSoundEnabled(true);
+    expect(getNotificationSoundEnabled()).toBe(true);
+  });
+
+  it('defaults sound id to the default built-in preset', () => {
+    expect(getNotificationSoundId()).toBe('adieuu_arrival');
+  });
+
+  it('persists sound id', () => {
+    setNotificationSoundId('ding');
+    expect(getNotificationSoundId()).toBe('ding');
+  });
+
+  it('falls back to default for unknown stored ids', () => {
+    localStorage.setItem('adieuu.app.notificationSoundId', 'nonexistent');
+    expect(getNotificationSoundId()).toBe('adieuu_arrival');
+  });
+
+  it('defaults custom path to null', () => {
+    expect(getNotificationSoundCustomPath()).toBe(null);
+  });
+
+  it('persists custom path', () => {
+    setNotificationSoundCustomPath('/home/user/ping.wav');
+    expect(getNotificationSoundCustomPath()).toBe('/home/user/ping.wav');
+    setNotificationSoundCustomPath(null);
+    expect(getNotificationSoundCustomPath()).toBe(null);
+  });
+
+  it('defaults suppress when focused to true', () => {
+    expect(getNotificationSoundSuppressWhenFocused()).toBe(true);
+  });
+
+  it('persists suppress when focused', () => {
+    setNotificationSoundSuppressWhenFocused(false);
+    expect(getNotificationSoundSuppressWhenFocused()).toBe(false);
+  });
+
+  it('defaults notification sound volume to 100%', () => {
+    expect(getNotificationSoundVolume()).toBe(1);
+  });
+
+  it('persists notification sound volume', () => {
+    setNotificationSoundVolume(0.5);
+    expect(getNotificationSoundVolume()).toBe(0.5);
+    setNotificationSoundVolume(1);
+    expect(getNotificationSoundVolume()).toBe(1);
+    setNotificationSoundVolume(2);
+    expect(getNotificationSoundVolume()).toBe(2);
+    setNotificationSoundVolume(1.5);
+    expect(getNotificationSoundVolume()).toBe(1.5);
+  });
+});
+
+describe('mention notification sound preference (localStorage)', () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: new MemoryStorage(),
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  it('defaults mention sound id to adieuu_mention', () => {
+    expect(getMentionNotificationSoundId()).toBe('adieuu_mention');
+  });
+
+  it('persists mention sound id', () => {
+    setMentionNotificationSoundId('ding');
+    expect(getMentionNotificationSoundId()).toBe('ding');
+  });
+
+  it('falls back to adieuu_mention for unknown stored ids', () => {
+    localStorage.setItem('adieuu.app.mentionNotificationSoundId', 'nonexistent');
+    expect(getMentionNotificationSoundId()).toBe('adieuu_mention');
+  });
+
+  it('defaults mention custom path to null', () => {
+    expect(getMentionNotificationSoundCustomPath()).toBe(null);
+  });
+
+  it('persists mention custom path', () => {
+    setMentionNotificationSoundCustomPath('/home/user/mention.wav');
+    expect(getMentionNotificationSoundCustomPath()).toBe('/home/user/mention.wav');
+    setMentionNotificationSoundCustomPath(null);
+    expect(getMentionNotificationSoundCustomPath()).toBe(null);
+  });
+
+  it('defaults mention sound volume to 100%', () => {
+    expect(getMentionNotificationSoundVolume()).toBe(1);
+  });
+
+  it('persists mention sound volume', () => {
+    setMentionNotificationSoundVolume(0.5);
+    expect(getMentionNotificationSoundVolume()).toBe(0.5);
+    setMentionNotificationSoundVolume(1);
+    expect(getMentionNotificationSoundVolume()).toBe(1);
+    setMentionNotificationSoundVolume(2);
+    expect(getMentionNotificationSoundVolume()).toBe(2);
+  });
+});
+
+describe('TTL notification sound preference (localStorage)', () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: new MemoryStorage(),
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  it('defaults TTL sound id to adieuu_click', () => {
+    expect(getTtlNotificationSoundId()).toBe('adieuu_click');
+  });
+
+  it('persists TTL sound id', () => {
+    setTtlNotificationSoundId('ding');
+    expect(getTtlNotificationSoundId()).toBe('ding');
+  });
+
+  it('falls back to adieuu_click for unknown stored ids', () => {
+    localStorage.setItem('adieuu.app.ttlNotificationSoundId', 'nonexistent');
+    expect(getTtlNotificationSoundId()).toBe('adieuu_click');
+  });
+
+  it('defaults TTL sound volume to 100%', () => {
+    expect(getTtlNotificationSoundVolume()).toBe(1);
+  });
+
+  it('persists TTL sound volume', () => {
+    setTtlNotificationSoundVolume(0.5);
+    expect(getTtlNotificationSoundVolume()).toBe(0.5);
+    setTtlNotificationSoundVolume(1);
+    expect(getTtlNotificationSoundVolume()).toBe(1);
+  });
+});

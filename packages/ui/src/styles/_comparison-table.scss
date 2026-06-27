@@ -1,0 +1,383 @@
+// ----------------------------------------------------------------------------
+// Comparison table (horizontal scroll + sticky feature column)
+// Use .comparison-table--subscription on the shell for subscription-page accents.
+// ----------------------------------------------------------------------------
+
+.comparison-table-shell {
+  --comparison-table-pin-width: max(300px, min(20rem, 40vw));
+
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.comparison-table-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+
+  &--can-pan-x thead tr:first-child th {
+    cursor: grab;
+  }
+
+  &--dragging {
+    cursor: grabbing;
+
+    thead tr:first-child th {
+      cursor: grabbing;
+      user-select: none;
+    }
+  }
+}
+
+.comparison-table-col-feature {
+  width: var(--comparison-table-pin-width);
+}
+
+.comparison-table-table {
+  width: 100%;
+  min-width: 48rem;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+// Neutral scroll nudge (default / non-subscription surfaces)
+.comparison-table-scroll-nudge-bar {
+  position: sticky;
+  top: 0;
+  z-index: 7;
+  display: grid;
+  grid-template-columns: minmax(2.5rem, auto) 1fr minmax(2.5rem, auto);
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-md);
+}
+
+.comparison-table-scroll-nudge-bar__side {
+  display: flex;
+  justify-content: flex-start;
+  min-width: 2.25rem;
+
+  &--end {
+    justify-content: flex-end;
+  }
+}
+
+.comparison-table-scroll-nudge-hint {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.35;
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+
+.comparison-table-scroll-nudge-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-primary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-accent-primary);
+    outline-offset: 2px;
+  }
+}
+
+.comparison-table-scroll-nudge-placeholder {
+  display: block;
+  width: 2.35rem;
+  height: 2.35rem;
+}
+
+.comparison-table--subscription .comparison-table-scroll-nudge-bar {
+  border: 1px solid color-mix(in srgb, var(--color-accent-primary) 35%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent-primary) 12%, var(--color-bg-elevated));
+  box-shadow:
+    var(--shadow-md),
+    inset 0 1px 0 color-mix(in srgb, var(--color-accent-primary) 18%, transparent);
+}
+
+.comparison-table--subscription .comparison-table-scroll-nudge-hint {
+  color: color-mix(in srgb, var(--color-text-primary) 88%, var(--color-accent-primary));
+}
+
+.comparison-table--subscription .comparison-table-scroll-nudge-btn {
+  border: 1px solid color-mix(in srgb, var(--color-accent-primary) 45%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent-primary) 18%, var(--color-bg-secondary));
+  color: var(--color-accent-primary);
+
+  &:hover {
+    background: color-mix(in srgb, var(--color-accent-primary) 26%, var(--color-bg-secondary));
+    color: var(--color-accent-secondary);
+  }
+}
+
+.comparison-table-tier-heading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.comparison-table-tier-heading-name {
+  display: block;
+  line-height: 1.2;
+}
+
+.comparison-table-tier-heading-sub {
+  display: block;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-muted);
+}
+
+.comparison-table-feature-col,
+.comparison-table-tier-col {
+  padding: var(--spacing-sm) var(--spacing-sm);
+  text-align: left;
+  vertical-align: bottom;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.comparison-table-pin-col {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  box-shadow: 3px 0 10px color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+}
+
+.comparison-table-pin-col--header {
+  z-index: 3;
+  background: var(--color-bg-secondary);
+}
+
+.comparison-table-feature-col.comparison-table-pin-col {
+  min-width: var(--comparison-table-pin-width);
+  max-width: var(--comparison-table-pin-width);
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+}
+
+tbody .comparison-table-pin-col {
+  background: var(--color-bg-primary);
+}
+
+.comparison-table-tier-col {
+  text-align: center;
+}
+
+.comparison-table-actions-row td {
+  padding: var(--spacing-md);
+  vertical-align: top;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+}
+
+.comparison-table-actions-pin {
+  padding: var(--spacing-md) var(--spacing-sm);
+}
+
+.comparison-table-actions-cell {
+  text-align: center;
+
+  .subscription-tier-status {
+    align-items: center;
+  }
+
+  .subscription-manage-btn,
+  .subscription-subscribe-btn {
+    width: 100%;
+    max-width: 11rem;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+.comparison-table-price {
+  margin: 0 0 var(--spacing-xs);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.comparison-table-feature-name {
+  padding: var(--spacing-sm) var(--spacing-sm);
+  text-align: left;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--color-border-subtle, var(--color-border));
+  background: var(--color-bg-primary);
+  min-width: var(--comparison-table-pin-width);
+  max-width: var(--comparison-table-pin-width);
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+}
+
+.comparison-table-cell {
+  padding: var(--spacing-sm) var(--spacing-md);
+  text-align: center;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--color-border-subtle, var(--color-border));
+}
+
+.comparison-table-cell-value {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.comparison-table-cell-billing {
+  text-align: center;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  max-width: 10rem;
+}
+
+.comparison-table-billing-amount {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  line-height: 1.3;
+}
+
+.comparison-table-billing-kind {
+  margin-top: var(--spacing-2xs);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-secondary);
+  line-height: 1.35;
+}
+
+.comparison-table-billing-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+}
+
+.comparison-table-feature-name-with-note {
+  .comparison-table-feature-label {
+    margin-right: var(--spacing-2xs);
+  }
+}
+
+.comparison-footnote-refs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.15em;
+  margin-left: 0.05em;
+}
+
+a.comparison-footnote-ref {
+  margin-left: 0.1em;
+  color: var(--color-accent-primary);
+  text-decoration: none;
+  font-weight: var(--font-weight-semibold);
+
+  &:hover,
+  &:focus-visible {
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+}
+
+.comparison-table-footnotes-row .comparison-table-footnotes-cell {
+  padding: var(--spacing-md) var(--spacing-sm);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  vertical-align: top;
+}
+
+.comparison-table-footnotes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  text-align: left;
+}
+
+.comparison-table-footnote-line {
+  margin: 0;
+  line-height: 1.45;
+
+  sup {
+    margin-right: var(--spacing-xs);
+    color: var(--color-accent-primary);
+    font-weight: var(--font-weight-semibold);
+  }
+}
+
+.comparison-table-footnote-line-text {
+  color: var(--color-text-secondary);
+}
+
+.comparison-table-billing-row .comparison-table-feature-name {
+  font-weight: var(--font-weight-semibold);
+}
+
+.comparison-table-join-row {
+  .comparison-table-feature-name {
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .comparison-table-cell-join {
+    padding: var(--spacing-sm) var(--spacing-md);
+    text-align: center;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--color-border-subtle, var(--color-border));
+  }
+}
+
+.comparison-table-join-btn {
+  font-size: var(--font-size-xs);
+  padding: var(--spacing-xs) var(--spacing-md);
+  white-space: nowrap;
+}
+
+.subscription-tier-badge--owned {
+  display: inline-block;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+// Opaque stripe so horizontal scroll does not show through the sticky column
+tbody tr:nth-child(even) .comparison-table-feature-name,
+tbody tr:nth-child(even) .comparison-table-pin-col,
+tbody tr:nth-child(even) .comparison-table-cell {
+  background: color-mix(in srgb, var(--color-bg-secondary) 55%, var(--color-bg-primary));
+}

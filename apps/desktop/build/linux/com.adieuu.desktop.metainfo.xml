@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.adieuu.desktop</id>
+  <name>Adieuu</name>
+  <summary>Secure encrypted messaging</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary</project_license>
+  <developer id="com.adieuu">
+    <name>Adieuu Team</name>
+  </developer>
+  <url type="homepage">https://adieuu.com</url>
+  <description>
+    <p>
+      Adieuu is a secure, end-to-end encrypted messaging application that
+      puts your privacy first.
+    </p>
+  </description>
+  <categories>
+    <category>Network</category>
+    <category>InstantMessaging</category>
+  </categories>
+  <content_rating type="oars-1.1" />
+</component>

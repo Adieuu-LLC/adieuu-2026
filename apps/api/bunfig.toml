@@ -1,0 +1,3 @@
+[test]
+# Preload test setup to mock database modules before any tests run
+preload = ["./src/test-setup.ts"]

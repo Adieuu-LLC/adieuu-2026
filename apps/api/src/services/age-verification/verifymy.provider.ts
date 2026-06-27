@@ -1,0 +1,285 @@
+/**
+ * VerifyMy v3 age verification provider.
+ *
+ * Implements the AgeVerificationProvider interface using the VerifyMy v3 API:
+ * - POST /api/v3/verifications (start, with optional background check via user_info)
+ * - GET  /api/v3/verifications/{id} (status polling)
+ *
+ * @see https://verifymy.io/developer-documentation/age-verification-estimation/apis/starting-a-verification/
+ * @see https://verifymy.io/developer-documentation/age-verification-estimation/apis/status/
+ */
+
+import { createHash, createHmac, createCipheriv, randomBytes } from 'crypto';
+import { config } from '../../config';
+import { PLATFORM_SETTING_KEYS } from '../../constants/platform-settings-keys';
+import { getPlatformSettingsRepository } from '../../repositories/platform-settings.repository';
+import elog from '../../utils/adieuuLogger';
+import type {
+  AgeVerificationProvider,
+  StartVerificationInput,
+  StartVerificationResult,
+  VerificationStatusResult,
+  MethodAttemptInfo,
+  ProviderVerificationStatus,
+} from './provider';
+
+const PROVIDER_ID = 'verifymy';
+
+interface VerifyMyStartResponse {
+  verification_id: string;
+  verification_status: string;
+  start_verification_url?: string;
+}
+
+interface VerifyMyStatusResponse {
+  id: string;
+  user_id?: string;
+  status: string;
+  approval_method?: string;
+  threshold?: number;
+  background_check?: string | null;
+  created_at?: string;
+  expires_at?: string;
+  updated_at?: string;
+  age_gate?: Record<string, {
+    enabled: boolean;
+    max_attempts: number;
+    remaining_attempts: number;
+  }>;
+}
+
+function mapStatus(raw: string): ProviderVerificationStatus {
+  switch (raw) {
+    case 'approved': return 'approved';
+    case 'failed': return 'failed';
+    case 'expired': return 'expired';
+    case 'pending': return 'pending';
+    default: return 'started';
+  }
+}
+
+/**
+ * Resolves the active VerifyMy environment ('sandbox' | 'production').
+ * Platform setting overrides the env default.
+ */
+export async function resolveVerifyMyDeployEnv(): Promise<'sandbox' | 'production'> {
+  try {
+    const repo = getPlatformSettingsRepository();
+    const doc = await repo.findByKey(PLATFORM_SETTING_KEYS.AGE_VERIFICATION_VERIFYMY_ENV);
+    if (doc?.valueType === 'string' && (doc.value === 'sandbox' || doc.value === 'production')) {
+      return doc.value;
+    }
+  } catch {
+    // fall through
+  }
+  return config.verifymy.environment;
+}
+
+function getBaseUrl(env: 'sandbox' | 'production'): string {
+  return env === 'production'
+    ? config.verifymy.productionBaseUrl
+    : config.verifymy.sandboxBaseUrl;
+}
+
+function computeHmac(content: string): string {
+  return createHmac('sha256', config.verifymy.apiSecret)
+    .update(content)
+    .digest('hex');
+}
+
+function buildAuthHeader(hmacSignature: string): string {
+  return `hmac ${config.verifymy.apiKey}:${hmacSignature}`;
+}
+
+/**
+ * Encrypts a string using AES-256-CFB with a key derived from SHA-256(apiSecret).
+ * IV is prepended to the ciphertext, then base64-encoded.
+ */
+function encryptUserInfo(plaintext: string): string {
+  const key = createHash('sha256').update(config.verifymy.apiSecret).digest();
+  const iv = randomBytes(16);
+  const cipher = createCipheriv('aes-256-cfb', key, iv);
+  const encrypted = Buffer.concat([iv, cipher.update(plaintext, 'utf8'), cipher.final()]);
+  return encrypted.toString('base64');
+}
+
+function isRedirectUriRelatedError(errorBody: string): boolean {
+  return /redirect[_\s-]?(uri|url)|redirecturl/i.test(errorBody);
+}
+
+function isMethodNotAllowedError(errorBody: string): boolean {
+  return /method not allowed/i.test(errorBody);
+}
+
+export class VerifyMyProvider implements AgeVerificationProvider {
+  readonly id = PROVIDER_ID;
+
+  async startVerification(input: StartVerificationInput): Promise<StartVerificationResult> {
+    const env = await resolveVerifyMyDeployEnv();
+    const baseUrl = getBaseUrl(env);
+
+    // VerifyMy expects ISO country codes only (e.g. 'us', not 'us-ut')
+    const normalizedCountry = input.country.toLowerCase().split('-')[0]!;
+
+    const payload: Record<string, unknown> = {
+      redirect_url: input.redirectUrl,
+      country: normalizedCountry,
+      external_user_id: input.externalUserId,
+    };
+
+    if (input.businessSettingsId) {
+      payload.business_settings_id = input.businessSettingsId;
+    }
+
+    // VerifyMy only accepts an explicit method when business_settings_id defines
+    // which methods are enabled. Without it, country defaults apply (sandbox is
+    // permissive; production rejects e.g. Email with "method not allowed").
+    if (input.method && input.businessSettingsId) {
+      payload.method = input.method;
+    } else if (input.method && !input.businessSettingsId) {
+      elog.info('VerifyMy omitting method without business_settings_id', {
+        env,
+        method: input.method,
+        country: normalizedCountry,
+      });
+    }
+
+    if (input.userInfo) {
+      const userInfo: Record<string, string> = {};
+      if (input.userInfo.email) {
+        userInfo.email = encryptUserInfo(input.userInfo.email);
+      }
+      if (input.userInfo.phone) {
+        userInfo.phone = encryptUserInfo(input.userInfo.phone);
+      }
+      if (Object.keys(userInfo).length > 0) {
+        payload.user_info = userInfo;
+      }
+    }
+
+    if (input.webhookUrl) {
+      payload.webhook = input.webhookUrl;
+      if (input.webhookNotificationLevel) {
+        payload.webhook_notification_level = input.webhookNotificationLevel;
+      }
+    }
+
+    const body = JSON.stringify(payload);
+    const hmac = computeHmac(body);
+
+    const userInfoShape = payload.user_info as Record<string, string> | undefined;
+    elog.info('VerifyMy startVerification request', {
+      env,
+      country: payload.country,
+      businessSettingsId: payload.business_settings_id ?? null,
+      method: payload.method ?? null,
+      hasUserInfo: !!payload.user_info,
+      hasEncryptedEmail: !!userInfoShape?.email,
+      hasEncryptedPhone: !!userInfoShape?.phone,
+      externalUserId: payload.external_user_id,
+    });
+
+    // TEMP_VERIFYMY_DEBUG: uncomment to log outbound JSON body + HMAC for integration debugging
+    // elog.warn('TEMP_VERIFYMY_DEBUG outbound payload', {
+    //   requestBody: body,
+    //   hmacHex: hmac,
+    // });
+
+    const response = await fetch(`${baseUrl}/api/v3/verifications`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: buildAuthHeader(hmac),
+      },
+      body,
+      signal: AbortSignal.timeout(config.verifymy.timeoutMs),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => '');
+      const logContext: Record<string, unknown> = {
+        status: response.status,
+        body: errorBody.slice(0, 500),
+      };
+      if (isRedirectUriRelatedError(errorBody)) {
+        logContext.redirectUrl = input.redirectUrl;
+      }
+      if (isMethodNotAllowedError(errorBody)) {
+        logContext.requestedMethod = input.method ?? null;
+        logContext.businessSettingsId = input.businessSettingsId ?? null;
+      }
+      elog.warn('VerifyMy startVerification failed', logContext);
+      throw new Error(`VerifyMy API error: ${response.status}`);
+    }
+
+    const data = (await response.json()) as VerifyMyStartResponse;
+
+    elog.info('VerifyMy startVerification response', {
+      verificationId: data.verification_id,
+      status: data.verification_status,
+      hasRedirectUrl: !!data.start_verification_url,
+    });
+
+    return {
+      verificationId: data.verification_id,
+      status: mapStatus(data.verification_status),
+      redirectUrl: data.start_verification_url,
+    };
+  }
+
+  async getVerificationStatus(verificationId: string): Promise<VerificationStatusResult> {
+    const env = await resolveVerifyMyDeployEnv();
+    const baseUrl = getBaseUrl(env);
+
+    const requestUri = `/api/v3/verifications/${encodeURIComponent(verificationId)}`;
+    const url = `${baseUrl}${requestUri}`;
+
+    // GET requests sign the request URI, not the body
+    // @see https://verifymy.io/developer-documentation/age-verification-estimation/apis/redirect-urls/
+    const hmac = computeHmac(requestUri);
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: buildAuthHeader(hmac),
+      },
+      signal: AbortSignal.timeout(config.verifymy.timeoutMs),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => '');
+      elog.warn('VerifyMy getVerificationStatus failed', {
+        status: response.status,
+        verificationId,
+        body: errorBody.slice(0, 500),
+      });
+      throw new Error(`VerifyMy API error: ${response.status}`);
+    }
+
+    const data = (await response.json()) as VerifyMyStatusResponse;
+
+    let methodAttempts: Record<string, MethodAttemptInfo> | undefined;
+    if (data.age_gate) {
+      methodAttempts = {};
+      for (const [key, val] of Object.entries(data.age_gate)) {
+        methodAttempts[key] = {
+          enabled: val.enabled,
+          maxAttempts: val.max_attempts,
+          remaining: val.remaining_attempts,
+        };
+      }
+    }
+
+    return {
+      verificationId: data.id,
+      status: mapStatus(data.status),
+      approvalMethod: data.approval_method,
+      threshold: data.threshold,
+      backgroundCheck: data.background_check,
+      createdAt: data.created_at,
+      expiresAt: data.expires_at,
+      methodAttempts,
+    };
+  }
+}

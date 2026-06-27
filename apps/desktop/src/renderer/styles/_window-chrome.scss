@@ -1,0 +1,170 @@
+@use 'tokens' as *;
+
+body {
+  -webkit-app-region: no-drag;
+}
+
+// =============================================================================
+// Custom Window Title Bar (Windows/Linux)
+// =============================================================================
+
+.window-title-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: $title-bar-height;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  z-index: 9999;
+  -webkit-app-region: drag;
+}
+
+.window-drag-region {
+  flex: 1;
+  height: 100%;
+}
+
+.window-title-bar-nav {
+  position: fixed;
+  top: 0;
+  left: min($sidebar-width, $sidebar-width-max);
+  height: $title-bar-height;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding-left: var(--spacing-sm);
+  padding-right: var(--spacing-sm);
+  max-width: min(420px, calc(100vw - 200px));
+  -webkit-app-region: no-drag;
+  pointer-events: auto;
+
+  body.sidebar-is-collapsed & {
+    left: $sidebar-width-collapsed;
+  }
+
+  body:not(.has-app-sidebar) & {
+    left: 0;
+  }
+
+  @media (max-width: $mobile-breakpoint) {
+    left: 0;
+    max-width: none;
+    padding-left: var(--spacing-xs);
+    padding-right: 0;
+
+    body.sidebar-is-collapsed &,
+    body.has-app-sidebar & {
+      left: 0;
+    }
+  }
+}
+
+.window-nav-btn {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+
+  &:hover:not(:disabled) {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-accent-primary);
+    outline-offset: -2px;
+  }
+}
+
+.window-nav-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  min-width: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
+}
+
+.window-nav-title-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+}
+
+.window-nav-title-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: $mobile-breakpoint) {
+  .window-nav-title {
+    display: none;
+  }
+}
+
+.window-controls {
+  display: flex;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+.window-control-btn {
+  width: 46px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+
+  &:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-accent-primary);
+    outline-offset: -2px;
+  }
+
+  &.window-control-close:hover {
+    background: #e81123;
+    color: #fff;
+  }
+}
+
+// Offset main content for title bar on Windows/Linux
+.has-custom-title-bar {
+  .app-layout,
+  .auth-page {
+    padding-top: 32px;
+    min-height: calc(100vh - 32px); // Account for title bar padding
+
+    .app-content {
+      min-height: 90vh;
+      height: calc(100vh - $title-bar-height);
+    }
+  }
+}

@@ -1,0 +1,157 @@
+@use 'variables' as *;
+
+// ============================================================================
+// Age Verification Modal
+// ============================================================================
+//
+// Stacked above `.modal-overlay` (identity / login shell) so backdrop and
+// positioner reliably receive pointer events while both layers are visible.
+
+.av-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: calc(var(--z-modal) + 20);
+}
+
+.av-modal-positioner {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: calc(var(--z-modal) + 30);
+}
+
+.av-modal-content {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  max-width: 440px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: slideUp var(--transition-normal) ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.av-modal-header {
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-bottom: 1px solid var(--color-border-muted);
+}
+
+.av-modal-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.av-modal-body {
+  padding: var(--spacing-xl);
+  flex: 1;
+}
+
+.av-modal-description {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+  margin: 0;
+}
+
+.av-modal-jurisdiction {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.av-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-top: 1px solid var(--color-border-muted);
+}
+
+// Status states (loading, success, error, etc.)
+.av-modal-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-md);
+  text-align: center;
+  padding: var(--spacing-lg) 0;
+
+  p {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    line-height: var(--line-height-relaxed);
+  }
+}
+
+.av-modal-success p {
+  color: var(--color-success);
+}
+
+.av-modal-error p {
+  color: var(--color-danger);
+}
+
+.av-modal-warning p {
+  color: var(--color-warning);
+}
+
+.av-modal-retry-after,
+.av-modal-attempts {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+// Per-method breakdown shown during polling
+.av-modal-age-gate {
+  width: 100%;
+  margin-top: var(--spacing-md);
+  text-align: left;
+
+  h4 {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+    margin: 0 0 var(--spacing-sm);
+  }
+}
+
+.av-modal-methods-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.av-modal-method-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xs);
+}
+
+.av-modal-method-name {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.av-modal-method-remaining {
+  color: var(--color-text-muted);
+}
+
+// Opt-in country input
+.av-modal-opt-in-country {
+  margin-top: var(--spacing-md);
+}

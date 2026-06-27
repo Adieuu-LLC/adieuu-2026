@@ -1,0 +1,753 @@
+@use 'variables' as *;
+
+// ============================================================================
+// Achievement Cards (shared between ProfileView + Profile editor)
+// ============================================================================
+
+.profile-view-achievements-grid,
+.profile-achievements-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-sm);
+}
+
+.profile-view-achievements-empty {
+  margin-top: var(--spacing-sm);
+}
+
+.achievement-card {
+  display: flex;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  transition: opacity var(--transition-fast), filter var(--transition-fast);
+}
+
+.achievement-card-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-accent-primary) 12%, transparent);
+  color: var(--color-accent-primary);
+}
+
+.achievement-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.achievement-card-name {
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+}
+
+.achievement-card-desc {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.achievement-card-how {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.achievement-card-date {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.achievement-card--locked {
+  opacity: 0.45;
+  filter: grayscale(0.6);
+
+  .achievement-card-icon {
+    background: color-mix(in srgb, var(--color-text-muted) 10%, transparent);
+    color: var(--color-text-muted);
+  }
+}
+
+.achievement-card-not-earned {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-style: italic;
+  margin-top: 2px;
+}
+
+.achievement-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  flex-wrap: nowrap;
+  min-width: 0;
+  width: 100%;
+  margin-bottom: var(--spacing-md);
+
+  .profile-section-title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    margin: 0;
+    flex-shrink: 0;
+  }
+
+  &__count {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-secondary);
+  }
+
+  &__filters {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    gap: var(--spacing-xs);
+    min-width: 0;
+    margin-left: auto;
+  }
+
+  @media (max-width: $mobile-breakpoint) {
+    flex-wrap: wrap;
+
+    &__filters {
+      width: 100%;
+      justify-content: flex-start;
+      margin-left: 0;
+    }
+  }
+}
+
+.achievement-select-control {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.achievement-select-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-sans);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  min-width: 7.5rem;
+  max-width: 100%;
+  box-sizing: border-box;
+
+  > :first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &:hover {
+    border-color: var(--color-border-focus);
+  }
+
+  &:focus-visible {
+    outline: none;
+    border-color: var(--color-accent-primary);
+    box-shadow: 0 0 0 3px var(--color-accent-glow);
+  }
+}
+
+.achievement-select-indicator {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.achievement-select-content {
+  background: var(--profile-card-bg, var(--color-bg-elevated));
+  border: 1px solid;
+  border-color: color-mix(
+    in srgb,
+    var(--profile-accent, var(--profile-card-bg, var(--color-border))) 40%,
+    var(--color-border)
+  );
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--spacing-xs) 0;
+  min-width: 120px;
+  max-width: min(100%, calc(100vw - 2 * var(--spacing-md)));
+  box-sizing: border-box;
+  z-index: var(--z-popover, 100);
+}
+
+.achievement-select-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  min-width: 0;
+
+  > :first-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  &:hover,
+  &[data-highlighted] {
+    background: color-mix(
+      in srgb,
+      var(--profile-accent, transparent) 12%,
+      var(--profile-card-bg, var(--color-bg-hover))
+    );
+  }
+
+  &[data-state="checked"] {
+    color: var(--profile-accent, var(--color-accent-primary));
+  }
+}
+
+.achievement-select-item-indicator {
+  color: var(--profile-accent, var(--color-accent-primary));
+  flex-shrink: 0;
+}
+
+.profile-view-section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.profile-edit-achievements-section {
+  margin-top: var(--spacing-md);
+}
+
+.profile-preview-viewing-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.profile-preview-bio--placeholder {
+  color: var(--color-text-muted);
+}
+
+// ============================================================================
+// Avatar Upload
+// ============================================================================
+
+.avatar-upload {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.avatar-upload-button {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid var(--color-border);
+  background: var(--color-bg-tertiary);
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 150ms ease;
+
+  &:hover {
+    border-color: var(--color-accent-primary);
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.7;
+  }
+}
+
+.avatar-upload-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.avatar-upload-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--color-text-muted);
+  line-height: 1;
+}
+
+.avatar-upload-overlay,
+.avatar-upload-hover-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.avatar-upload-overlay {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.avatar-upload-hover-overlay {
+  background: rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transition: opacity 150ms ease;
+  color: #fff;
+
+  .avatar-upload-button:hover & {
+    opacity: 1;
+  }
+}
+
+.avatar-upload-progress {
+  width: 48px;
+  height: 48px;
+}
+
+.avatar-upload-ring {
+  transform: rotate(-90deg);
+}
+
+.avatar-upload-remove {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-error);
+  border: 2px solid var(--color-bg-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  z-index: 1;
+  transition: transform 100ms ease;
+
+  &:hover {
+    transform: scale(1.1);
+  }
+}
+
+.avatar-upload-error {
+  font-size: var(--font-size-xs);
+  color: var(--color-error);
+  margin: var(--spacing-xs) 0 0 0;
+  text-align: center;
+}
+
+// ============================================================================
+// Banner Upload
+// ============================================================================
+
+.banner-upload-wrapper {
+  position: relative;
+}
+
+.banner-upload {
+  width: 100%;
+  height: 160px;
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-bg-tertiary);
+  cursor: pointer;
+  padding: 0;
+  position: relative;
+  transition: border-color 150ms ease;
+
+  &:hover {
+    border-color: var(--color-accent-primary);
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.7;
+  }
+
+  &--dragging {
+    border-color: var(--color-accent-primary);
+    background: var(--color-accent-glow);
+  }
+}
+
+.banner-upload-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.banner-upload-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: var(--spacing-xs);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.banner-upload-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+}
+
+.banner-upload-hover-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  color: #fff;
+  font-size: var(--font-size-sm);
+  opacity: 0;
+  transition: opacity 150ms ease;
+
+  .banner-upload:hover & {
+    opacity: 1;
+  }
+}
+
+.banner-upload-progress-bar {
+  width: 120px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.banner-upload-progress-fill {
+  height: 100%;
+  background: var(--color-accent-primary);
+  transition: width 200ms ease;
+  border-radius: 2px;
+}
+
+.banner-upload-progress-text {
+  font-size: var(--font-size-xs);
+  color: #fff;
+}
+
+.banner-upload-remove {
+  position: absolute;
+  top: var(--spacing-sm);
+  right: var(--spacing-sm);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  z-index: 1;
+  transition: all 150ms ease;
+
+  &:hover {
+    background: var(--color-error);
+    color: #fff;
+    border-color: var(--color-error);
+  }
+}
+
+.banner-upload-error {
+  font-size: var(--font-size-xs);
+  color: var(--color-error);
+  margin: var(--spacing-xs) 0 0 0;
+}
+
+// ============================================================================
+// Profile Color Picker
+// ============================================================================
+
+.profile-color-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.profile-color-picker-label {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.profile-color-picker-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.profile-color-picker-native {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.profile-color-picker-swatch {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  padding: 0;
+  position: relative;
+  transition: border-color 150ms ease;
+
+  &:hover {
+    border-color: var(--color-border-focus);
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+
+  &--default {
+    background: var(--color-bg-tertiary);
+    border-style: dashed;
+  }
+}
+
+.profile-color-picker-strike {
+  width: 100%;
+  height: 100%;
+  display: block;
+
+  line {
+    stroke: var(--color-text-muted);
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+}
+
+.profile-color-picker-clear {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: all 150ms ease;
+
+  &:hover {
+    color: var(--color-text-primary);
+    border-color: var(--color-border-focus);
+  }
+}
+
+.profile-color-picker-value {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono, monospace);
+}
+
+// ============================================================================
+// Privacy Select (Ark UI)
+// ============================================================================
+
+.privacy-select-control {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.privacy-select-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.privacy-select-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  min-width: 100px;
+  transition: all 150ms ease;
+
+  &:hover {
+    border-color: var(--color-border-focus);
+  }
+
+  &[data-disabled] {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+.privacy-select-indicator {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.privacy-select-content {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--spacing-xs);
+  z-index: 100;
+  min-width: 120px;
+}
+
+.privacy-select-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: background 100ms ease;
+
+  &:hover,
+  &[data-highlighted] {
+    background: var(--color-bg-hover);
+  }
+
+  &[data-state='checked'] {
+    color: var(--color-accent-primary);
+  }
+}
+
+.privacy-select-item-indicator {
+  color: var(--color-accent-primary);
+  flex-shrink: 0;
+}
+
+// ============================================================================
+// Report Modal Select (Ark UI)
+// ============================================================================
+
+.report-select-control {
+  display: flex;
+  flex-direction: column;
+}
+
+.report-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  outline: none;
+
+  &:hover:not(:disabled) {
+    border-color: var(--color-text-muted);
+  }
+
+  &:focus {
+    border-color: var(--color-accent-primary);
+    box-shadow: 0 0 0 3px var(--color-accent-glow);
+  }
+
+  &[data-placeholder] {
+    color: var(--color-text-muted);
+  }
+}
+
+.report-select-indicator {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.report-select-content {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--spacing-xs);
+  z-index: calc(var(--z-modal) + 10);
+}
+
+.report-select-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+
+  &:hover {
+    background: var(--color-bg-hover);
+  }
+
+  &[data-state='checked'] {
+    color: var(--color-accent-primary);
+  }
+}
+
+.report-select-item-indicator {
+  color: var(--color-accent-primary);
+  flex-shrink: 0;
+}

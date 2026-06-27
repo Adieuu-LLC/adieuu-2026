@@ -1,0 +1,98 @@
+import { defineConfig, type Plugin } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+import fs from 'fs';
+import pkg from './package.json';
+import { visualizer } from 'rollup-plugin-visualizer';
+import { cspPlugin } from '../../packages/shared/src/csp/vite-plugin-csp';
+import { cspManifest } from './src/csp';
+
+// Opt-in bundle analysis: `ANALYZE=true pnpm --filter @adieuu/web build`
+// emits dist/stats.html. Off by default so normal builds are unaffected.
+const analyze = process.env.ANALYZE === 'true';
+
+// Vite 6's CSP-aware dev server re-processes the meta tag after plugin hooks,
+// which can drop devExtras additions.  Moving dev origins into a manifest
+// entry ensures they survive Vite's internal merge.
+const devCspManifest: Record<string, string[]> =
+  process.env.NODE_ENV !== 'production'
+    ? { 'connect-src': ['ws://localhost:*', 'wss://localhost:*', 'wss://localhost', 'https://localhost', 'https://localhost:*'] }
+    : {};
+
+function versionJsonPlugin(): Plugin {
+  return {
+    name: 'version-json',
+    closeBundle() {
+      const outDir = path.resolve(__dirname, 'dist');
+      fs.mkdirSync(outDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(outDir, 'version.json'),
+        JSON.stringify({ version: pkg.version }) + '\n',
+      );
+    },
+  };
+}
+
+export default defineConfig({
+  plugins: [
+    react(),
+    cspPlugin({
+      manifests: [cspManifest, devCspManifest],
+      devExtras: {
+        'connect-src': ['ws://localhost:*', 'wss://localhost:*'],
+      },
+    }),
+    versionJsonPlugin(),
+    ...(analyze
+      ? [
+          visualizer({
+            filename: 'dist/stats.html',
+            gzipSize: true,
+            brotliSize: true,
+            template: 'treemap',
+          }) as Plugin,
+        ]
+      : []),
+  ],
+  publicDir: path.resolve(__dirname, '../../packages/ui/public'),
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+      // In dev mode, resolve @adieuu/ui to source files for instant HMR
+      // More specific paths MUST come before less specific ones
+      '@adieuu/ui/styles.scss': path.resolve(__dirname, '../../packages/ui/src/styles.scss'),
+      '@adieuu/ui/icons/registry': path.resolve(__dirname, '../../packages/ui/src/icons/registry.ts'),
+      '@adieuu/ui/services/crashReporter': path.resolve(__dirname, '../../packages/ui/src/services/crashReporter.ts'),
+      '@adieuu/ui/i18n': path.resolve(__dirname, '../../packages/ui/src/i18n/index.ts'),
+      '@adieuu/ui': path.resolve(__dirname, '../../packages/ui/src/index.ts'),
+    },
+  },
+  server: {
+    host: '127.0.0.1',
+    port: 3000,
+    hmr: {
+      protocol: 'wss',
+      host: 'localhost',
+      clientPort: 443,
+    },
+    proxy: {
+      '/api': {
+        target: 'http://localhost:4000',
+        changeOrigin: true,
+      },
+    },
+  },
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+    __APP_ORIGIN__: JSON.stringify(
+      process.env.VITE_APP_ORIGIN || 'https://adieuu.com',
+    ),
+    __DOWNLOADS_BASE_URL__: JSON.stringify(
+      process.env.VITE_DOWNLOADS_BASE_URL || 'https://downloads.adieuu.com',
+    ),
+  },
+  build: {
+    outDir: 'dist',
+    sourcemap: true,
+  },
+});

@@ -1,0 +1,903 @@
+/**
+ * Identity repository
+ * Data access layer for identity operations with MongoDB persistence
+ *
+ * SECURITY NOTE: Identities are intentionally unlinkable to Users.
+ * Never store or log any relationship between User and Identity.
+ */
+
+import { ObjectId, type ClientSession } from 'mongodb';
+import { BaseRepository } from './base.repository';
+import { Collections } from '../db';
+import type {
+  IdentityDocument,
+  CreateIdentityInput,
+  UpdateIdentityInput,
+  IdentityDevice,
+  CryptoProfile,
+} from '../models/identity';
+import { DELETED_IDENT_PREFIX, isDeletedIdent } from '../models/identity';
+import { withUpdatedAt } from '../models/base';
+import elog from '../utils/adieuuLogger';
+import { sanitizeString } from '../utils';
+import type { AccountModerationCategory } from '@adieuu/shared';
+
+/**
+ * Search configuration defaults
+ */
+export const IDENTITY_SEARCH_DEFAULTS = {
+  MIN_QUERY_LENGTH: 2,
+  DEFAULT_LIMIT: 10,
+  MAX_LIMIT: 50,
+} as const;
+
+/**
+ * Identity repository interface
+ */
+export interface IIdentityRepository {
+  findByIdentityId(id: string | ObjectId): Promise<IdentityDocument | null>;
+  findByIdent(ident: string): Promise<IdentityDocument | null>;
+  findActiveByIdent(ident: string): Promise<IdentityDocument | null>;
+  findByUsername(username: string): Promise<IdentityDocument | null>;
+  search(query: string, limit?: number, excludeIds?: ObjectId[]): Promise<IdentityDocument[]>;
+  create(input: CreateIdentityInput): Promise<IdentityDocument>;
+  updateByIdent(ident: string, update: UpdateIdentityInput): Promise<IdentityDocument | null>;
+  softDelete(identityId: string | ObjectId): Promise<boolean>;
+  upgradeHashVersion(identityId: string | ObjectId, newIdent: string, newVersion: number): Promise<boolean>;
+  setSigningPublicKey(identityId: string | ObjectId, signingPublicKey: string, preferredCryptoProfile: CryptoProfile): Promise<boolean>;
+  addDevice(identityId: string | ObjectId, device: IdentityDevice): Promise<boolean>;
+  removeDevice(identityId: string | ObjectId, deviceId: string): Promise<boolean>;
+  updateDeviceActivity(identityId: string | ObjectId, deviceId: string): Promise<boolean>;
+  updateDeviceName(identityId: string | ObjectId, deviceId: string, name: string): Promise<boolean>;
+  setDeviceStaticKeyAttestation(
+    identityId: string | ObjectId,
+    deviceId: string,
+    staticKeyAttestation: string
+  ): Promise<boolean>;
+  getDevices(identityId: string | ObjectId): Promise<IdentityDevice[]>;
+  clearModerationFields(identityId: string | ObjectId): Promise<boolean>;
+  changeIdent(identityId: string | ObjectId, newIdent: string, newHashVersion: number, options?: { session?: ClientSession }): Promise<boolean>;
+  /** Dashboard counters ($inc paths). */
+  incrementMessagesSentCount(identityId: string | ObjectId, options?: { session?: ClientSession }): Promise<void>;
+  incrementConversationsJoinedCounts(identityIds: ObjectId[], options?: { session?: ClientSession }): Promise<void>;
+  incrementFriendCounts(identityA: ObjectId, identityB: ObjectId, options?: { session?: ClientSession }): Promise<void>;
+  decrementFriendCounts(identityA: ObjectId, identityB: ObjectId, options?: { session?: ClientSession }): Promise<void>;
+  incrementAchievementsEarnedCount(identityId: string | ObjectId, options?: { session?: ClientSession }): Promise<void>;
+  decrementAchievementsEarnedCount(identityId: string | ObjectId, options?: { session?: ClientSession }): Promise<void>;
+  recordDisplayNameChange(identityId: string | ObjectId): Promise<number>;
+  incrementEmptyBioSaveCount(identityId: string | ObjectId): Promise<number>;
+  findActivityStatsProjection(
+    identityId: ObjectId
+  ): Promise<Pick<
+    IdentityDocument,
+    'messagesSentCount' | 'conversationsJoinedCount' | 'friendCount' | 'achievementsEarnedCount'
+  > | null>;
+  findByPlatformRole(role: string): Promise<IdentityDocument[]>;
+  findByAnyPlatformRole(roles: string[]): Promise<IdentityDocument[]>;
+  countByPlatformRole(role: string): Promise<number>;
+  addPlatformRole(identityId: string | ObjectId, role: string): Promise<boolean>;
+  removePlatformRole(identityId: string | ObjectId, role: string): Promise<boolean>;
+}
+
+/**
+ * Identity repository implementation
+ */
+export class IdentityRepository
+  extends BaseRepository<IdentityDocument>
+  implements IIdentityRepository {
+  constructor() {
+    super(Collections.IDENTITIES);
+  }
+
+  /**
+   * Find identity by its MongoDB _id
+   */
+  async findByIdentityId(id: string | ObjectId): Promise<IdentityDocument | null> {
+    return await this.findById(id);
+  }
+
+  /**
+   * Find identity by ident string (includes deleted identities)
+   */
+  async findByIdent(ident: string): Promise<IdentityDocument | null> {
+    return await this.findOne({ ident });
+  }
+
+  /**
+   * Find active (non-deleted) identity by ident string
+   */
+  async findActiveByIdent(ident: string): Promise<IdentityDocument | null> {
+    // Deleted identities have ident starting with '_deleted_', so this naturally excludes them
+    if (isDeletedIdent(ident)) {
+      return null;
+    }
+    return await this.findOne({ ident });
+  }
+
+  /**
+   * Find identity by username
+   */
+  async findByUsername(username: string): Promise<IdentityDocument | null> {
+    return await this.findOne({ username });
+  }
+
+  /**
+   * Search identities by username or displayName.
+   * Case-insensitive partial matching.
+   * Excludes deleted identities and optionally excludes specific identity IDs.
+   *
+   * @param query - Search query (must be at least MIN_QUERY_LENGTH characters)
+   * @param limit - Maximum number of results (default: DEFAULT_LIMIT, max: MAX_LIMIT)
+   * @param excludeIds - Optional array of identity IDs to exclude from results (e.g., blocked identities)
+   * @returns Array of matching identity documents
+   */
+  async search(
+    query: string,
+    limit: number = IDENTITY_SEARCH_DEFAULTS.DEFAULT_LIMIT,
+    excludeIds?: ObjectId[]
+  ): Promise<IdentityDocument[]> {
+    if (query.length < IDENTITY_SEARCH_DEFAULTS.MIN_QUERY_LENGTH) {
+      return [];
+    }
+
+    const effectiveLimit = Math.min(
+      Math.max(1, limit),
+      IDENTITY_SEARCH_DEFAULTS.MAX_LIMIT
+    );
+
+    // Escape special regex characters to prevent ReDoS attacks
+    const escapedQuery = sanitizeString(query, 'general').value;
+    const regex = new RegExp(escapedQuery, 'i');
+
+    // Build filter - exclude deleted identities (idents starting with '_deleted_')
+    const filter: Record<string, unknown> = {
+      ident: { $not: { $regex: `^${DELETED_IDENT_PREFIX}` } },
+      $or: [
+        { username: regex },
+        { displayName: regex },
+      ],
+    };
+
+    // Exclude blocked identities if provided
+    if (excludeIds && excludeIds.length > 0) {
+      filter._id = { $nin: excludeIds };
+    }
+
+    const results = await this.collection
+      .find(filter)
+      .limit(effectiveLimit)
+      .toArray();
+
+    return results as IdentityDocument[];
+  }
+
+  /**
+   * Create a new identity
+   */
+  async create(input: CreateIdentityInput, options?: { session?: ClientSession }): Promise<IdentityDocument> {
+    const doc: Omit<IdentityDocument, '_id' | 'createdAt' | 'updatedAt'> = {
+      ident: input.ident,
+      hashVersion: input.hashVersion,
+      username: input.username,
+      displayName: input.displayName,
+      lastActiveAt: new Date(),
+      requireGroupApproval: true,
+      messagesSentCount: 0,
+      conversationsJoinedCount: 0,
+      friendCount: 0,
+      achievementsEarnedCount: 0,
+    };
+
+    return await super.create(doc, options);
+  }
+
+  /**
+   * Update identity by ident string
+   */
+  async updateByIdent(
+    ident: string,
+    update: UpdateIdentityInput
+  ): Promise<IdentityDocument | null> {
+    const updateDoc = withUpdatedAt(update);
+
+    const result = await this.collection.findOneAndUpdate(
+      { ident },
+      { $set: updateDoc },
+      { returnDocument: 'after' }
+    );
+
+    return result as IdentityDocument | null;
+  }
+
+  /**
+   * Soft delete an identity by setting ident to 'deleted'
+   * This preserves the identity record for historical references (chats, posts, etc.)
+   * while freeing up the hash for potential reuse and protecting against breach exposure.
+   */
+  async softDelete(identityId: string | ObjectId): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const now = new Date();
+
+    const result = await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set: {
+          ident: `${DELETED_IDENT_PREFIX}${objectId.toHexString()}`,
+          updatedAt: now,
+        },
+      }
+    );
+
+    if (result.modifiedCount === 1) {
+      elog.info('Identity soft deleted', { identityId: objectId.toHexString() });
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Update last active timestamp for an identity
+   */
+  async updateLastActive(identityId: string | ObjectId): Promise<void> {
+    const objectId = this.toObjectId(identityId);
+    const now = new Date();
+    await this.collection.updateOne(
+      { _id: objectId },
+      { $set: { lastActiveAt: now, updatedAt: now } }
+    );
+  }
+
+  /**
+   * Upgrade the hash version for an identity
+   * Used when a user logs in with an old hash version
+   */
+  async upgradeHashVersion(
+    identityId: string | ObjectId,
+    newIdent: string,
+    newVersion: number
+  ): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const now = new Date();
+
+    const result = await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set: {
+          ident: newIdent,
+          hashVersion: newVersion,
+          updatedAt: now,
+        },
+      }
+    );
+
+    if (result.modifiedCount === 1) {
+      elog.info('Identity hash upgraded', {
+        identityId: objectId.toHexString(),
+        newVersion,
+      });
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Change the ident hash and version for a passphrase change.
+   * Intended for use within a MongoDB transaction.
+   */
+  async changeIdent(
+    identityId: string | ObjectId,
+    newIdent: string,
+    newHashVersion: number,
+    options?: { session?: ClientSession },
+  ): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const now = new Date();
+
+    const result = await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set: {
+          ident: newIdent,
+          hashVersion: newHashVersion,
+          passphraseChangedAt: now,
+          updatedAt: now,
+        },
+      },
+      { session: options?.session },
+    );
+
+    if (result.modifiedCount === 1) {
+      elog.info('Identity ident changed (passphrase change)', {
+        identityId: objectId.toHexString(),
+        newHashVersion,
+      });
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Set the signing public key and crypto profile for E2E encryption.
+   * Should only be called once when initializing E2E for an identity.
+   */
+  async setSigningPublicKey(
+    identityId: string | ObjectId,
+    signingPublicKey: string,
+    preferredCryptoProfile: CryptoProfile
+  ): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const now = new Date();
+
+    const result = await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set: {
+          signingPublicKey,
+          preferredCryptoProfile,
+          updatedAt: now,
+        },
+      }
+    );
+
+    if (result.modifiedCount === 1) {
+      elog.info('Identity signing key set', {
+        identityId: objectId.toHexString(),
+        cryptoProfile: preferredCryptoProfile,
+      });
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Add a new device to an identity.
+   */
+  async addDevice(identityId: string | ObjectId, device: IdentityDevice): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const now = new Date();
+
+    const result = await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $push: { devices: device },
+        $set: { updatedAt: now },
+      }
+    );
+
+    if (result.modifiedCount === 1) {
+      elog.info('Device added to identity', {
+        identityId: objectId.toHexString(),
+        deviceId: device.deviceId,
+      });
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Remove a device from an identity.
+   */
+  async removeDevice(identityId: string | ObjectId, deviceId: string): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const now = new Date();
+
+    const result = await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $pull: { devices: { deviceId } },
+        $set: { updatedAt: now },
+      }
+    );
+
+    if (result.modifiedCount === 1) {
+      elog.info('Device removed from identity', {
+        identityId: objectId.toHexString(),
+        deviceId,
+      });
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Update the last active timestamp for a device.
+   */
+  async updateDeviceActivity(identityId: string | ObjectId, deviceId: string): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const now = new Date();
+
+    const result = await this.collection.updateOne(
+      { _id: objectId, 'devices.deviceId': deviceId },
+      {
+        $set: {
+          'devices.$.lastActiveAt': now,
+          updatedAt: now,
+        },
+      }
+    );
+
+    return result.modifiedCount === 1;
+  }
+
+  /**
+   * Update the name of a device.
+   */
+  async updateDeviceName(identityId: string | ObjectId, deviceId: string, name: string): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const now = new Date();
+
+    const result = await this.collection.updateOne(
+      { _id: objectId, 'devices.deviceId': deviceId },
+      {
+        $set: {
+          'devices.$.name': name,
+          updatedAt: now,
+        },
+      }
+    );
+
+    // Return true if document was matched (even if name was same, so modifiedCount = 0)
+    return result.matchedCount === 1;
+  }
+
+  /**
+   * Store Ed25519 attestation over static device keys (device-trust v3).
+   */
+  async setDeviceStaticKeyAttestation(
+    identityId: string | ObjectId,
+    deviceId: string,
+    staticKeyAttestation: string
+  ): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const now = new Date();
+
+    const result = await this.collection.updateOne(
+      { _id: objectId, 'devices.deviceId': deviceId },
+      {
+        $set: {
+          'devices.$.staticKeyAttestation': staticKeyAttestation,
+          updatedAt: now,
+        },
+      }
+    );
+
+    return result.matchedCount === 1;
+  }
+
+  /**
+   * Get all devices for an identity.
+   */
+  async getDevices(identityId: string | ObjectId): Promise<IdentityDevice[]> {
+    const doc = await this.findByIdentityId(identityId);
+    return doc?.devices ?? [];
+  }
+
+  /** User-authored message sends (caller: `sendMessage` only). */
+  async incrementMessagesSentCount(
+    identityId: string | ObjectId,
+    options?: { session?: ClientSession },
+  ): Promise<void> {
+    await this.collection.updateOne(
+      { _id: this.toObjectId(identityId) },
+      { $inc: { messagesSentCount: 1 } },
+      { session: options?.session },
+    );
+  }
+
+  /** Monotonic thread joins. */
+  async incrementConversationsJoinedCounts(
+    identityIds: ObjectId[],
+    options?: { session?: ClientSession },
+  ): Promise<void> {
+    if (identityIds.length === 0) return;
+
+    await this.collection.bulkWrite(
+      identityIds.map((id) => ({
+        updateOne: {
+          filter: { _id: id },
+          update: { $inc: { conversationsJoinedCount: 1 } },
+        },
+      })),
+      { ordered: false, session: options?.session },
+    );
+  }
+
+  async incrementFriendCounts(
+    identityA: ObjectId,
+    identityB: ObjectId,
+    options?: { session?: ClientSession },
+  ): Promise<void> {
+    await this.collection.updateOne(
+      { _id: identityA },
+      { $inc: { friendCount: 1 } },
+      { session: options?.session },
+    );
+    await this.collection.updateOne(
+      { _id: identityB },
+      { $inc: { friendCount: 1 } },
+      { session: options?.session },
+    );
+  }
+
+  async decrementFriendCounts(
+    identityA: ObjectId,
+    identityB: ObjectId,
+    options?: { session?: ClientSession },
+  ): Promise<void> {
+    await this.collection.updateOne(
+      { _id: identityA },
+      [{ $set: { friendCount: { $max: [0, { $subtract: [{ $ifNull: ['$friendCount', 0] }, 1] }] } } }] as Parameters<
+        typeof this.collection.updateOne
+      >[1],
+      { session: options?.session },
+    );
+    await this.collection.updateOne(
+      { _id: identityB },
+      [{ $set: { friendCount: { $max: [0, { $subtract: [{ $ifNull: ['$friendCount', 0] }, 1] }] } } }] as Parameters<
+        typeof this.collection.updateOne
+      >[1],
+      { session: options?.session },
+    );
+  }
+
+  async incrementAchievementsEarnedCount(
+    identityId: string | ObjectId,
+    options?: { session?: ClientSession },
+  ): Promise<void> {
+    await this.collection.updateOne(
+      { _id: this.toObjectId(identityId) },
+      { $inc: { achievementsEarnedCount: 1 } },
+      { session: options?.session },
+    );
+  }
+
+  async decrementAchievementsEarnedCount(
+    identityId: string | ObjectId,
+    options?: { session?: ClientSession },
+  ): Promise<void> {
+    await this.collection.updateOne(
+      { _id: this.toObjectId(identityId), achievementsEarnedCount: { $gt: 0 } },
+      { $inc: { achievementsEarnedCount: -1 } },
+      { session: options?.session },
+    );
+  }
+
+  async recordDisplayNameChange(identityId: string | ObjectId): Promise<number> {
+    const objectId = this.toObjectId(identityId);
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $push: {
+          displayNameChangeTimestamps: {
+            $each: [now],
+            $slice: -20,
+          },
+        },
+      },
+    );
+
+    const doc = await this.collection.findOne(
+      { _id: objectId },
+      { projection: { displayNameChangeTimestamps: 1 } },
+    );
+
+    const timestamps = (doc?.displayNameChangeTimestamps as Date[] | undefined) ?? [];
+    return timestamps.filter((timestamp) => timestamp >= oneHourAgo).length;
+  }
+
+  async incrementEmptyBioSaveCount(identityId: string | ObjectId): Promise<number> {
+    const objectId = this.toObjectId(identityId);
+    const result = await this.collection.findOneAndUpdate(
+      { _id: objectId },
+      { $inc: { emptyBioSaveCount: 1 } },
+      { returnDocument: 'after', projection: { emptyBioSaveCount: 1 } },
+    );
+
+    return result?.emptyBioSaveCount ?? 0;
+  }
+
+  async findActivityStatsProjection(
+    identityId: ObjectId,
+  ): Promise<
+    Pick<
+      IdentityDocument,
+      'messagesSentCount' | 'conversationsJoinedCount' | 'friendCount' | 'achievementsEarnedCount'
+    > | null
+  > {
+    const doc = await this.collection.findOne(
+      { _id: identityId },
+      {
+        projection: {
+          messagesSentCount: 1,
+          conversationsJoinedCount: 1,
+          friendCount: 1,
+          achievementsEarnedCount: 1,
+        },
+      },
+    );
+    return doc as IdentityDocument | null;
+  }
+
+  /**
+   * Remove stale moderation fields from an identity after a suspension has lapsed.
+   * Uses $unset so the fields are fully removed rather than set to null.
+   */
+  async clearModerationFields(identityId: string | ObjectId): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const now = new Date();
+
+    const result = await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $unset: {
+          suspendedUntil: '',
+          moderationReason: '',
+          moderationReportId: '',
+          moderationCategory: '',
+          moderatedBy: '',
+          moderatedAt: '',
+        },
+        $set: { updatedAt: now },
+      }
+    );
+
+    if (result.modifiedCount === 1) {
+      elog.info('Moderation fields cleared after lapsed suspension', {
+        identityId: objectId.toHexString(),
+      });
+      return true;
+    }
+
+    return false;
+  }
+
+  // -------------------------------------------------------------------------
+  // Admin identity management
+  // -------------------------------------------------------------------------
+
+  /**
+   * Search identities by username/displayName (regex) or exact ObjectId.
+   * Excludes soft-deleted identities.
+   */
+  async searchForAdmin(query: string, limit = 20): Promise<IdentityDocument[]> {
+    if (ObjectId.isValid(query) && query.length === 24) {
+      const doc = await this.findById(new ObjectId(query));
+      if (doc && !isDeletedIdent(doc.ident)) return [doc];
+      return [];
+    }
+
+    const queryLower = sanitizeString(query, 'general').value.toLowerCase();
+    if (queryLower.length === 0) {
+      return [];
+    }
+
+    return await this.collection
+      .find({
+        ident: { $not: { $regex: `^${DELETED_IDENT_PREFIX}` } },
+        $expr: {
+          $or: [
+            { $gte: [{ $indexOfCP: [{ $toLower: '$username' }, queryLower] }, 0] },
+            { $gte: [{ $indexOfCP: [{ $toLower: '$displayName' }, queryLower] }, 0] },
+          ],
+        },
+      })
+      .sort({ createdAt: -1 })
+      .limit(Math.min(Math.max(1, limit), 50))
+      .toArray() as IdentityDocument[];
+  }
+
+  async suspendIdentity(
+    id: string | ObjectId,
+    opts: {
+      suspendedUntil: Date;
+      reason: string;
+      moderatedBy: string;
+      category?: AccountModerationCategory;
+    },
+  ): Promise<void> {
+    const objectId = this.toObjectId(id);
+    const $set: Record<string, unknown> = {
+      suspendedUntil: opts.suspendedUntil,
+      moderationReason: opts.reason,
+      moderatedBy: opts.moderatedBy,
+      moderatedAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const $unset: Record<string, ''> = {};
+    if (opts.category) {
+      $set.moderationCategory = opts.category;
+    } else {
+      $unset.moderationCategory = '';
+    }
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set,
+        ...(Object.keys($unset).length > 0 ? { $unset } : {}),
+      },
+    );
+  }
+
+  async unsuspendIdentity(id: string | ObjectId): Promise<void> {
+    const objectId = this.toObjectId(id);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set: { updatedAt: new Date() },
+        $unset: {
+          suspendedUntil: '',
+          moderationReason: '',
+          moderationReportId: '',
+          moderationCategory: '',
+          moderatedBy: '',
+          moderatedAt: '',
+        },
+      },
+    );
+  }
+
+  async banIdentity(
+    id: string | ObjectId,
+    opts: { reason: string; moderatedBy: string; category?: AccountModerationCategory },
+  ): Promise<void> {
+    const objectId = this.toObjectId(id);
+    const $set: Record<string, unknown> = {
+      isBanned: true,
+      moderationReason: opts.reason,
+      moderatedBy: opts.moderatedBy,
+      moderatedAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const $unset: Record<string, ''> = {};
+    if (opts.category) {
+      $set.moderationCategory = opts.category;
+    } else {
+      $unset.moderationCategory = '';
+    }
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set,
+        ...(Object.keys($unset).length > 0 ? { $unset } : {}),
+      },
+    );
+  }
+
+  async unbanIdentity(id: string | ObjectId): Promise<void> {
+    const objectId = this.toObjectId(id);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set: { updatedAt: new Date() },
+        $unset: {
+          isBanned: '',
+          moderationReason: '',
+          moderationReportId: '',
+          moderationCategory: '',
+          moderatedBy: '',
+          moderatedAt: '',
+        },
+      },
+    );
+  }
+
+  async addEntitlementOverride(
+    id: string | ObjectId,
+    entitlement: string,
+  ): Promise<void> {
+    const objectId = this.toObjectId(id);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $addToSet: { entitlementOverrides: entitlement },
+        $set: { updatedAt: new Date() },
+      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    );
+  }
+
+  async removeEntitlementOverride(
+    id: string | ObjectId,
+    entitlement: string,
+  ): Promise<void> {
+    const objectId = this.toObjectId(id);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $pull: { entitlementOverrides: entitlement },
+        $set: { updatedAt: new Date() },
+      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    );
+  }
+
+  async findByPlatformRole(role: string): Promise<IdentityDocument[]> {
+    return this.findMany({
+      platformRoles: role,
+      ident: { $not: { $regex: `^${DELETED_IDENT_PREFIX}` } },
+    });
+  }
+
+  async findByAnyPlatformRole(roles: string[]): Promise<IdentityDocument[]> {
+    if (roles.length === 0) return [];
+    return this.findMany({
+      platformRoles: { $in: roles },
+      ident: { $not: { $regex: `^${DELETED_IDENT_PREFIX}` } },
+    });
+  }
+
+  async countByPlatformRole(role: string): Promise<number> {
+    return this.count({
+      platformRoles: role,
+      ident: { $not: { $regex: `^${DELETED_IDENT_PREFIX}` } },
+    });
+  }
+
+  async addPlatformRole(identityId: string | ObjectId, role: string): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const result = await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $addToSet: { platformRoles: role },
+        $set: { updatedAt: new Date() },
+      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    );
+    return result.matchedCount > 0;
+  }
+
+  async removePlatformRole(identityId: string | ObjectId, role: string): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const result = await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $pull: { platformRoles: role },
+        $set: { updatedAt: new Date() },
+      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    );
+    return result.matchedCount > 0;
+  }
+
+  async addPlatformAttribute(identityId: string | ObjectId, attribute: string): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const result = await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $addToSet: { platformAttributes: attribute },
+        $set: { updatedAt: new Date() },
+      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    );
+    return result.matchedCount > 0;
+  }
+
+  async removePlatformAttribute(identityId: string | ObjectId, attribute: string): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const result = await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $pull: { platformAttributes: attribute },
+        $set: { updatedAt: new Date() },
+      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    );
+    return result.matchedCount > 0;
+  }
+}
+
+// Singleton instance
+let identityRepository: IdentityRepository | null = null;
+
+/**
+ * Get the identity repository instance
+ */
+export function getIdentityRepository(): IdentityRepository {
+  if (!identityRepository) {
+    identityRepository = new IdentityRepository();
+  }
+  return identityRepository;
+}

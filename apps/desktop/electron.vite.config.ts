@@ -1,0 +1,97 @@
+import { defineConfig } from 'electron-vite';
+import react from '@vitejs/plugin-react';
+import fs from 'fs';
+import path from 'path';
+import pkg from './package.json';
+import { cspPlugin } from '../../packages/shared/src/csp/vite-plugin-csp';
+import { cspManifest, devCspExtras } from './src/csp';
+
+export default defineConfig({
+  main: {
+    // Load `.env` from apps/desktop so main-process code can read ADIEUU_* at dev time.
+    envDir: __dirname,
+    build: {
+      outDir: 'dist/main',
+      rollupOptions: {
+        input: 'src/main.ts',
+      },
+    },
+    plugins: [
+      {
+        name: 'copy-screen-picker-html',
+        generateBundle() {
+          this.emitFile({
+            type: 'asset',
+            fileName: 'screen-picker.html',
+            source: fs.readFileSync(
+              path.resolve(__dirname, 'src/main-process/screen-picker.html'),
+              'utf-8',
+            ),
+          });
+        },
+      },
+    ],
+  },
+  preload: {
+    build: {
+      outDir: 'dist/preload',
+      rollupOptions: {
+        input: {
+          preload: 'src/preload.ts',
+          'screen-picker-preload': 'src/screen-picker-preload.ts',
+        },
+        output: {
+          format: 'cjs',
+          entryFileNames: '[name].cjs',
+        },
+      },
+    },
+  },
+  renderer: {
+    root: 'src/renderer',
+    // Load VITE_* vars from apps/desktop/.env (not src/renderer/.env)
+    envDir: __dirname,
+    publicDir: path.resolve(__dirname, '../../packages/ui/public'),
+    build: {
+      outDir: 'dist/renderer',
+      rollupOptions: {
+        input: path.resolve(__dirname, 'src/renderer/index.html'),
+      },
+    },
+    plugins: [
+      react(),
+      cspPlugin({
+        manifests: [
+          cspManifest,
+          // LiveKit WebSocket origins for local dev
+          ...(process.env.NODE_ENV !== 'production'
+            ? [{ 'connect-src': ['ws://localhost:*', 'wss://localhost:*', 'wss://localhost', 'https://localhost', 'https://localhost:*'] }]
+            : []),
+        ],
+        devExtras: devCspExtras,
+      }),
+    ],
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, 'src/renderer'),
+        // In dev mode, resolve @adieuu/ui to source files for instant HMR
+        // More specific paths MUST come before less specific ones
+        '@adieuu/ui/styles.scss': path.resolve(__dirname, '../../packages/ui/src/styles.scss'),
+        '@adieuu/ui/icons/registry': path.resolve(__dirname, '../../packages/ui/src/icons/registry.ts'),
+        '@adieuu/ui/services/crashReporter': path.resolve(__dirname, '../../packages/ui/src/services/crashReporter.ts'),
+        '@adieuu/ui/i18n': path.resolve(__dirname, '../../packages/ui/src/i18n/index.ts'),
+        '@adieuu/ui': path.resolve(__dirname, '../../packages/ui/src/index.ts'),
+      },
+    },
+    // Inject static app version; endpoint defaults are handled in renderer config.
+    define: {
+      __APP_VERSION__: JSON.stringify(pkg.version),
+      __APP_ORIGIN__: JSON.stringify(
+        process.env.VITE_APP_ORIGIN || 'https://adieuu.com',
+      ),
+      __DOWNLOADS_BASE_URL__: JSON.stringify(
+        process.env.VITE_DOWNLOADS_BASE_URL || 'https://downloads.adieuu.com',
+      ),
+    },
+  },
+});

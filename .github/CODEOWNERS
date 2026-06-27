@@ -1,0 +1,21 @@
+# Code ownership for Adieuu-LLC/adieuu-2026
+#
+# @Adieuu-LLC/security        — enterprise security (supply chain, CI/CD, infra)
+# @Adieuu-LLC/adieuu-2026-team — Adieuu 2026 product engineering (application code)
+#
+# Enforced only when the target branch ruleset has "Require review from Code Owners".
+
+# Application code (default)
+* @Adieuu-LLC/adieuu-2026-team
+
+# Supply chain (repository root only) — security team only
+/pnpm-lock.yaml         @Adieuu-LLC/security
+/package.json           @Adieuu-LLC/security
+/.npmrc                 @Adieuu-LLC/security
+/pnpm-workspace.yaml    @Adieuu-LLC/security
+
+# CI/CD workflows — security team only
+.github/                @Adieuu-LLC/security
+
+# Infrastructure — security team only
+infra/                  @Adieuu-LLC/security

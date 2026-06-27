@@ -1,0 +1,115 @@
+@use 'variables' as *;
+
+// ============================================================================
+// Favorites Section Header
+// ============================================================================
+
+.sidebar-conversations-section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sidebar-conversations-section-icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  color: var(--color-accent-primary);
+}
+
+// ============================================================================
+// Archived Conversation Appearance
+// ============================================================================
+
+.conversation-list-item--archived {
+  opacity: 0.55;
+}
+
+.conversation-list-item-badges {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  flex-shrink: 0;
+}
+
+.conversation-list-item-star {
+  width: 12px;
+  height: 12px;
+  color: var(--color-accent-primary);
+  flex-shrink: 0;
+}
+
+.conversation-list-item-call-icon {
+  width: 12px;
+  height: 12px;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+  animation: conversation-call-pulse 2s ease-in-out infinite;
+
+  &--joined {
+    color: var(--color-accent-primary);
+  }
+}
+
+@keyframes conversation-call-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.conversation-list-item-archive-icon {
+  width: 12px;
+  height: 12px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+// ============================================================================
+// Chat Connection Banner
+// ============================================================================
+
+.chat-connection-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-md);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  background: var(--color-bg-tertiary);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  animation: chat-banner-fade-in 200ms ease;
+
+  .spinner {
+    width: 0.75rem;
+    height: 0.75rem;
+    flex-shrink: 0;
+  }
+
+  &--warn {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+    border-bottom-color: color-mix(in srgb, var(--color-warning) 30%, transparent);
+
+    .spinner {
+      border-color: color-mix(in srgb, var(--color-warning) 30%, transparent);
+      border-top-color: var(--color-warning);
+    }
+  }
+}
+
+.chat-connection-banner-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@keyframes chat-banner-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

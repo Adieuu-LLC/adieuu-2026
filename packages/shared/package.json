@@ -1,0 +1,37 @@
+{
+  "name": "@adieuu/shared",
+  "version": "0.2.39",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./schemas": {
+      "types": "./dist/schemas/index.d.ts",
+      "import": "./dist/schemas/index.js"
+    },
+    "./csp": {
+      "types": "./dist/csp/index.d.ts",
+      "import": "./dist/csp/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test src/messaging/messagePagination.test.ts src/api/http-client.test.ts src/api/auth-api.test.ts src/api/moderation-types.test.ts src/constants/moderation-reason-map.test.ts src/constants/feedback.test.ts src/feedback/roadmap-timeline.test.ts src/feedback/feedback-display.test.ts src/geo/jurisdiction-lookup.test.ts src/geo/effective-age-verification-jurisdictions.test.ts src/custom-emoji-shortcode.test.ts",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@adieuu/tsconfig": "workspace:*",
+    "@types/bun": "1.3.9",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,147 @@
+@use 'variables' as *;
+
+// ============================================================================
+// Modal Overlay
+// ============================================================================
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: min($sidebar-width, $sidebar-width-max);
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+  animation: fadeIn var(--transition-fast) ease;
+  transition: left var(--transition-slow);
+
+  // When sidebar is collapsed
+  .app-layout.sidebar-is-collapsed & {
+    left: $sidebar-width-collapsed;
+  }
+
+  // On mobile, cover full viewport since sidebar is hidden
+  @media (max-width: $mobile-breakpoint) {
+    left: 0;
+  }
+}
+
+.modal-container {
+  position: relative;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  max-width: 480px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: slideUp var(--transition-normal) ease;
+}
+
+.modal-close {
+  position: absolute;
+  top: var(--spacing-md);
+  right: var(--spacing-md);
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  line-height: 1;
+  transition: color var(--transition-fast);
+  z-index: 1;
+
+  &:hover {
+    color: var(--color-text-primary);
+  }
+}
+
+// Modal content container - used by AddCipherModal and other generic modals
+.modal-content {
+  position: relative;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: slideUp var(--transition-normal) ease;
+  display: flex;
+  flex-direction: column;
+
+  // Size variants
+  &.modal-sm {
+    width: 90%;
+    max-width: 360px;
+  }
+
+  &.modal-md {
+    width: 90%;
+    max-width: 480px;
+  }
+
+  &.modal-lg {
+    width: 90%;
+    max-width: 640px;
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-bottom: 1px solid var(--color-border-muted);
+  flex-shrink: 0;
+}
+
+.modal-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.modal-body {
+  padding: var(--spacing-xl);
+  flex: 1;
+  overflow-y: auto;
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-lg);
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  .form-label {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-primary);
+  }
+
+  .form-hint {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    margin: 0;
+  }
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-top: 1px solid var(--color-border-muted);
+  flex-shrink: 0;
+}

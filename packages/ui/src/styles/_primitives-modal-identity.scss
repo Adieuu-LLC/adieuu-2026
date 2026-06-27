@@ -1,0 +1,218 @@
+@use 'variables' as *;
+
+// ============================================================================
+// Identity Modal (Ark UI Dialog)
+// ============================================================================
+
+.identity-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: var(--z-modal-backdrop);
+
+  &[data-state='open'] {
+    animation: fadeIn var(--transition-fast) ease;
+  }
+}
+
+.identity-modal-positioner {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+}
+
+.identity-modal {
+  position: relative;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  max-width: 480px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: fadeIn var(--transition-fast) ease;
+  padding: var(--spacing-2xl);
+
+  &-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+  }
+
+  &-header {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-sm);
+
+    h2 {
+      color: var(--color-text-primary);
+      font-size: var(--font-size-xl);
+      font-weight: var(--font-weight-semibold);
+      margin: 0;
+    }
+
+    p {
+      color: var(--color-text-secondary);
+      font-size: var(--font-size-sm);
+      margin: 0;
+      max-width: 360px;
+      line-height: var(--line-height-relaxed);
+    }
+  }
+
+  &-icon {
+    width: 64px;
+    height: 64px;
+    color: var(--color-accent-primary);
+    margin-bottom: var(--spacing-sm);
+  }
+
+  &-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-md);
+
+    .btn {
+      justify-content: center;
+      gap: var(--spacing-sm);
+
+      svg {
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+      }
+    }
+  }
+
+  &-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-xs);
+    }
+
+    .form-hint {
+      color: var(--color-text-muted);
+      font-size: var(--font-size-xs);
+      margin: 0;
+    }
+  }
+
+  &-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+  }
+
+  &-footer {
+    text-align: center;
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--color-border-muted);
+
+    p {
+      color: var(--color-text-secondary);
+      font-size: var(--font-size-sm);
+      margin: 0 0 var(--spacing-sm);
+    }
+  }
+
+  &-footer-unlock {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-xs);
+  }
+
+  &-panic-btn {
+    color: var(--color-error-text);
+  }
+
+  &-creating {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+  }
+
+  &-av-description {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-relaxed);
+    text-align: center;
+    margin: 0;
+  }
+
+  &-av-jurisdiction {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+  }
+
+  &-av-opt-in {
+    margin-top: var(--spacing-md);
+    max-width: 120px;
+    align-self: center;
+  }
+
+  &-do-later-link {
+    all: unset;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    margin-top: var(--spacing-sm);
+
+    &:hover {
+      color: var(--color-text-secondary);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--color-accent-primary);
+      outline-offset: 2px;
+      border-radius: var(--radius-sm);
+    }
+  }
+}
+
+.identity-creating-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-lg);
+  text-align: center;
+  padding: var(--spacing-2xl);
+
+  .spinner {
+    width: 48px;
+    height: 48px;
+  }
+
+  h2 {
+    color: var(--color-text-primary);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    margin: 0;
+  }
+
+  p {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    margin: 0;
+    max-width: 280px;
+    line-height: var(--line-height-relaxed);
+  }
+}

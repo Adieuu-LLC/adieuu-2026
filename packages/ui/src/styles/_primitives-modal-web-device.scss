@@ -1,0 +1,27 @@
+@use 'variables' as *;
+
+// ============================================================================
+// Web Device Choice Modal
+// ============================================================================
+//
+// Stacked above `.modal-overlay` (identity / login shell) so backdrop and
+// positioner reliably receive pointer events while both layers are visible.
+
+.web-device-choice-layer-backdrop {
+  z-index: calc(var(--z-modal) + 20);
+}
+
+.web-device-choice-layer-positioner {
+  z-index: calc(var(--z-modal) + 30);
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+}
