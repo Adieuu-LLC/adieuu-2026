@@ -854,5 +854,19 @@ jobs:
         with:
           tag_name: v${{ needs.release.outputs.new_version }}
           draft: false
+          append_body: true
+          body: |
+
+            ---
+
+            ## Provenance & attestations
+
+            All release artifacts are built on GitHub-hosted runners with [build provenance attestations](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds). You can verify any downloaded artifact against this repository's attestations:
+
+            ```bash
+            gh attestation verify <downloaded-artifact> --repo ${{ github.repository }}
+            ```
+
+            [View all attestations for this repository](https://github.com/${{ github.repository }}/attestations)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

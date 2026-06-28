@@ -34,7 +34,7 @@
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-i18next": "15.7.4",
-    "react-router-dom": "7.13.0"
+    "react-router-dom": "7.15.1"
   },
   "devDependencies": {
     "@adieuu/tsconfig": "workspace:*",
@@ -47,7 +47,7 @@
     "electron-vite": "5.0.0",
     "sass-embedded": "1.97.3",
     "typescript": "5.9.3",
-    "vite": "6.4.2"
+    "vite": "6.4.3"
   },
   "build": {
     "appId": "com.adieuu.desktop",
