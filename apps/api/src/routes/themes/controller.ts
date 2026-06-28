@@ -24,7 +24,7 @@ export const THEME_UPLOAD_RATE_CONFIG: RateLimitConfig = {
 /** Pre-computed SHA-256 checksums of built-in preset theme colours. */
 export const BUILTIN_CHECKSUMS = new Set([
   '08115fe0f979e002004eeee7a02bc7f4bae8ed74e59bba9a338a63e333817346', // midnight
-  '652c443ae234ef3765eb277ec2b95f43cbe7e048993aa94b82d6ea21d8903834', // daylight
+  '2abfd3c06e8ad582478da80e37a83d69e6ebc87b518ac6318a6601ab443e5b87', // daylight
   '9265bb720887db34db2efb93dc4a9a21d230518f263e5e6e82c3bb2e9cb583ed', // ember
   '9672f39d347898d40485184a2148d5a58eb975842a325ac64df94c6ba28aacf7', // verdant
   '8b2676056db3376c1b91e4c083e055219df3848f7e1079cb9927c34d7dbeed1f', // royal

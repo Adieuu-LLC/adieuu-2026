@@ -1,7 +1,7 @@
 /**
  * Built-in preset themes shipped with Adieuu.
  *
- * Each preset defines the full set of ThemeColorTokens. The "Midnight" preset
+ * Each preset defines the full set of ThemeColorTokens. The "Verdant" preset
  * matches the current default :root values in styles.scss. The others provide
  * alternative palettes.
  *
@@ -19,11 +19,11 @@ export interface BuiltinTheme {
 export const BUILTIN_THEMES: readonly BuiltinTheme[] = [
   {
     label: 'official',
-    description: 'The default dark theme with cyan/teal accents.',
+    description: 'A dark theme with cyan/teal accents.',
     theme: {
       id: 'midnight',
       name: 'Midnight',
-      description: 'The default dark theme with cyan/teal accents.',
+      description: 'A dark theme with cyan/teal accents.',
       version: 1,
       colors: {
         bgPrimary: '#0d1117',
@@ -65,34 +65,34 @@ export const BUILTIN_THEMES: readonly BuiltinTheme[] = [
   },
   {
     label: 'official',
-    description: 'A clean light theme with blue accents.',
+    description: 'A clean light theme with green accents.',
     theme: {
       id: 'daylight',
       name: 'Daylight',
-      description: 'A clean light theme with blue accents.',
+      description: 'A clean light theme with green accents.',
       version: 1,
       colors: {
         bgPrimary: '#ffffff',
         bgSecondary: '#f6f8fa',
         bgTertiary: '#eaeef2',
         bgElevated: '#ffffff',
-        bgHover: 'rgba(59, 130, 246, 0.06)',
-        bgActive: 'rgba(59, 130, 246, 0.10)',
+        bgHover: 'rgba(34, 197, 94, 0.06)',
+        bgActive: 'rgba(34, 197, 94, 0.10)',
 
         textPrimary: '#1f2328',
         textSecondary: '#656d76',
         textMuted: '#6e7681',
         textInverse: '#ffffff',
 
-        accentPrimary: '#2563eb',
-        accentPrimaryHover: '#1d4ed8',
-        accentPrimaryActive: '#1e40af',
-        accentSecondary: '#3b82f6',
-        accentGlow: 'rgba(37, 99, 235, 0.12)',
+        accentPrimary: '#22c55e',
+        accentPrimaryHover: '#16a34a',
+        accentPrimaryActive: '#15803d',
+        accentSecondary: '#4ade80',
+        accentGlow: 'rgba(34, 197, 94, 0.12)',
 
         border: '#d0d7de',
         borderMuted: '#eaeef2',
-        borderFocus: '#2563eb',
+        borderFocus: '#22c55e',
 
         success: '#16a34a',
         successBg: 'rgba(22, 163, 74, 0.08)',
@@ -100,12 +100,12 @@ export const BUILTIN_THEMES: readonly BuiltinTheme[] = [
         warningBg: 'rgba(217, 119, 6, 0.08)',
         error: '#dc2626',
         errorBg: 'rgba(220, 38, 38, 0.08)',
-        info: '#2563eb',
-        infoBg: 'rgba(37, 99, 235, 0.08)',
+        info: '#16a34a',
+        infoBg: 'rgba(22, 163, 74, 0.08)',
         danger: '#dc2626',
 
-        logoPrimary: '#2563eb',
-        logoSecondary: '#3b82f6',
+        logoPrimary: '#22c55e',
+        logoSecondary: '#4ade80',
       },
     },
   },
@@ -157,11 +157,11 @@ export const BUILTIN_THEMES: readonly BuiltinTheme[] = [
   },
   {
     label: 'official',
-    description: 'A forest-inspired dark theme with green accents.',
+    description: 'The default forest-inspired dark theme with green accents.',
     theme: {
       id: 'verdant',
       name: 'Verdant',
-      description: 'A forest-inspired dark theme with green accents.',
+      description: 'The default forest-inspired dark theme with green accents.',
       version: 1,
       colors: {
         bgPrimary: '#0f1512',
@@ -249,7 +249,7 @@ export const BUILTIN_THEMES: readonly BuiltinTheme[] = [
   },
 ] as const;
 
-export const DEFAULT_THEME_ID = 'midnight';
+export const DEFAULT_THEME_ID = 'verdant';
 
 /**
  * Look up a built-in theme by its ID.
