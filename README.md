@@ -1,7 +1,7 @@
 # Adieuu
 [![CI](https://github.com/Adieuu-LLC/adieuu-2026/actions/workflows/ci.yml/badge.svg)](https://github.com/Adieuu-LLC/adieuu-2026/actions/workflows/ci.yml)
 [![Release](https://github.com/Adieuu-LLC/adieuu-2026/actions/workflows/release.yml/badge.svg)](https://github.com/Adieuu-LLC/adieuu-2026/actions/workflows/release.yml)
-[![codecov](https://codecov.io/gh/Adieuu-LLC/adieuu-2026/graph/badge.svg?token=2MI5WRYO9K)](https://codecov.io/gh/Adieuu-LLC/adieuu-2026)
+[![codecov](https://codecov.io/gh/Adieuu-LLC/adieuu-2026/graph/badge.svg)](https://codecov.io/gh/Adieuu-LLC/adieuu-2026)
 ![Service Status](https://adieuu.openstatus.dev/badge/v2)
 
 ## What is Adieuu?
