@@ -110,32 +110,21 @@ export const staticPages = {
     badgeComingSoon: 'Coming soon',
 
     public: {
-      subtitle: 'Where your conversations belong to you.',
-      tabs: {
-        about: 'What is Adieuu?',
-        learn: 'Learn',
-      },
-      whatIsTitle: 'Your identity and your messages, kept apart',
-      whatIsText1:
-        'Adieuu is a messaging platform built around a simple idea: who you are and what you say should not be connected in a database. Your account handles login and billing. Your Alias is how you talk to people. The two are cryptographically separated, so even in the event of a breach, there is no link between your real identity and your conversations.',
-      whatIsText2:
-        'Every message is end-to-end encrypted. We cannot read what you write, and nobody else can either.',
-      fundingTitle: 'Pay with a subscription, not surveillance',
-      fundingText:
-        'There are no ads on Adieuu. We do not sell your data, build ad profiles, or track what you talk about. The platform is funded by the people who use it. That keeps our incentives simple: build something worth paying for.',
-      securityTitle: 'Serious security, without the friction',
-      securityText:
-        'Login is passwordless, so there are no credentials to steal. Messages use forward secrecy and post-quantum cryptography. Alias identities cannot be linked back to your account, even by us. All data at rest is encrypted, and all traffic uses TLS.',
-      transparencyTitle: 'Open source and verifiable',
-      transparencyText:
-        'Our code is public. You can read it, audit it, and self-host it. We publish software bills of materials for every release and maintain a public roadmap shaped by community input. We would rather prove it than promise it.',
-      humanTitle: 'Built for real people',
-      humanText:
-        'Subscriptions and age verification raise the cost of being fake. That means fewer bots, fewer throwaway accounts, and more genuine conversation. Adieuu is designed so that the people you talk to are actually people.',
-      ctaTitle: 'Come say hello',
+      subtitle: 'Adieuu is live and in early beta.',
+      betaBadge: 'Early Beta',
+      statusTitle: "We're just getting started",
+      statusText:
+        'Adieuu is currently in early beta. We are building in the open and rolling out features as they are ready.',
+      availableTitle: 'Available now',
+      availableText:
+        'Private messages and group conversations are live. Log in to start talking with end-to-end encryption, passwordless auth, and alias-based privacy.',
+      comingTitle: 'Coming soon',
+      comingText:
+        "We're actively building Spaces \u2014 community-driven rooms you can create, discover, and join \u2014 along with a public feed. Once those ship, this page will surface content from the Spaces you care about.",
+      ctaTitle: 'Join the beta',
       ctaText:
-        'Creating an account takes seconds. All you need is an email or phone number.',
-      ctaAction: 'Create account',
+        'Sign up or log in to access private messaging and group conversations today.',
+      ctaAction: 'Log in',
     },
 
     tabs: {

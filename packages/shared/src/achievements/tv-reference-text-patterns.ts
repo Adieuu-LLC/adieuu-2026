@@ -22,7 +22,6 @@ export const TV_REFERENCE_DISPLAY_NAME_ACTIONS = {
   prisonMike: 'display_name_prison_mike',
   khaleesiDaenerys: 'display_name_khaleesi_daenerys',
   krustyKrab: 'display_name_krusty_krab',
-  camacho: 'display_name_camacho',
 } as const;
 
 export const TV_REFERENCE_BIO_ACTIONS = {
@@ -114,10 +113,6 @@ export function isKrustyKrabDisplayName(displayName: string): boolean {
 
 export function isNotSureDisplayName(displayName: string): boolean {
   return isExactDisplayName(displayName, 'Not Sure');
-}
-
-export function containsCamachoDisplayName(displayName: string): boolean {
-  return /\bcamacho\b/i.test(displayName);
 }
 
 export function containsEventsOccurInRealTime(text: string): boolean {
@@ -303,10 +298,6 @@ export function getTvReferenceDisplayNameAchievementActions(displayName: string)
   if (isNotSureDisplayName(bounded)) {
     actions.push(TV_REFERENCE_BIO_OR_MESSAGE_ACTIONS.notSureIf);
   }
-  if (containsCamachoDisplayName(bounded)) {
-    actions.push(TV_REFERENCE_DISPLAY_NAME_ACTIONS.camacho);
-  }
-
   return actions;
 }
 

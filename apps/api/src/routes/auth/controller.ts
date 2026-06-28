@@ -536,6 +536,7 @@ export type VerifyOtpHandlerResult =
       | 'account_banned'
       | 'account_suspended'
       | 'abusive_ip_blocked'
+      | 'account_deleted'
       | 'not_allowed';
     retryAfterSeconds?: number;
     suspendedUntil?: string;
@@ -585,7 +586,7 @@ function detectIdentifierType(identifier: string): 'email' | 'phone' {
 async function findOrCreateUser(
   identifier: string,
   identifierType: 'email' | 'phone'
-): Promise<UserDocument> {
+): Promise<UserDocument | 'account_deleted'> {
   const userRepo = getUserRepository();
   const existingUser = await userRepo.findByIdentifier(identifier);
 
@@ -595,6 +596,14 @@ async function findOrCreateUser(
     await userRepo.recordLogin(existingUser._id);
     user = existingUser;
   } else {
+    // Check if the email belongs to a deleted account
+    if (identifierType === 'email') {
+      const { isEmailDeleted } = await import('./../../routes/account/data/controller');
+      if (await isEmailDeleted(identifier)) {
+        return 'account_deleted';
+      }
+    }
+
     user = await userRepo.create({
       ...(identifierType === 'email'
         ? { email: identifier, emailVerified: true }
@@ -750,7 +759,11 @@ export async function verifyOtpHandler(
   }
 
   // Find or create user
-  let user = await findOrCreateUser(sanitizedIdentifier.value, identifierType);
+  const userOrDeleted = await findOrCreateUser(sanitizedIdentifier.value, identifierType);
+  if (userOrDeleted === 'account_deleted') {
+    return { success: false, error: 'account_deleted' as const };
+  }
+  let user = userOrDeleted;
   const userId = user._id.toHexString();
 
   // Account-level moderation enforcement

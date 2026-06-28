@@ -10,13 +10,15 @@ import { TotpSetup, WebAuthnSetup, MfaCredentialsList } from '../../components/M
 import { createApiClient, type SessionDetails } from '@adieuu/shared';
 import { useAppConfig } from '../../config';
 import { ChangePassphrasePanel } from './ChangePassphrasePanel';
+import { DataExportPanel } from './DataExportPanel';
+import { DeleteAccountPanel } from './DeleteAccountPanel';
 import {
   useCrashReportingPreference,
   setCrashReportingEnabled,
   setCrashReportingIncludeUser,
 } from '../../hooks/useCrashReportingPreference';
 
-const VALID_TABS = ['authentication', 'passphrase', 'sessions'] as const;
+const VALID_TABS = ['authentication', 'passphrase', 'sessions', 'data-export', 'delete-account'] as const;
 type SecurityTab = typeof VALID_TABS[number];
 
 /**
@@ -295,6 +297,12 @@ export function AccountSecurity() {
             <TabTrigger value="sessions">
               {t('account.security.tabs.sessions')}
             </TabTrigger>
+            <TabTrigger value="data-export">
+              {t('account.security.tabs.dataExport')}
+            </TabTrigger>
+            <TabTrigger value="delete-account">
+              {t('account.security.tabs.deleteAccount')}
+            </TabTrigger>
           </TabList>
 
           <TabContent value="authentication">
@@ -310,6 +318,18 @@ export function AccountSecurity() {
           <TabContent value="sessions">
             <Card variant="elevated">
               <SessionsList />
+            </Card>
+          </TabContent>
+
+          <TabContent value="data-export">
+            <Card variant="elevated">
+              <DataExportPanel />
+            </Card>
+          </TabContent>
+
+          <TabContent value="delete-account">
+            <Card variant="elevated">
+              <DeleteAccountPanel />
             </Card>
           </TabContent>
         </Tabs>

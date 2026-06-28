@@ -53,6 +53,8 @@ export interface ContextErrors {
   alreadyOwned: () => Response;
   /** Sign-in not allowed (e.g. auth allowlist). */
   signInRestricted: () => Response;
+  /** Email belongs to a deleted account and cannot be reused. */
+  accountDeleted: () => Response;
 }
 
 export interface RouteContext {

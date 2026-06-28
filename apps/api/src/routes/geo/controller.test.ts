@@ -165,6 +165,7 @@ function makeRouteContext(request: Request): RouteContext {
       payloadTooLarge: () => new Response(null, { status: 413 }),
       alreadyOwned: () => new Response(null, { status: 409 }),
       signInRestricted: () => new Response(null, { status: 403 }),
+      accountDeleted: () => new Response(null, { status: 410 }),
     },
   };
 }

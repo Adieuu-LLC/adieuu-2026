@@ -203,6 +203,27 @@ describe('requireActiveSubscription middleware', () => {
     expect(res.status).toBe(200);
   });
 
+  test('exempt path /api/account/data-export -> passes through', async () => {
+    const ctx = makeCtx('/api/account/data-export');
+    const res = await middleware(ctx, nextOk);
+    expect(res.status).toBe(200);
+    expect(mockGetSessionFromRequest).not.toHaveBeenCalled();
+  });
+
+  test('exempt path /api/account/delete/request -> passes through', async () => {
+    const ctx = makeCtx('/api/account/delete/request');
+    const res = await middleware(ctx, nextOk);
+    expect(res.status).toBe(200);
+    expect(mockGetSessionFromRequest).not.toHaveBeenCalled();
+  });
+
+  test('exempt path /api/account/delete/confirm -> passes through', async () => {
+    const ctx = makeCtx('/api/account/delete/confirm');
+    const res = await middleware(ctx, nextOk);
+    expect(res.status).toBe(200);
+    expect(mockGetSessionFromRequest).not.toHaveBeenCalled();
+  });
+
   test('exempt path /api/v1/releases -> passes through', async () => {
     const ctx = makeCtx('/api/v1/releases/latest/latest.yml');
     const res = await middleware(ctx, nextOk);

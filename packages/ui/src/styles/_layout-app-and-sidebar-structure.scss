@@ -159,8 +159,8 @@
   }
 
   &:hover {
-    --logo-primary: var(--logo-secondary, #20d0e8);
-    --logo-secondary: var(--logo-primary, #e0e8f0);
+    --logo-primary: var(--logo-secondary, #4ade80);
+    --logo-secondary: var(--logo-primary, #22c55e);
 
     .app-logo-img {
       transform: scale(1.05);
@@ -174,12 +174,27 @@
   }
 }
 
-// Home page tabs
+// Home page beta badge
+.beta-badge {
+  display: inline-block;
+  margin-left: var(--spacing-sm);
+  padding: 0.15em 0.6em;
+  font-size: 0.5em;
+  font-weight: 600;
+  vertical-align: middle;
+  border-radius: var(--radius-full, 9999px);
+  background: var(--color-accent, #6366f1);
+  color: var(--color-on-accent, #fff);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+// Home page tabs (authenticated view)
 .home-tabs {
   margin-top: var(--spacing-lg);
 }
 
-.home-strengths-grid {
+.home-beta-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--spacing-lg);

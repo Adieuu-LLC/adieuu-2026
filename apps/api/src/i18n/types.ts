@@ -36,6 +36,7 @@ export type EmailTemplateKey =
   | 'otp'
   | 'otpWithMagicLink'
   | 'otpAccountAdd'
+  | 'otpAccountDeletion'
   | 'accountLocked'
   | 'failedLoginAttempts'
   | 'abusiveIpAccess'
@@ -93,7 +94,8 @@ export type ErrorKey =
   | 'payloadTooLarge'
   // Contact already attached to another account (revealed AFTER OTP verification)
   | 'alreadyOwned'
-  | 'signInRestricted';
+  | 'signInRestricted'
+  | 'accountDeleted';
 
 /**
  * Structure of a locale translation file.

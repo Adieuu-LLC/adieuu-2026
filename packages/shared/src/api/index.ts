@@ -4,6 +4,7 @@ export {
   API_ERROR_ACCOUNT_SUSPENDED,
   API_ERROR_ABUSIVE_IP_BLOCKED,
   API_ERROR_COMPLIANCE_ATTESTATION_REQUIRED,
+  API_ERROR_ACCOUNT_DELETED,
 } from '../constants/api-errors';
 
 export {
@@ -418,6 +419,11 @@ export {
   type AvJurisdictionSource,
   type EffectiveAvJurisdiction,
 } from '../geo/effective-age-verification-jurisdictions';
+
+export {
+  AccountDataApi,
+  type AccountDataExport,
+} from './account-data-api';
 
 export {
   ChatClient,

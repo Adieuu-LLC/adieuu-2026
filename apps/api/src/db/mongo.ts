@@ -419,6 +419,8 @@ export const Collections = {
   FEEDBACK_NOTIFICATION_PREFS: 'feedback_notification_prefs',
   /** Client-side crash reports (TTL-indexed, auto-expire after 90 days) */
   CLIENT_ERRORS: 'client_errors',
+  /** SHA-256 hashes of emails from deleted accounts (re-signup prevention) */
+  DELETED_EMAILS: 'deleted_emails',
 } as const;
 
 /**
@@ -824,6 +826,10 @@ export async function createIndexes(): Promise<void> {
 
   const feedbackNotifPrefs = database.collection(Collections.FEEDBACK_NOTIFICATION_PREFS);
   await feedbackNotifPrefs.createIndex({ identityId: 1 }, { unique: true });
+
+  // Deleted emails (re-signup prevention)
+  const deletedEmails = database.collection(Collections.DELETED_EMAILS);
+  await deletedEmails.createIndex({ emailHash: 1 }, { unique: true });
 
   elog.debug('MongoDB indexes created/verified');
 }

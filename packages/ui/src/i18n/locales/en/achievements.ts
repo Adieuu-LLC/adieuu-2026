@@ -74,9 +74,9 @@ export const achievements = {
     gifEnthusiast: { name: 'GIF-ted', description: "You really like GIFs, don't you?" },
     firstSticker: { name: 'Stick With It', description: 'Send your first sticker.' },
     stickerCollector: { name: 'Sticker Collector', description: "You've amassed quite the collection." },
-    rickroll: { name: 'Never Gonna Give You Up', description: 'Never gonna let you down...' },
+    rickroll: { name: 'Never Gonna Give You Up', description: 'You know exactly what you did.' },
     pressF: { name: 'Press F to Pay Respects', description: 'A solemn tribute.' },
-    overNineThousand: { name: "It's Over 9000!", description: 'What?! 9000?!' },
+    overNineThousand: { name: "It's Over 9000!", description: "What?! That can't be right!" },
     uwu: { name: 'UwU', description: '*notices your achievement*' },
     allCaps: { name: 'Indoor Voice, Please', description: 'We can hear you just fine.' },
     laughingOutLoud: { name: 'Laughing Out Loud', description: 'Classic internet laughter.' },
@@ -117,10 +117,6 @@ export const achievements = {
       name: '*Door Closing Sound*',
       description: 'Put up an angsty away message. Mom needs to use the landline.',
     },
-    writingAMessage: {
-      name: "It Looks Like You're Writing a Message!",
-      description: 'Would you like some unsolicited, incredibly annoying help with that?',
-    },
     enteringChatRoom: {
       name: 'Entering the Chat Room',
       description: "18/f/cali. Just kidding, I'm a chat app!",
@@ -129,9 +125,9 @@ export const achievements = {
       name: "At least I have Chicken",
       description: "Time's up, let's do this!",
     },
-    walkIntoMordor: {
-      name: 'Walk Into Mordor',
-      description: 'Its black gates are guarded by more than just orcs!',
+    oneDoesNotSimply: {
+      name: 'One Does Not Simply...',
+      description: 'Its gates are guarded by more than just orcs!',
     },
     ahAhAh: {
       name: 'Ah Ah Ah!',
@@ -143,13 +139,13 @@ export const achievements = {
     },
     downTheRabbitHole: {
       name: 'Down the Rabbit Hole',
-      description: "Whoa. You're beginning to believe.",
+      description: 'How deep does it go?',
     },
     edgeLord03: {
       name: "Edge Lord '03",
-      description: 'We get it, you listened to Linkin Park and played Halo.',
+      description: 'We get it, you listened to nu-metal and played Halo.',
     },
-    mclovin: {
+    hawaiianOrganDonor: {
       name: '25-Year-Old Hawaiian Organ Donor',
       description: 'It was between that or Mohammed.',
     },
@@ -163,7 +159,7 @@ export const achievements = {
     },
     artistFormerlyKnownAs: {
       name: 'The Artist Formerly Known As',
-      description: "We'll make sure to queue up some Prince for you.",
+      description: "We'll make sure to queue up something special for you.",
     },
     theRedPill: {
       name: 'The Red Pill',
@@ -173,16 +169,16 @@ export const achievements = {
       name: "Tom's Best Friend",
       description: "Trying to code a custom glitter background, aren't we?",
     },
-    theRupertHolmes: {
-      name: 'The Rupert Holmes',
+    caughtInTheRain: {
+      name: 'Caught in the Rain',
       description: 'Do you like piña coladas?',
     },
     blockbusterScriptwriter: {
       name: 'Blockbuster Scriptwriter',
-      description: 'We asked for a bio, not the entire script of Titanic.',
+      description: "We asked for a bio, not the entire script of a 90s movie!",
     },
-    silentBob: {
-      name: 'The Silent Bob',
+    strongSilentType: {
+      name: 'The Strong, Silent Type',
       description: '...',
     },
     dialupSound: {
@@ -193,13 +189,9 @@ export const achievements = {
       name: 'He Was a Boy',
       description: 'She said see ya later boy.',
     },
-    reginaGeorge: {
+    cantSitWithUs: {
       name: "You Can't Sit With Us",
       description: 'On Wednesdays we wear pink.',
-    },
-    chuckNorris: {
-      name: 'Roundhouse Kick',
-      description: 'When Chuck Norris signs up for a platform, the database updates itself.',
     },
     zoltan: {
       name: 'Dude, Sweet',
@@ -207,11 +199,11 @@ export const achievements = {
     },
     slappersOnly: {
       name: 'Slappers Only',
-      description: 'No Oddjob allowed.',
+      description: 'No cheap picks allowed.',
     },
     yerAWizard: {
       name: "Yer a Wizard",
-      description: 'We solemnly swear that we are up to no good.',
+      description: 'Something magical just happened.',
     },
     townLocal: {
       name: 'Town Local',
@@ -231,23 +223,23 @@ export const achievements = {
     },
     noThatsImpossible: {
       name: "No, That's Impossible",
-      description: 'Search your feelings, you know it to be true.',
+      description: 'You know it to be true.',
     },
     theLongestDay: {
       name: 'The Longest Day',
-      description: "Dammit Chloe, we're running out of time!",
+      description: "Dammit, we're running out of time!",
     },
     beepBeepBeep: {
       name: 'Beep... Beep... Beep...',
-      description: 'The following takes place between 10:00 AM and 11:00 AM.',
+      description: 'Events occur in real time.',
     },
     systemFailureImminent: {
       name: 'System Failure Imminent',
-      description: 'You better push the button, brotha.',
+      description: 'You better push the button.',
     },
     dontTellMeWhatICantDo: {
       name: "Don't Tell Me What I Can't Do",
-      description: 'You just found the hatch.',
+      description: "You just found something you weren't supposed to.",
     },
     grabYourTorch: {
       name: 'Grab Your Torch',
@@ -255,19 +247,19 @@ export const achievements = {
     },
     soleSurvivor: {
       name: 'Sole Survivor',
-      description: 'You just found the hidden immunity idol.',
+      description: "You've outlasted everyone else.",
     },
-    theMathisonMethod: {
-      name: 'The Mathison Method',
+    corkboardMethod: {
+      name: 'The Corkboard Method',
       description: 'Turn up the frantic jazz music.',
     },
     turnedAsset: {
       name: 'Turned Asset',
       description: "We're keeping an eye on you.",
     },
-    jesusChristThatsJasonBourne: {
+    jesusChrist: {
       name: 'Jesus Christ...',
-      description: "...that's Jason Bourne.",
+      description: "Listen, people - do you have any idea who you're dealing with?",
     },
     assetActivated: {
       name: 'Asset Activated',
@@ -277,9 +269,9 @@ export const achievements = {
       name: 'Off the Grid',
       description: 'Get some rest. You look tired.',
     },
-    sethCohenSpecial: {
-      name: 'The Seth Cohen Special',
-      description: 'Chrismukkah came early this year.',
+    holidayMashup: {
+      name: 'The Holiday Mashup',
+      description: 'The best of both holidays, all year round.',
     },
     helloDarkness: {
       name: 'Hello Darkness',
@@ -295,22 +287,22 @@ export const achievements = {
     },
     townMeeting: {
       name: 'Town Meeting',
-      description: 'Taylor Doose requires your attendance.',
+      description: 'The selectman requires your attendance.',
     },
-    lukesDinerRegular: {
-      name: "Luke's Diner Regular",
+    dinerRegular: {
+      name: 'Diner Regular',
       description: 'You definitely need more coffee.',
     },
-    lifeAndDeathBrigade: {
-      name: 'The Life and Death Brigade',
+    inOmniaParatus: {
+      name: 'In Omnia Paratus',
       description: 'You jump, I jump, Jack.',
     },
     wasteManagementConsultant: {
       name: 'Waste Management Consultant',
-      description: 'Woke up this morning, got yourself a gun.',
+      description: 'Woke up this morning...',
     },
-    satrialesVip: {
-      name: "Satriale's VIP",
+    porkStoreVip: {
+      name: 'Pork Store VIP',
       description: 'Whatever happened to the strong, silent type?',
     },
     regionalManager: {
@@ -319,10 +311,10 @@ export const achievements = {
     },
     worstThingAboutPrison: {
       name: 'The Worst Thing About Prison',
-      description: 'It was the dementors!',
+      description: 'It was the... you know what, never mind.',
     },
-    theDundieAward: {
-      name: 'The Dundie Award',
+    theAnnualAward: {
+      name: 'The Annual Award',
       description: 'You really left us no choice but to give you this.',
     },
     whatAreYou: {
@@ -337,29 +329,29 @@ export const achievements = {
       name: "Welcome to the Mayor's Office",
       description: 'That bio is totally out of bounds.',
     },
-    houseStark: {
-      name: 'House Stark',
-      description: 'The North remembers.',
+    theNorthRemembers: {
+      name: 'The North Remembers',
+      description: 'Winter came, and you survived.',
     },
-    motherOfDragons: {
-      name: 'Mother of Dragons',
-      description: 'Breaker of Chains, Saver of Profiles.',
+    breakerOfChains: {
+      name: 'Breaker of Chains',
+      description: 'Saver of Profiles, Bender of Rules.',
     },
-    godOfDeath: {
-      name: 'The God of Death',
-      description: 'A user has no name.',
+    notToday: {
+      name: 'Not Today',
+      description: 'Who are you, again?',
     },
-    handOfKing: {
-      name: 'The Hand of the King',
-      description: "It's what I do.",
+    theRightHand: {
+      name: 'The Right Hand',
+      description: 'Every ruler needs a trusted advisor.',
     },
-    eatTheFoodTina: {
-      name: 'Eat the Food, Tina!',
+    eatTheFood: {
+      name: 'Eat the Food!',
       description: 'Make sure to feed your pet llama.',
     },
     stayClassy: {
       name: 'Stay Classy',
-      description: 'I love lamp.',
+      description: 'A touch of class goes a long way.',
     },
     freakinIdiot: {
       name: "Freakin' Idiot!",
@@ -375,22 +367,18 @@ export const achievements = {
     },
     noThisIsPatrick: {
       name: 'No, This Is Patrick!',
-      description: 'I am not a Krusty Krab.',
+      description: 'I am not a restaurant.',
     },
     earthKingdom: {
       name: 'The Earth Kingdom',
-      description: 'This place is worse than Omashu!',
+      description: 'This place could use some work.',
     },
     notSureIf: {
       name: "I'm Not Sure If...",
       description: "We've reviewed all the evidence, and...",
     },
-    presidentCamacho: {
-      name: 'Five-Time Ultimate Smackdown Champion',
-      description: "Brought to you by Carl's Jr.",
-    },
     brawndo: {
-      name: "Brawndo's Got What Plants Crave",
+      name: "It's Got What Plants Crave",
       description: "It's got electrolytes.",
     },
     rehabilitation: {
@@ -401,13 +389,16 @@ export const achievements = {
       name: 'Electrolytes',
       description: 'Do you even know what electrolytes are?',
     },
-    owMyBalls: {
-      name: 'Ow, My Balls!',
-      description: "America's number-one-rated hit show.",
+    owMy: {
+      name: 'Ow, My...',
+      description: "The number-one-rated hit show.",
     },
-    carlsJr: {
-      name: "Welcome to Carl's Jr.",
+    welcomeToTheFuture: {
+      name: 'Welcome to the Future',
       description: 'Would you like to try our Extra Big Ass Taco?',
     },
+    hiBob: { name: 'Hi, Bob!', description: 'Hi, Bob!' },
+    theCanOpener: { name: 'The Can Opener', description: 'Some rituals are sacred.' },
+    itsNotBragging: { name: "It's Not Bragging", description: '...if it\'s true.' },
     sponsor: { name: 'Patron of the Arts', description: 'Sponsored another user\'s subscription.' },
 } as const;

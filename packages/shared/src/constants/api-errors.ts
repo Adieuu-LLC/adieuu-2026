@@ -12,3 +12,6 @@ export const API_ERROR_ABUSIVE_IP_BLOCKED = 'ABUSIVE_IP_BLOCKED' as const;
 
 /** API `error.code` when VPN attestation is required before continuing. */
 export const API_ERROR_COMPLIANCE_ATTESTATION_REQUIRED = 'COMPLIANCE_ATTESTATION_REQUIRED' as const;
+
+/** API `error.code` when the email belongs to a permanently deleted account. */
+export const API_ERROR_ACCOUNT_DELETED = 'ACCOUNT_DELETED' as const;
