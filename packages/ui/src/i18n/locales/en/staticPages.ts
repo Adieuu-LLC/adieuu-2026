@@ -1,17 +1,8 @@
 /**
- * Marketing and landing content: About, Download, Home, guided tour copy.
+ * Marketing and landing content: Download, Home, guided tour copy.
  */
 export const staticPages = {
   about: {
-    title: 'About Adieuu',
-    subtitle: 'Secure, private messaging for everyone.',
-    missionTitle: 'Our Mission',
-    missionText1: "Adieuu was built with privacy at its core. We believe that private communication is a fundamental right, not a luxury. Our platform uses end-to-end encryption to ensure that your messages remain private between you and your intended recipients.",
-    missionText2: "Unlike other messaging platforms, we don't sell your data, track your conversations, or serve you targeted ads. Your privacy is not our business model.",
-    securityTitle: 'Security',
-    securityText: 'All messages are encrypted using industry-standard cryptographic algorithms. Our passwordless authentication system eliminates the risk of password breaches while providing a seamless user experience.',
-    desktopTitle: 'Desktop App',
-    desktopText: 'The Adieuu desktop app is built with Electron, providing a native experience on Windows, macOS, and Linux. It shares the same secure codebase as our web application, ensuring consistent security across all platforms.',
     updates: {
       title: 'Check for Updates',
       subtitle: 'Keep Adieuu up to date with the latest features and security patches.',
@@ -110,21 +101,24 @@ export const staticPages = {
     badgeComingSoon: 'Coming soon',
 
     public: {
-      subtitle: 'Adieuu is live and in early beta.',
+      subtitle: 'Our private Alpha is concluded! Adieuu is now live and in early open beta!',
       betaBadge: 'Early Beta',
-      statusTitle: "We're just getting started",
+      statusTitle: "We're just getting started!",
       statusText:
-        'Adieuu is currently in early beta. We are building in the open and rolling out features as they are ready.',
-      availableTitle: 'Available now',
+        "Come check us out! We've spent the last while working on our privacy-focused core and foundations: now we start laying on the features!",
+      availableTitle: 'Available Now:',
       availableText:
-        'Private messages and group conversations are live. Log in to start talking with end-to-end encryption, passwordless auth, and alias-based privacy.',
-      comingTitle: 'Coming soon',
+        'Direct & group (up to 50 people) messages are live. Full end-to-end encryption, lots of customization, and privacy controls everywhere!',
+      roadmapCta:
+        "See everything we're baking and submit your own feature ideas.",
+      roadmapAction: 'Roadmap',
+      comingTitle: 'Coming Very Soon:',
       comingText:
         "We're actively building Spaces \u2014 community-driven rooms you can create, discover, and join \u2014 along with a public feed. Once those ship, this page will surface content from the Spaces you care about.",
       ctaTitle: 'Join the beta',
       ctaText:
-        'Sign up or log in to access private messaging and group conversations today.',
-      ctaAction: 'Log in',
+        'Sign up or log in to get started!',
+      ctaAction: 'Log in or Create an Account',
     },
 
     tabs: {

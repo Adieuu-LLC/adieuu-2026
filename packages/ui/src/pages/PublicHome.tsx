@@ -34,6 +34,12 @@ export function PublicHome() {
             <p style={{ color: 'var(--color-text-secondary)', lineHeight: 1.7 }}>
               {t('home.public.availableText')}
             </p>
+            <p style={{ color: 'var(--color-text-secondary)', lineHeight: 1.7, marginBottom: 'var(--spacing-sm)' }}>
+              {t('home.public.roadmapCta')}
+            </p>
+            <Link to="/about/roadmap" className="btn btn-secondary btn-sm">
+              {t('home.public.roadmapAction')}
+            </Link>
           </Card>
 
           <Card variant="elevated" className="slide-up">

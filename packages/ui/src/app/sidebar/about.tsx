@@ -44,8 +44,7 @@ export function AboutFlyout() {
   const isActive = (path: string) => location.pathname === path;
   const isLegalPoliciesActive = location.pathname.startsWith('/legal-policies');
   const isSectionActive =
-    location.pathname === '/about'
-    || (location.pathname.startsWith('/about/') && location.pathname !== '/about/roadmap')
+    (location.pathname.startsWith('/about/') && location.pathname !== '/about/roadmap')
     || location.pathname.startsWith('/feedback')
     || isLegalPoliciesActive;
 
@@ -66,13 +65,6 @@ export function AboutFlyout() {
 
   const menuItems = (
     <>
-      <Link
-        to="/about"
-        onClick={handleNavClick}
-        className={`sidebar-flyout-item ${isActive('/about') ? 'sidebar-flyout-item-active' : ''}`}
-      >
-        {t('about.title')}
-      </Link>
       <Link
         to="/about/learn"
         onClick={handleNavClick}

@@ -48,7 +48,6 @@ function lazyRoute<M, K extends keyof M>(loader: () => Promise<M>, key: K) {
 
 const Home = lazyRoute(() => import('../pages/Home'), 'Home');
 const PublicHome = lazyRoute(() => import('../pages/PublicHome'), 'PublicHome');
-const About = lazyRoute(() => import('../pages/About'), 'About');
 const AboutLearn = lazyRoute(() => import('../pages/about'), 'AboutLearn');
 const AboutUpdates = lazyRoute(() => import('../pages/about'), 'AboutUpdates');
 const AboutRoadmap = lazyRoute(() => import('../pages/about'), 'AboutRoadmap');
@@ -337,7 +336,6 @@ export function App() {
 
         {/* Public Routes (no auth required) */}
         <Route path="/" element={<RootRedirect />} />
-        <Route path="/about" element={<About />} />
         <Route path="/about/learn" element={<AboutLearn />} />
         <Route path="/about/roadmap" element={<AboutRoadmap />} />
         <Route path="/about/updates" element={<AboutUpdates />} />
