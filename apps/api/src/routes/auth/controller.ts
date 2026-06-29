@@ -66,6 +66,7 @@ import {
 } from '../../services/billing/billing.service';
 import { reconcileMfaDiscount } from '../../services/billing/mfa-discount.service';
 import { resolveEffectiveAccess } from '../../services/billing/resolve-access';
+import { resolveMaxIdentities } from '../../services/identity.service';
 import { evaluateAliasGate, type AliasGateResult } from '../../services/age-verification/alias-gate';
 import { isAgeVerificationEnabled } from '../../services/age-verification/av-settings';
 import { checkVerificationStatus } from '../../services/age-verification/age-verification.service';
@@ -954,6 +955,7 @@ export type GetSessionHandlerSuccess = {
   session: AccountSessionData;
   signedToken: string | undefined;
   identityCount: number;
+  maxIdentities: number;
   maskedIp?: string;
   geo?: { jurisdiction: string; countryCode: string; regionCode?: string; checkedAt: string };
   subscriptions: string[];
@@ -1081,6 +1083,13 @@ export async function getSessionHandler(
 
   const { subscriptions, entitlements, isLifetime } = resolved;
 
+  const maxIdentities = resolveMaxIdentities(
+    subscriptions,
+    entitlements,
+    isLifetime,
+    user.maxIdentities,
+  );
+
   const billingMeta = user.billing || isLifetime
     ? {
         currentPeriodEnd: user.billing?.currentPeriodEnd
@@ -1092,7 +1101,7 @@ export async function getSessionHandler(
 
   const signedToken = createSignedToken(
     accountHash,
-    user.maxIdentities ?? 2,
+    maxIdentities,
     maxVideoDurationSeconds,
     subscriptions,
     entitlements,
@@ -1217,6 +1226,7 @@ export async function getSessionHandler(
     session,
     signedToken: effectiveToken,
     identityCount,
+    maxIdentities,
     maskedIp,
     geo,
     subscriptions,

@@ -48,9 +48,41 @@ import type { UserBilling } from '../models/user';
 import elog from '../utils/adieuuLogger';
 import type { IdentityDocument, PublicIdentity } from '../models/identity';
 import { toPublicIdentity } from '../models/identity';
+import { IDENTITY_LIMITS } from '../constants/identity-limits';
 
-/** Maximum identities per user (exported for auth session response) */
-export const MAX_IDENTITIES_PER_USER = 1;
+// ---------------------------------------------------------------------------
+// Tier-limit resolution
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolves the maximum number of identities a user may create based on
+ * their effective subscriptions and entitlements. Vanguard/Founder
+ * entitlements (lifetime) receive the highest allowance; otherwise the
+ * subscription tier determines the limit.
+ *
+ * An optional per-account `maxIdentities` override (from the user
+ * document) can raise the limit further -- it always wins when higher.
+ */
+export function resolveMaxIdentities(
+  subscriptions: SubscriptionTierId[],
+  entitlements: string[],
+  isLifetime: boolean,
+  accountOverride?: number,
+): number {
+  let resolved: number;
+  if (entitlements.includes('founder') || entitlements.includes('vanguard')) {
+    resolved = IDENTITY_LIMITS.lifetime;
+  } else if (isLifetime) {
+    resolved = IDENTITY_LIMITS.lifetime;
+  } else if (subscriptions.includes('insider')) {
+    resolved = IDENTITY_LIMITS.insider;
+  } else if (subscriptions.includes('access')) {
+    resolved = IDENTITY_LIMITS.access;
+  } else {
+    resolved = 0;
+  }
+  return Math.max(resolved, accountOverride ?? 0);
+}
 
 /** Backoff delays in milliseconds for failed attempts */
 const BACKOFF_DELAYS = [

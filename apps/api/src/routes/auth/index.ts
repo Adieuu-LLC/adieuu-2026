@@ -16,7 +16,6 @@
 import { Router } from '../../router';
 import { success, error as errorResponse } from '../../utils/response';
 import { sanitizeString } from '../../utils/sanitize';
-import { MAX_IDENTITIES_PER_USER } from '../../services/identity.service';
 import { getPlatformCapabilities } from '../../services/platform-capabilities.service';
 import {
   getSessionFromRequest,
@@ -391,13 +390,13 @@ router.get('/auth/session', async (ctx) => {
     return ctx.errors.unauthorized();
   }
 
-  const { session, signedToken, identityCount, maskedIp, geo, subscriptions, entitlements, ageVerification, aliasGate, compliance } = result;
+  const { session, signedToken, identityCount, maxIdentities, maskedIp, geo, subscriptions, entitlements, ageVerification, aliasGate, compliance } = result;
 
   const response = success({
     identifier: session.identifier,
     identifierType: session.identifierType,
     identityCount,
-    maxIdentities: MAX_IDENTITIES_PER_USER,
+    maxIdentities,
     signedToken,
     maskedIp,
     geo,

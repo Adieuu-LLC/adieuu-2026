@@ -246,14 +246,13 @@ mock.module('../../repositories/identity-count.repository', () => ({
   })),
 }));
 
-// Preserve full identity.service exports: a MAX-only mock replaces the entire module globally
-// and breaks other route tests that share the same Bun process.
+// Preserve full identity.service exports so other route tests sharing
+// the same Bun process aren't broken by a partial mock.
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- sync load after db mocks above
 const identityServiceModule = require('../../services/identity.service') as typeof import('../../services/identity.service');
 
 mock.module('../../services/identity.service', () => ({
   ...identityServiceModule,
-  MAX_IDENTITIES_PER_USER: 2,
 }));
 
 // Mock platform capabilities service
@@ -1316,18 +1315,86 @@ describe('auth controller', () => {
       return handler(request);
     };
 
-    test('returns session data with signedToken and identityCount', async () => {
+    test('returns session data with signedToken, identityCount, and maxIdentities', async () => {
       const response = await makeRouteRequest('/auth/session', {
         cookies: 'adieuu_session=test-session',
       });
 
       expect(response.status).toBe(200);
       const body = await response.json() as {
-        data: { signedToken: string; identityCount: number; identifier: string };
+        data: { signedToken: string; identityCount: number; maxIdentities: number; identifier: string };
       };
       expect(body.data.signedToken).toBe('mock-signed-token');
       expect(body.data.identityCount).toBe(1);
       expect(body.data.identifier).toBe('test@example.com');
+      // mockUser has maxIdentities: 2 (admin override) and no subscriptions,
+      // so resolved = Math.max(0, 2) = 2
+      expect(body.data.maxIdentities).toBe(2);
+    });
+
+    test('returns tier-resolved maxIdentities for insider subscription', async () => {
+      mockFindById.mockImplementation(() => Promise.resolve({
+        ...mockUser,
+        maxIdentities: undefined,
+        billing: { activeSubscriptions: ['insider'], entitlements: [] },
+      }));
+
+      const response = await makeRouteRequest('/auth/session', {
+        cookies: 'adieuu_session=test-session',
+      });
+
+      expect(response.status).toBe(200);
+      const body = await response.json() as { data: { maxIdentities: number } };
+      expect(body.data.maxIdentities).toBe(2);
+    });
+
+    test('returns tier-resolved maxIdentities for access subscription', async () => {
+      mockFindById.mockImplementation(() => Promise.resolve({
+        ...mockUser,
+        maxIdentities: undefined,
+        billing: { activeSubscriptions: ['access'], entitlements: [] },
+      }));
+
+      const response = await makeRouteRequest('/auth/session', {
+        cookies: 'adieuu_session=test-session',
+      });
+
+      expect(response.status).toBe(200);
+      const body = await response.json() as { data: { maxIdentities: number } };
+      expect(body.data.maxIdentities).toBe(1);
+    });
+
+    test('returns lifetime maxIdentities for founder entitlement override', async () => {
+      mockFindById.mockImplementation(() => Promise.resolve({
+        ...mockUser,
+        maxIdentities: undefined,
+        billing: { activeSubscriptions: ['insider'], entitlements: [] },
+        entitlementOverrides: ['founder'],
+      }));
+
+      const response = await makeRouteRequest('/auth/session', {
+        cookies: 'adieuu_session=test-session',
+      });
+
+      expect(response.status).toBe(200);
+      const body = await response.json() as { data: { maxIdentities: number } };
+      expect(body.data.maxIdentities).toBe(3);
+    });
+
+    test('admin override raises maxIdentities above tier resolution', async () => {
+      mockFindById.mockImplementation(() => Promise.resolve({
+        ...mockUser,
+        maxIdentities: 5,
+        billing: { activeSubscriptions: ['access'], entitlements: [] },
+      }));
+
+      const response = await makeRouteRequest('/auth/session', {
+        cookies: 'adieuu_session=test-session',
+      });
+
+      expect(response.status).toBe(200);
+      const body = await response.json() as { data: { maxIdentities: number } };
+      expect(body.data.maxIdentities).toBe(5);
     });
 
     test('returns 401 without session', async () => {
