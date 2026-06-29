@@ -224,10 +224,10 @@ export async function createFeedbackPost(
   sessionEntitlements: string[] = [],
 ): Promise<ServiceResult<{ postId: string }>> {
   const identityId = identity._id.toHexString();
-  const isStaff = await canManageFeedbackStatus(identity, sessionEntitlements);
-  if (!isStaff) {
-    const rl = await checkRateLimit('feedback:create', identityId, FEEDBACK_CREATE_RATE_LIMIT);
-    if (!rl.allowed) {
+  const rl = await checkRateLimit('feedback:create', identityId, FEEDBACK_CREATE_RATE_LIMIT);
+  if (!rl.allowed) {
+    const isStaff = await canManageFeedbackStatus(identity, sessionEntitlements);
+    if (!isStaff) {
       return { success: false, error: 'Rate limit exceeded', errorCode: 'RATE_LIMITED' };
     }
   }
@@ -541,14 +541,14 @@ export async function addFeedbackComment(
   linkedPostId?: string,
   linkType?: string,
 ): Promise<ServiceResult<FeedbackCommentDocument>> {
-  const isStaff = await canManageFeedbackStatus(identity, sessionEntitlements);
-  if (!isStaff) {
-    const rl = await checkRateLimit(
-      'feedback:comment',
-      identity._id.toHexString(),
-      FEEDBACK_COMMENT_RATE_LIMIT,
-    );
-    if (!rl.allowed) {
+  const rl = await checkRateLimit(
+    'feedback:comment',
+    identity._id.toHexString(),
+    FEEDBACK_COMMENT_RATE_LIMIT,
+  );
+  if (!rl.allowed) {
+    const isStaff = await canManageFeedbackStatus(identity, sessionEntitlements);
+    if (!isStaff) {
       return { success: false, error: 'Rate limit exceeded', errorCode: 'RATE_LIMITED' };
     }
   }
