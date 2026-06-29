@@ -16,7 +16,6 @@ export const TEXT_BEDAZZLER_EMOJI_THRESHOLD = 10;
 export const POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS = {
   sk8r: 'text_sk8r',
   reginaGeorge: 'text_regina_george',
-  chuckNorris: 'text_chuck_norris',
   zoltan: 'text_zoltan',
   jamesBond: 'text_james_bond',
   muggle: 'text_muggle',
@@ -45,10 +44,6 @@ export function containsSk8r(text: string): boolean {
 
 export function isReginaGeorge(text: string): boolean {
   return isExact(text, 'regina george');
-}
-
-export function isChuckNorris(text: string): boolean {
-  return isExact(text, 'chuck norris');
 }
 
 export function isZoltan(text: string): boolean {
@@ -93,7 +88,6 @@ export function getPopCultureTextAchievementActions(text: string): string[] {
 
   if (containsSk8r(bounded)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.sk8r);
   if (isReginaGeorge(bounded)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.reginaGeorge);
-  if (isChuckNorris(bounded)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.chuckNorris);
   if (isZoltan(bounded)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.zoltan);
   if (isJamesBond(bounded)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.jamesBond);
   if (containsMuggle(bounded)) actions.push(POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.muggle);

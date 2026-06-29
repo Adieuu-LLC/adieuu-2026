@@ -1,6 +1,5 @@
 // Main pages
 export { Home } from './Home';
-export { About } from './About';
 export { Download } from './Download';
 export { Search } from './Search';
 

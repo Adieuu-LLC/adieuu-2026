@@ -51,6 +51,7 @@ function createContextErrors(locale: Locale, maxBodySize: number): ContextErrors
     payloadTooLarge: () => localizedErrors.payloadTooLarge(locale, maxBodySize),
     alreadyOwned: () => localizedErrors.alreadyOwned(locale),
     signInRestricted: () => localizedErrors.signInRestricted(locale),
+    accountDeleted: () => localizedErrors.accountDeleted(locale),
   };
 }
 

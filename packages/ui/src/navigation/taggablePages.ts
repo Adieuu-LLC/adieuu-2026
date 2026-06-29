@@ -20,7 +20,6 @@ export interface TaggablePage {
 export const TAGGABLE_PAGES: readonly TaggablePage[] = [
   // Public
   { id: 'home', path: '/', labelKey: 'home.title', labelDefault: 'Home', icon: 'home', access: 'public' },
-  { id: 'about', path: '/about', labelKey: 'about.title', labelDefault: 'About', icon: 'info', access: 'public' },
   { id: 'learn', path: '/about/learn', labelKey: 'home.learn.navLabel', labelDefault: 'Learn', icon: 'info', access: 'public' },
   { id: 'roadmap', path: '/about/roadmap', labelKey: 'about.roadmap.title', labelDefault: 'Roadmap', icon: 'clock', access: 'public', aliases: ['map', 'planned', 'upcoming'] },
   { id: 'feedback', path: '/feedback', labelKey: 'feedback.title', labelDefault: 'Feedback', icon: 'info', access: 'public', aliases: ['vote', 'features', 'suggest'] },

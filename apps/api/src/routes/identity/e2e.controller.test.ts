@@ -107,6 +107,7 @@ function makeErrors(): RouteContext['errors'] {
     payloadTooLarge: () => new Response(null, { status: 413 }),
     alreadyOwned: () => new Response(null, { status: 409 }),
     signInRestricted: () => new Response(null, { status: 403 }),
+    accountDeleted: () => new Response(JSON.stringify({ success: false, error: { code: 'ACCOUNT_DELETED', message: 'Account deleted' } }), { status: 403 }),
   };
 }
 

@@ -1,0 +1,149 @@
+// Data Export Panel
+.data-export-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-xl) 0;
+  color: var(--color-text-secondary);
+}
+
+.data-export-error {
+  padding: var(--spacing-lg);
+  text-align: center;
+  color: var(--color-error);
+}
+
+.data-export-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.data-export-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+
+  h3 {
+    margin: 0 0 var(--spacing-xs);
+  }
+}
+
+.data-export-description {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+.data-export-viewer {
+  max-height: 500px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken, var(--color-bg-secondary));
+
+  pre {
+    margin: 0;
+    padding: var(--spacing-md);
+    font-size: var(--font-size-xs, 12px);
+    font-family: var(--font-mono, 'SF Mono', 'Fira Code', 'Fira Mono', monospace);
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--color-text-primary);
+  }
+}
+
+// Delete Account Panel
+.delete-account-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.delete-account-header {
+  h3 {
+    margin: 0 0 var(--spacing-xs);
+  }
+
+  p {
+    color: var(--color-text-secondary);
+    margin: 0;
+  }
+}
+
+.delete-account-warnings {
+  margin-top: var(--spacing-xs);
+}
+
+.delete-account-warning-card {
+  background: var(--color-error-bg, rgba(239, 68, 68, 0.08));
+  border: 1px solid var(--color-error-border, rgba(239, 68, 68, 0.2));
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+
+  p {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    line-height: 1.6;
+    color: var(--color-text-primary);
+  }
+
+  .delete-account-warning-emphasis {
+    margin-top: var(--spacing-sm);
+    font-weight: 600;
+  }
+}
+
+.delete-account-error {
+  background: var(--color-error-bg, rgba(239, 68, 68, 0.08));
+  border: 1px solid var(--color-error-border, rgba(239, 68, 68, 0.2));
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+
+  p {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-error);
+  }
+}
+
+.delete-account-otp {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) 0;
+
+  h4 {
+    margin: 0;
+  }
+
+  p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    text-align: center;
+  }
+}
+
+.delete-account-otp-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-xs);
+}
+
+.confirm-dialog-extra {
+  margin-top: var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.delete-account-dialog-error {
+  margin-top: var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-error);
+  font-weight: 500;
+}

@@ -256,6 +256,9 @@ router.post('/auth/verify', async (ctx) => {
     if (result.error === 'max_attempts') {
       return ctx.errors.tooManyAttempts();
     }
+    if (result.error === 'account_deleted') {
+      return ctx.errors.accountDeleted();
+    }
     if (result.error === 'account_banned') {
       return errorResponse('ACCOUNT_BANNED', 'This account has been banned.', 403, {
         moderationReason: result.moderationReason,

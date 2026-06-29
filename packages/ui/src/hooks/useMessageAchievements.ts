@@ -75,12 +75,14 @@ const PRANGENT_RE = new RegExp(`\\b(?:${PRANGENT_WORDS.join('|')})\\b`, 'i');
 const PRICELESS_RE = /\bpriceless\b/i;
 const SYNERGY_RE = /\bsynergy\b/i;
 const AWAY_MESSAGE_RE = /\b(?:brb|g2g)\b/i;
-const CLIPPY_RE = /looks like you|trying to/i;
 const ASL_RE = /a\/s\/l/i;
 const LEEROY_JENKINS_RE = /\b(?:leeroy|jenkins)\b/i;
 const MORDOR_RE = /one does not simply/i;
 const MAGIC_WORD_RE = /magic word/i;
 const RABBIT_HOLE_RE = /there is no spoon|red pill/i;
+const HI_BOB_RE = /\bhi[\s,!.]+bob\b/i;
+const CAN_OPENER_RE = /\bcan opener\b/i;
+const NOT_BRAGGING_RE = /\bnot bragging\b/i;
 
 const GIF_STICKER_THRESHOLD = 25;
 
@@ -208,9 +210,6 @@ export function useMessageAchievements() {
       if (AWAY_MESSAGE_RE.test(bounded)) {
         claim('brb_message_sent');
       }
-      if (CLIPPY_RE.test(bounded)) {
-        claim('clippy_message_sent');
-      }
       if (ASL_RE.test(bounded)) {
         claim('asl_message_sent');
       }
@@ -228,6 +227,15 @@ export function useMessageAchievements() {
       }
       if (RABBIT_HOLE_RE.test(bounded)) {
         claim('rabbit_hole_message_sent');
+      }
+      if (HI_BOB_RE.test(bounded)) {
+        claim('hi_bob_sent');
+      }
+      if (CAN_OPENER_RE.test(bounded)) {
+        claim('text_can_opener');
+      }
+      if (NOT_BRAGGING_RE.test(bounded)) {
+        claim('text_not_bragging');
       }
 
       for (const action of getPopCultureTextAchievementActions(bounded)) {

@@ -326,6 +326,8 @@ export const account = {
         authentication: 'Authentication',
         passphrase: 'Alias Password',
         sessions: 'Sessions',
+        dataExport: 'Data Export',
+        deleteAccount: 'Delete Account',
       },
       // Authentication tab
       authentication: {
@@ -349,6 +351,39 @@ export const account = {
         allSessionsRevoked: '{{count}} session(s) revoked successfully.',
         unknownDevice: 'Unknown device',
         unknownLocation: 'Unknown location',
+      },
+      // Data Export tab
+      dataExport: {
+        title: 'Account Data Export',
+        description: 'View and download all data associated with your account. This does not include Alias data, which is cryptographically separated from your account.',
+        loading: 'Loading your account data...',
+        error: 'Failed to load account data. Please try again.',
+        download: 'Download as JSON',
+        fileName: 'adieuu-account-data-export.json',
+      },
+      // Delete Account tab
+      deleteAccount: {
+        title: 'Delete Account',
+        description: 'Permanently delete your Adieuu account.',
+        warning: 'Deleting your account does NOT remove Alias data, but makes it permanently unrecoverable. If you return in the future, you will be unable to regain control of your Aliases.',
+        warningRemoveContent: 'Make sure to remove all Alias content you want removed before deleting your account.',
+        deleteButton: 'Delete My Account',
+        confirmTitle: 'Delete your account?',
+        confirmDescription: 'This is a permanent and irreversible decision. We can\'t undo this for you.',
+        confirmSendCode: 'We\'ll send a verification code to your email to confirm.',
+        confirmButton: 'Send Verification Code',
+        otpTitle: 'Enter verification code',
+        otpDescription: 'We sent a 6-digit code to your email. Enter it below to continue.',
+        otpResend: 'Resend code',
+        otpResendCooldown: 'Resend in {{seconds}}s',
+        finalTitle: 'Last check',
+        finalDescription: 'Code entered. Last check \u2014 we do NOT offer support for deleted accounts. We do not currently allow a signed up email to sign back up: you may never be able to create a new Adieuu account with that email.',
+        finalButton: 'Permanently Delete Account',
+        deleting: 'Deleting account...',
+        error: 'Failed to delete account. Please try again.',
+        noEmail: 'Account deletion requires an email address. Add and verify an email in Account Overview before deleting.',
+        rateLimited: 'Too many attempts. Please wait a few minutes and try again.',
+        codeError: 'Invalid or expired code. Please try again.',
       },
     },
 

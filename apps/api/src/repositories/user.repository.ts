@@ -3,7 +3,7 @@
  * Data access layer for user operations
  */
 
-import { ObjectId } from 'mongodb';
+import { ObjectId, type ClientSession } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
 import type { UserDocument, CreateUserInput, UpdateUserInput, UserGeo, UserBilling, UserAgeVerification, UserCompliance, SubscriptionOverride, PendingAccountEvent } from '../models/user';
@@ -77,7 +77,7 @@ export class UserRepository extends BaseRepository<UserDocument> implements IUse
   /**
    * Create a new user
    */
-  async create(input: CreateUserInput): Promise<UserDocument> {
+  async create(input: CreateUserInput, options?: { session?: ClientSession }): Promise<UserDocument> {
     const doc: Omit<UserDocument, '_id' | 'createdAt' | 'updatedAt'> = {
       email: input.email?.toLowerCase(),
       emailVerified: input.emailVerified ?? false,
@@ -85,13 +85,12 @@ export class UserRepository extends BaseRepository<UserDocument> implements IUse
       phoneVerified: input.phoneVerified ?? false,
       displayName: input.displayName,
       failedAttempts: 0,
-      // Identity-related defaults
       identityCount: 0,
       identityLockoutDuration: DEFAULT_IDENTITY_LOCKOUT_DURATION,
       identityLoginAttempts: [],
     };
 
-    return await super.create(doc);
+    return await super.create(doc, options);
   }
 
   /**

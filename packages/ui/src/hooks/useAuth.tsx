@@ -6,6 +6,7 @@ import {
   API_ERROR_ACCOUNT_BANNED,
   API_ERROR_ACCOUNT_SUSPENDED,
   API_ERROR_ABUSIVE_IP_BLOCKED,
+  API_ERROR_ACCOUNT_DELETED,
   type SessionInfo,
   type SubscriptionTierId,
   type PublicKeyCredentialRequestOptionsJSON,
@@ -221,6 +222,13 @@ function useAuthState(): AuthContextValue {
   }, [state.status, refreshSession]);
 
   const handleVerifyError = useCallback((errorCode?: string, message?: string, details?: Record<string, unknown>) => {
+    if (errorCode === API_ERROR_ACCOUNT_DELETED) {
+      return {
+        success: false as const,
+        error: message ?? 'This email is associated with a deleted account and cannot be used to create a new account.',
+        restriction: undefined,
+      };
+    }
     if (errorCode === API_ERROR_ABUSIVE_IP_BLOCKED) {
       setAbusiveIpNotice(message ?? null);
       setState({ status: 'unauthenticated', session: null });

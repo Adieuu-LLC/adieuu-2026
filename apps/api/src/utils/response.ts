@@ -477,4 +477,8 @@ export const localizedErrors = {
   /** 403 - Sign-in restricted (e.g. platform auth allowlist) */
   signInRestricted: (locale?: Locale) =>
     localizedError('signInRestricted', 'SIGN_IN_RESTRICTED', 403, locale),
+
+  /** 403 - Account was deleted; email cannot be reused */
+  accountDeleted: (locale?: Locale) =>
+    localizedError('accountDeleted', 'ACCOUNT_DELETED', 403, locale),
 } as const;

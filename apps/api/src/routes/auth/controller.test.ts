@@ -18,6 +18,7 @@ mock.module('../../config', () => ({
     security: {
       sessionSecret: 'test-secret',
       otpSecret: 'test-otp-secret',
+      accountHashSecret: 'test-account-hash-secret-32bytes!',
     },
   },
 }));

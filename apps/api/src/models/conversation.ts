@@ -23,7 +23,7 @@ export const GIF_CONTENT_FILTER_VALUES: readonly GifContentFilter[] = [
   'high',
 ] as const;
 
-export const MAX_GROUP_PARTICIPANTS = 25;
+export const MAX_GROUP_PARTICIPANTS = 50;
 export const MAX_GROUP_NAME_LENGTH = 100;
 
 /** One shared join instant for all initial participants (conversation creation). */

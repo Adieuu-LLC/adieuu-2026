@@ -226,7 +226,10 @@ export async function createFeedbackPost(
   const identityId = identity._id.toHexString();
   const rl = await checkRateLimit('feedback:create', identityId, FEEDBACK_CREATE_RATE_LIMIT);
   if (!rl.allowed) {
-    return { success: false, error: 'Rate limit exceeded', errorCode: 'RATE_LIMITED' };
+    const isStaff = await canManageFeedbackStatus(identity, sessionEntitlements);
+    if (!isStaff) {
+      return { success: false, error: 'Rate limit exceeded', errorCode: 'RATE_LIMITED' };
+    }
   }
 
   if (!FEEDBACK_CATEGORIES.includes(input.category as FeedbackCategory)) {
@@ -544,7 +547,10 @@ export async function addFeedbackComment(
     FEEDBACK_COMMENT_RATE_LIMIT,
   );
   if (!rl.allowed) {
-    return { success: false, error: 'Rate limit exceeded', errorCode: 'RATE_LIMITED' };
+    const isStaff = await canManageFeedbackStatus(identity, sessionEntitlements);
+    if (!isStaff) {
+      return { success: false, error: 'Rate limit exceeded', errorCode: 'RATE_LIMITED' };
+    }
   }
 
   const postRepo = getFeedbackPostRepository();

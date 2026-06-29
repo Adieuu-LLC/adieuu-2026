@@ -1,17 +1,8 @@
 /**
- * Marketing and landing content: About, Download, Home, guided tour copy.
+ * Marketing and landing content: Download, Home, guided tour copy.
  */
 export const staticPages = {
   about: {
-    title: 'About Adieuu',
-    subtitle: 'Secure, private messaging for everyone.',
-    missionTitle: 'Our Mission',
-    missionText1: "Adieuu was built with privacy at its core. We believe that private communication is a fundamental right, not a luxury. Our platform uses end-to-end encryption to ensure that your messages remain private between you and your intended recipients.",
-    missionText2: "Unlike other messaging platforms, we don't sell your data, track your conversations, or serve you targeted ads. Your privacy is not our business model.",
-    securityTitle: 'Security',
-    securityText: 'All messages are encrypted using industry-standard cryptographic algorithms. Our passwordless authentication system eliminates the risk of password breaches while providing a seamless user experience.',
-    desktopTitle: 'Desktop App',
-    desktopText: 'The Adieuu desktop app is built with Electron, providing a native experience on Windows, macOS, and Linux. It shares the same secure codebase as our web application, ensuring consistent security across all platforms.',
     updates: {
       title: 'Check for Updates',
       subtitle: 'Keep Adieuu up to date with the latest features and security patches.',
@@ -110,32 +101,24 @@ export const staticPages = {
     badgeComingSoon: 'Coming soon',
 
     public: {
-      subtitle: 'Where your conversations belong to you.',
-      tabs: {
-        about: 'What is Adieuu?',
-        learn: 'Learn',
-      },
-      whatIsTitle: 'Your identity and your messages, kept apart',
-      whatIsText1:
-        'Adieuu is a messaging platform built around a simple idea: who you are and what you say should not be connected in a database. Your account handles login and billing. Your Alias is how you talk to people. The two are cryptographically separated, so even in the event of a breach, there is no link between your real identity and your conversations.',
-      whatIsText2:
-        'Every message is end-to-end encrypted. We cannot read what you write, and nobody else can either.',
-      fundingTitle: 'Pay with a subscription, not surveillance',
-      fundingText:
-        'There are no ads on Adieuu. We do not sell your data, build ad profiles, or track what you talk about. The platform is funded by the people who use it. That keeps our incentives simple: build something worth paying for.',
-      securityTitle: 'Serious security, without the friction',
-      securityText:
-        'Login is passwordless, so there are no credentials to steal. Messages use forward secrecy and post-quantum cryptography. Alias identities cannot be linked back to your account, even by us. All data at rest is encrypted, and all traffic uses TLS.',
-      transparencyTitle: 'Open source and verifiable',
-      transparencyText:
-        'Our code is public. You can read it, audit it, and self-host it. We publish software bills of materials for every release and maintain a public roadmap shaped by community input. We would rather prove it than promise it.',
-      humanTitle: 'Built for real people',
-      humanText:
-        'Subscriptions and age verification raise the cost of being fake. That means fewer bots, fewer throwaway accounts, and more genuine conversation. Adieuu is designed so that the people you talk to are actually people.',
-      ctaTitle: 'Come say hello',
+      subtitle: 'Our private Alpha is concluded! Adieuu is now live and in early open beta!',
+      betaBadge: 'Early Beta',
+      statusTitle: "We're just getting started!",
+      statusText:
+        "Come check us out! We've spent the last while working on our privacy-focused core and foundations: now we start laying on the features!",
+      availableTitle: 'Available Now:',
+      availableText:
+        'Direct & group (up to 50 people) messages are live. Full end-to-end encryption, lots of customization, and privacy controls everywhere!',
+      roadmapCta:
+        "See everything we're baking and submit your own feature ideas.",
+      roadmapAction: 'Roadmap',
+      comingTitle: 'Coming Very Soon:',
+      comingText:
+        "We're actively building Spaces \u2014 community-driven rooms you can create, discover, and join \u2014 along with a public feed. Once those ship, this page will surface content from the Spaces you care about.",
+      ctaTitle: 'Join the beta',
       ctaText:
-        'Creating an account takes seconds. All you need is an email or phone number.',
-      ctaAction: 'Create account',
+        'Sign up or log in to get started!',
+      ctaAction: 'Log in or Create an Account',
     },
 
     tabs: {

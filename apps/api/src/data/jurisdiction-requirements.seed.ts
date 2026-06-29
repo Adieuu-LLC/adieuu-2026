@@ -87,6 +87,10 @@ const US: SeedRow[] = [
     legislation: [],
     notes: 'Parent record for US state jurisdictions; holds shared VerifyMy business settings.',
     status: 'enacted',
+    verificationConfig: {
+      vmyBusinessSettingsId: '00f95610-04c6-43b1-bd2b-57429fc207ac',
+      vmyBusinessSettingsCountry: 'us',
+    },
   },
   usState('US-AL', 'Alabama', 'HB164', '1st October 2024', 'State of Alabama AG',
     [...M.std], ['age_verification'], undefined, 'enacted',
@@ -101,6 +105,7 @@ const US: SeedRow[] = [
     'Any method other than government-issued ID must meet Identity Assurance Level 2 (IAL2).',
     'enacted',
     'https://www.arkleg.state.ar.us/Home/FTPDocument?path=ACTS2023RPublicACT612.pdf',
+    'a853a5cc-0219-4c52-ad82-6b72d0d297ca',
   ),
   usState(
     'US-FL', 'Florida', 'HB3', '1st January 2025', 'State of Florida AG',
@@ -188,6 +193,19 @@ const US: SeedRow[] = [
     'https://wyoleg.gov/Legislation/2025/HB0043'),
 ];
 
+function euMemberState(code: string, name: string): SeedRow {
+  return {
+    jurisdiction: code,
+    jurisdictionName: name,
+    region: 'European Union',
+    requirements: ['age_assurance'],
+    compatibleMethods: [...M.euDsa],
+    legislation: [],
+    status: 'enacted',
+    parentJurisdiction: 'IE',
+  };
+}
+
 const EU_AND_ROW: SeedRow[] = [
   {
     jurisdiction: 'EU',
@@ -202,6 +220,22 @@ const EU_AND_ROW: SeedRow[] = [
     notes:
       'Active legal challenges; member-state domestic requirements may also apply. Commission direction: age assurance may use upcoming EU Digital Identity Wallets.',
     status: 'enacted',
+  },
+  {
+    jurisdiction: 'IE',
+    jurisdictionName: 'Ireland',
+    region: 'European Union',
+    requirements: ['age_assurance'],
+    compatibleMethods: [...M.de],
+    legislation: [
+      { name: 'Digital Services Act (domestic transposition)', enactmentDate: 'See EU DSA phased implementation' },
+    ],
+    notes: 'Parent record for EU member states; holds shared VerifyMy business settings.',
+    status: 'enacted',
+    verificationConfig: {
+      vmyBusinessSettingsId: 'e7c1c079-b060-48ae-aed3-42d33b72426d',
+      vmyBusinessSettingsCountry: 'ie',
+    },
   },
   {
     jurisdiction: 'FR',
@@ -224,7 +258,7 @@ const EU_AND_ROW: SeedRow[] = [
     notes:
       'Non-French European sites are now in-scope. Email cannot be used as part of a background check; user must be able to choose a double-blind method.',
     status: 'enacted',
-    parentJurisdiction: 'EU',
+    parentJurisdiction: 'IE',
   },
   {
     jurisdiction: 'DE',
@@ -235,7 +269,11 @@ const EU_AND_ROW: SeedRow[] = [
     regulatoryBody: 'KJM',
     legislation: [{ name: 'Jugendmedienschutz-Staatsvertrag (JMStV)', enactmentDate: '1st May 2021 (latest amendment)', url: 'https://www.kjm-online.de/themen/technischer-jugendmedienschutz/' }],
     status: 'enacted',
-    parentJurisdiction: 'EU',
+    parentJurisdiction: 'IE',
+    verificationConfig: {
+      vmyBusinessSettingsId: '43f7b6bb-9a6e-44f5-be20-bb30b7b0e5e7',
+      vmyBusinessSettingsCountry: 'de',
+    },
   },
   {
     jurisdiction: 'IT',
@@ -252,8 +290,31 @@ const EU_AND_ROW: SeedRow[] = [
     notes:
       'Italian-established sites: 6 months from 12 Nov 2025. Non-Italian established: 3 months from 1 Feb 2026.',
     status: 'enacted',
-    parentJurisdiction: 'EU',
+    parentJurisdiction: 'IE',
   },
+  euMemberState('AT', 'Austria'),
+  euMemberState('BE', 'Belgium'),
+  euMemberState('BG', 'Bulgaria'),
+  euMemberState('HR', 'Croatia'),
+  euMemberState('CY', 'Cyprus'),
+  euMemberState('CZ', 'Czechia'),
+  euMemberState('DK', 'Denmark'),
+  euMemberState('EE', 'Estonia'),
+  euMemberState('FI', 'Finland'),
+  euMemberState('GR', 'Greece'),
+  euMemberState('HU', 'Hungary'),
+  euMemberState('LV', 'Latvia'),
+  euMemberState('LT', 'Lithuania'),
+  euMemberState('LU', 'Luxembourg'),
+  euMemberState('MT', 'Malta'),
+  euMemberState('NL', 'Netherlands'),
+  euMemberState('PL', 'Poland'),
+  euMemberState('PT', 'Portugal'),
+  euMemberState('RO', 'Romania'),
+  euMemberState('SK', 'Slovakia'),
+  euMemberState('SI', 'Slovenia'),
+  euMemberState('ES', 'Spain'),
+  euMemberState('SE', 'Sweden'),
   {
     jurisdiction: 'AU',
     jurisdictionName: 'Australia',
@@ -266,6 +327,10 @@ const EU_AND_ROW: SeedRow[] = [
     ],
     notes: 'See industry codes framework; age assurance (page 79).',
     status: 'enacted',
+    verificationConfig: {
+      vmyBusinessSettingsId: 'bf38079f-a134-4340-9829-8487a51be481',
+      vmyBusinessSettingsCountry: 'au',
+    },
   },
   {
     jurisdiction: 'CA-PROPOSED',
@@ -314,6 +379,10 @@ const EU_AND_ROW: SeedRow[] = [
     regulatoryBody: 'Ofcom',
     legislation: [{ name: 'Online Safety Act', enactmentDate: '25th July 2025', url: 'https://www.ofcom.org.uk/online-safety/protecting-children/age-checks-to-protect-children-online' }],
     status: 'enacted',
+    verificationConfig: {
+      vmyBusinessSettingsId: '284ff8ab-d5f4-4d8d-8f84-0d706dce01d0',
+      vmyBusinessSettingsCountry: 'gb',
+    },
   },
   {
     jurisdiction: 'BR',
@@ -324,6 +393,10 @@ const EU_AND_ROW: SeedRow[] = [
     regulatoryBody: 'Autoridade Nacional de Proteção de Dados (ANPD)',
     legislation: [{ name: 'PL 3910/2025', enactmentDate: '17th March 2026' }],
     status: 'enacted',
+    verificationConfig: {
+      vmyBusinessSettingsId: 'd3503ffb-3626-45b5-888f-da2e2fd1a2a6',
+      vmyBusinessSettingsCountry: 'br',
+    },
   },
 ];
 

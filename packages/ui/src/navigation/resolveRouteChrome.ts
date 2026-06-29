@@ -75,10 +75,6 @@ export function resolveRouteChrome(pathname: string): RouteChromeDescriptor {
   if (pathname === '/about/updates') {
     return { icon: 'info', titleKey: 'about.updates.title', titleDefault: 'Check for Updates' };
   }
-  if (pathname === '/about') {
-    return { icon: 'info', titleKey: 'about.title', titleDefault: 'About Adieuu' };
-  }
-
   if (pathname === '/feedback/new') {
     return { icon: 'info', titleKey: 'feedback.newPost', titleDefault: 'Submit feedback' };
   }

@@ -27,6 +27,7 @@ import { PromoCodeApi } from './promo-code-api';
 import { ReferralApi } from './referral-api';
 import { AccountEventsApi } from './account-events-api';
 import { ConversationFoldersApi } from './conversation-folders-api';
+import { AccountDataApi } from './account-data-api';
 import { FeedbackApi } from './feedback-api';
 
 /**
@@ -66,6 +67,7 @@ export function createApiClient(config: ApiClientConfig) {
     geo: new GeoApi(client),
     compliance: new ComplianceApi(client),
     feedback: new FeedbackApi(client),
+    accountData: new AccountDataApi(client),
   };
 }
 

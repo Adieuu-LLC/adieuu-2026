@@ -5,7 +5,6 @@
 export { App, AppSidebar } from './app';
 export {
   Home,
-  About,
   Search,
   Login,
   Verify,
