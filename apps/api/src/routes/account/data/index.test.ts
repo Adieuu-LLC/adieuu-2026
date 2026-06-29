@@ -46,7 +46,7 @@ const mockRequestAccountDeletion = mock(
     Promise.resolve({ ok: true }),
 );
 const mockConfirmAccountDeletion = mock(
-  (_userId: string, _identifier: string, _identifierType: string, _code: string): Promise<MockConfirmResult> =>
+  (_userId: string, _code: string): Promise<MockConfirmResult> =>
     Promise.resolve({ ok: true, cookies: ['adieuu_session=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax'] }),
 );
 

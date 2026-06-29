@@ -33,7 +33,13 @@ const OTP_EXPIRES_IN_MINUTES = 10;
 // ---------------------------------------------------------------------------
 
 function hashEmailForDeletion(email: string): string {
-  return createHmac('sha256', config.security.accountHashSecret)
+  const secret = config.security.accountHashSecret;
+  if (!secret) {
+    throw new Error(
+      'config.security.accountHashSecret is not set — cannot hash emails for deletion lookup',
+    );
+  }
+  return createHmac('sha256', secret)
     .update(email.toLowerCase())
     .digest('hex');
 }
@@ -46,9 +52,12 @@ function stripOidFields<T extends Record<string, unknown>>(doc: T): Record<strin
     } else if (v instanceof Date) {
       out[k] = v.toISOString();
     } else if (Array.isArray(v)) {
-      out[k] = v.map((item) =>
-        item && typeof item === 'object' ? stripOidFields(item as Record<string, unknown>) : item,
-      );
+      out[k] = v.map((item) => {
+        if (item instanceof Date) return item.toISOString();
+        if (item instanceof ObjectId) return item.toHexString();
+        if (item && typeof item === 'object') return stripOidFields(item as Record<string, unknown>);
+        return item;
+      });
     } else if (v && typeof v === 'object' && !(v instanceof Date)) {
       out[k] = stripOidFields(v as Record<string, unknown>);
     } else {
@@ -348,6 +357,10 @@ async function performAccountDeletion(
       getCollection(Collections.SUPPORT_TICKETS).updateMany(
         { submitterId: userId, submitterType: 'account' },
         { $unset: { submitterId: '' }, $set: { submitterType: 'deleted_account', anonymisedAt: new Date() } },
+        { session },
+      ),
+      getCollection(Collections.IDENTITY_COUNTS).deleteOne(
+        { accountHash: generateAccountHash(userId, user.createdAt) },
         { session },
       ),
     ]);

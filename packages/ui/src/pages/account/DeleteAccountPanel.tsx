@@ -75,8 +75,11 @@ export function DeleteAccountPanel() {
     }
   };
 
+  const [resending, setResending] = useState(false);
+
   const handleResend = async () => {
-    if (resendCooldown > 0) return;
+    if (resendCooldown > 0 || resending) return;
+    setResending(true);
     setError(null);
     try {
       const response = await api.accountData.requestDeletion();
@@ -88,8 +91,11 @@ export function DeleteAccountPanel() {
         const key = response.error?.code && DELETION_ERROR_KEYS[response.error.code];
         if (key) setError(t(key));
       }
-    } catch {
-      // Silent failure on resend
+    } catch (err) {
+      console.error('[DeleteAccount] Resend OTP failed:', err);
+      setError(t('account.security.deleteAccount.error'));
+    } finally {
+      setResending(false);
     }
   };
 
@@ -184,7 +190,7 @@ export function DeleteAccountPanel() {
               variant="secondary"
               size="sm"
               onClick={handleResend}
-              disabled={resendCooldown > 0}
+              disabled={resendCooldown > 0 || resending}
             >
               {resendCooldown > 0
                 ? t('account.security.deleteAccount.otpResendCooldown', { seconds: resendCooldown })
