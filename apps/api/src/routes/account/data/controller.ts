@@ -19,7 +19,7 @@ import { createOtp, verifyOtp } from '../../../services/otp.service';
 import { sendEmail } from '../../../services/messaging';
 import { getEmailTemplate, type Locale, DEFAULT_LOCALE } from '../../../i18n';
 import { checkRateLimit } from '../../../services/rate-limit.service';
-import { createHash } from 'crypto';
+import { createHmac } from 'crypto';
 import { config } from '../../../config';
 import elog from '../../../utils/adieuuLogger';
 import type { UserDocument } from '../../../models/user';
@@ -33,7 +33,7 @@ const OTP_EXPIRES_IN_MINUTES = 10;
 // ---------------------------------------------------------------------------
 
 function hashEmailForDeletion(email: string): string {
-  return createHash('sha256')
+  return createHmac('sha256', config.security.accountHashSecret)
     .update(email.toLowerCase())
     .digest('hex');
 }
@@ -187,11 +187,11 @@ export type DeleteRequestResult =
 
 export async function requestAccountDeletion(
   userId: string,
-  identifier: string,
-  identifierType: 'email' | 'phone',
   ip: string,
 ): Promise<DeleteRequestResult> {
-  if (identifierType !== 'email') {
+  const userRepo = getUserRepository();
+  const user = await userRepo.findById(userId);
+  if (!user?.email) {
     return { ok: false, reason: 'no_email' };
   }
 
@@ -203,12 +203,12 @@ export async function requestAccountDeletion(
     return { ok: false, reason: 'rate_limited' };
   }
 
-  const otp = await createOtp(identifier, 'email');
+  const otp = await createOtp(user.email, 'email');
   if (!otp) {
     return { ok: false, reason: 'internal' };
   }
 
-  sendDeletionOtpEmail(identifier, otp).catch((err) => {
+  sendDeletionOtpEmail(user.email, otp).catch((err) => {
     elog.error('Failed to send account deletion OTP email', {
       error: err instanceof Error ? err.message : String(err),
       userId,
@@ -247,23 +247,21 @@ export type DeleteConfirmResult =
 
 export async function confirmAccountDeletion(
   userId: string,
-  identifier: string,
-  identifierType: 'email' | 'phone',
   code: string,
 ): Promise<DeleteConfirmResult> {
-  if (identifierType !== 'email') {
-    return { ok: false, reason: 'no_email' };
-  }
-
-  const otpResult = await verifyOtp(identifier, code);
-  if (!otpResult.valid) {
-    return { ok: false, reason: 'invalid_code' };
-  }
-
   const userRepo = getUserRepository();
   const user = await userRepo.findById(userId);
   if (!user) {
     return { ok: false, reason: 'user_not_found' };
+  }
+
+  if (!user.email) {
+    return { ok: false, reason: 'no_email' };
+  }
+
+  const otpResult = await verifyOtp(user.email, code);
+  if (!otpResult.valid) {
+    return { ok: false, reason: 'invalid_code' };
   }
 
   try {
@@ -287,18 +285,8 @@ async function performAccountDeletion(
 ): Promise<void> {
   const oid = new ObjectId(userId);
 
-  // Store hashed email to prevent re-signup
-  if (user.email) {
-    const emailHash = hashEmailForDeletion(user.email);
-    const deletedEmails = getCollection<DeletedEmailDocument>(Collections.DELETED_EMAILS);
-    await deletedEmails.updateOne(
-      { emailHash },
-      { $setOnInsert: { emailHash, deletedAt: new Date(), createdAt: new Date(), updatedAt: new Date() } },
-      { upsert: true },
-    );
-  }
-
-  // Cancel Stripe subscription if active
+  // Cancel Stripe subscription if active (outside transaction -- Stripe is
+  // external and GDPR deletion must not be blocked by a Stripe outage)
   if (config.stripe?.enabled && user.stripeCustomerId) {
     try {
       const { getStripe } = await import('../../../services/billing/stripe.client');
@@ -320,48 +308,66 @@ async function performAccountDeletion(
     }
   }
 
-  // Destroy all sessions (Mongo + Redis)
+  // Destroy all sessions (Mongo + Redis -- outside transaction since Redis
+  // is not transactional)
   await destroyAllSessions(userId);
 
-  // Bulk delete across all account-scoped collections
-  await Promise.all([
-    getCollection(Collections.TOTP_CREDENTIALS).deleteMany({ userId: oid }),
-    getCollection(Collections.WEBAUTHN_CREDENTIALS).deleteMany({ userId: oid }),
-    getCollection(Collections.USER_PREFERENCES).deleteMany({ userId: oid }),
-    getCollection(Collections.AGE_VERIFICATIONS).deleteMany({ userId: oid }),
-    getCollection(Collections.REFERRAL_CODES).deleteMany({ userId: oid }),
-    getCollection(Collections.REFERRAL_ATTRIBUTIONS).deleteMany({
-      $or: [{ referrerId: oid }, { referredUserId: oid }],
-    }),
-    getCollection(Collections.PROMO_REDEMPTIONS).deleteMany({ userId: oid }),
-    getCollection(Collections.SPONSORSHIP_REQUESTS).deleteMany({ userId: oid }),
-    getCollection(Collections.SPONSORSHIP_LOGS).deleteMany({
-      $or: [{ recipientUserId: oid }, { sponsorUserId: oid }],
-    }),
-    // Anonymise audit logs (retain for platform security but strip user link)
-    getCollection(Collections.AUDIT_LOGS).updateMany(
-      { userId: oid },
-      { $unset: { userId: '' }, $set: { anonymisedAt: new Date() } },
-    ),
-    // Anonymise account support tickets
-    getCollection(Collections.SUPPORT_TICKETS).updateMany(
-      { submitterId: userId, submitterType: 'account' },
-      { $unset: { submitterId: '' }, $set: { submitterType: 'deleted_account', anonymisedAt: new Date() } },
-    ),
-  ]);
+  // All Mongo mutations in one transaction so a crash cannot leave a
+  // partially-deleted account
+  await withTransaction(async (session) => {
+    if (user.email) {
+      const emailHash = hashEmailForDeletion(user.email);
+      await getCollection<DeletedEmailDocument>(Collections.DELETED_EMAILS).updateOne(
+        { emailHash },
+        { $setOnInsert: { emailHash, deletedAt: new Date(), createdAt: new Date(), updatedAt: new Date() } },
+        { upsert: true, session },
+      );
+    }
 
-  // Delete the user document
-  await getCollection(Collections.USERS).deleteOne({ _id: oid });
+    await Promise.all([
+      getCollection(Collections.TOTP_CREDENTIALS).deleteMany({ userId: oid }, { session }),
+      getCollection(Collections.WEBAUTHN_CREDENTIALS).deleteMany({ userId: oid }, { session }),
+      getCollection(Collections.USER_PREFERENCES).deleteMany({ userId: oid }, { session }),
+      getCollection(Collections.AGE_VERIFICATIONS).deleteMany({ userId: oid }, { session }),
+      getCollection(Collections.REFERRAL_CODES).deleteMany({ userId: oid }, { session }),
+      getCollection(Collections.REFERRAL_ATTRIBUTIONS).deleteMany(
+        { $or: [{ referrerId: oid }, { referredUserId: oid }] },
+        { session },
+      ),
+      getCollection(Collections.PROMO_REDEMPTIONS).deleteMany({ userId: oid }, { session }),
+      getCollection(Collections.SPONSORSHIP_REQUESTS).deleteMany({ userId: oid }, { session }),
+      getCollection(Collections.SPONSORSHIP_LOGS).deleteMany(
+        { $or: [{ recipientUserId: oid }, { sponsorUserId: oid }] },
+        { session },
+      ),
+      getCollection(Collections.AUDIT_LOGS).updateMany(
+        { userId: oid },
+        { $unset: { userId: '' }, $set: { anonymisedAt: new Date() } },
+        { session },
+      ),
+      getCollection(Collections.SUPPORT_TICKETS).updateMany(
+        { submitterId: userId, submitterType: 'account' },
+        { $unset: { submitterId: '' }, $set: { submitterType: 'deleted_account', anonymisedAt: new Date() } },
+        { session },
+      ),
+    ]);
+
+    await getCollection(Collections.USERS).deleteOne({ _id: oid }, { session });
+  });
 }
 
 // ---------------------------------------------------------------------------
 // Check if an email hash exists in deleted_emails
 // ---------------------------------------------------------------------------
 
-export async function isEmailDeleted(email: string): Promise<boolean> {
+export async function isEmailDeleted(
+  email: string,
+  options?: { session?: import('mongodb').ClientSession },
+): Promise<boolean> {
   const emailHash = hashEmailForDeletion(email);
-  const doc = await getCollection<DeletedEmailDocument>(Collections.DELETED_EMAILS).findOne({
-    emailHash,
-  });
+  const doc = await getCollection<DeletedEmailDocument>(Collections.DELETED_EMAILS).findOne(
+    { emailHash },
+    { session: options?.session },
+  );
   return doc !== null;
 }

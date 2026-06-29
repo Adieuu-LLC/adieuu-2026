@@ -11,6 +11,11 @@ type DeletionStep = 'idle' | 'confirm' | 'otp' | 'final';
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
+const DELETION_ERROR_KEYS: Record<string, string> = {
+  BAD_REQUEST: 'account.security.deleteAccount.noEmail',
+  RATE_LIMITED: 'account.security.deleteAccount.rateLimited',
+};
+
 export function DeleteAccountPanel() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -60,7 +65,8 @@ export function DeleteAccountPanel() {
         setStep('otp');
         startResendCooldown();
       } else {
-        setError(t('account.security.deleteAccount.error'));
+        const key = response.error?.code && DELETION_ERROR_KEYS[response.error.code];
+        setError(t(key || 'account.security.deleteAccount.error'));
       }
     } catch {
       setError(t('account.security.deleteAccount.error'));
@@ -78,6 +84,9 @@ export function DeleteAccountPanel() {
         startResendCooldown();
         setOtpValue('');
         setOtpError(false);
+      } else {
+        const key = response.error?.code && DELETION_ERROR_KEYS[response.error.code];
+        if (key) setError(t(key));
       }
     } catch {
       // Silent failure on resend
@@ -111,10 +120,11 @@ export function DeleteAccountPanel() {
       if (response.success) {
         navigate('/', { replace: true });
       } else {
+        const key = response.error?.code && DELETION_ERROR_KEYS[response.error.code];
         setOtpError(true);
         setStep('otp');
         setOtpValue('');
-        setError(t('account.security.deleteAccount.codeError'));
+        setError(t(key || 'account.security.deleteAccount.codeError'));
       }
     } catch {
       setOtpError(true);

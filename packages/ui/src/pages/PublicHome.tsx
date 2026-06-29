@@ -53,8 +53,8 @@ export function PublicHome() {
           <p style={{ color: 'var(--color-text-secondary)', lineHeight: 1.7, marginBottom: 'var(--spacing-md)' }}>
             {t('home.public.ctaText')}
           </p>
-          <Link to="/auth/login">
-            <Button variant="primary">{t('home.public.ctaAction')}</Button>
+          <Link to="/auth/login" className="btn btn-primary btn-md">
+            {t('home.public.ctaAction')}
           </Link>
         </Card>
       </div>

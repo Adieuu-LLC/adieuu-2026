@@ -381,6 +381,8 @@ export const account = {
         finalButton: 'Permanently Delete Account',
         deleting: 'Deleting account...',
         error: 'Failed to delete account. Please try again.',
+        noEmail: 'Account deletion requires an email address. Add and verify an email in Account Overview before deleting.',
+        rateLimited: 'Too many attempts. Please wait a few minutes and try again.',
         codeError: 'Invalid or expired code. Please try again.',
       },
     },

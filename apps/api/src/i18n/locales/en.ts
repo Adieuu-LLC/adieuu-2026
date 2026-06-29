@@ -99,7 +99,7 @@ Your account deletion code is: {{otp}}
 
 This code expires in {{expiresInMinutes}} minutes.
 
-WARNING: This action is irreversible. Your account, sessions, and all associated data will be permanently removed. Alias data will NOT be deleted but will become unrecoverable.
+WARNING: This action is irreversible. Your account, sessions, and personal data will be removed. Some records (such as audit logs and support tickets) are retained in anonymised form. Alias data will NOT be deleted but will become unrecoverable.
 
 If you did not request this, you can safely ignore this email. No changes will be made to your account.`,
       html: `
@@ -122,7 +122,7 @@ If you did not request this, you can safely ignore this email. No changes will b
       This action is irreversible
     </p>
     <p style="color: #991b1b; font-size: 13px; margin: 0;">
-      Your account, sessions, and all associated data will be permanently removed. Alias data will NOT be deleted but will become unrecoverable.
+      Your account, sessions, and personal data will be removed. Some records (such as audit logs and support tickets) are retained in anonymised form. Alias data will NOT be deleted but will become unrecoverable.
     </p>
   </div>
   <p style="color: #999; font-size: 12px; margin-top: 16px;">

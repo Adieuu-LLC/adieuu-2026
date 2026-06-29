@@ -596,19 +596,31 @@ async function findOrCreateUser(
     await userRepo.recordLogin(existingUser._id);
     user = existingUser;
   } else {
-    // Check if the email belongs to a deleted account
-    if (identifierType === 'email') {
-      const { isEmailDeleted } = await import('./../../routes/account/data/controller');
-      if (await isEmailDeleted(identifier)) {
-        return 'account_deleted';
+    const { withTransaction } = await import('../../db');
+    const { isEmailDeleted } = await import('./../../routes/account/data/controller');
+
+    const result = await withTransaction(async (session) => {
+      if (identifierType === 'email') {
+        if (await isEmailDeleted(identifier, { session })) {
+          return 'account_deleted' as const;
+        }
       }
+
+      return userRepo.create(
+        {
+          ...(identifierType === 'email'
+            ? { email: identifier, emailVerified: true }
+            : { phone: identifier, phoneVerified: true }),
+        },
+        { session },
+      );
+    });
+
+    if (result === 'account_deleted') {
+      return 'account_deleted';
     }
 
-    user = await userRepo.create({
-      ...(identifierType === 'email'
-        ? { email: identifier, emailVerified: true }
-        : { phone: identifier, phoneVerified: true }),
-    });
+    user = result;
 
     elog.info('New user created', {
       userId: user._id.toHexString(),

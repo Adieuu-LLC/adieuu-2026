@@ -55,8 +55,6 @@ router.post('/account/delete/request', async (ctx) => {
   const ip = getClientIp(ctx.request);
   const result = await requestAccountDeletion(
     session.userId,
-    session.identifier,
-    session.identifierType,
     ip,
   );
 
@@ -92,8 +90,6 @@ router.post('/account/delete/confirm', async (ctx) => {
 
   const result = await confirmAccountDeletion(
     session.userId,
-    session.identifier,
-    session.identifierType,
     code,
   );
 

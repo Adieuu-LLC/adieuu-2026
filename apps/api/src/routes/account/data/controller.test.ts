@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test, mock, beforeEach } from 'bun:test';
 import { ObjectId } from 'mongodb';
-import { createHash } from 'crypto';
+import { createHmac } from 'crypto';
 import { createRateLimitServiceMock } from '../../../test-utils/rate-limit-service.mock';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -11,10 +11,13 @@ type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
 // Mock declarations (all registered BEFORE importing the code under test)
 // ---------------------------------------------------------------------------
 
+const TEST_ACCOUNT_HASH_SECRET = 'test-account-hash-secret';
+
 mock.module('../../../config', () => ({
   config: {
     env: 'test',
     stripe: { enabled: false },
+    security: { accountHashSecret: TEST_ACCOUNT_HASH_SECRET },
   },
 }));
 
@@ -229,7 +232,7 @@ function makeUser(overrides: Partial<UserDocument> = {}): UserDocument {
 }
 
 function hashEmail(email: string): string {
-  return createHash('sha256').update(email.toLowerCase()).digest('hex');
+  return createHmac('sha256', TEST_ACCOUNT_HASH_SECRET).update(email.toLowerCase()).digest('hex');
 }
 
 // ---------------------------------------------------------------------------
@@ -415,61 +418,65 @@ describe('account data controller', () => {
   // =========================================================================
 
   describe('requestAccountDeletion', () => {
-    test('returns { ok: false, reason: "no_email" } for non-email identifierType', async () => {
-      const result = await requestAccountDeletion(
-        TEST_USER_ID, '+15551234567', 'phone' as any, '192.168.1.1',
-      );
+    test('returns { ok: false, reason: "no_email" } when user has no email', async () => {
+      mockFindById.mockImplementation(() => Promise.resolve(makeUser({ email: undefined })));
+
+      const result = await requestAccountDeletion(TEST_USER_ID, '192.168.1.1');
 
       expect(result).toEqual({ ok: false, reason: 'no_email' });
       expect(mockCheckRateLimit).not.toHaveBeenCalled();
     });
 
     test('returns { ok: false, reason: "rate_limited" } when rate limit exceeded', async () => {
+      mockFindById.mockImplementation(() => Promise.resolve(makeUser()));
       mockCheckRateLimit.mockImplementation(() =>
         Promise.resolve({ allowed: false, remaining: 0, resetAt: Date.now() + 60000, limit: 3 }),
       );
 
-      const result = await requestAccountDeletion(
-        TEST_USER_ID, 'test@example.com', 'email', '192.168.1.1',
-      );
+      const result = await requestAccountDeletion(TEST_USER_ID, '192.168.1.1');
 
       expect(result).toEqual({ ok: false, reason: 'rate_limited' });
       expect(mockCreateOtp).not.toHaveBeenCalled();
     });
 
     test('returns { ok: false, reason: "internal" } when createOtp returns null', async () => {
+      mockFindById.mockImplementation(() => Promise.resolve(makeUser()));
       mockCreateOtp.mockImplementation(() => Promise.resolve(null));
 
-      const result = await requestAccountDeletion(
-        TEST_USER_ID, 'test@example.com', 'email', '192.168.1.1',
-      );
+      const result = await requestAccountDeletion(TEST_USER_ID, '192.168.1.1');
 
       expect(result).toEqual({ ok: false, reason: 'internal' });
     });
 
     test('returns { ok: true } on success', async () => {
-      const result = await requestAccountDeletion(
-        TEST_USER_ID, 'test@example.com', 'email', '192.168.1.1',
-      );
+      mockFindById.mockImplementation(() => Promise.resolve(makeUser()));
+
+      const result = await requestAccountDeletion(TEST_USER_ID, '192.168.1.1');
 
       expect(result).toEqual({ ok: true });
     });
 
-    test('calls createOtp with identifier and "email"', async () => {
-      await requestAccountDeletion(
-        TEST_USER_ID, 'test@example.com', 'email', '192.168.1.1',
-      );
+    test('calls createOtp with user email and "email"', async () => {
+      mockFindById.mockImplementation(() => Promise.resolve(makeUser()));
+
+      await requestAccountDeletion(TEST_USER_ID, '192.168.1.1');
 
       expect(mockCreateOtp).toHaveBeenCalledTimes(1);
       expect(mockCreateOtp).toHaveBeenCalledWith('test@example.com', 'email');
     });
 
     test('fires off email sending (fire-and-forget)', async () => {
-      await requestAccountDeletion(
-        TEST_USER_ID, 'test@example.com', 'email', '192.168.1.1',
-      );
+      mockFindById.mockImplementation(() => Promise.resolve(makeUser()));
+      let resolveEmailSent!: () => void;
+      const emailSent = new Promise<void>((r) => { resolveEmailSent = r; });
+      mockSendEmail.mockImplementation(() => {
+        resolveEmailSent();
+        return Promise.resolve();
+      });
 
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      await requestAccountDeletion(TEST_USER_ID, '192.168.1.1');
+
+      await emailSent;
 
       expect(mockGetEmailTemplate).toHaveBeenCalledTimes(1);
       expect(mockSendEmail).toHaveBeenCalledTimes(1);
@@ -480,9 +487,9 @@ describe('account data controller', () => {
     });
 
     test('calls checkRateLimit with "account_delete" action and userId', async () => {
-      await requestAccountDeletion(
-        TEST_USER_ID, 'test@example.com', 'email', '192.168.1.1',
-      );
+      mockFindById.mockImplementation(() => Promise.resolve(makeUser()));
+
+      await requestAccountDeletion(TEST_USER_ID, '192.168.1.1');
 
       expect(mockCheckRateLimit).toHaveBeenCalledTimes(1);
       expect(mockCheckRateLimit.mock.calls[0]![0]).toBe('account_delete');
@@ -497,42 +504,36 @@ describe('account data controller', () => {
   describe('confirmAccountDeletion', () => {
     const user = makeUser({ email: 'test@example.com' });
 
-    test('returns { ok: false, reason: "no_email" } for non-email identifierType', async () => {
-      const result = await confirmAccountDeletion(
-        TEST_USER_ID, '+15551234567', 'phone' as any, '123456',
-      );
+    test('returns { ok: false, reason: "user_not_found" } when user not in DB', async () => {
+      mockFindById.mockImplementation(() => Promise.resolve(null));
+
+      const result = await confirmAccountDeletion(TEST_USER_ID, '123456');
+
+      expect(result).toEqual({ ok: false, reason: 'user_not_found' });
+    });
+
+    test('returns { ok: false, reason: "no_email" } when user has no email', async () => {
+      mockFindById.mockImplementation(() => Promise.resolve(makeUser({ email: undefined })));
+
+      const result = await confirmAccountDeletion(TEST_USER_ID, '123456');
 
       expect(result).toEqual({ ok: false, reason: 'no_email' });
       expect(mockVerifyOtp).not.toHaveBeenCalled();
     });
 
     test('returns { ok: false, reason: "invalid_code" } when verifyOtp fails', async () => {
+      mockFindById.mockImplementation(() => Promise.resolve(user));
       mockVerifyOtp.mockImplementation(() => Promise.resolve({ valid: false, error: 'invalid' }));
 
-      const result = await confirmAccountDeletion(
-        TEST_USER_ID, 'test@example.com', 'email', '000000',
-      );
+      const result = await confirmAccountDeletion(TEST_USER_ID, '000000');
 
       expect(result).toEqual({ ok: false, reason: 'invalid_code' });
-      expect(mockFindById).not.toHaveBeenCalled();
     });
 
-    test('returns { ok: false, reason: "user_not_found" } when user not in DB', async () => {
-      mockFindById.mockImplementation(() => Promise.resolve(null));
-
-      const result = await confirmAccountDeletion(
-        TEST_USER_ID, 'test@example.com', 'email', '123456',
-      );
-
-      expect(result).toEqual({ ok: false, reason: 'user_not_found' });
-    });
-
-    test('calls verifyOtp with identifier and code', async () => {
+    test('calls verifyOtp with user email and code', async () => {
       mockFindById.mockImplementation(() => Promise.resolve(user));
 
-      await confirmAccountDeletion(
-        TEST_USER_ID, 'test@example.com', 'email', '123456',
-      );
+      await confirmAccountDeletion(TEST_USER_ID, '123456');
 
       expect(mockVerifyOtp).toHaveBeenCalledTimes(1);
       expect(mockVerifyOtp).toHaveBeenCalledWith('test@example.com', '123456');
@@ -541,9 +542,7 @@ describe('account data controller', () => {
     test('on success returns { ok: true, cookies: [...] }', async () => {
       mockFindById.mockImplementation(() => Promise.resolve(user));
 
-      const result = await confirmAccountDeletion(
-        TEST_USER_ID, 'test@example.com', 'email', '123456',
-      );
+      const result = await confirmAccountDeletion(TEST_USER_ID, '123456');
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -556,9 +555,7 @@ describe('account data controller', () => {
     test('on success calls destroyAllSessions', async () => {
       mockFindById.mockImplementation(() => Promise.resolve(user));
 
-      await confirmAccountDeletion(
-        TEST_USER_ID, 'test@example.com', 'email', '123456',
-      );
+      await confirmAccountDeletion(TEST_USER_ID, '123456');
 
       expect(mockDestroyAllSessions).toHaveBeenCalledWith(TEST_USER_ID);
     });
@@ -566,9 +563,7 @@ describe('account data controller', () => {
     test('on success deletes user document', async () => {
       mockFindById.mockImplementation(() => Promise.resolve(user));
 
-      await confirmAccountDeletion(
-        TEST_USER_ID, 'test@example.com', 'email', '123456',
-      );
+      await confirmAccountDeletion(TEST_USER_ID, '123456');
 
       const usersCol = getMockCollection('users');
       expect(usersCol.deleteOne).toHaveBeenCalledTimes(1);
@@ -579,30 +574,24 @@ describe('account data controller', () => {
     test('on success stores hashed email in deleted_emails', async () => {
       mockFindById.mockImplementation(() => Promise.resolve(user));
 
-      await confirmAccountDeletion(
-        TEST_USER_ID, 'test@example.com', 'email', '123456',
-      );
+      await confirmAccountDeletion(TEST_USER_ID, '123456');
 
       const deletedCol = getMockCollection('deleted_emails');
       expect(deletedCol.updateOne).toHaveBeenCalledTimes(1);
 
-      const [filter, update, options] = deletedCol.updateOne.mock.calls[0] as [
+      const [filter, update] = deletedCol.updateOne.mock.calls[0] as [
         { emailHash: string },
         { $setOnInsert: { emailHash: string } },
-        { upsert: boolean },
       ];
 
       expect(filter.emailHash).toBe(hashEmail('test@example.com'));
       expect(update.$setOnInsert.emailHash).toBe(hashEmail('test@example.com'));
-      expect(options.upsert).toBe(true);
     });
 
     test('on success bulk-deletes across account-scoped collections', async () => {
       mockFindById.mockImplementation(() => Promise.resolve(user));
 
-      await confirmAccountDeletion(
-        TEST_USER_ID, 'test@example.com', 'email', '123456',
-      );
+      await confirmAccountDeletion(TEST_USER_ID, '123456');
 
       const deletedCollections = [
         'totp_credentials',
@@ -644,7 +633,7 @@ describe('account data controller', () => {
       const result = await isEmailDeleted(email);
 
       expect(result).toBe(true);
-      expect(col.findOne).toHaveBeenCalledWith({ emailHash: hashEmail(email) });
+      expect(col.findOne).toHaveBeenCalledWith({ emailHash: hashEmail(email) }, { session: undefined });
     });
 
     test('returns false when email hash does not exist', async () => {

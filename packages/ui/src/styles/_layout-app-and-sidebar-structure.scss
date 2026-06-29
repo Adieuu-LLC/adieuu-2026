@@ -159,8 +159,8 @@
   }
 
   &:hover {
-    --logo-primary: var(--logo-secondary, #4ade80);
-    --logo-secondary: var(--logo-primary, #22c55e);
+    --logo-primary: var(--color-accent-secondary);
+    --logo-secondary: var(--color-accent-primary);
 
     .app-logo-img {
       transform: scale(1.05);
@@ -183,8 +183,8 @@
   font-weight: 600;
   vertical-align: middle;
   border-radius: var(--radius-full, 9999px);
-  background: var(--color-accent, #6366f1);
-  color: var(--color-on-accent, #fff);
+  background: var(--color-accent-primary);
+  color: var(--color-text-inverse);
   letter-spacing: 0.02em;
   text-transform: uppercase;
 }

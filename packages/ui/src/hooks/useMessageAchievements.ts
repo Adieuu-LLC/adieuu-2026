@@ -80,7 +80,7 @@ const LEEROY_JENKINS_RE = /\b(?:leeroy|jenkins)\b/i;
 const MORDOR_RE = /one does not simply/i;
 const MAGIC_WORD_RE = /magic word/i;
 const RABBIT_HOLE_RE = /there is no spoon|red pill/i;
-const HI_BOB_RE = /\bhi[,!.\s]*bob\b/i;
+const HI_BOB_RE = /\bhi[\s,!.]+bob\b/i;
 const CAN_OPENER_RE = /\bcan opener\b/i;
 const NOT_BRAGGING_RE = /\bnot bragging\b/i;
 

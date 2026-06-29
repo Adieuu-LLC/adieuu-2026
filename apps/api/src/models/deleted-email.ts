@@ -1,14 +1,14 @@
 /**
  * Deleted email model.
  *
- * Stores SHA-256 hashes of emails belonging to deleted accounts.
+ * Stores HMAC-SHA256 digests of emails belonging to deleted accounts.
  * Used to prevent re-signup with the same email address.
  */
 
 import type { BaseDocument } from './base';
 
 export interface DeletedEmailDocument extends BaseDocument {
-  /** SHA-256 hash of the lowercased email address */
+  /** HMAC-SHA256 digest of the lowercased email address (keyed with accountHashSecret) */
   emailHash: string;
   /** When the account was deleted */
   deletedAt: Date;
