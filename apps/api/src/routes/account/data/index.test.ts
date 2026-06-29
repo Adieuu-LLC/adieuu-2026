@@ -42,7 +42,7 @@ const mockGatherAccountData = mock(
     Promise.resolve({ account: {}, exportedAt: new Date().toISOString() }),
 );
 const mockRequestAccountDeletion = mock(
-  (_userId: string, _identifier: string, _identifierType: string, _ip: string): Promise<MockRequestResult> =>
+  (_userId: string, _ip: string): Promise<MockRequestResult> =>
     Promise.resolve({ ok: true }),
 );
 const mockConfirmAccountDeletion = mock(
@@ -293,10 +293,8 @@ describe('POST /api/account/delete/request', () => {
     );
 
     expect(mockRequestAccountDeletion).toHaveBeenCalledTimes(1);
-    const [userId, identifier, identifierType, ip] = mockRequestAccountDeletion.mock.calls[0]!;
+    const [userId, ip] = mockRequestAccountDeletion.mock.calls[0]!;
     expect(userId).toBe(testUserId.toHexString());
-    expect(identifier).toBe('test@example.com');
-    expect(identifierType).toBe('email');
     expect(ip).toBe('127.0.0.1');
   });
 });
