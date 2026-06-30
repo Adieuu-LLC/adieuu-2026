@@ -78,7 +78,7 @@ export function VpnComplianceModal({ open, vpnAttestation, onComplete }: VpnComp
   }, [finishAttestation]);
 
   return (
-    <Dialog.Root open={open} closeOnInteractOutside={false} closeOnEscape={false}>
+    <Dialog.Root open={open} closeOnInteractOutside={false} closeOnEscape={false} lazyMount>
       <Portal>
         <Dialog.Backdrop className="geofence-modal-backdrop" />
         <Dialog.Positioner className="geofence-modal-positioner">

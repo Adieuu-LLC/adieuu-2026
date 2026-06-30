@@ -87,7 +87,10 @@ export function AdminUserProfile() {
     if (!id) return;
     const res = await api.admin.getEntitlements(id);
     if (res.success && res.data) {
-      setEntitlements(res.data);
+      setEntitlements({
+        effective: res.data.effective ?? [],
+        overrides: res.data.overrides ?? [],
+      });
     }
   }, [api, id]);
 
@@ -95,7 +98,10 @@ export function AdminUserProfile() {
     if (!id) return;
     const res = await api.admin.getSubscriptionOverrides(id);
     if (res.success && res.data) {
-      setSubscriptionOverrides(res.data);
+      setSubscriptionOverrides({
+        effective: res.data.effective ?? [],
+        overrides: res.data.overrides ?? [],
+      });
     }
   }, [api, id]);
 
@@ -263,8 +269,8 @@ export function AdminUserProfile() {
     );
   }
 
-  const isSuspended = profile.moderation.status === 'suspended';
-  const isBanned = profile.moderation.status === 'banned';
+  const isSuspended = profile.moderation?.status === 'suspended';
+  const isBanned = profile.moderation?.status === 'banned';
 
   return (
     <div className="admin-page admin-user-profile">
@@ -273,7 +279,7 @@ export function AdminUserProfile() {
           {t('admin.users.backToSearch')}
         </Button>
         <h2 className="admin-page-title">{profile.displayName || profile.email || profile.phone}</h2>
-        <StatusBadge status={profile.moderation.status} />
+        <StatusBadge status={profile.moderation?.status ?? 'active'} />
       </div>
 
       {/* Action bar */}
@@ -315,11 +321,11 @@ export function AdminUserProfile() {
       {(isSuspended || isBanned) && (
         <div className={`admin-alert ${isBanned ? 'admin-alert--error' : 'admin-alert--warning'}`}>
           <strong>{isBanned ? t('admin.users.bannedBanner') : t('admin.users.suspendedBanner')}</strong>
-          {profile.moderation.category && (
+          {profile.moderation?.category && (
             <p>{t('admin.users.moderationCategory')}: {t(`admin.users.modals.categories.${profile.moderation.category}`, profile.moderation.category)}</p>
           )}
-          {profile.moderation.reason && <p>{profile.moderation.reason}</p>}
-          {profile.moderation.suspendedUntil && (
+          {profile.moderation?.reason && <p>{profile.moderation.reason}</p>}
+          {profile.moderation?.suspendedUntil && (
             <p>{t('admin.users.suspendedUntil')}: {new Date(profile.moderation.suspendedUntil).toLocaleString()}</p>
           )}
         </div>
@@ -399,7 +405,7 @@ export function AdminUserProfile() {
         <h3>{t('admin.users.sections.billing')}</h3>
         <dl className="admin-dl">
           <dt>{t('admin.users.fields.subscriptions')}</dt>
-          <dd>{subscriptionOverrides.effective.length > 0 ? subscriptionOverrides.effective.join(', ') : '—'}</dd>
+          <dd>{(subscriptionOverrides.effective?.length ?? 0) > 0 ? subscriptionOverrides.effective.join(', ') : '—'}</dd>
           <dt>{t('admin.users.fields.billingStatus')}</dt>
           <dd>{profile.billing?.status || '—'}</dd>
           <dt>{t('admin.users.fields.isLifetime')}</dt>
@@ -411,11 +417,11 @@ export function AdminUserProfile() {
             </>
           )}
           <dt>{t('admin.users.fields.entitlements')}</dt>
-          <dd>{entitlements.effective.length > 0 ? entitlements.effective.join(', ') : '—'}</dd>
+          <dd>{(entitlements.effective?.length ?? 0) > 0 ? entitlements.effective.join(', ') : '—'}</dd>
           <dt>{t('admin.users.fields.overrides')}</dt>
-          <dd>{entitlements.overrides.length > 0 ? entitlements.overrides.join(', ') : '—'}</dd>
+          <dd>{(entitlements.overrides?.length ?? 0) > 0 ? entitlements.overrides.join(', ') : '—'}</dd>
         </dl>
-        {subscriptionOverrides.overrides.length > 0 && (
+        {(subscriptionOverrides.overrides?.length ?? 0) > 0 && (
           <>
             <h4>{t('admin.users.fields.subscriptionOverrides')}</h4>
             <ul className="admin-list">
@@ -527,7 +533,7 @@ export function AdminUserProfile() {
         onCancel={() => setEntitlementModal(false)}
       >
         <div className="admin-entitlements-list">
-          {entitlements.overrides.length > 0 ? (
+          {(entitlements.overrides?.length ?? 0) > 0 ? (
             <ul className="admin-list">
               {entitlements.overrides.map((ent) => (
                 <li key={ent} className="admin-entitlement-item">

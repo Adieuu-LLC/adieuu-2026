@@ -32,6 +32,25 @@ export interface ResolvedGeoLookup {
 
 let trustProxyWarningLogged = false;
 
+function isDevForceAnonymousIpEnabled(): boolean {
+  return config.env !== 'production' && process.env.DEV_FORCE_ANONYMOUS_IP === 'true';
+}
+
+/** Dev-only: force privacy flags so compliance paths can be exercised locally. */
+function applyDevGeoPrivacyOverrides(lookup: ResolvedGeoLookup): ResolvedGeoLookup {
+  if (!isDevForceAnonymousIpEnabled() || lookup.isAnonymous === true) {
+    return lookup;
+  }
+  return { ...lookup, isAnonymous: true };
+}
+
+function applyDevGeoPrivacyOverridesToUserGeo(geo: UserGeo): UserGeo {
+  if (!isDevForceAnonymousIpEnabled() || geo.isAnonymous === true) {
+    return geo;
+  }
+  return { ...geo, isAnonymous: true };
+}
+
 /**
  * Hash an IP using the account-hash secret so raw IPs never land in
  * Redis or the user document.
@@ -72,11 +91,7 @@ export async function resolveJurisdiction(
 
       const cached = await redis.get(RedisKeys.geoIpLookup(ipHash));
       if (cached) {
-        return JSON.parse(cached) as {
-          jurisdiction: string;
-          countryCode: string;
-          regionCode?: string;
-        };
+        return applyDevGeoPrivacyOverrides(JSON.parse(cached) as ResolvedGeoLookup);
       }
 
       const neg = await redis.get(RedisKeys.geoNegativeLookup(ipHash));
@@ -109,13 +124,13 @@ export async function resolveJurisdiction(
   const result = fromIpLocateResult(raw);
   if (!result) return null;
 
-  const lookup: ResolvedGeoLookup = {
+  const lookup = applyDevGeoPrivacyOverrides({
     jurisdiction: result.jurisdiction,
     countryCode: result.countryCode,
     regionCode: result.regionCode,
     isAnonymous: raw.privacy?.isAnonymous ?? undefined,
     isAbuser: raw.privacy?.isAbuser ?? undefined,
-  };
+  });
 
   if (isRedisConnected()) {
     try {
@@ -162,7 +177,7 @@ export async function refreshUserGeoIfStale(
       const recheckMs = config.geo.recheckIntervalDays * 24 * 60 * 60 * 1000;
 
       if (ageMs < recheckMs && user.geo.ipHash === ipHash) {
-        return user.geo;
+        return applyDevGeoPrivacyOverridesToUserGeo(user.geo);
       }
     }
 

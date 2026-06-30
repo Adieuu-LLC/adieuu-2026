@@ -40,5 +40,14 @@ export default defineConfig({
         storageState: AUTH_STATE,
       },
     },
+    {
+      name: 'compliance',
+      testDir: './tests/compliance',
+      testMatch: '**/*.spec.ts',
+      dependencies: ['setup'],
+      use: {
+        storageState: AUTH_STATE,
+      },
+    },
   ],
 });

@@ -144,7 +144,7 @@ router.get('/admin/users/:id/subscription-overrides', async (ctx) => {
     if (result.reason === 'not_found') return ctx.errors.notFound();
     return ctx.errors.validationFailed();
   }
-  return success({ overrides: result.overrides });
+  return success({ effective: result.effective, overrides: result.overrides });
 });
 
 router.post('/admin/users/:id/subscription-overrides', async (ctx) => {

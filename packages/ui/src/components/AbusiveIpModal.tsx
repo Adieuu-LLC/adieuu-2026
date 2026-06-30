@@ -16,7 +16,7 @@ export function AbusiveIpModal({ open, message, onAcknowledge }: AbusiveIpModalP
   const { t } = useTranslation();
 
   return (
-    <Dialog.Root open={open} closeOnInteractOutside={false} closeOnEscape={false}>
+    <Dialog.Root open={open} closeOnInteractOutside={false} closeOnEscape={false} lazyMount>
       <Portal>
         <Dialog.Backdrop className="geofence-modal-backdrop" />
         <Dialog.Positioner className="geofence-modal-positioner">
