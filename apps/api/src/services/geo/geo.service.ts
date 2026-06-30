@@ -124,13 +124,13 @@ export async function resolveJurisdiction(
   const result = fromIpLocateResult(raw);
   if (!result) return null;
 
-  const lookup = applyDevGeoPrivacyOverrides({
+  const lookup: ResolvedGeoLookup = {
     jurisdiction: result.jurisdiction,
     countryCode: result.countryCode,
     regionCode: result.regionCode,
     isAnonymous: raw.privacy?.isAnonymous ?? undefined,
     isAbuser: raw.privacy?.isAbuser ?? undefined,
-  });
+  };
 
   if (isRedisConnected()) {
     try {
@@ -146,7 +146,7 @@ export async function resolveJurisdiction(
     }
   }
 
-  return lookup;
+  return applyDevGeoPrivacyOverrides(lookup);
 }
 
 /**

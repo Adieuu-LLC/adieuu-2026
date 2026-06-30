@@ -63,9 +63,9 @@ export const compliance = {
   },
   vpn: {
     title: "Looks like you're on a VPN - awesome!",
-    body: "It looks like you're connecting through an anonymizing service — we admire you're taking steps to protect your privacy!",
+    body: "It looks like you're connecting through an anonymizing service — we admire that you're taking steps to protect your privacy!",
     vpnHint: "We have no issues with VPN use (we applaud it!), but we do need to make you aware that we presently do <strong>NOT</strong> provide service to the countries below. Similarly, we can not provide service to you if you connect your VPN through a node detected in a listed country.",
-    sanctionedIntro: "Connection from a country below, even if you are not a resident or national, results in an permanent ban and can not be appealed.",
+    sanctionedIntro: "Connection from a country below, even if you are not a resident or national, results in a permanent ban and cannot be appealed.",
     sanctionedQuestion: 'Are you a resident or national of any of the above countries?',
     utahQuestion: 'Do you live in Utah?',
     utahNotice:

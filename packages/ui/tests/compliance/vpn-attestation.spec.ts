@@ -12,12 +12,6 @@ import { test, expect } from '@playwright/test';
 import { mockVpnAttestationSession } from './helpers';
 
 test.describe('VPN compliance modal', () => {
-  test.beforeEach(async ({ page }) => {
-    if (page.url().includes('/auth/login')) {
-      test.skip();
-    }
-  });
-
   test('renders a visible, fixed-position modal when attestation is required', async ({ page }) => {
     await mockVpnAttestationSession(page, { clearAfterSubmit: true });
     await page.goto('/about', { waitUntil: 'networkidle' });
