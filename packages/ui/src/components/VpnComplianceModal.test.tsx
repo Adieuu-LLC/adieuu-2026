@@ -3,6 +3,8 @@ import { createElement } from 'react';
 import { GlobalWindow } from 'happy-dom';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
+import * as sharedActual from '@adieuu/shared';
+import * as configActual from '../config';
 import { setMockTranslate } from '../test/react-i18next-mock';
 
 const mockSubmitVpnAttestation = mock(() =>
@@ -22,26 +24,14 @@ setMockTranslate((key) => {
   return labels[key] ?? key;
 });
 
-mock.module('../config', () => ({
-  useAppConfig: () => ({ apiBaseUrl: 'http://localhost:3000' }),
-}));
-
-mock.module('@adieuu/shared', () => ({
-  createApiClient: () => ({
-    compliance: {
-      submitVpnAttestation: mockSubmitVpnAttestation,
-    },
-  }),
-}));
-
-const { VpnComplianceModal } = await import('./VpnComplianceModal');
-
 type G = typeof globalThis & {
   window?: GlobalWindow & typeof globalThis;
   document?: Document;
   IS_REACT_ACT_ENVIRONMENT?: boolean;
   CSS?: typeof CSS;
 };
+
+type VpnComplianceModalComponent = typeof import('./VpnComplianceModal').VpnComplianceModal;
 
 let happy: GlobalWindow;
 let prevWindow: typeof globalThis.window;
@@ -50,6 +40,7 @@ let prevRaf: typeof globalThis.requestAnimationFrame;
 let prevCancelRaf: typeof globalThis.cancelAnimationFrame;
 let prevGcs: typeof globalThis.getComputedStyle;
 let prevCss: typeof globalThis.CSS;
+let VpnComplianceModal: VpnComplianceModalComponent;
 
 const vpnAttestation = {
   required: true as const,
@@ -57,11 +48,36 @@ const vpnAttestation = {
   sanctionedCountries: [{ countryCode: 'IR', countryName: 'Iran' }],
 };
 
-beforeEach(() => {
+async function loadVpnComplianceModal() {
+  mock.module('../config', () => ({
+    ...configActual,
+    useAppConfig: () => ({
+      apiBaseUrl: 'http://localhost:3000',
+      chatWsUrl: '',
+      externalLinkBase: '',
+      platform: 'web' as const,
+    }),
+  }));
+
+  mock.module('@adieuu/shared', () => ({
+    ...sharedActual,
+    createApiClient: () => ({
+      compliance: {
+        submitVpnAttestation: mockSubmitVpnAttestation,
+      },
+    }),
+  }));
+
+  ({ VpnComplianceModal } = await import('./VpnComplianceModal'));
+}
+
+beforeEach(async () => {
   mockSubmitVpnAttestation.mockClear();
   mockSubmitVpnAttestation.mockImplementation(() =>
     Promise.resolve({ success: true, data: { next: 'continue' } }),
   );
+
+  await loadVpnComplianceModal();
 
   const g = globalThis as G;
   prevWindow = g.window;
@@ -96,11 +112,11 @@ afterEach(async () => {
   g.CSS = prevCss;
 });
 
-function renderOpen(onComplete = mock(() => Promise.resolve())) {
+async function renderOpen(onComplete = mock(() => Promise.resolve())) {
   const container = globalThis.document.createElement('div');
   globalThis.document.body.appendChild(container);
   const root = createRoot(container);
-  act(() => {
+  await act(async () => {
     root.render(
       createElement(VpnComplianceModal, {
         open: true,
@@ -108,13 +124,14 @@ function renderOpen(onComplete = mock(() => Promise.resolve())) {
         onComplete,
       }),
     );
+    await new Promise((r) => setTimeout(r, 0));
   });
   return { root, container, onComplete };
 }
 
 describe('VpnComplianceModal', () => {
-  it('renders an accessible dialog with title and action buttons when open', () => {
-    const { root, container } = renderOpen();
+  it('renders an accessible dialog with title and action buttons when open', async () => {
+    const { root, container } = await renderOpen();
 
     const dialog = happy.document.querySelector('[role="dialog"]');
     expect(dialog).not.toBeNull();
@@ -126,15 +143,14 @@ describe('VpnComplianceModal', () => {
     expect(buttons.some((b) => b.textContent?.includes('Yes'))).toBe(true);
     expect(buttons.some((b) => b.textContent?.includes('No'))).toBe(true);
 
-    act(() => {
+    await act(async () => {
       root.unmount();
     });
     container.remove();
   });
 
   it('submits attestation when user clicks No', async () => {
-    const onComplete = mock(() => Promise.resolve());
-    const { root, container } = renderOpen(onComplete);
+    const { root, container, onComplete } = await renderOpen();
 
     const noButton = [...happy.document.querySelectorAll('button')].find((b) =>
       b.textContent?.includes('No'),
@@ -152,7 +168,7 @@ describe('VpnComplianceModal', () => {
     });
     expect(onComplete).toHaveBeenCalled();
 
-    act(() => {
+    await act(async () => {
       root.unmount();
     });
     container.remove();
