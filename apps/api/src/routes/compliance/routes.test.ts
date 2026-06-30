@@ -135,8 +135,12 @@ describe('POST /api/compliance/vpn-attestation', () => {
     );
 
     expect(response.status).toBe(403);
-    const body = await response.json() as { error: { code: string } };
+    const body = await response.json() as {
+      error: { code: string; message: string; details?: { moderationReason?: string } };
+    };
     expect(body.error.code).toBe('ACCOUNT_BANNED');
+    expect(body.error.message).toContain('export-control self-attestation');
+    expect(body.error.details?.moderationReason).toContain('export-control self-attestation');
     expect(mockAppendAuthClearCookies).toHaveBeenCalledTimes(1);
 
     const setCookies = response.headers.getSetCookie?.() ?? [];

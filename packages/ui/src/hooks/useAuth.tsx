@@ -3,19 +3,15 @@ import type { ReactNode } from 'react';
 import {
   createApiClient,
   API_ERROR_SESSION_EXPIRED,
-  API_ERROR_ACCOUNT_BANNED,
-  API_ERROR_ACCOUNT_SUSPENDED,
   API_ERROR_ABUSIVE_IP_BLOCKED,
   API_ERROR_ACCOUNT_DELETED,
   type SessionInfo,
   type SubscriptionTierId,
   type PublicKeyCredentialRequestOptionsJSON,
-  type AccountModerationCategory,
 } from '@adieuu/shared';
 import { useAppConfig, usePlatformCapabilities } from '../config';
 import {
   resolveAccountRestriction,
-  isSilentAccountBan,
   type AccountRestrictionInfo,
 } from '../services/authRestrictionFlow';
 import { ComplianceModals } from '../components/ComplianceModals';
@@ -181,12 +177,6 @@ function useAuthState(): AuthContextValue {
           setState({ status: 'unauthenticated', session: null });
           return null;
         }
-        if (code === API_ERROR_ACCOUNT_BANNED && isSilentAccountBan(
-          response.error?.details?.moderationCategory as AccountModerationCategory | undefined,
-        )) {
-          setState({ status: 'unauthenticated', session: null });
-          return null;
-        }
         // SESSION_EXPIRED is definitive — the server cleared the cookie.
         // Any other failure on mount may be a cold-start timing issue
         // where the cookie hasn't been sent yet; retry once.
@@ -233,12 +223,6 @@ function useAuthState(): AuthContextValue {
       setAbusiveIpNotice(message ?? null);
       setState({ status: 'unauthenticated', session: null });
       return { success: false as const, error: message ?? 'Network blocked', restriction: undefined };
-    }
-    if (errorCode === API_ERROR_ACCOUNT_BANNED && isSilentAccountBan(
-      details?.moderationCategory as AccountModerationCategory | undefined,
-    )) {
-      setState({ status: 'unauthenticated', session: null });
-      return { success: false as const, error: 'Access denied', restriction: undefined };
     }
     const restriction = resolveAccountRestriction(
       errorCode,

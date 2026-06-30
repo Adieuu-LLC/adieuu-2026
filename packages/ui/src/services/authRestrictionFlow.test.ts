@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
   resolveAccountRestriction,
-  isSilentAccountBan,
   isOfacSanctionedBan,
 } from './authRestrictionFlow';
 
@@ -42,15 +41,15 @@ describe('resolveAccountRestriction', () => {
     expect(result).toEqual({ type: 'banned', reason: undefined });
   });
 
-  test('returns undefined for silent OFAC self-attestation ban', () => {
+  test('returns banned info for OFAC self-attestation ban', () => {
     expect(resolveAccountRestriction('ACCOUNT_BANNED', {
+      moderationReason: 'Account restricted due to export-control self-attestation.',
       moderationCategory: 'ofac_self_attestation',
-    })).toBeUndefined();
-  });
-
-  test('isSilentAccountBan identifies self-attestation category', () => {
-    expect(isSilentAccountBan('ofac_self_attestation')).toBe(true);
-    expect(isSilentAccountBan('ofac_sanctioned')).toBe(false);
+    })).toEqual({
+      type: 'banned',
+      reason: 'Account restricted due to export-control self-attestation.',
+      category: 'ofac_self_attestation',
+    });
   });
 
   test('isOfacSanctionedBan identifies geo OFAC category', () => {

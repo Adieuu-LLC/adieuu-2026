@@ -2,9 +2,9 @@
  * Non-dismissable VPN / export-control attestation modal.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type ReactElement } from 'react';
 import { Dialog, Portal } from '@ark-ui/react';
-import { useTranslation } from '../i18n';
+import { Trans, useTranslation } from '../i18n';
 import { Button } from './Button';
 import { createApiClient, type SessionCompliance } from '@adieuu/shared';
 import { useAppConfig } from '../config';
@@ -13,6 +13,35 @@ export interface VpnComplianceModalProps {
   open: boolean;
   vpnAttestation: NonNullable<SessionCompliance['vpnAttestation']>;
   onComplete: () => Promise<void>;
+}
+
+const VPN_RICH_TEXT_COMPONENTS: Record<string, ReactElement> = {
+  strong: <strong className="geofence-modal-emphasis" />,
+};
+
+function formatSanctionedCountryLabel(country: {
+  countryName: string;
+  program?: string;
+}): string {
+  const program = country.program?.trim();
+  if (!program || program.toUpperCase() === 'OFAC') {
+    return country.countryName;
+  }
+  return `${country.countryName} (${program})`;
+}
+
+function GeofenceRichParagraph({
+  i18nKey,
+  className = 'geofence-modal-description',
+}: {
+  i18nKey: string;
+  className?: string;
+}) {
+  return (
+    <p className={className}>
+      <Trans i18nKey={i18nKey} components={VPN_RICH_TEXT_COMPONENTS} />
+    </p>
+  );
 }
 
 export function VpnComplianceModal({ open, vpnAttestation, onComplete }: VpnComplianceModalProps) {
@@ -89,21 +118,27 @@ export function VpnComplianceModal({ open, vpnAttestation, onComplete }: VpnComp
                   {t('compliance.vpn.title')}
                 </Dialog.Title>
                 <Dialog.Description className="geofence-modal-description">
-                  {t('compliance.vpn.body')}
+                  <Trans i18nKey="compliance.vpn.body" components={VPN_RICH_TEXT_COMPONENTS} />
                 </Dialog.Description>
-                <p className="geofence-modal-description">{t('compliance.vpn.vpnHint')}</p>
-                <p className="geofence-modal-description">{t('compliance.vpn.sanctionedIntro')}</p>
-                <ul className="geofence-modal-jurisdiction" style={{ maxHeight: '12rem', overflowY: 'auto' }}>
-                  {vpnAttestation.sanctionedCountries.map((c) => (
-                    <li key={c.countryCode}>
-                      <strong>{c.countryCode}</strong> — {c.countryName}
-                    </li>
-                  ))}
-                </ul>
-                <p className="geofence-modal-description">{t('compliance.vpn.sanctionedQuestion')}</p>
+                <GeofenceRichParagraph i18nKey="compliance.vpn.vpnHint" />
+                <GeofenceRichParagraph i18nKey="compliance.vpn.sanctionedIntro" />
+                <div className="geofence-modal-jurisdiction-scroll">
+                  <ul className="geofence-modal-jurisdiction">
+                    {vpnAttestation.sanctionedCountries.map((c) => (
+                      <li key={c.countryCode}>
+                        <strong>{c.countryCode}</strong>
+                        {' — '}
+                        {formatSanctionedCountryLabel(c)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <p className="geofence-modal-description geofence-modal-question">
+                  {t('compliance.vpn.sanctionedQuestion')}
+                </p>
                 {error && <p className="geofence-modal-description">{error}</p>}
                 <div className="geofence-modal-footer">
-                  <Button variant="primary" disabled={submitting} onClick={() => void submitAnswer('yes')}>
+                  <Button variant="secondary" disabled={submitting} onClick={() => void submitAnswer('yes')}>
                     {t('compliance.vpn.yes')}
                   </Button>
                   <Button variant="secondary" disabled={submitting} onClick={() => void submitAnswer('no')}>
@@ -115,12 +150,12 @@ export function VpnComplianceModal({ open, vpnAttestation, onComplete }: VpnComp
 
             {step === 'utah_residency' && (
               <>
-                <Dialog.Title className="geofence-modal-title">
+                <Dialog.Title className="geofence-modal-title geofence-modal-question">
                   {t('compliance.vpn.utahQuestion')}
                 </Dialog.Title>
                 {error && <p className="geofence-modal-description">{error}</p>}
                 <div className="geofence-modal-footer">
-                  <Button variant="primary" disabled={submitting} onClick={() => void submitAnswer('yes')}>
+                  <Button variant="secondary" disabled={submitting} onClick={() => void submitAnswer('yes')}>
                     {t('compliance.vpn.yes')}
                   </Button>
                   <Button variant="secondary" disabled={submitting} onClick={() => void submitAnswer('no')}>

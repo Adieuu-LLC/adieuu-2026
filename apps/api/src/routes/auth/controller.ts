@@ -980,7 +980,7 @@ export type GetSessionHandlerSuccess = {
     vpnAttestation?: {
       required: true;
       step: 'sanctioned_membership' | 'utah_residency';
-      sanctionedCountries: Array<{ countryCode: string; countryName: string }>;
+      sanctionedCountries: Array<{ countryCode: string; countryName: string; program?: string }>;
       vpnCountryCode?: string;
     };
   };

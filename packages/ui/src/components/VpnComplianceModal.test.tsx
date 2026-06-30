@@ -45,7 +45,10 @@ let VpnComplianceModal: VpnComplianceModalComponent;
 const vpnAttestation = {
   required: true as const,
   step: 'sanctioned_membership' as const,
-  sanctionedCountries: [{ countryCode: 'IR', countryName: 'Iran' }],
+  sanctionedCountries: [
+    { countryCode: 'IR', countryName: 'Iran', program: 'OFAC' },
+    { countryCode: 'KP', countryName: 'North Korea', program: 'ITAR/EAR' },
+  ],
 };
 
 async function loadVpnComplianceModal() {
@@ -138,6 +141,8 @@ describe('VpnComplianceModal', () => {
     expect(dialog?.getAttribute('aria-modal')).toBe('true');
     expect(happy.document.body.textContent).toContain('VPN compliance check');
     expect(happy.document.body.textContent).toContain('Iran');
+    expect(happy.document.body.textContent).not.toContain('Iran (OFAC)');
+    expect(happy.document.body.textContent).toContain('North Korea (ITAR/EAR)');
 
     const buttons = [...happy.document.querySelectorAll('button')];
     expect(buttons.some((b) => b.textContent?.includes('Yes'))).toBe(true);

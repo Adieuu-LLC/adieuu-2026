@@ -53,8 +53,8 @@ test.describe('VPN compliance modal', () => {
     const positionerStyles = await positioner.evaluate((el) => getComputedStyle(el).position);
     expect(positionerStyles).toBe('fixed');
 
-    await expect(page.getByRole('button', { name: 'No' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Yes' })).toBeVisible();
+    await expect(page.getByRole('button', { name: "No, I'm not" })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Yes, I am' })).toBeVisible();
   });
 
   test('allows completing attestation and restores page scroll', async ({ page }) => {
@@ -69,7 +69,7 @@ test.describe('VPN compliance modal', () => {
     const dialog = page.locator('[role="dialog"]');
     await expect(dialog).toBeVisible({ timeout: 10_000 });
 
-    await page.getByRole('button', { name: 'No' }).click();
+    await page.getByRole('button', { name: "No, I'm not" }).click();
 
     await expect(dialog).toHaveCount(0, { timeout: 10_000 });
 
