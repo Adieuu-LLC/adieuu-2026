@@ -20,9 +20,18 @@ mock.module('./av-settings', () => ({
   getRequiredMode: mockGetRequiredMode,
 }));
 
+const DEFAULT_POLICY = {
+  required: true,
+  compatibleMethods: ['Email', 'AgeEstimation', 'IDScanFaceMatch'],
+  compatibleMethodSlugs: ['email_age_check', 'facial_age_estimation', 'id_scan_face_match'],
+  leastInvasiveMethod: 'Email',
+  legislation: [],
+};
+
 mock.module('./jurisdiction-policy', () => ({
   requiresAgeVerification: mockRequiresAgeVerification,
   getAgeVerificationPolicy: mockGetAgeVerificationPolicy,
+  getDefaultAgeVerificationPolicy: () => DEFAULT_POLICY,
   resolveBusinessSettingsId: (id: string | undefined) => Promise.resolve(id),
   resolveBusinessSettings: (_j: string, _p: unknown) => Promise.resolve(undefined),
 }));
@@ -399,5 +408,67 @@ describe('evaluateAliasGate', () => {
     if (!result.allowed) {
       expect(result.code).toBe('AGE_VERIFICATION_REQUIRED');
     }
+  });
+
+  test('gifted user with no jurisdiction policy gets default method set', async () => {
+    mockGetAgeVerificationPolicy.mockImplementation(() => Promise.resolve(null));
+    const user = makeUser({
+      geo: { jurisdiction: 'CA', countryCode: 'CA', ipHash: '', checkedAt: new Date() },
+      entitlementOverrides: ['gifted'],
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(false);
+    if (!result.allowed && result.code === 'AGE_VERIFICATION_REQUIRED') {
+      expect(result.jurisdiction).toBe('CA');
+      expect(result.leastInvasiveMethod).toBe('Email');
+    }
+  });
+
+  test('gifted user with no geo falls back to GIFTED jurisdiction with default methods', async () => {
+    mockGetAgeVerificationPolicy.mockImplementation(() => Promise.resolve(null));
+    const user = makeUser({
+      entitlementOverrides: ['gifted'],
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(false);
+    if (!result.allowed && result.code === 'AGE_VERIFICATION_REQUIRED') {
+      expect(result.jurisdiction).toBe('GIFTED');
+      expect(result.leastInvasiveMethod).toBe('Email');
+    }
+  });
+
+  test('gifted user with matching jurisdiction policy uses that policy', async () => {
+    mockGetAgeVerificationPolicy.mockImplementation(() => Promise.resolve({
+      required: true,
+      compatibleMethods: ['AgeEstimation', 'IDScanFaceMatch'],
+      compatibleMethodSlugs: ['facial_age_estimation', 'id_scan_face_match'],
+      leastInvasiveMethod: 'AgeEstimation',
+      legislation: [],
+    }));
+    const user = makeUser({
+      geo: { jurisdiction: 'DE', countryCode: 'DE', ipHash: '', checkedAt: new Date() },
+      billing: {
+        activeSubscriptions: ['access'],
+        entitlements: ['gifted'],
+        isLifetime: false,
+        status: 'active',
+        updatedAt: new Date(),
+      },
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(false);
+    if (!result.allowed && result.code === 'AGE_VERIFICATION_REQUIRED') {
+      expect(result.leastInvasiveMethod).toBe('AgeEstimation');
+    }
+  });
+
+  test('verified gifted user is allowed through', async () => {
+    mockGetAgeVerificationPolicy.mockImplementation(() => Promise.resolve(null));
+    const user = makeUser({
+      entitlementOverrides: ['gifted'],
+      ageVerification: { status: 'verified', verifiedAt: new Date(), expirationCount: 0 },
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(true);
   });
 });

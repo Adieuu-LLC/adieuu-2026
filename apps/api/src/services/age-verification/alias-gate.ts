@@ -8,7 +8,7 @@
 
 import type { UserDocument } from '../../models/user';
 import { isAgeVerificationEnabled, getBlockedJurisdictions, getLawLinkForJurisdiction, getRequiredMode } from './av-settings';
-import { requiresAgeVerification, getAgeVerificationPolicy, type JurisdictionAgePolicy } from './jurisdiction-policy';
+import { requiresAgeVerification, getAgeVerificationPolicy, getDefaultAgeVerificationPolicy, type JurisdictionAgePolicy } from './jurisdiction-policy';
 
 const FAILED_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;       // 30 days
 const EXPIRED_COOLDOWN_MS = 24 * 60 * 60 * 1000;            // 24 hours
@@ -34,12 +34,17 @@ export async function evaluateAliasGate(user: UserDocument): Promise<AliasGateRe
   const enabled = await isAgeVerificationEnabled();
   if (!enabled) return ALLOWED;
 
-  // 1b. Sponsored (gifted) users must always verify age, regardless of jurisdiction
+  // 1b. Sponsored (gifted) users must always verify age, regardless of jurisdiction.
+  // When the jurisdiction has no seed data, fall back to the US standard method set
+  // so all methods (email background check, facial age estimation, ID scan) are available.
   const hasGifted =
     user.billing?.entitlements?.includes('gifted') ||
     user.entitlementOverrides?.includes('gifted');
   if (hasGifted) {
-    return evaluateAvStatus(user, user.geo?.jurisdiction ?? 'GIFTED');
+    const jurisdiction = user.geo?.jurisdiction ?? 'GIFTED';
+    const policy = await getAgeVerificationPolicy(jurisdiction);
+    const effectivePolicy = policy ?? getDefaultAgeVerificationPolicy();
+    return evaluateAvStatus(user, jurisdiction, undefined, effectivePolicy);
   }
 
   const jurisdiction = user.geo?.jurisdiction;

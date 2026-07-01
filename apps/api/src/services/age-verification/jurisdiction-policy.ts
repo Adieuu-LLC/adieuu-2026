@@ -50,6 +50,31 @@ export interface JurisdictionAgePolicy {
 }
 
 /**
+ * Returns a synthetic policy using the US standard method set (email,
+ * facial age estimation, ID scan + face match). Used as a fallback when
+ * a user must verify age but their jurisdiction has no seed data — e.g.
+ * gifted users in unlisted countries.
+ *
+ * The policy carries no business-settings or parent-jurisdiction fields,
+ * so {@link resolveBusinessSettings} will fall through to the platform
+ * default (Tier 3).
+ */
+export function getDefaultAgeVerificationPolicy(): JurisdictionAgePolicy {
+  const defaultSlugs = ['email_age_check', 'facial_age_estimation', 'id_scan_face_match'];
+  const orderedMethods = METHOD_ESCALATION_ORDER
+    .filter((m) => defaultSlugs.includes(m.slug))
+    .map((m) => m.verifyMyMethod);
+
+  return {
+    required: true,
+    compatibleMethods: orderedMethods,
+    compatibleMethodSlugs: defaultSlugs,
+    leastInvasiveMethod: orderedMethods[0] ?? 'Email',
+    legislation: [],
+  };
+}
+
+/**
  * Returns the age verification policy for a jurisdiction, or null if
  * no requirements exist in the seed data or admin overrides.
  */
