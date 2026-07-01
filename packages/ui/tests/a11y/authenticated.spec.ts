@@ -221,3 +221,51 @@ test.describe('dialog accessibility', () => {
     expect(await dialogAfterEscape.count()).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// VPN compliance modal accessibility
+// ---------------------------------------------------------------------------
+
+test.describe('VPN compliance dialog accessibility', () => {
+  test('traps focus and passes axe scan when attestation is required', async ({ page }) => {
+    const { mockVpnAttestationSession } = await import('../compliance/helpers');
+    await mockVpnAttestationSession(page);
+    await page.goto('/about', { waitUntil: 'networkidle' });
+
+    if (page.url().includes('/auth/login')) {
+      test.skip();
+      return;
+    }
+
+    const dialog = page.locator('[role="dialog"]');
+    await expect(dialog).toBeVisible({ timeout: 10_000 });
+    expect(await dialog.getAttribute('aria-modal')).toBe('true');
+
+    const focusInsideDialog = await dialog.locator(':focus').count();
+    expect(focusInsideDialog).toBeGreaterThan(0);
+
+    const focusable = dialog.locator(
+      'button:visible, [href]:visible, input:visible, select:visible, textarea:visible',
+    );
+    const focusableCount = await focusable.count();
+    expect(focusableCount).toBeGreaterThan(0);
+
+    if (focusableCount >= 2) {
+      for (let i = 0; i < focusableCount + 1; i++) {
+        await page.keyboard.press('Tab');
+      }
+      const stillInside = await dialog.locator(':focus').count();
+      expect(stillInside).toBeGreaterThan(0);
+    }
+
+    const results = await new AxeBuilder({ page }).include('[role="dialog"]').withTags(WCAG_TAGS).analyze();
+    const violations = results.violations.filter(
+      (v) => v.impact === 'critical' || v.impact === 'serious',
+    );
+
+    if (violations.length > 0) {
+      console.error(`A11y violations on VPN compliance dialog:\n${formatViolations(violations)}`);
+    }
+    expect(violations).toHaveLength(0);
+  });
+});

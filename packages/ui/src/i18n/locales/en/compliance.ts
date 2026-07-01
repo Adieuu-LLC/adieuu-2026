@@ -62,19 +62,19 @@ export const compliance = {
     continueOtherMethods: 'Continue with Other Methods',
   },
   vpn: {
-    title: 'Privacy-minded connection detected',
-    body: "It looks like you're connecting through an anonymizing service — good on you for caring about privacy!",
-    vpnHint: 'If you are using a VPN, make sure it is a reputable one. The free ones tend to be… creative with their IP reputation.',
-    sanctionedIntro: 'U.S. sanctions prohibit us from providing service to residents of the following countries:',
-    sanctionedQuestion: 'Are you a resident or national of any of these countries?',
+    title: "Looks like you're on a VPN - awesome!",
+    body: "It looks like you're connecting through an anonymizing service — we admire that you're taking steps to protect your privacy!",
+    vpnHint: "We have no issues with VPN use (we applaud it!), but we do need to make you aware that we presently do <strong>NOT</strong> provide service to the countries below. Similarly, we can not provide service to you if you connect your VPN through a node detected in a listed country.",
+    sanctionedIntro: "Connection from a country below, even if you are not a resident or national, results in a permanent ban and cannot be appealed.",
+    sanctionedQuestion: 'Are you a resident or national of any of the above countries?',
     utahQuestion: 'Do you live in Utah?',
     utahNotice:
       "Due to Utah's ridiculous regulations, we have to verify your age. Sorry.",
     utahContinue: 'Continue',
     sessionRefreshFailed:
       'Your response was saved, but we could not refresh your session. Please try again.',
-    yes: 'Yes',
-    no: 'No',
+    yes: 'Yes, I am',
+    no: "No, I'm not",
   },
   abusiveIp: {
     title: 'This network is not welcome here',

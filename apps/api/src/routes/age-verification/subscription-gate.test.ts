@@ -28,6 +28,9 @@ mock.module('../../services/session.service', () => ({
   getSessionFromRequest: mock(() => Promise.resolve(null)),
   getSessionIdFromRequest: mock(() => null),
   createAccountSession: mock(() => Promise.resolve({ sessionId: 'test', cookie: '' })),
+  createIdentitySession: mock(() =>
+    Promise.resolve({ sessionId: 'test-identity', cookie: '', csrfCookie: '' }),
+  ),
   destroySession: mock(() => Promise.resolve()),
   destroyAllSessions: mock(() => Promise.resolve(0)),
   buildLogoutCookie: mock(() => ''),
@@ -80,8 +83,13 @@ mock.module('../../config', () => ({
   },
 }));
 
-mock.module('../../utils/adieuuLogger', () => ({
-  default: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+mock.module('../../utils/adieuuLogger', () => {
+  const stub = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
+  return { default: stub, adieuuLogger: stub };
+});
+
+mock.module('../../routes/auth/controller', () => ({
+  getClientIp: mock(() => '127.0.0.1'),
 }));
 
 // Import module under test after mocks are set up

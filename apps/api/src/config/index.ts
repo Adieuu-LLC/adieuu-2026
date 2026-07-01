@@ -555,6 +555,10 @@ export function validateProductionConfig(): void {
     errors.push('DEV_CLIENT_IP must not be set in production');
   }
 
+  if (process.env.DEV_FORCE_ANONYMOUS_IP?.trim()) {
+    errors.push('DEV_FORCE_ANONYMOUS_IP must not be set in production');
+  }
+
   // Check security secrets aren't defaults
   if (config.security.csrfSecret.includes('dev-')) {
     errors.push('CSRF_SECRET must be set in production');

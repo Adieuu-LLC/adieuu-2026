@@ -26,6 +26,7 @@ export const ABUSIVE_IP_BLOCKED_MESSAGE =
 export interface SanctionedCountrySummary {
   countryCode: string;
   countryName: string;
+  program?: string;
 }
 
 export type ComplianceEvaluationResult =

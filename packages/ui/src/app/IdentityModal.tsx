@@ -516,6 +516,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
       closeOnEscape={!isNonDismissable && !webDeviceChoiceOpen && !migrationPromptOpen}
       trapFocus
       preventScroll
+      lazyMount
     >
       <Portal>
         <Dialog.Backdrop className="confirm-dialog-backdrop identity-modal-backdrop" />

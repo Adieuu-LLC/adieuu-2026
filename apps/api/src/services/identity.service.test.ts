@@ -148,8 +148,9 @@ import {
   getIdentitySessionIdFromRequest,
   changePassphrase,
   MIN_PASSPHRASE_LENGTH,
-  MAX_IDENTITIES_PER_USER,
+  resolveMaxIdentities,
 } from './identity.service';
+import { IDENTITY_LIMITS } from '../constants/identity-limits';
 
 describe('identity.service', () => {
   afterAll(() => {
@@ -252,7 +253,7 @@ describe('identity.service', () => {
 
       const result = await createIdentity(
         testAccountHash,
-        MAX_IDENTITIES_PER_USER,
+        IDENTITY_LIMITS.access,
         validPassphrase,
         testUsername,
         testDisplayName,
@@ -284,7 +285,7 @@ describe('identity.service', () => {
     test('returns VALIDATION_ERROR for short passphrase', async () => {
       const result = await createIdentity(
         testAccountHash,
-        MAX_IDENTITIES_PER_USER,
+        IDENTITY_LIMITS.access,
         'short',
         testUsername,
         testDisplayName,
@@ -297,12 +298,12 @@ describe('identity.service', () => {
 
     test('returns MAX_IDENTITIES when count exceeds limit', async () => {
       mockIdentityCountRepo.getCount.mockImplementation(() =>
-        Promise.resolve(MAX_IDENTITIES_PER_USER),
+        Promise.resolve(IDENTITY_LIMITS.access),
       );
 
       const result = await createIdentity(
         testAccountHash,
-        MAX_IDENTITIES_PER_USER,
+        IDENTITY_LIMITS.access,
         validPassphrase,
         testUsername,
         testDisplayName,
@@ -320,7 +321,7 @@ describe('identity.service', () => {
 
       const result = await createIdentity(
         testAccountHash,
-        MAX_IDENTITIES_PER_USER,
+        IDENTITY_LIMITS.access,
         validPassphrase,
         testUsername,
         testDisplayName,
@@ -337,7 +338,7 @@ describe('identity.service', () => {
 
       const result = await createIdentity(
         testAccountHash,
-        MAX_IDENTITIES_PER_USER,
+        IDENTITY_LIMITS.access,
         validPassphrase,
         testUsername,
         testDisplayName,
@@ -1002,6 +1003,84 @@ describe('identity.service', () => {
   describe('MIN_PASSPHRASE_LENGTH', () => {
     test('is at least 8 characters', () => {
       expect(MIN_PASSPHRASE_LENGTH).toBeGreaterThanOrEqual(8);
+    });
+  });
+
+  describe('resolveMaxIdentities', () => {
+    test('returns access limit for access-only subscription', () => {
+      expect(resolveMaxIdentities(['access'], [], false)).toBe(IDENTITY_LIMITS.access);
+    });
+
+    test('returns insider limit for insider subscription', () => {
+      expect(resolveMaxIdentities(['insider'], [], false)).toBe(IDENTITY_LIMITS.insider);
+    });
+
+    test('returns insider limit when both access and insider present', () => {
+      expect(resolveMaxIdentities(['access', 'insider'], [], false)).toBe(IDENTITY_LIMITS.insider);
+    });
+
+    test('returns lifetime limit for founder entitlement', () => {
+      expect(resolveMaxIdentities(['insider'], ['founder'], false)).toBe(IDENTITY_LIMITS.lifetime);
+    });
+
+    test('returns lifetime limit for vanguard entitlement', () => {
+      expect(resolveMaxIdentities(['insider'], ['vanguard'], false)).toBe(IDENTITY_LIMITS.lifetime);
+    });
+
+    test('returns lifetime limit when isLifetime is true', () => {
+      expect(resolveMaxIdentities(['access'], [], true)).toBe(IDENTITY_LIMITS.lifetime);
+    });
+
+    test('founder entitlement takes precedence over subscription tier', () => {
+      expect(resolveMaxIdentities(['access'], ['founder'], false)).toBe(IDENTITY_LIMITS.lifetime);
+    });
+
+    test('vanguard entitlement takes precedence over subscription tier', () => {
+      expect(resolveMaxIdentities(['access'], ['vanguard'], false)).toBe(IDENTITY_LIMITS.lifetime);
+    });
+
+    test('returns 0 for no subscription and no entitlements', () => {
+      expect(resolveMaxIdentities([], [], false)).toBe(0);
+    });
+
+    test('account override raises the limit above tier resolution', () => {
+      expect(resolveMaxIdentities(['access'], [], false, 5)).toBe(5);
+    });
+
+    test('account override does not lower the limit below tier resolution', () => {
+      expect(resolveMaxIdentities(['insider'], [], false, 1)).toBe(IDENTITY_LIMITS.insider);
+    });
+
+    test('account override raises limit even with no subscription', () => {
+      expect(resolveMaxIdentities([], [], false, 3)).toBe(3);
+    });
+
+    test('account override of 0 has no effect', () => {
+      expect(resolveMaxIdentities(['access'], [], false, 0)).toBe(IDENTITY_LIMITS.access);
+    });
+
+    test('undefined account override has no effect', () => {
+      expect(resolveMaxIdentities(['access'], [], false, undefined)).toBe(IDENTITY_LIMITS.access);
+    });
+
+    test('unrecognized entitlements do not affect resolution', () => {
+      expect(resolveMaxIdentities(['access'], ['gifted', 'sponsor'], false)).toBe(IDENTITY_LIMITS.access);
+    });
+
+    test('lifetime flag with insider still returns lifetime limit', () => {
+      expect(resolveMaxIdentities(['insider'], [], true)).toBe(IDENTITY_LIMITS.lifetime);
+    });
+
+    test('founder + vanguard together still returns lifetime limit', () => {
+      expect(resolveMaxIdentities(['insider'], ['founder', 'vanguard'], false)).toBe(IDENTITY_LIMITS.lifetime);
+    });
+
+    test('account override works alongside lifetime entitlements', () => {
+      expect(resolveMaxIdentities(['insider'], ['founder'], false, 10)).toBe(10);
+    });
+
+    test('account override equal to tier resolution returns that value', () => {
+      expect(resolveMaxIdentities(['insider'], [], false, IDENTITY_LIMITS.insider)).toBe(IDENTITY_LIMITS.insider);
     });
   });
 });
