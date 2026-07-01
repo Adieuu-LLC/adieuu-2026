@@ -123,7 +123,7 @@ test.describe('landmark structure', () => {
     await page.goto('/auth/login', { waitUntil: 'networkidle' });
 
     const heading = page.locator('h1, h2, h3, [role="heading"]');
-    expect(await heading.count()).toBeGreaterThan(0);
+    await expect(heading.first()).toBeAttached({ timeout: 10_000 });
   });
 });
 

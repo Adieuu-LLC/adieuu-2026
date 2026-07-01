@@ -62,8 +62,14 @@ describe('modal CSS contract', () => {
       'utf8',
     );
 
-    expect(geofenceScss).toMatch(/\.geofence-modal-backdrop[\s\S]*position:\s*fixed/);
-    expect(geofenceScss).toMatch(/\.geofence-modal-positioner[\s\S]*position:\s*fixed/);
-    expect(geofenceScss).toContain("[data-state='closed']");
+    expect(geofenceScss).toMatch(
+      /\.geofence-modal-backdrop\s*\{[^}]*position:\s*fixed/,
+    );
+    expect(geofenceScss).toMatch(
+      /\.geofence-modal-positioner\s*\{[^}]*position:\s*fixed/,
+    );
+    expect(geofenceScss).toMatch(
+      /\.geofence-modal-backdrop[\s\S]*?\[data-state='closed'\]/,
+    );
   });
 });

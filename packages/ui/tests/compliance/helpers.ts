@@ -25,7 +25,7 @@ export async function mockVpnAttestationSession(page: Page, options?: { clearAft
           data: {
             ...json.data,
             signedToken: undefined,
-            compliance: { vpnAttestation: VPN_ATTESTATION },
+            compliance: { ...json.data.compliance, vpnAttestation: VPN_ATTESTATION },
           },
         },
       });
@@ -37,6 +37,19 @@ export async function mockVpnAttestationSession(page: Page, options?: { clearAft
 
   if (options?.clearAfterSubmit) {
     await page.route('**/api/compliance/vpn-attestation', async (route: Route) => {
+      const body = route.request().postDataJSON();
+      const validSteps = ['sanctioned_membership', 'utah_residency'];
+      const validAnswers = ['yes', 'no'];
+
+      if (!body || !validSteps.includes(body.step) || !validAnswers.includes(body.answer)) {
+        await route.fulfill({
+          status: 400,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: false, error: { code: 'VALIDATION_FAILED', message: 'Invalid request.' } }),
+        });
+        return;
+      }
+
       attestationActive = false;
       await route.fulfill({
         status: 200,

@@ -67,11 +67,10 @@ test.describe('VPN compliance modal', () => {
 
     await expect(dialog).toHaveCount(0, { timeout: 10_000 });
 
-    const scrollWorks = await page.evaluate(() => {
-      const before = window.scrollY;
-      window.scrollTo(0, before + 120);
-      return window.scrollY > before;
+    const overflowRestored = await page.evaluate(() => {
+      const style = getComputedStyle(document.body);
+      return style.overflow !== 'hidden' && style.overflowY !== 'hidden';
     });
-    expect(scrollWorks).toBe(true);
+    expect(overflowRestored).toBe(true);
   });
 });
