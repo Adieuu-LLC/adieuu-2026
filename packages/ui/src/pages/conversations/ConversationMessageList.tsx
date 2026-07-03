@@ -164,6 +164,18 @@ export function ConversationMessageList({
 
   const pinnedSet = useMemo(() => new Set(pinnedMessageIds), [pinnedMessageIds]);
 
+  const FREE_TIER_HISTORY_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+  const CUTOFF_TOLERANCE_MS = 24 * 60 * 60 * 1000;
+
+  const isOldestMessageNearTierCutoff = useMemo(() => {
+    if (!isFreeTier) return false;
+    const oldestMsg = flatItems.find((item) => item.type === 'message');
+    if (!oldestMsg || oldestMsg.type !== 'message') return false;
+    const oldestTs = new Date(oldestMsg.msg.createdAt).getTime();
+    const cutoffTs = Date.now() - FREE_TIER_HISTORY_WINDOW_MS;
+    return oldestTs - cutoffTs <= CUTOFF_TOLERANCE_MS;
+  }, [isFreeTier, flatItems]);
+
   const topSentinelRef = useRef<HTMLDivElement | null>(null);
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
   const restoredForConvRef = useRef<string | null>(null);
@@ -426,7 +438,7 @@ export function ConversationMessageList({
             </div>
           ) : null}
           <div ref={topSentinelRef} className="dm-messages-top-sentinel" aria-hidden />
-          {isFreeTier && !hasMoreOlder && !messagesLoading && reversedMessagesLength > 0 && (
+          {isFreeTier && !hasMoreOlder && !messagesLoading && reversedMessagesLength > 0 && isOldestMessageNearTierCutoff && (
             <UpgradePrompt
               variant="banner"
               message={tLocal('conversations.upgradeForOlderMessages', { defaultValue: 'Upgrade to view older messages' })}
