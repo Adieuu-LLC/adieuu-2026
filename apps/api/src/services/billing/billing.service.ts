@@ -215,6 +215,8 @@ export async function ensureFreeSubscription(
     customer: customerId,
     items: [{ price: freePriceId }],
     metadata: { userId, productId: 'free' },
+  }, {
+    idempotencyKey: `free-sub-${userId}`,
   });
 
   const billing = await deriveSubscriptionBilling(stripe, subscription.id, user.billing);

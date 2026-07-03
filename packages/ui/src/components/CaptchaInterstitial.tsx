@@ -68,9 +68,13 @@ export function CaptchaInterstitial({
         setError(t('captcha.verificationFailed'));
         onFailed();
       }
-    } catch {
-      setError(t('captcha.verificationFailed'));
-      onFailed();
+    } catch (err) {
+      if (err instanceof TypeError || (err instanceof Error && err.message.includes('fetch'))) {
+        setError(t('captcha.networkError'));
+      } else {
+        setError(t('captcha.verificationFailed'));
+        onFailed();
+      }
     } finally {
       setSubmitting(false);
     }

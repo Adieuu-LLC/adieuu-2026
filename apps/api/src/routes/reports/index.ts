@@ -51,7 +51,7 @@ router.post('/reports', async (ctx) => {
 
   const body = ctx.body as Record<string, unknown> | undefined;
   if (body?.type === 'profile') {
-    const hasPaid = subscriptions.some((t: SubscriptionTierId) => t !== 'free');
+    const hasPaid = subscriptions.some((t) => t === 'access' || t === 'insider');
     if (!hasPaid) {
       return error(
         'FREE_TIER_RESTRICTED',

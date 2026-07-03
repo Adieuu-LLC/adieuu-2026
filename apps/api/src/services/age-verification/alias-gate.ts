@@ -36,6 +36,16 @@ export async function evaluateAliasGate(user: UserDocument): Promise<AliasGateRe
   const enabled = await isAgeVerificationEnabled();
   if (!enabled) return ALLOWED;
 
+  // 1a. Geofence always wins -- blocked jurisdictions short-circuit before any AV evaluation.
+  const jurisdiction = user.geo?.jurisdiction;
+  if (jurisdiction) {
+    const blocked = await getBlockedJurisdictions();
+    if (blocked.has(jurisdiction.toUpperCase())) {
+      const lawUrl = await getLawLinkForJurisdiction(jurisdiction);
+      return { allowed: false, code: 'GEOFENCE_BLOCKED', jurisdiction, lawUrl };
+    }
+  }
+
   // 1b. Sponsored (gifted) users must always verify age, regardless of jurisdiction.
   // When the jurisdiction has no seed data, fall back to the US standard method set
   // so all methods (email background check, facial age estimation, ID scan) are available.
@@ -43,31 +53,20 @@ export async function evaluateAliasGate(user: UserDocument): Promise<AliasGateRe
     user.billing?.entitlements?.includes('gifted') ||
     user.entitlementOverrides?.includes('gifted');
   if (hasGifted) {
-    const jurisdiction = user.geo?.jurisdiction ?? 'GIFTED';
-    const policy = await getAgeVerificationPolicy(jurisdiction);
+    const giftedJurisdiction = jurisdiction ?? 'GIFTED';
+    const policy = await getAgeVerificationPolicy(giftedJurisdiction);
     const effectivePolicy = policy ?? getDefaultAgeVerificationPolicy();
-    return evaluateAvStatus(user, jurisdiction, undefined, effectivePolicy);
+    return evaluateAvStatus(user, giftedJurisdiction, undefined, effectivePolicy);
   }
 
   // 1c. Free-tier-only users must always verify age (same policy as gifted).
   // Uses default US settings (email background check, facial age estimation, ID scan)
   // when the jurisdiction has no seed data.
   if (isFreeTierOnly(user)) {
-    const jurisdiction = user.geo?.jurisdiction ?? 'FREE_TIER';
-    const policy = await getAgeVerificationPolicy(jurisdiction);
+    const freeJurisdiction = jurisdiction ?? 'FREE_TIER';
+    const policy = await getAgeVerificationPolicy(freeJurisdiction);
     const effectivePolicy = policy ?? getDefaultAgeVerificationPolicy();
-    return evaluateAvStatus(user, jurisdiction, 'free_tier', effectivePolicy);
-  }
-
-  const jurisdiction = user.geo?.jurisdiction;
-
-  // Geofence wins over compliance-driven AV paths when jurisdiction is known
-  if (jurisdiction) {
-    const blocked = await getBlockedJurisdictions();
-    if (blocked.has(jurisdiction.toUpperCase())) {
-      const lawUrl = await getLawLinkForJurisdiction(jurisdiction);
-      return { allowed: false, code: 'GEOFENCE_BLOCKED', jurisdiction, lawUrl };
-    }
+    return evaluateAvStatus(user, freeJurisdiction, 'free_tier', effectivePolicy);
   }
 
   // Compliance-driven AV: abusive IP flag

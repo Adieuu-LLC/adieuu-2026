@@ -88,14 +88,16 @@ describe('verifyCaptcha (disabled)', () => {
         config: {
           friendlyCaptcha: {
             enabled: false,
-            apiKey: '',
-            sitekey: '',
+            apiKey: 'real-key-but-disabled',
+            sitekey: 'test-sitekey',
           },
         },
       }));
       return import('./captcha.service');
     })();
+    mockVerifyCaptchaResponse.mockReset();
     const result = await disabledModule.verifyCaptcha('anything');
     expect(result.valid).toBe(true);
+    expect(mockVerifyCaptchaResponse).not.toHaveBeenCalled();
   });
 });

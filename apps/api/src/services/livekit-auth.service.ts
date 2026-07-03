@@ -56,7 +56,7 @@ export async function mintLiveKitToken(input: MintLiveKitTokenInput): Promise<st
   at.addGrant({
     roomJoin: true,
     room: input.roomName,
-    canPublish: !input.audioOnly,
+    canPublish: true,
     canPublishSources: input.audioOnly ? [TrackSource.MICROPHONE] : undefined,
     canSubscribe: true,
   });

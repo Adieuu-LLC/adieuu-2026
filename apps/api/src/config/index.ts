@@ -627,6 +627,7 @@ export function validateProductionConfig(): void {
       errors.push('STRIPE_PUBLISHABLE_KEY must be set when STRIPE_ENABLED is true');
     }
     const stripePriceEnvs: [keyof typeof config.stripe.prices, string][] = [
+      ['freeMonthly', 'STRIPE_PRICE_FREE_MONTHLY'],
       ['accessAnnual', 'STRIPE_PRICE_ACCESS_ANNUAL'],
       ['insiderAnnual', 'STRIPE_PRICE_INSIDER_ANNUAL'],
       ['vanguardLifetime', 'STRIPE_PRICE_VANGUARD_LIFETIME'],
@@ -636,6 +637,12 @@ export function validateProductionConfig(): void {
       if (!config.stripe.prices[key]) {
         errors.push(`${envName} must be set when STRIPE_ENABLED is true`);
       }
+    }
+  }
+
+  if (config.friendlyCaptcha.enabled) {
+    if (!config.friendlyCaptcha.apiKey) {
+      errors.push('FRIENDLY_CAPTCHA_API_KEY must be set when FRIENDLY_CAPTCHA_ENABLED is true');
     }
   }
 

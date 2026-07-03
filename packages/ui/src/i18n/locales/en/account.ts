@@ -627,7 +627,7 @@ export const account = {
         billingRowLabel: 'Billing',
         cellFree: 'Free',
         cellFreeSubtext: 'Free but Unsustainable',
-        cellFreePopoverP1: "We are trying really hard to make private communications accessible for everyone, but the reality is nothing's s free. Someone has to pay to for technical and business costs.",
+        cellFreePopoverP1: "We are trying really hard to make private communications accessible for everyone, but the reality is nothing's free. Someone has to pay for technical and business costs.",
         cellFreePopoverP2: "We will offer a Free tier as long as we can, but can't make any guarantees how long that is. Some people absolutely can not afford even our lowest subscription: we get that. All we're asking is that, if you're able, you consider purchasing a subscription so that those that are truly unable can have access to the privacy they deserve, too.",
         cellFreePopoverP3: '',
         cellAnnual: 'Annual subscription',

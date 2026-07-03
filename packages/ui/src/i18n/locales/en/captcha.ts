@@ -7,6 +7,7 @@ export const captcha = {
   interstitialTitle: 'Verification Required',
   interstitialDescription: 'Please complete this quick verification to continue. This helps us prevent automated abuse on the platform.',
   verificationFailed: 'Verification failed. Please try logging in again.',
+  networkError: 'A network error occurred. Please check your connection and try again.',
   widgetLoadError: 'The verification widget failed to load. Please check your connection and try again.',
   retry: 'Retry',
   signOut: 'Sign out',

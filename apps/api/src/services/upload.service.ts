@@ -108,13 +108,19 @@ export interface CompleteUploadResult {
 }
 
 /**
- * Upload purposes that require a paid (access+) subscription tier.
- * Free tier users may only upload avatars.
+ * Upload purposes restricted to paid (access+) subscription tiers.
+ * Free-tier users may only upload avatars; all other purposes require
+ * an active paid subscription.
  */
 const PAID_ONLY_UPLOAD_PURPOSES: ReadonlySet<UploadPurpose> = new Set([
   'banner',
   'space_media',
   'custom_emoji',
+  'dm_attachment',
+  'conv_media',
+  'conv_scan',
+  'ticket_attachment',
+  'feedback_attachment',
 ]);
 
 /**

@@ -632,15 +632,17 @@ async function findOrCreateUser(
   const needsFreeSubscription =
     !user.stripeCustomerId || !user.billing?.activeSubscriptions?.length;
   if (config.stripe?.enabled && needsFreeSubscription) {
-    try {
-      const { ensureFreeSubscription } = await import('../../services/billing/billing.service');
-      await ensureFreeSubscription(user);
-    } catch (err) {
-      elog.warn('Failed to create Stripe customer/free subscription for user', {
-        userId: user._id.toHexString(),
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
+    void (async () => {
+      try {
+        const { ensureFreeSubscription } = await import('../../services/billing/billing.service');
+        await ensureFreeSubscription(user);
+      } catch (err) {
+        elog.warn('Failed to create Stripe customer/free subscription for user', {
+          userId: user._id.toHexString(),
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    })();
   }
 
   return user;
