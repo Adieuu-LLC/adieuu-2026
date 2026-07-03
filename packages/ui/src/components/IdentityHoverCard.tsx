@@ -48,7 +48,9 @@ export function IdentityHoverCardContent({
   const { isBlocked, requestBlockConfirm } = useBlockContext();
   const { friends, getFriendshipStatus } = useFriends();
   const [reportOpen, setReportOpen] = useState(false);
-  const canReportProfiles = (session?.subscriptions ?? []).some((t_) => t_ !== 'free');
+  const canReportProfiles = session?.isLifetime ||
+    (session?.subscriptions ?? []).some((t_) => t_ === 'access' || t_ === 'insider') ||
+    (session?.entitlements ?? []).includes('gifted');
   const [fetchedFriendsSince, setFetchedFriendsSince] = useState<string | undefined>(undefined);
 
   const friendsSinceFromList = useMemo(

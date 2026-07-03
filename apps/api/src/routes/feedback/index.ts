@@ -5,6 +5,7 @@
 import { Router, type RouteContext } from '../../router';
 import { success, error } from '../../utils/response';
 import { requireIdentitySession, type IdentityContext } from '../../middleware/identity-session';
+import { hasPaidAccess } from '../../services/billing/resolve-access';
 import {
   addCommentResult,
   createPostResult,
@@ -51,15 +52,11 @@ function requireIdentity(ctx: RouteContext) {
   return { ok: true as const, identitySession: ctx.identitySession! };
 }
 
-function hasPaidTier(ctx: IdentityContext): boolean {
-  return ctx.subscriptions.some((t) => t === 'access' || t === 'insider');
-}
-
 router.post('/feedback', async (ctx) => {
   const auth = requireIdentity(ctx);
   if (!auth.ok) return auth.response;
 
-  if (!hasPaidTier(auth.identitySession)) {
+  if (!hasPaidAccess(auth.identitySession)) {
     return error('TIER_REQUIRED', 'Upgrade to a paid plan to post feedback.', 403);
   }
 
@@ -111,7 +108,7 @@ router.post('/feedback/:postId/upvote', async (ctx) => {
   const auth = requireIdentity(ctx);
   if (!auth.ok) return auth.response;
 
-  if (!hasPaidTier(auth.identitySession)) {
+  if (!hasPaidAccess(auth.identitySession)) {
     return error('TIER_REQUIRED', 'Upgrade to a paid plan to vote on feedback.', 403);
   }
 
@@ -124,7 +121,7 @@ router.delete('/feedback/:postId/upvote', async (ctx) => {
   const auth = requireIdentity(ctx);
   if (!auth.ok) return auth.response;
 
-  if (!hasPaidTier(auth.identitySession)) {
+  if (!hasPaidAccess(auth.identitySession)) {
     return error('TIER_REQUIRED', 'Upgrade to a paid plan to vote on feedback.', 403);
   }
 

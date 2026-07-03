@@ -25,6 +25,7 @@ import {
   awardTvReferenceDisplayNameAchievements,
 } from '../../services/tv-reference-text-achievement.service';
 import { publishProfileUpdated } from '../../services/profile-event.service';
+import { hasPaidAccess } from '../../services/billing/resolve-access';
 import { contrastRatio } from '../../utils/color';
 import { getIdentityRepository } from '../../repositories/identity.repository';
 import { getMediaUploadRepository } from '../../repositories/media-upload.repository';
@@ -201,10 +202,7 @@ export async function updateProfileCtrl(ctx: RouteContext): Promise<Response> {
   }
 
   if (data.profileColors !== undefined) {
-    const hasPaidTier = ctx.identitySession!.subscriptions.some(
-      (t) => t === 'access' || t === 'insider',
-    );
-    if (!hasPaidTier) {
+    if (!hasPaidAccess(ctx.identitySession!)) {
       return errors.forbidden('Upgrade to a paid plan to customize profile colors.');
     }
     const colors: Record<string, string | undefined> = {};

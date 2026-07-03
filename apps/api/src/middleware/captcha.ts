@@ -28,6 +28,15 @@ import { getUserRepository } from '../repositories/user.repository';
 import { error } from '../utils/response';
 import { config } from '../config';
 
+export interface CaptchaOptions {
+  /**
+   * When true, skip the 15-minute session cache and always require a fresh
+   * captcha response. Use for high-abuse endpoints like friend requests and
+   * content reports where per-action verification is needed.
+   */
+  skipSessionCache?: boolean;
+}
+
 /**
  * Enforces captcha verification for free-tier users on a protected action.
  *
@@ -38,10 +47,12 @@ import { config } from '../config';
  *
  * @param ctx - The route context (reads `frc-captcha-response` from body)
  * @param preloadedUser - Optional pre-fetched user document to avoid extra DB lookup
+ * @param options - Optional captcha behavior overrides
  */
 export async function requireCaptchaForFreeTier(
   ctx: RouteContext,
   preloadedUser?: UserDocument | null,
+  options?: CaptchaOptions,
 ): Promise<Response | null> {
   if (!config.friendlyCaptcha.enabled) {
     return null;
@@ -57,7 +68,7 @@ export async function requireCaptchaForFreeTier(
   }
 
   const sessionId = getSessionIdFromRequest(ctx.request);
-  if (sessionId && await isCaptchaVerifiedRecently(sessionId)) {
+  if (!options?.skipSessionCache && sessionId && await isCaptchaVerifiedRecently(sessionId)) {
     return null;
   }
 

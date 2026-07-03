@@ -9,15 +9,20 @@ mock.module('../services/captcha.service', () => ({
   verifyCaptcha: mockVerifyCaptcha,
 }));
 
+const mockIsCaptchaVerifiedRecently = mock(() => Promise.resolve(false));
+const mockMarkCaptchaVerified = mock(() => Promise.resolve());
+
 mock.module('../services/captcha-session.service', () => ({
-  isCaptchaVerifiedRecently: mock(() => Promise.resolve(false)),
-  markCaptchaVerified: mock(() => Promise.resolve()),
+  isCaptchaVerifiedRecently: mockIsCaptchaVerifiedRecently,
+  markCaptchaVerified: mockMarkCaptchaVerified,
 }));
+
+const mockGetSessionIdFromRequest = mock(() => null as string | null);
 
 mock.module('../services/session.service', () => ({
   getSessionFromRequest: mockGetSessionFromRequest,
   requireAccountSession: mock(() => Promise.resolve(null)),
-  getSessionIdFromRequest: mock(() => null),
+  getSessionIdFromRequest: mockGetSessionIdFromRequest,
 }));
 
 mock.module('../repositories/user.repository', () => ({
@@ -96,8 +101,14 @@ beforeEach(() => {
   mockVerifyCaptcha.mockReset();
   mockGetSessionFromRequest.mockReset();
   mockFindById.mockReset();
+  mockIsCaptchaVerifiedRecently.mockReset();
+  mockMarkCaptchaVerified.mockReset();
+  mockGetSessionIdFromRequest.mockReset();
 
   mockVerifyCaptcha.mockImplementation(() => Promise.resolve({ valid: true }));
+  mockIsCaptchaVerifiedRecently.mockImplementation(() => Promise.resolve(false));
+  mockMarkCaptchaVerified.mockImplementation(() => Promise.resolve());
+  mockGetSessionIdFromRequest.mockImplementation(() => null);
 });
 
 describe('requireCaptchaForFreeTier', () => {
@@ -168,5 +179,64 @@ describe('requireCaptchaForFreeTier', () => {
     const ctx = makeCtx({ body: {}, accountUser: user });
     const result = await requireCaptchaForFreeTier(ctx, user as any);
     expect(result).toBeNull();
+  });
+
+  test('recently-verified session bypasses captcha for free-tier user', async () => {
+    mockGetSessionIdFromRequest.mockImplementation(() => 'sess-abc');
+    mockIsCaptchaVerifiedRecently.mockImplementation(() => Promise.resolve(true));
+    const user = makeFreeUser();
+    const ctx = makeCtx({ body: {}, accountUser: user });
+    const result = await requireCaptchaForFreeTier(ctx, user as any);
+    expect(result).toBeNull();
+    expect(mockVerifyCaptcha).not.toHaveBeenCalled();
+  });
+
+  test('markCaptchaVerified is called when free-tier user passes captcha with a session', async () => {
+    mockGetSessionIdFromRequest.mockImplementation(() => 'sess-xyz');
+    const user = makeFreeUser();
+    const ctx = makeCtx({
+      body: { 'frc-captcha-response': 'valid-token' },
+      accountUser: user,
+    });
+    const result = await requireCaptchaForFreeTier(ctx, user as any);
+    expect(result).toBeNull();
+    expect(mockMarkCaptchaVerified).toHaveBeenCalledWith('sess-xyz');
+  });
+
+  describe('skipSessionCache option', () => {
+    test('skipSessionCache: true forces captcha even when session was recently verified', async () => {
+      mockGetSessionIdFromRequest.mockImplementation(() => 'sess-cached');
+      mockIsCaptchaVerifiedRecently.mockImplementation(() => Promise.resolve(true));
+      mockVerifyCaptcha.mockImplementation(() => Promise.resolve({ valid: false, error: 'response_missing' }));
+      const user = makeFreeUser();
+      const ctx = makeCtx({ body: {}, accountUser: user });
+      const result = await requireCaptchaForFreeTier(ctx, user as any, { skipSessionCache: true });
+      expect(result).not.toBeNull();
+      expect(result!.status).toBe(422);
+      expect(mockIsCaptchaVerifiedRecently).not.toHaveBeenCalled();
+    });
+
+    test('skipSessionCache: true still calls markCaptchaVerified on success', async () => {
+      mockGetSessionIdFromRequest.mockImplementation(() => 'sess-cached');
+      mockIsCaptchaVerifiedRecently.mockImplementation(() => Promise.resolve(true));
+      const user = makeFreeUser();
+      const ctx = makeCtx({
+        body: { 'frc-captcha-response': 'valid-token' },
+        accountUser: user,
+      });
+      const result = await requireCaptchaForFreeTier(ctx, user as any, { skipSessionCache: true });
+      expect(result).toBeNull();
+      expect(mockMarkCaptchaVerified).toHaveBeenCalledWith('sess-cached');
+    });
+
+    test('skipSessionCache: false uses session cache normally', async () => {
+      mockGetSessionIdFromRequest.mockImplementation(() => 'sess-normal');
+      mockIsCaptchaVerifiedRecently.mockImplementation(() => Promise.resolve(true));
+      const user = makeFreeUser();
+      const ctx = makeCtx({ body: {}, accountUser: user });
+      const result = await requireCaptchaForFreeTier(ctx, user as any, { skipSessionCache: false });
+      expect(result).toBeNull();
+      expect(mockVerifyCaptcha).not.toHaveBeenCalled();
+    });
   });
 });

@@ -33,37 +33,6 @@
   }
 }
 
-// CaptchaInterstitial uses elevated z-index to ensure it renders above
-// the per-action CaptchaGateProvider dialog if both are ever mounted.
-.captcha-interstitial-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(4px);
-  z-index: calc(var(--z-modal-backdrop) + 10);
-
-  &[data-state='open'] {
-    animation: fadeIn var(--transition-fast) ease;
-  }
-
-  &[data-state='closed'] {
-    display: none;
-  }
-}
-
-.captcha-interstitial-positioner {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: calc(var(--z-modal) + 10);
-
-  &[data-state='closed'] {
-    display: none;
-  }
-}
-
 .geofence-modal-content {
   position: relative;
   display: flex;

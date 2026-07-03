@@ -21,6 +21,7 @@ import {
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import type { Conditions as PostCondition } from '@aws-sdk/s3-presigned-post/dist-types/types';
 import type { SubscriptionTierId } from '@adieuu/shared';
+import { hasPaidAccess } from './billing/resolve-access';
 import { config } from '../config';
 import { getMediaUploadRepository } from '../repositories/media-upload.repository';
 import {
@@ -147,10 +148,11 @@ export async function requestUpload(
   }
 
   if (PAID_ONLY_UPLOAD_PURPOSES.has(input.purpose)) {
-    const hasPaidTier = input.subscriptions?.some(
-      (t) => t === 'access' || t === 'insider',
-    );
-    if (!hasPaidTier) {
+    if (!hasPaidAccess({
+      subscriptions: input.subscriptions ?? [],
+      entitlements: input.entitlements,
+      isLifetime: input.isLifetime,
+    })) {
       return {
         success: false,
         error: 'Upgrade to a paid plan to upload this content',

@@ -1,8 +1,8 @@
 import { describe, expect, test, mock, beforeEach } from 'bun:test';
 
 const mockVerifyCaptchaResponse = mock(() => Promise.resolve({
-  wasAbleToVerify: () => true,
-  shouldAccept: () => true,
+  wasAbleToVerify: () => true as boolean,
+  shouldAccept: () => true as boolean,
 }));
 
 mock.module('@friendlycaptcha/server-sdk', () => ({

@@ -129,16 +129,4 @@ export class AuthApi {
     return this.client.delete('/api/auth/sessions');
   }
 
-  /**
-   * Verify a FriendlyCaptcha response for the post-login captcha gate.
-   *
-   * Free-tier users must call this after login to clear the captcha requirement.
-   * On failure, the session is destroyed server-side (user is logged out).
-   *
-   * @param params - Object containing the `frc-captcha-response` token
-   * @returns Success if captcha verified, error (401) if failed (session destroyed)
-   */
-  async verifyCaptcha(params: { 'frc-captcha-response': string }): Promise<ApiResponse<void>> {
-    return this.client.post('/api/auth/captcha-verify', params);
-  }
 }

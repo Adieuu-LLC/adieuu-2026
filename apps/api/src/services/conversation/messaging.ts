@@ -11,6 +11,7 @@ import {
   type MessagePaginationDirection,
   type SubscriptionTierId,
 } from '@adieuu/shared';
+import { hasPaidAccess } from '../billing/resolve-access';
 import { getConversationRepository } from '../../repositories/conversation.repository';
 import { getIdentityRepository } from '../../repositories/identity.repository';
 import { getMessageRepository } from '../../repositories/message.repository';
@@ -46,12 +47,17 @@ function minCreatedAtForRequester(
   return v instanceof Date ? v : new Date(String(v));
 }
 
+interface BillingContext {
+  subscriptions: readonly SubscriptionTierId[];
+  entitlements?: readonly string[];
+  isLifetime?: boolean;
+}
+
 function effectiveMinDate(
   minJoin: Date | undefined,
-  subscriptions?: readonly SubscriptionTierId[],
+  billing?: BillingContext,
 ): Date | undefined {
-  const hasPaidTier = subscriptions?.some((t) => t === 'access' || t === 'insider');
-  if (hasPaidTier) return minJoin;
+  if (billing && hasPaidAccess(billing)) return minJoin;
 
   const freeFloor = new Date(Date.now() - FREE_TIER_HISTORY_DAYS * 24 * 60 * 60 * 1000);
   if (!minJoin) return freeFloor;
@@ -366,7 +372,8 @@ export async function getMessage(
   conversationId: string | ObjectId,
   messageId: string | ObjectId,
   requesterIdentityId: string | ObjectId,
-  options?: { includeRevisionHistory?: boolean }
+  options?: { includeRevisionHistory?: boolean },
+  billing?: BillingContext,
 ): Promise<MessageResult> {
   const conversationRepo = getConversationRepository();
   const messageRepo = getMessageRepository();
@@ -391,8 +398,11 @@ export async function getMessage(
   if (!message) {
     return { success: false, error: 'Message not found', errorCode: 'MESSAGE_NOT_FOUND' };
   }
-  const minJoin = minCreatedAtForRequester(conversation, requesterObjId);
-  if (minJoin && message.createdAt.getTime() < minJoin.getTime()) {
+  const minDate = effectiveMinDate(
+    minCreatedAtForRequester(conversation, requesterObjId),
+    billing,
+  );
+  if (minDate && message.createdAt.getTime() < minDate.getTime()) {
     return { success: false, error: 'Message not found', errorCode: 'MESSAGE_NOT_FOUND' };
   }
 
@@ -445,7 +455,7 @@ export async function getMessages(
   limit = 50,
   cursor?: string,
   direction?: MessagePaginationDirection,
-  subscriptions?: readonly SubscriptionTierId[],
+  billing?: BillingContext,
 ): Promise<MessagePagePayload | MessageResult> {
   const conversationRepo = getConversationRepository();
   const messageRepo = getMessageRepository();
@@ -481,7 +491,7 @@ export async function getMessages(
 
   const minJoin = effectiveMinDate(
     minCreatedAtForRequester(conversation, requesterObjId),
-    subscriptions,
+    billing,
   );
 
   if (hasCursor && direction === 'newer') {
@@ -586,7 +596,7 @@ export async function getMessagesAround(
   centerMessageId: string,
   beforeLimit = 15,
   afterLimit = 15,
-  subscriptions?: readonly SubscriptionTierId[],
+  billing?: BillingContext,
 ): Promise<MessagePagePayload | MessageResult> {
   const conversationRepo = getConversationRepository();
   const messageRepo = getMessageRepository();
@@ -613,7 +623,7 @@ export async function getMessagesAround(
 
   const minJoin = effectiveMinDate(
     minCreatedAtForRequester(conversation, requesterObjId),
-    subscriptions,
+    billing,
   );
 
   const centerObjId = new ObjectId(centerMessageId);

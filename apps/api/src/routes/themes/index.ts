@@ -8,6 +8,7 @@
 
 import { Router, type RouteContext } from '../../router';
 import { success, error } from '../../utils/response';
+import { hasPaidAccess } from '../../services/billing/resolve-access';
 import {
   listThemesResult,
   getSharedChecksumsResult,
@@ -117,10 +118,9 @@ router.delete('/themes/:id', async (ctx) => {
  */
 router.post('/themes/:id/upvote', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
-  const { identity, subscriptions } = ctx.identitySession;
+  const { identity } = ctx.identitySession;
 
-  const hasPaidTier = subscriptions.some((t) => t === 'access' || t === 'insider');
-  if (!hasPaidTier) {
+  if (!hasPaidAccess(ctx.identitySession)) {
     return error('TIER_REQUIRED', 'Upgrade to a paid plan to upvote themes.', 403);
   }
 

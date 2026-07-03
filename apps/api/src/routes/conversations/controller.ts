@@ -53,6 +53,7 @@ import {
   PromoteAdminSchema,
   LeaveSchema,
 } from './conversation-schemas';
+import { hasPaidAccess } from '../../services/billing/resolve-access';
 import {
   sanitizeObjectId24,
   parseOptionalObjectIdCursor,
@@ -72,12 +73,7 @@ export async function createConversationCtrl(
   const { type, participants, encryptedName, nameNonce, forceNew } = parseResult.data;
 
   if (type === 'group') {
-    const { subscriptions, entitlements, isLifetime } = ctx.identitySession;
-    const hasPaidTier =
-      isLifetime ||
-      subscriptions.some((t) => t === 'access' || t === 'insider') ||
-      entitlements.includes('gifted');
-    if (!hasPaidTier) {
+    if (!hasPaidAccess(ctx.identitySession)) {
       return { kind: 'forbidden', message: 'Upgrade to a paid plan to create group conversations.' };
     }
   }

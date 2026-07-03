@@ -270,6 +270,9 @@ export const conversations = {
       statusInvited: 'Invited',
     },
 
+    upgradeForOlderMessages: 'Upgrade to view older messages',
+    upgradeForOlderMessagesDescription: 'Free accounts can access the most recent 14 days of message history.',
+
     newUnreads: 'New messages',
     jumpToLatest: 'Jump to latest message',
     jumpToLatestLabel: 'Latest',

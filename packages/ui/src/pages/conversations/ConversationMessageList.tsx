@@ -7,6 +7,7 @@ import type { IdentityPublicKeys, PublicCustomEmoji, PublicIdentity } from '@adi
 import type { MemberColorDisplay } from '../../hooks/useMemberColorPreference';
 import { Tooltip } from '../../components/Tooltip';
 import { Icon } from '../../icons/Icon';
+import { UpgradePrompt } from '../../components/UpgradePrompt';
 import {
   useGifPreference,
   useConversationGifHidden,
@@ -82,6 +83,7 @@ export function ConversationMessageList({
   peerPublicKeysById,
   verificationRevision,
   customEmojis,
+  isFreeTier,
 }: {
   conversationId: string | undefined;
   activeConversationId: string | null;
@@ -143,6 +145,7 @@ export function ConversationMessageList({
   peerPublicKeysById: Record<string, IdentityPublicKeys>;
   verificationRevision: number;
   customEmojis?: PublicCustomEmoji[];
+  isFreeTier?: boolean;
 }) {
   const { t: tLocal } = useTranslation();
   const navigate = useNavigate();
@@ -423,6 +426,15 @@ export function ConversationMessageList({
             </div>
           ) : null}
           <div ref={topSentinelRef} className="dm-messages-top-sentinel" aria-hidden />
+          {isFreeTier && !hasMoreOlder && !messagesLoading && reversedMessagesLength > 0 && (
+            <UpgradePrompt
+              variant="banner"
+              message={tLocal('conversations.upgradeForOlderMessages', { defaultValue: 'Upgrade to view older messages' })}
+              description={tLocal('conversations.upgradeForOlderMessagesDescription', { defaultValue: 'Free accounts can access the most recent 14 days of message history.' })}
+              ctaLabel={tLocal('conversations.upgradeCta', { defaultValue: 'View Plans' })}
+              onUpgrade={() => navigate('/account/subscription')}
+            />
+          )}
           <div ref={messagesContentRef as React.RefObject<HTMLDivElement>} className="dm-messages-content">
             {flatItems.map((item, idx) => (
               <div

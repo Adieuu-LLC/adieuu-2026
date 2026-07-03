@@ -176,3 +176,28 @@ export function requiresEntitlement(
 ): boolean {
   return ctx.entitlements.includes(entitlement);
 }
+
+// ---------------------------------------------------------------------------
+// Paid-access convenience helper
+// ---------------------------------------------------------------------------
+
+interface PaidAccessInput {
+  subscriptions: readonly SubscriptionTierId[];
+  entitlements?: readonly string[];
+  isLifetime?: boolean;
+}
+
+/**
+ * Whether the user has paid-level access through any mechanism: a paid
+ * subscription tier (`access` or `insider`), a lifetime purchase, or a
+ * `gifted` entitlement from sponsorship.
+ *
+ * Use this everywhere a feature is restricted to "non-free" users to avoid
+ * inconsistent ad-hoc checks that miss lifetime or gifted edge cases.
+ */
+export function hasPaidAccess(ctx: PaidAccessInput): boolean {
+  if (ctx.isLifetime) return true;
+  if (ctx.subscriptions.some((t) => t === 'access' || t === 'insider')) return true;
+  if (ctx.entitlements?.includes('gifted')) return true;
+  return false;
+}

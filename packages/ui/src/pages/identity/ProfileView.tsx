@@ -64,7 +64,9 @@ export function IdentityProfileView() {
   const { session } = useAuth();
   const isSelf = selfIdentity?.id === id;
   const isIdentityLoggedIn = selfIdentity != null;
-  const canReportProfiles = (session?.subscriptions ?? []).some((t) => t !== 'free');
+  const canReportProfiles = session?.isLifetime ||
+    (session?.subscriptions ?? []).some((t) => t === 'access' || t === 'insider') ||
+    (session?.entitlements ?? []).includes('gifted');
 
   useEffect(() => {
     if (!id) {

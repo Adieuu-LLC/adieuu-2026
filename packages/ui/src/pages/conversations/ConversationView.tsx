@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { useConversations, type DisplayMessage } from '../../hooks/useConversations';
 import { useConversationScroll } from '../../hooks/useConversationScroll';
 import { useIdentity } from '../../hooks/useIdentity';
+import { useAuth } from '../../hooks/useAuth';
 import { useCustomEmojis } from '../../hooks/useCustomEmojis';
 import { usePreKeys } from '../../hooks/usePreKeys';
 import { useReactions } from '../../hooks/useReactions';
@@ -84,6 +85,14 @@ export function ConversationView() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { identity } = useIdentity();
+  const { session } = useAuth();
+  const isFreeTier = useMemo(() => {
+    if (!session) return false;
+    if (session.isLifetime) return false;
+    if ((session.subscriptions ?? []).some((t_) => t_ === 'access' || t_ === 'insider')) return false;
+    if ((session.entitlements ?? []).includes('gifted')) return false;
+    return true;
+  }, [session]);
   const { emojis: composerCustomEmojis } = useCustomEmojis(identity?.id);
   const { config: fsConfig } = usePreKeys();
   const {
@@ -1170,6 +1179,7 @@ export function ConversationView() {
               peerPublicKeysById={peerPublicKeysById}
               verificationRevision={verificationRevision}
               customEmojis={composerCustomEmojis}
+              isFreeTier={isFreeTier}
             />
 
             {isDmBlocked && (

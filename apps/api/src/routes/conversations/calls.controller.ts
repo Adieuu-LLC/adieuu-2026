@@ -90,7 +90,7 @@ export async function initiateCallCtrl(
     conv.id,
     identity._id.toHexString(),
     parseResult.data.media,
-    { subscriptions: ctx.identitySession.subscriptions, entitlements: ctx.identitySession.entitlements },
+    { subscriptions: ctx.identitySession.subscriptions, entitlements: ctx.identitySession.entitlements, isLifetime: ctx.identitySession.isLifetime },
     parseResult.data.wrappedE2EEKeys,
   );
 
@@ -151,7 +151,7 @@ export async function joinCallCtrl(
     call.id,
     identity._id.toHexString(),
     parseResult.data.media,
-    { subscriptions: ctx.identitySession.subscriptions, entitlements: ctx.identitySession.entitlements },
+    { subscriptions: ctx.identitySession.subscriptions, entitlements: ctx.identitySession.entitlements, isLifetime: ctx.identitySession.isLifetime },
   );
 
   if (!result.success) {
@@ -302,7 +302,7 @@ export async function updateMediaStateCtrl(
   ctx: RouteContext
 ): Promise<ConversationRouteResult<unknown>> {
   if (!ctx.identitySession) return { kind: 'unauthorized' };
-  const { identity, subscriptions } = ctx.identitySession;
+  const { identity } = ctx.identitySession;
 
   const conv = sanitizeObjectId24(ctx.params.id);
   if (!conv.ok) return { kind: 'bad_request', message: 'Invalid conversation ID.' };
@@ -317,7 +317,7 @@ export async function updateMediaStateCtrl(
     call.id,
     identity._id.toHexString(),
     parseResult.data.media,
-    subscriptions,
+    ctx.identitySession,
   );
 
   if (!result.success) {
