@@ -402,6 +402,16 @@ export const config = {
     timeoutMs: optionalEnvInt('VERIFYMY_TIMEOUT_MS', 10_000),
   },
 
+  /** FriendlyCaptcha anti-bot verification (free-tier users only) */
+  friendlyCaptcha: {
+    /** Whether FriendlyCaptcha verification is enabled */
+    enabled: optionalEnvBool('FRIENDLY_CAPTCHA_ENABLED', false),
+    /** FriendlyCaptcha API key (server-side only, for siteverify calls) */
+    apiKey: optionalEnv('FRIENDLY_CAPTCHA_API_KEY', ''),
+    /** FriendlyCaptcha sitekey (safe for client, used to validate response origin) */
+    sitekey: optionalEnv('FRIENDLY_CAPTCHA_SITEKEY', ''),
+  },
+
   /** Klipy GIF/sticker API proxy configuration */
   klipy: {
     /** Klipy API key (required in production; empty disables the proxy in dev) */
@@ -448,6 +458,7 @@ export const config = {
     publishableKey: optionalEnv('STRIPE_PUBLISHABLE_KEY', ''),
     /** Stripe price IDs (created in the Stripe Dashboard, referenced by env) */
     prices: {
+      freeMonthly: optionalEnv('STRIPE_PRICE_FREE_MONTHLY', ''),
       accessAnnual: optionalEnv('STRIPE_PRICE_ACCESS_ANNUAL', ''),
       insiderAnnual: optionalEnv('STRIPE_PRICE_INSIDER_ANNUAL', ''),
       vanguardLifetime: optionalEnv('STRIPE_PRICE_VANGUARD_LIFETIME', ''),

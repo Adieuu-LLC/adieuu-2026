@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, createContext, useContext, useMemo, u
 import type { ReactNode } from 'react';
 import {
   createApiClient,
+  type SessionInfo,
 } from '@adieuu/shared';
 import { deriveEntropyWrappingKey, toBase64, clearBytes, getSigningPublicKey, computeRoutingTag } from '@adieuu/crypto';
 import { useAppConfig } from '../config';
@@ -55,6 +56,29 @@ export type {
 } from './useIdentity.types';
 
 // ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * When the server withholds `signedToken`, the session itself may still be
+ * valid -- the token is absent because a compliance gate is blocking.
+ * Return a specific message so the user understands what to do instead of
+ * seeing a misleading "session expired" error.
+ */
+function describeTokenWithheldReason(session: SessionInfo | null): string {
+  if (!session) return 'Session expired. Please sign in again.';
+  if (session.aliasGate && !session.aliasGate.allowed) {
+    if (session.aliasGate.code === 'GEOFENCE_BLOCKED') return 'Alias creation is not available in your region.';
+    if (session.aliasGate.code === 'AGE_VERIFICATION_REQUIRED') return 'Age verification is required before creating an alias.';
+    if (session.aliasGate.code === 'AGE_VERIFICATION_FAILED') return 'Age verification failed. Please try again later.';
+    if (session.aliasGate.code === 'AGE_VERIFICATION_COOLDOWN') return 'Age verification is in a cooldown period. Please try again later.';
+    return 'Alias creation is currently blocked. Please check your account status.';
+  }
+  if (session.compliance?.vpnAttestation?.required) return 'Please complete VPN compliance verification before continuing.';
+  return 'Session expired. Please sign in again.';
+}
+
+// ============================================================================
 // Identity Context
 // ============================================================================
 
@@ -87,7 +111,6 @@ function clearWebDeviceKeys(webDev: DecryptedWebDevice): void {
 function useIdentityState(): IdentityContextValue {
   const { apiBaseUrl, platform } = useAppConfig();
   const { status: authStatus, session, refreshSession } = useAuth();
-
   // Derive identity counts from auth session
   const identityCount = session?.identityCount ?? 0;
   const maxIdentities = session?.maxIdentities ?? 1;
@@ -299,7 +322,7 @@ function useIdentityState(): IdentityContextValue {
       const freshSession = await refreshSession();
       const signedToken = freshSession?.signedToken;
       if (!signedToken) {
-        return { success: false, error: 'Session expired. Please sign in again.', errorCode: 'VALIDATION_ERROR' };
+        return { success: false, error: describeTokenWithheldReason(freshSession), errorCode: 'VALIDATION_ERROR' };
       }
 
       const flow = await runCreateIdentityFlow(api, platform, signedToken, passphrase, username, displayName);
@@ -347,7 +370,7 @@ function useIdentityState(): IdentityContextValue {
       const freshSession = await refreshSession();
       const signedToken = freshSession?.signedToken;
       if (!signedToken) {
-        return { success: false, error: 'Session expired. Please sign in again.' };
+        return { success: false, error: describeTokenWithheldReason(freshSession) };
       }
 
       const onStatus = options?.onStatusChange;

@@ -8,7 +8,7 @@
  * @module services/livekit-auth
  */
 
-import { AccessToken } from 'livekit-server-sdk';
+import { AccessToken, TrackSource } from 'livekit-server-sdk';
 import { config } from '../config';
 import type { StreamQualityCaps } from '@adieuu/shared';
 
@@ -21,6 +21,8 @@ export interface MintLiveKitTokenInput {
   displayName: string;
   /** Streaming resolution caps to encode in participant metadata for server-side enforcement. */
   streamQualityCaps?: StreamQualityCaps;
+  /** When true, restrict token to audio publish only (free tier). */
+  audioOnly?: boolean;
 }
 
 /**
@@ -54,7 +56,8 @@ export async function mintLiveKitToken(input: MintLiveKitTokenInput): Promise<st
   at.addGrant({
     roomJoin: true,
     room: input.roomName,
-    canPublish: true,
+    canPublish: !input.audioOnly,
+    canPublishSources: input.audioOnly ? [TrackSource.MICROPHONE] : undefined,
     canSubscribe: true,
   });
 

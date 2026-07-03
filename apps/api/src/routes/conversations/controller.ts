@@ -64,12 +64,20 @@ export async function createConversationCtrl(
   ctx: RouteContext,
 ): Promise<ConversationRouteResult<unknown>> {
   if (!ctx.identitySession) return { kind: 'unauthorized' };
-  const { identity } = ctx.identitySession;
+  const { identity, subscriptions } = ctx.identitySession;
 
   const parseResult = CreateConversationSchema.safeParse(ctx.body);
   if (!parseResult.success) return { kind: 'validation_failed' };
 
   const { type, participants, encryptedName, nameNonce, forceNew } = parseResult.data;
+
+  if (type === 'group') {
+    const hasPaidTier = subscriptions.some((t) => t === 'access' || t === 'insider');
+    if (!hasPaidTier) {
+      return { kind: 'forbidden', message: 'Upgrade to a paid plan to create group conversations.' };
+    }
+  }
+
   const parts = sanitizeParticipantIds(participants);
   if (!parts.ok) return { kind: 'bad_request', message: 'Invalid participant ID.' };
 

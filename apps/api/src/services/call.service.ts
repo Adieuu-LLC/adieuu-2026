@@ -95,8 +95,8 @@ export async function initiateCall(
     return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
   }
 
-  // Enforce admin call-type toggles
-  const allowedMedia = enforceCallSettings(requestedMedia, conversation);
+  // Enforce admin call-type toggles and tier restrictions
+  const allowedMedia = enforceCallSettings(requestedMedia, conversation, access.subscriptions);
   if (!allowedMedia.audio && !allowedMedia.video && !allowedMedia.screenshare) {
     return { success: false, error: 'All requested media types are disabled for this conversation', errorCode: 'MEDIA_DISABLED' };
   }
@@ -108,6 +108,7 @@ export async function initiateCall(
 
   let livekitToken: string | undefined;
   const streamQualityCaps = resolveStreamQualityCaps(access.subscriptions, access.entitlements);
+  const isFreeTier = !access.subscriptions.some((t) => t === 'access' || t === 'insider');
 
   if (config.livekit.enabled) {
     try {
@@ -116,6 +117,7 @@ export async function initiateCall(
         identityId: initiatorIdentityId,
         displayName,
         streamQualityCaps,
+        audioOnly: isFreeTier,
       });
     } catch (err) {
       elog.warn('Failed to mint LiveKit token on initiate', { conversationId, err });
@@ -258,13 +260,14 @@ export async function joinCall(
     void livekitRemoveParticipant(call.roomName, identityId);
   }
 
-  const enforcedMedia = enforceCallSettings(mediaState, conversation);
+  const enforcedMedia = enforceCallSettings(mediaState, conversation, access.subscriptions);
 
   const identity = await identityRepo.findById(identityObjId);
   const displayName = identity?.displayName || identity?.username || 'Unknown';
 
   let livekitToken: string | undefined;
   const streamQualityCaps = resolveStreamQualityCaps(access.subscriptions, access.entitlements);
+  const isFreeTierJoin = !access.subscriptions.some((t) => t === 'access' || t === 'insider');
 
   if (config.livekit.enabled) {
     try {
@@ -273,6 +276,7 @@ export async function joinCall(
         identityId,
         displayName,
         streamQualityCaps,
+        audioOnly: isFreeTierJoin,
       });
     } catch (err) {
       elog.warn('Failed to mint LiveKit token on join', { callId, err });
@@ -561,7 +565,8 @@ export async function updateMediaState(
   conversationId: string,
   callId: string,
   identityId: string,
-  mediaState: CallMediaOptions
+  mediaState: CallMediaOptions,
+  subscriptions?: readonly SubscriptionTierId[],
 ): Promise<CallResult> {
   const callRepo = getCallRepository();
   const conversationRepo = getConversationRepository();
@@ -583,7 +588,7 @@ export async function updateMediaState(
     return { success: false, error: 'Conversation not found', errorCode: 'CONVERSATION_NOT_FOUND' };
   }
 
-  const enforcedMedia = enforceCallSettings(mediaState, conversation);
+  const enforcedMedia = enforceCallSettings(mediaState, conversation, subscriptions);
 
   const updated = await callRepo.updateParticipantMediaState(callObjId, identityObjId, enforcedMedia);
   if (!updated) {
@@ -620,12 +625,17 @@ async function notifyCallEnded(
  */
 function enforceCallSettings(
   requested: CallMediaOptions,
-  conversation: { audioCallsDisabled?: boolean; videoCallsDisabled?: boolean; screenshareDisabled?: boolean }
+  conversation: { audioCallsDisabled?: boolean; videoCallsDisabled?: boolean; screenshareDisabled?: boolean },
+  subscriptions?: readonly SubscriptionTierId[],
 ): CallMediaOptions {
+  const isFreeTier = subscriptions
+    ? !subscriptions.some((t) => t === 'access' || t === 'insider')
+    : false;
+
   return {
     audio: requested.audio && !conversation.audioCallsDisabled,
-    video: requested.video && !conversation.videoCallsDisabled,
-    screenshare: requested.screenshare && !conversation.screenshareDisabled,
+    video: requested.video && !conversation.videoCallsDisabled && !isFreeTier,
+    screenshare: requested.screenshare && !conversation.screenshareDisabled && !isFreeTier,
   };
 }
 

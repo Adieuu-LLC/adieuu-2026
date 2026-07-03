@@ -78,6 +78,8 @@ export function resolveMaxIdentities(
     resolved = IDENTITY_LIMITS.insider;
   } else if (subscriptions.includes('access')) {
     resolved = IDENTITY_LIMITS.access;
+  } else if (subscriptions.includes('free')) {
+    resolved = IDENTITY_LIMITS.free;
   } else {
     resolved = 0;
   }

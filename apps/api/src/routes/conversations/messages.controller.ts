@@ -130,7 +130,7 @@ export async function listMessagesCtrl(
   }>
 > {
   if (!ctx.identitySession) return { kind: 'unauthorized' };
-  const { identity } = ctx.identitySession;
+  const { identity, subscriptions } = ctx.identitySession;
 
   const conv = sanitizeObjectId24(ctx.params.id);
   if (!conv.ok) return { kind: 'bad_request', message: 'Invalid conversation ID.' };
@@ -143,7 +143,7 @@ export async function listMessagesCtrl(
   const validDirection =
     directionParam === 'older' || directionParam === 'newer' ? directionParam : undefined;
 
-  const result = await getMessages(conv.id, identity._id, limit, validCursor, validDirection);
+  const result = await getMessages(conv.id, identity._id, limit, validCursor, validDirection, subscriptions);
 
   if ('errorCode' in result) {
     if (result.errorCode === 'CONVERSATION_NOT_FOUND') {
@@ -194,7 +194,7 @@ export async function messagesAroundCtrl(
   }>
 > {
   if (!ctx.identitySession) return { kind: 'unauthorized' };
-  const { identity } = ctx.identitySession;
+  const { identity, subscriptions } = ctx.identitySession;
 
   const conv = sanitizeObjectId24(ctx.params.id);
   if (!conv.ok) return { kind: 'bad_request', message: 'Invalid conversation ID.' };
@@ -210,7 +210,7 @@ export async function messagesAroundCtrl(
   if (before > 100) before = 100;
   if (after > 100) after = 100;
 
-  const result = await getMessagesAround(conv.id, identity._id, msg.id, before, after);
+  const result = await getMessagesAround(conv.id, identity._id, msg.id, before, after, subscriptions);
 
   if (!('messages' in result)) {
     if (result.errorCode === 'CONVERSATION_NOT_FOUND') {

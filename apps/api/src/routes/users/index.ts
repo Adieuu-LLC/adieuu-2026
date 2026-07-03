@@ -76,6 +76,10 @@ const EmailRequestSchema = z.object({
  * @returns 429 Too Many Requests if rate limited
  */
 router.post('/users/me/email', async (ctx) => {
+  const { requireCaptchaForFreeTier } = await import('../../middleware/captcha');
+  const captchaError = await requireCaptchaForFreeTier(ctx, ctx.accountUser);
+  if (captchaError) return captchaError;
+
   const session = await requireAccountSession(ctx.request);
 
   if (!session) {
@@ -192,6 +196,10 @@ const PhoneRequestSchema = z.object({
  * @returns 429 Too Many Requests if rate limited
  */
 router.post('/users/me/phone', async (ctx) => {
+  const { requireCaptchaForFreeTier } = await import('../../middleware/captcha');
+  const captchaError = await requireCaptchaForFreeTier(ctx, ctx.accountUser);
+  if (captchaError) return captchaError;
+
   const session = await requireAccountSession(ctx.request);
 
   if (!session) {

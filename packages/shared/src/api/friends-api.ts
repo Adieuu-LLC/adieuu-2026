@@ -48,9 +48,16 @@ export class FriendsApi {
 
   /**
    * Send a friend request.
+   *
+   * @param identityId Target identity to send request to
+   * @param captchaResponse Optional FriendlyCaptcha response token (required for free-tier users)
    */
-  async sendRequest(identityId: string): Promise<ApiResponse<PublicFriendRequest>> {
-    return this.client.post('/api/friends/requests', { identityId });
+  async sendRequest(identityId: string, captchaResponse?: string): Promise<ApiResponse<PublicFriendRequest>> {
+    const body: Record<string, string> = { identityId };
+    if (captchaResponse) {
+      body['frc-captcha-response'] = captchaResponse;
+    }
+    return this.client.post('/api/friends/requests', body);
   }
 
   /**

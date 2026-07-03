@@ -9,10 +9,10 @@
  * identifiers belong here.
  */
 
-/** Access levels granted to a user (hierarchical: insider includes access). */
-export const SUBSCRIPTION_TIER_IDS = ['access', 'insider'] as const;
+/** Access levels granted to a user (hierarchical: insider includes access includes free). */
+export const SUBSCRIPTION_TIER_IDS = ['free', 'access', 'insider'] as const;
 export type SubscriptionTierId = (typeof SUBSCRIPTION_TIER_IDS)[number];
 
 /** Everything a user can buy (recurring subscriptions + one-time lifetime purchases). */
-export const PURCHASABLE_PRODUCT_IDS = ['access', 'insider', 'vanguard', 'founder'] as const;
+export const PURCHASABLE_PRODUCT_IDS = ['free', 'access', 'insider', 'vanguard', 'founder'] as const;
 export type PurchasableProductId = (typeof PURCHASABLE_PRODUCT_IDS)[number];

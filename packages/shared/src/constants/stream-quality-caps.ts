@@ -22,6 +22,10 @@ export interface StreamQualityCaps {
 }
 
 export const STREAM_QUALITY_CAPS: Record<SubscriptionTierId, StreamQualityCaps> = {
+  free: {
+    camera: { width: 0, height: 0 },
+    screenshare: { width: 0, height: 0 },
+  },
   access: {
     camera: { width: 960, height: 540 },
     screenshare: { width: 1280, height: 720 },
@@ -64,5 +68,5 @@ export function resolveStreamQualityCaps(
   }
   if (subscriptions.includes('insider')) return STREAM_QUALITY_CAPS.insider;
   if (subscriptions.includes('access')) return STREAM_QUALITY_CAPS.access;
-  return STREAM_QUALITY_CAPS.access;
+  return STREAM_QUALITY_CAPS.free;
 }

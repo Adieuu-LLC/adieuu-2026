@@ -1007,6 +1007,10 @@ describe('identity.service', () => {
   });
 
   describe('resolveMaxIdentities', () => {
+    test('returns free limit for free-only subscription', () => {
+      expect(resolveMaxIdentities(['free'], [], false)).toBe(IDENTITY_LIMITS.free);
+    });
+
     test('returns access limit for access-only subscription', () => {
       expect(resolveMaxIdentities(['access'], [], false)).toBe(IDENTITY_LIMITS.access);
     });

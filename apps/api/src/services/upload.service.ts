@@ -108,6 +108,16 @@ export interface CompleteUploadResult {
 }
 
 /**
+ * Upload purposes that require a paid (access+) subscription tier.
+ * Free tier users may only upload avatars.
+ */
+const PAID_ONLY_UPLOAD_PURPOSES: ReadonlySet<UploadPurpose> = new Set([
+  'banner',
+  'space_media',
+  'custom_emoji',
+]);
+
+/**
  * Request a presigned upload URL for a given purpose.
  */
 export async function requestUpload(
@@ -128,6 +138,19 @@ export async function requestUpload(
       error: 'Invalid upload purpose',
       errorCode: 'INVALID_CONTENT_TYPE',
     };
+  }
+
+  if (PAID_ONLY_UPLOAD_PURPOSES.has(input.purpose)) {
+    const hasPaidTier = input.subscriptions?.some(
+      (t) => t === 'access' || t === 'insider',
+    );
+    if (!hasPaidTier) {
+      return {
+        success: false,
+        error: 'Upgrade to a paid plan to upload this content',
+        errorCode: 'UPLOAD_DISABLED',
+      };
+    }
   }
 
   if (!purposeConfig.allowedContentTypes.includes(input.contentType)) {

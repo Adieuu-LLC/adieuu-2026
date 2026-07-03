@@ -125,6 +125,9 @@ single_nat_gateway        = true
 #   # VERIFYMY_SANDBOX_BASE_URL    = "https://sandbox.verifymyage.com"  # default
 #   # VERIFYMY_PRODUCTION_BASE_URL = "https://oauth.verifymyage.com"    # default
 #   # VERIFYMY_TIMEOUT_MS          = "10000"                            # default
+#   # FriendlyCaptcha (free-tier bot prevention). FRIENDLY_CAPTCHA_API_KEY goes in Secrets Manager (api_container_secrets).
+#   # FRIENDLY_CAPTCHA_ENABLED = "false"          # flip to "true" to enforce captcha on free-tier users
+#   # FRIENDLY_CAPTCHA_SITEKEY = "FCXXXXXXX"      # public sitekey (safe for client; also set as VITE_FRIENDLY_CAPTCHA_SITEKEY in CI)
 # }
 #
 # chat_environment = {
@@ -145,7 +148,7 @@ single_nat_gateway        = true
 # Typical API keys: MONGODB_URI, CSRF_SECRET, SESSION_SECRET, OTP_SECRET, ACCOUNT_HASH_SECRET,
 # TOKEN_SIGNING_KEY, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, TEXTMAGIC_USERNAME,
 # TEXTMAGIC_API_KEY, KLIPY_API_KEY, IPLOCATE_API_KEY, STRIPE_SECRET_KEY,
-# STRIPE_WEBHOOK_SECRET, VERIFYMY_API_KEY, VERIFYMY_API_SECRET, LIVEKIT_API_SECRET,
+# STRIPE_WEBHOOK_SECRET, VERIFYMY_API_KEY, VERIFYMY_API_SECRET, FRIENDLY_CAPTCHA_API_KEY, LIVEKIT_API_SECRET,
 # MEDIA_PROCESSOR_SECRET (when enable_media_stack),
 # CYBERTIPLINE_USERNAME, CYBERTIPLINE_PASSWORD, CYBERTIPLINE_REPORTER_FIRST_NAME,
 # CYBERTIPLINE_REPORTER_LAST_NAME, CYBERTIPLINE_REPORTER_EMAIL
@@ -169,6 +172,7 @@ single_nat_gateway        = true
 #   STRIPE_WEBHOOK_SECRET = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:STRIPE_WEBHOOK_SECRET::"
 #   VERIFYMY_API_KEY      = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:VERIFYMY_API_KEY::"
 #   VERIFYMY_API_SECRET   = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:VERIFYMY_API_SECRET::"
+#   FRIENDLY_CAPTCHA_API_KEY = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:FRIENDLY_CAPTCHA_API_KEY::"
 #   LIVEKIT_API_SECRET    = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:LIVEKIT_API_SECRET::"
 #   CYBERTIPLINE_USERNAME              = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:CYBERTIPLINE_USERNAME::"
 #   CYBERTIPLINE_PASSWORD              = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:CYBERTIPLINE_PASSWORD::"

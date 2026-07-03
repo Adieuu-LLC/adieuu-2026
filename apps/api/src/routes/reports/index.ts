@@ -8,6 +8,7 @@
  * @module routes/reports
  */
 
+import type { SubscriptionTierId } from '@adieuu/shared';
 import { Router, type RouteContext } from '../../router';
 import { success, error } from '../../utils/response';
 import { getErrorMessage } from '../../i18n';
@@ -46,7 +47,19 @@ function mapReportSubmitFailure(
  */
 router.post('/reports', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
-  const { identity } = ctx.identitySession;
+  const { identity, subscriptions } = ctx.identitySession;
+
+  const body = ctx.body as Record<string, unknown> | undefined;
+  if (body?.type === 'profile') {
+    const hasPaid = subscriptions.some((t: SubscriptionTierId) => t !== 'free');
+    if (!hasPaid) {
+      return error(
+        'FREE_TIER_RESTRICTED',
+        'Profile reporting is not available on the free plan.',
+        403,
+      );
+    }
+  }
 
   const result = await submitReportResult(identity._id.toHexString(), ctx.body);
   if (!result.ok) {

@@ -16,6 +16,8 @@ export interface AppConfig {
   platform: 'web' | 'desktop' | 'mobile';
   /** LiveKit server WebSocket URL (e.g. ws://localhost:7880). Omit if LiveKit is not configured. */
   livekitUrl?: string;
+  /** FriendlyCaptcha sitekey for free-tier captcha verification. Omit to disable captcha UI. */
+  friendlyCaptchaSitekey?: string;
 }
 
 // ============================================================================

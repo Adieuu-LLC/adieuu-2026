@@ -9,7 +9,8 @@
  */
 
 export const IDENTITY_LIMITS = {
-  access: 1,
+  free: 1,
+  access: 2,
   insider: 2,
   lifetime: 3,
 } as const;

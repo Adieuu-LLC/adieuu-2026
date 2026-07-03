@@ -345,6 +345,22 @@ a.comparison-footnote-ref {
   color: var(--color-text-secondary);
 }
 
+.comparison-table-free-subtext {
+  cursor: help;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  text-decoration-color: var(--color-text-muted);
+}
+
+.comparison-table-free-popover p {
+  margin: 0 0 var(--spacing-sm);
+  line-height: 1.5;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
 .comparison-table-billing-row .comparison-table-feature-name {
   font-weight: var(--font-weight-semibold);
 }

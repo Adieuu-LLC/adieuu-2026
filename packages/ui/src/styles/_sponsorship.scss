@@ -477,6 +477,20 @@
   }
 }
 
+.subscription-sponsorship-cta-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-accent-primary);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-accent-secondary);
+  }
+}
+
 // Responsive
 @media (max-width: 480px) {
   .sponsorship-form-row {

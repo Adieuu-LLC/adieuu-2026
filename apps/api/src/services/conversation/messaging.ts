@@ -9,6 +9,7 @@ import {
   computeHasNewerPagesFromLastMessageId,
   messagePageBoundsFromNewestFirst,
   type MessagePaginationDirection,
+  type SubscriptionTierId,
 } from '@adieuu/shared';
 import { getConversationRepository } from '../../repositories/conversation.repository';
 import { getIdentityRepository } from '../../repositories/identity.repository';
@@ -31,6 +32,9 @@ import elog from '../../utils/adieuuLogger';
 import type { MessagePagePayload, MessageResult } from './types';
 import { publishConversationEvent, publishToParticipants } from './redis-events';
 
+/** Free tier message history depth: only the most recent 14 days are visible. */
+const FREE_TIER_HISTORY_DAYS = 14;
+
 function minCreatedAtForRequester(
   conversation: ConversationDocument,
   requester: ObjectId
@@ -40,6 +44,18 @@ function minCreatedAtForRequester(
   const v = m[requester.toHexString()];
   if (v == null) return undefined;
   return v instanceof Date ? v : new Date(String(v));
+}
+
+function effectiveMinDate(
+  minJoin: Date | undefined,
+  subscriptions?: readonly SubscriptionTierId[],
+): Date | undefined {
+  const hasPaidTier = subscriptions?.some((t) => t === 'access' || t === 'insider');
+  if (hasPaidTier) return minJoin;
+
+  const freeFloor = new Date(Date.now() - FREE_TIER_HISTORY_DAYS * 24 * 60 * 60 * 1000);
+  if (!minJoin) return freeFloor;
+  return freeFloor > minJoin ? freeFloor : minJoin;
 }
 
 export async function sendMessage(
@@ -428,7 +444,8 @@ export async function getMessages(
   requesterIdentityId: string | ObjectId,
   limit = 50,
   cursor?: string,
-  direction?: MessagePaginationDirection
+  direction?: MessagePaginationDirection,
+  subscriptions?: readonly SubscriptionTierId[],
 ): Promise<MessagePagePayload | MessageResult> {
   const conversationRepo = getConversationRepository();
   const messageRepo = getMessageRepository();
@@ -462,7 +479,10 @@ export async function getMessages(
     return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
   }
 
-  const minJoin = minCreatedAtForRequester(conversation, requesterObjId);
+  const minJoin = effectiveMinDate(
+    minCreatedAtForRequester(conversation, requesterObjId),
+    subscriptions,
+  );
 
   if (hasCursor && direction === 'newer') {
     const anchorObjId = new ObjectId(cursor!);
@@ -566,6 +586,7 @@ export async function getMessagesAround(
   centerMessageId: string,
   beforeLimit = 15,
   afterLimit = 15,
+  subscriptions?: readonly SubscriptionTierId[],
 ): Promise<MessagePagePayload | MessageResult> {
   const conversationRepo = getConversationRepository();
   const messageRepo = getMessageRepository();
@@ -590,7 +611,10 @@ export async function getMessagesAround(
     return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
   }
 
-  const minJoin = minCreatedAtForRequester(conversation, requesterObjId);
+  const minJoin = effectiveMinDate(
+    minCreatedAtForRequester(conversation, requesterObjId),
+    subscriptions,
+  );
 
   const centerObjId = new ObjectId(centerMessageId);
   const centerDoc = await messageRepo.findByIdInConversation(convObjId, centerObjId);

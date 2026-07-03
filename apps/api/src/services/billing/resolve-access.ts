@@ -114,7 +114,7 @@ export function resolveIdentityOverrides(
  * a higher-ranked tier implicitly satisfies checks for any lower-ranked tier
  * (inherited mode). Add new tiers in ascending order of privilege.
  */
-const TIER_HIERARCHY: readonly SubscriptionTierId[] = ['access', 'insider'];
+const TIER_HIERARCHY: readonly SubscriptionTierId[] = ['free', 'access', 'insider'];
 
 const TIER_RANK = new Map<SubscriptionTierId, number>(
   TIER_HIERARCHY.map((t, i) => [t, i]),

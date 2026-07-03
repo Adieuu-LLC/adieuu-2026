@@ -6,9 +6,11 @@
  * at the account level whether any of the account's aliases are platform admins.
  */
 
+import type { SubscriptionTierId } from '@adieuu/shared';
 import type { UserDocument } from '../../models/user';
 import { isAgeVerificationEnabled, getBlockedJurisdictions, getLawLinkForJurisdiction, getRequiredMode } from './av-settings';
 import { requiresAgeVerification, getAgeVerificationPolicy, getDefaultAgeVerificationPolicy, type JurisdictionAgePolicy } from './jurisdiction-policy';
+import { isFreeTierOnly } from '../billing/is-free-tier';
 
 const FAILED_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;       // 30 days
 const EXPIRED_COOLDOWN_MS = 24 * 60 * 60 * 1000;            // 24 hours
@@ -22,7 +24,7 @@ export type AliasGateResult =
       code: 'AGE_VERIFICATION_REQUIRED';
       jurisdiction: string;
       leastInvasiveMethod: string;
-      requiredReason?: 'legislation' | 'abusive_ip' | 'utah_attestation' | 'admin';
+      requiredReason?: 'legislation' | 'abusive_ip' | 'utah_attestation' | 'admin' | 'free_tier';
     }
   | { allowed: false; code: 'AGE_VERIFICATION_FAILED'; jurisdiction: string; retryAfter: Date }
   | { allowed: false; code: 'AGE_VERIFICATION_COOLDOWN'; jurisdiction: string; retryAfter: Date };
@@ -45,6 +47,16 @@ export async function evaluateAliasGate(user: UserDocument): Promise<AliasGateRe
     const policy = await getAgeVerificationPolicy(jurisdiction);
     const effectivePolicy = policy ?? getDefaultAgeVerificationPolicy();
     return evaluateAvStatus(user, jurisdiction, undefined, effectivePolicy);
+  }
+
+  // 1c. Free-tier-only users must always verify age (same policy as gifted).
+  // Uses default US settings (email background check, facial age estimation, ID scan)
+  // when the jurisdiction has no seed data.
+  if (isFreeTierOnly(user)) {
+    const jurisdiction = user.geo?.jurisdiction ?? 'FREE_TIER';
+    const policy = await getAgeVerificationPolicy(jurisdiction);
+    const effectivePolicy = policy ?? getDefaultAgeVerificationPolicy();
+    return evaluateAvStatus(user, jurisdiction, 'free_tier', effectivePolicy);
   }
 
   const jurisdiction = user.geo?.jurisdiction;
@@ -96,6 +108,7 @@ export async function evaluateAliasGate(user: UserDocument): Promise<AliasGateRe
 /**
  * Returns true when the jurisdiction accepts credit card as an age verification
  * method and the user already has an active paid subscription (or lifetime purchase).
+ * A free-tier ($0) subscription does NOT satisfy this check.
  */
 function hasSubscriptionSatisfiedCreditCardMethod(
   user: UserDocument,
@@ -104,9 +117,12 @@ function hasSubscriptionSatisfiedCreditCardMethod(
   if (!policy.compatibleMethodSlugs?.includes('credit_card')) return false;
   const billing = user.billing;
   if (!billing) return false;
-  const hasActiveSub = billing.activeSubscriptions.length > 0
+  const paidTiers = billing.activeSubscriptions.filter(
+    (t: SubscriptionTierId) => t !== 'free',
+  );
+  const hasPaidSub = paidTiers.length > 0
     && (billing.status === 'active' || billing.status === 'trialing');
-  return hasActiveSub || billing.isLifetime;
+  return hasPaidSub || billing.isLifetime;
 }
 
 /**
@@ -117,7 +133,7 @@ function hasSubscriptionSatisfiedCreditCardMethod(
 async function evaluateAvStatus(
   user: UserDocument,
   jurisdiction: string,
-  requiredReason?: 'legislation' | 'abusive_ip' | 'utah_attestation' | 'admin',
+  requiredReason?: 'legislation' | 'abusive_ip' | 'utah_attestation' | 'admin' | 'free_tier',
   prefetchedPolicy?: JurisdictionAgePolicy | null,
 ): Promise<AliasGateResult> {
   const av = user.ageVerification;
@@ -159,3 +175,5 @@ async function evaluateAvStatus(
     requiredReason: requiredReason ?? (jurisdiction === 'COMPLIANCE' ? 'abusive_ip' : 'legislation'),
   };
 }
+
+export { isFreeTierOnly } from '../billing/is-free-tier';

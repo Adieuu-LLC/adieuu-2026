@@ -9,6 +9,7 @@ import { TourProvider, useTourContext, useAppearanceTour } from '../hooks/useTou
 import { CipherStoreProvider } from '../hooks/useCipherStore';
 import { ChatSocketProvider } from '../hooks/useChatSocket';
 import { FriendsProvider } from '../hooks/useFriends';
+import { CaptchaGateProvider } from '../components/CaptchaGateProvider';
 import { BlockProvider } from '../hooks/useBlockContext';
 import { ConversationsProvider } from '../hooks/useConversations';
 import { MediaOutboxProvider } from '../services/mediaOutbox';
@@ -136,23 +137,25 @@ function AuthenticatedShell() {
       <TourProvider>
         <CipherStoreProvider>
           <ChatSocketProvider>
-            <FriendsProvider>
-              <BlockProvider>
-                <ConversationPreferencesProvider>
-                  <ConversationFoldersProvider>
-                    <ConversationsProvider>
-                      <MediaOutboxProvider>
-                      <CallSessionProvider>
-                        <GlobalCallEventsProvider>
-                          <AuthenticatedShellContent />
-                        </GlobalCallEventsProvider>
-                      </CallSessionProvider>
-                      </MediaOutboxProvider>
-                    </ConversationsProvider>
-                  </ConversationFoldersProvider>
-                </ConversationPreferencesProvider>
-              </BlockProvider>
-            </FriendsProvider>
+            <CaptchaGateProvider>
+              <FriendsProvider>
+                <BlockProvider>
+                  <ConversationPreferencesProvider>
+                    <ConversationFoldersProvider>
+                      <ConversationsProvider>
+                        <MediaOutboxProvider>
+                        <CallSessionProvider>
+                          <GlobalCallEventsProvider>
+                            <AuthenticatedShellContent />
+                          </GlobalCallEventsProvider>
+                        </CallSessionProvider>
+                        </MediaOutboxProvider>
+                      </ConversationsProvider>
+                    </ConversationFoldersProvider>
+                  </ConversationPreferencesProvider>
+                </BlockProvider>
+              </FriendsProvider>
+            </CaptchaGateProvider>
           </ChatSocketProvider>
         </CipherStoreProvider>
       </TourProvider>

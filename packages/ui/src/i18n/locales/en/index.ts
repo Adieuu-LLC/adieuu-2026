@@ -20,6 +20,7 @@ import { sponsorship } from './sponsorship';
 import { support } from './support';
 import { feedback } from './feedback';
 import { legal, footer } from './legal';
+import { captcha } from './captcha';
 
 export const en = {
   ...core,
@@ -40,6 +41,7 @@ export const en = {
   gif,
   achievements,
   compliance,
+  captcha,
   ...sponsorship,
   customEmoji: {
     conversationDisabledByAdmin: 'Disable custom emojis',

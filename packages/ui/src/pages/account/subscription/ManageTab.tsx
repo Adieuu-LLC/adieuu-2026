@@ -115,7 +115,7 @@ export function ManageTab({
         ? 'insider'
         : hasAccess
           ? 'access'
-          : 'unpaid';
+          : 'free';
 
   const plansProps = {
     status,
@@ -315,7 +315,20 @@ export function ManageTab({
           {!hasPaidPlan && !identityMode && (
             <div className="subscription-sponsorship-cta">
               <Icon name="heart" size="sm" />
-              <p>{t('account.subscription.manage.sponsorshipCta')}</p>
+              <p>
+                {t('account.subscription.manage.sponsorshipCtaBefore')}
+                <button
+                  type="button"
+                  className="subscription-sponsorship-cta-link"
+                  onClick={() => {
+                    const base = location.pathname.replace(/\/manage$/, '');
+                    routerNavigate(`${base}/sponsorships`);
+                  }}
+                >
+                  {t('account.subscription.manage.sponsorshipCtaLink')}
+                </button>
+                {t('account.subscription.manage.sponsorshipCtaAfter')}
+              </p>
             </div>
           )}
 
@@ -328,7 +341,7 @@ export function ManageTab({
                   scrollToPromoCode();
                 }}
               >
-                {t('account.subscription.promo.unpaidPrompt')}
+                {t('account.subscription.promo.freePrompt')}
               </button>
             </p>
           )}

@@ -51,9 +51,17 @@ function requireIdentity(ctx: RouteContext) {
   return { ok: true as const, identitySession: ctx.identitySession! };
 }
 
+function hasPaidTier(ctx: IdentityContext): boolean {
+  return ctx.subscriptions.some((t) => t === 'access' || t === 'insider');
+}
+
 router.post('/feedback', async (ctx) => {
   const auth = requireIdentity(ctx);
   if (!auth.ok) return auth.response;
+
+  if (!hasPaidTier(auth.identitySession)) {
+    return error('TIER_REQUIRED', 'Upgrade to a paid plan to post feedback.', 403);
+  }
 
   const result = await createPostResult(auth.identitySession, ctx.body);
   if (!result.ok) return mapFeedbackFailure(ctx, result);
@@ -103,6 +111,10 @@ router.post('/feedback/:postId/upvote', async (ctx) => {
   const auth = requireIdentity(ctx);
   if (!auth.ok) return auth.response;
 
+  if (!hasPaidTier(auth.identitySession)) {
+    return error('TIER_REQUIRED', 'Upgrade to a paid plan to vote on feedback.', 403);
+  }
+
   const result = await upvotePostResult(auth.identitySession, ctx.params.postId ?? '');
   if (!result.ok) return mapFeedbackFailure(ctx, result);
   return success(result.data);
@@ -111,6 +123,10 @@ router.post('/feedback/:postId/upvote', async (ctx) => {
 router.delete('/feedback/:postId/upvote', async (ctx) => {
   const auth = requireIdentity(ctx);
   if (!auth.ok) return auth.response;
+
+  if (!hasPaidTier(auth.identitySession)) {
+    return error('TIER_REQUIRED', 'Upgrade to a paid plan to vote on feedback.', 403);
+  }
 
   const result = await removeUpvoteResult(auth.identitySession, ctx.params.postId ?? '');
   if (!result.ok) return mapFeedbackFailure(ctx, result);

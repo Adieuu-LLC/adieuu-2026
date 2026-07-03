@@ -302,7 +302,7 @@ export async function updateMediaStateCtrl(
   ctx: RouteContext
 ): Promise<ConversationRouteResult<unknown>> {
   if (!ctx.identitySession) return { kind: 'unauthorized' };
-  const { identity } = ctx.identitySession;
+  const { identity, subscriptions } = ctx.identitySession;
 
   const conv = sanitizeObjectId24(ctx.params.id);
   if (!conv.ok) return { kind: 'bad_request', message: 'Invalid conversation ID.' };
@@ -316,7 +316,8 @@ export async function updateMediaStateCtrl(
     conv.id,
     call.id,
     identity._id.toHexString(),
-    parseResult.data.media
+    parseResult.data.media,
+    subscriptions,
   );
 
   if (!result.success) {

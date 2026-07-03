@@ -9,6 +9,8 @@ export {
 
 export {
   ApiClient,
+  registerCaptchaHandler,
+  clearCaptchaHandler,
   type ApiClientConfig,
   type HttpClient,
   type RequestOptions,

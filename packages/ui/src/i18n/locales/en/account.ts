@@ -469,11 +469,12 @@ export const account = {
         expiresInDays: 'Expires in {{count}} days',
         expiresAtTooltip: 'Expires {{datetime}}',
         noPlan:
-          'Without a paid plan, your account stays read-only. Paying for a subscription helps us cover costs without having to rely on ads, data collection, etc. It also makes it more expensive for bots. Subscribe below to unlock posting and full features.',
-        sponsorshipCta:
-          "Can't afford a plan? All good! Visit the Sponsorships tab to request sponsorship from the community.",
+          'You are on the Free plan. Paying for a subscription helps us cover costs without having to rely on ads, data collection, etc. It also makes it more expensive for bots. Subscribe below to unlock additional features and support Adieuu.',
+        sponsorshipCtaBefore: "Can't afford a paid plan? All good! ",
+        sponsorshipCtaLink: 'Visit the Sponsorships tab',
+        sponsorshipCtaAfter: ' to request sponsorship from the community.',
         readOnlyPlansIntro:
-          'Without a paid plan, your account stays read-only. Paying for a subscription helps us cover costs without having to rely on ads, data collection, etc. It also makes it more expensive for bots.Subscribe below to unlock posting and full features.',
+          'You are on the Free plan. Paying for a subscription helps us cover costs without having to rely on ads, data collection, etc. Subscribe below to unlock additional features and support Adieuu.',
         stripeBillingIntro:
           'Payments and invoices for your subscription are processed through Stripe.',
         giftedSubscription:
@@ -497,7 +498,7 @@ export const account = {
         inputPlaceholder: 'Enter your code',
         submit: 'Redeem code',
         success: 'Your promotional code was applied successfully.',
-        unpaidPrompt: 'Or, have a promotional code? Enter it below.',
+        freePrompt: 'Or, have a promotional code? Enter it below.',
         toolbarCta: 'Promo code',
         errors: {
           generic: 'We could not redeem that code. Please try again.',
@@ -532,6 +533,10 @@ export const account = {
           name: 'Public Read-Only',
           description: 'Read-only until you subscribe. You can browse public spaces, but posting and paid features stay locked.',
         },
+        free: {
+          name: 'Free',
+          description: 'You have basic access at no cost. Upgrade to a paid plan to unlock additional features and help support Adieuu.',
+        },
         access: {
           name: 'Access',
           description: 'Priority support and early access to new features.',
@@ -564,7 +569,8 @@ export const account = {
         aliases: 'Aliases: Anonymous handles you post or act as, cryptographically separated from your account. Included per subscription:',
         encryption: 'E2EE: End to end encryption on all private content',
         forwardSecrecy: 'E2EE: Forward Secrecy (optional)',
-        liveMedia: 'E2EE: Live voice, video, screensharing',
+        liveVoice: 'E2EE: Live Voice Calls',
+        liveVideo: 'E2EE: Live Video & Screensharing',
         streamQuality: 'Live Stream Quality (Camera / Screenshare)',
         uploadSize: 'Upload File Size (Images, Voice, Video, Files)',
         emojiLimit: 'Custom Emoji Limit',
@@ -588,7 +594,8 @@ export const account = {
 
       featureVariables: {
         aliases: {
-          access: 1,
+          free: 1,
+          access: 2,
           insider: 2,
           vanguard: 3,
           founder: 3,
@@ -618,8 +625,14 @@ export const account = {
         included: 'Included',
         notIncluded: 'Not included',
         billingRowLabel: 'Billing',
+        cellFree: 'Free',
+        cellFreeSubtext: 'Free but Unsustainable',
+        cellFreePopoverP1: "We are trying really hard to make private communications accessible for everyone, but the reality is nothing's s free. Someone has to pay to for technical and business costs.",
+        cellFreePopoverP2: "We will offer a Free tier as long as we can, but can't make any guarantees how long that is. Some people absolutely can not afford even our lowest subscription: we get that. All we're asking is that, if you're able, you consider purchasing a subscription so that those that are truly unable can have access to the privacy they deserve, too.",
+        cellFreePopoverP3: '',
         cellAnnual: 'Annual subscription',
         cellLifetime: 'One-time · lifetime access',
+        tierFree: 'Free',
         tierAnnual: 'Annual',
         tierLifetime: 'Lifetime',
         scrollPreviousTiers: 'Show previous plan columns',

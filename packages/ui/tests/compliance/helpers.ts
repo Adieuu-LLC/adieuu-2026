@@ -60,4 +60,55 @@ export async function mockVpnAttestationSession(page: Page, options?: { clearAft
   }
 }
 
+/**
+ * Injects captchaSitekey into session responses and intercepts one POST
+ * endpoint to return 422 CAPTCHA_REQUIRED, triggering the captcha gate dialog.
+ */
+export async function mockCaptchaRequiredSession(page: Page) {
+  let captchaFired = false;
+
+  await page.route('**/api/auth/session', async (route: Route) => {
+    const response = await route.fetch();
+    const json = await response.json();
+
+    if (json?.success && json.data) {
+      await route.fulfill({
+        response,
+        json: {
+          ...json,
+          data: {
+            ...json.data,
+            captchaSitekey: 'FAKE_SITEKEY_FOR_TESTING',
+          },
+        },
+      });
+      return;
+    }
+
+    await route.fulfill({ response });
+  });
+
+  await page.route('**/api/friends/requests/incoming*', async (route: Route) => {
+    if (!captchaFired) {
+      captchaFired = true;
+      await route.fulfill({
+        status: 422,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: false,
+          error: {
+            code: 'CAPTCHA_REQUIRED',
+            message: 'Captcha verification is required for this action.',
+            details: { captchaError: 'response_missing' },
+          },
+        }),
+      });
+      return;
+    }
+
+    const response = await route.fetch();
+    await route.fulfill({ response });
+  });
+}
+
 export { VPN_ATTESTATION };

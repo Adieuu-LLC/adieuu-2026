@@ -201,6 +201,12 @@ export async function updateProfileCtrl(ctx: RouteContext): Promise<Response> {
   }
 
   if (data.profileColors !== undefined) {
+    const hasPaidTier = ctx.identitySession!.subscriptions.some(
+      (t) => t === 'access' || t === 'insider',
+    );
+    if (!hasPaidTier) {
+      return errors.forbidden('Upgrade to a paid plan to customize profile colors.');
+    }
     const colors: Record<string, string | undefined> = {};
     if (data.profileColors.accent !== undefined) {
       colors.accent = data.profileColors.accent ?? undefined;

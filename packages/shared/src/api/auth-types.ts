@@ -93,13 +93,16 @@ export interface SessionInfo {
   aliasGate?: SessionAliasGate;
   /** Compliance attestation state (account mode only). */
   compliance?: SessionCompliance;
+  /** FriendlyCaptcha sitekey for per-action challenges (free-tier only). */
+  captchaSitekey?: string;
 }
 
 export type AgeVerificationRequiredReason =
   | 'legislation'
   | 'abusive_ip'
   | 'utah_attestation'
-  | 'admin';
+  | 'admin'
+  | 'free_tier';
 
 export interface SessionCompliance {
   vpnAttestation?: {

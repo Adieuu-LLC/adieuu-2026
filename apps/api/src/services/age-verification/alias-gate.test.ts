@@ -471,4 +471,250 @@ describe('evaluateAliasGate', () => {
     const result = await evaluateAliasGate(user);
     expect(result.allowed).toBe(true);
   });
+
+  // ---------------------------------------------------------------------------
+  // Free-tier age verification enforcement
+  // ---------------------------------------------------------------------------
+
+  test('requires AV for free-tier-only user', async () => {
+    const user = makeUser({
+      geo: { jurisdiction: 'US-CA', countryCode: 'US', ipHash: '', checkedAt: new Date() },
+      billing: {
+        activeSubscriptions: ['free'],
+        entitlements: [],
+        isLifetime: false,
+        status: 'active',
+        updatedAt: new Date(),
+      },
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(false);
+    if (!result.allowed && result.code === 'AGE_VERIFICATION_REQUIRED') {
+      expect(result.requiredReason).toBe('free_tier');
+    }
+  });
+
+  test('free-tier user with no jurisdiction uses default US policy', async () => {
+    const user = makeUser({
+      billing: {
+        activeSubscriptions: ['free'],
+        entitlements: [],
+        isLifetime: false,
+        status: 'active',
+        updatedAt: new Date(),
+      },
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(false);
+    if (!result.allowed && result.code === 'AGE_VERIFICATION_REQUIRED') {
+      expect(result.jurisdiction).toBe('FREE_TIER');
+      expect(result.leastInvasiveMethod).toBe('Email');
+      expect(result.requiredReason).toBe('free_tier');
+    }
+  });
+
+  test('free-tier user already verified is allowed', async () => {
+    const user = makeUser({
+      billing: {
+        activeSubscriptions: ['free'],
+        entitlements: [],
+        isLifetime: false,
+        status: 'active',
+        updatedAt: new Date(),
+      },
+      ageVerification: { status: 'verified', verifiedAt: new Date(), expirationCount: 0 },
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(true);
+  });
+
+  test('free-tier user with verification failed gets cooldown', async () => {
+    const failedAt = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
+    const user = makeUser({
+      billing: {
+        activeSubscriptions: ['free'],
+        entitlements: [],
+        isLifetime: false,
+        status: 'active',
+        updatedAt: new Date(),
+      },
+      ageVerification: { status: 'failed', failedAt, expirationCount: 0 },
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(false);
+    if (!result.allowed) {
+      expect(result.code).toBe('AGE_VERIFICATION_FAILED');
+    }
+  });
+
+  test('paid user (access) is never affected by free-tier gate', async () => {
+    const user = makeUser({
+      geo: { jurisdiction: 'US-CA', countryCode: 'US', ipHash: '', checkedAt: new Date() },
+      billing: {
+        activeSubscriptions: ['access'],
+        entitlements: [],
+        isLifetime: false,
+        status: 'active',
+        updatedAt: new Date(),
+      },
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(true);
+  });
+
+  test('paid user (insider) is never affected by free-tier gate', async () => {
+    const user = makeUser({
+      geo: { jurisdiction: 'US-CA', countryCode: 'US', ipHash: '', checkedAt: new Date() },
+      billing: {
+        activeSubscriptions: ['insider'],
+        entitlements: [],
+        isLifetime: false,
+        status: 'active',
+        updatedAt: new Date(),
+      },
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(true);
+  });
+
+  test('lifetime user is never affected by free-tier gate', async () => {
+    const user = makeUser({
+      geo: { jurisdiction: 'US-CA', countryCode: 'US', ipHash: '', checkedAt: new Date() },
+      billing: {
+        activeSubscriptions: [],
+        entitlements: ['vanguard'],
+        isLifetime: true,
+        status: undefined,
+        updatedAt: new Date(),
+      },
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(true);
+  });
+
+  test('free user with subscription override granting access is NOT treated as free', async () => {
+    const user = makeUser({
+      geo: { jurisdiction: 'US-CA', countryCode: 'US', ipHash: '', checkedAt: new Date() },
+      billing: {
+        activeSubscriptions: ['free'],
+        entitlements: [],
+        isLifetime: false,
+        status: 'active',
+        updatedAt: new Date(),
+      },
+      subscriptionOverrides: [{ tier: 'access' as const }],
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(true);
+  });
+
+  test('free user with entitlement override is NOT treated as free', async () => {
+    const user = makeUser({
+      geo: { jurisdiction: 'US-CA', countryCode: 'US', ipHash: '', checkedAt: new Date() },
+      billing: {
+        activeSubscriptions: ['free'],
+        entitlements: [],
+        isLifetime: false,
+        status: 'active',
+        updatedAt: new Date(),
+      },
+      entitlementOverrides: ['vanguard'],
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(true);
+  });
+
+  test('gifted + free tier: gifted path takes precedence', async () => {
+    mockGetAgeVerificationPolicy.mockImplementation(() => Promise.resolve(null));
+    const user = makeUser({
+      billing: {
+        activeSubscriptions: ['free'],
+        entitlements: ['gifted'],
+        isLifetime: false,
+        status: 'active',
+        updatedAt: new Date(),
+      },
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(false);
+    if (!result.allowed && result.code === 'AGE_VERIFICATION_REQUIRED') {
+      expect(result.requiredReason).not.toBe('free_tier');
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Credit card bypass: free-tier exclusion
+  // ---------------------------------------------------------------------------
+
+  test('free-only subscription does NOT bypass credit_card in international jurisdiction', async () => {
+    mockRequiresAgeVerification.mockImplementation(() => Promise.resolve(true));
+    mockGetAgeVerificationPolicy.mockImplementation(() => Promise.resolve({
+      required: true,
+      compatibleMethods: ['Email', 'CreditCard'],
+      compatibleMethodSlugs: ['email_age_check', 'credit_card'],
+      leastInvasiveMethod: 'Email',
+      legislation: [],
+    }));
+    const user = makeUser({
+      geo: { jurisdiction: 'GB', countryCode: 'GB', ipHash: '', checkedAt: new Date() },
+      billing: {
+        activeSubscriptions: ['free'],
+        entitlements: [],
+        isLifetime: false,
+        status: 'active',
+        updatedAt: new Date(),
+      },
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(false);
+    if (!result.allowed) {
+      expect(result.code).toBe('AGE_VERIFICATION_REQUIRED');
+    }
+  });
+
+  test('paid subscription (access) still bypasses credit_card method', async () => {
+    mockRequiresAgeVerification.mockImplementation(() => Promise.resolve(true));
+    mockGetAgeVerificationPolicy.mockImplementation(() => Promise.resolve({
+      required: true,
+      compatibleMethods: ['Email', 'CreditCard'],
+      compatibleMethodSlugs: ['email_age_check', 'credit_card'],
+      leastInvasiveMethod: 'Email',
+      legislation: [],
+    }));
+    const user = makeUser({
+      geo: { jurisdiction: 'GB', countryCode: 'GB', ipHash: '', checkedAt: new Date() },
+      billing: {
+        activeSubscriptions: ['access'],
+        entitlements: [],
+        isLifetime: false,
+        status: 'active',
+        updatedAt: new Date(),
+      },
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(true);
+  });
+
+  test('mixed free + paid subscription bypasses credit_card method', async () => {
+    mockRequiresAgeVerification.mockImplementation(() => Promise.resolve(true));
+    mockGetAgeVerificationPolicy.mockImplementation(() => Promise.resolve({
+      required: true,
+      compatibleMethods: ['Email', 'CreditCard'],
+      compatibleMethodSlugs: ['email_age_check', 'credit_card'],
+      leastInvasiveMethod: 'Email',
+      legislation: [],
+    }));
+    const user = makeUser({
+      geo: { jurisdiction: 'GB', countryCode: 'GB', ipHash: '', checkedAt: new Date() },
+      billing: {
+        activeSubscriptions: ['free', 'access'],
+        entitlements: [],
+        isLifetime: false,
+        status: 'active',
+        updatedAt: new Date(),
+      },
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(true);
+  });
 });

@@ -89,7 +89,6 @@ export function FriendsProvider({ children }: FriendsProviderProps) {
   const { notifications, audio } = usePlatformCapabilities();
   const soundPref = useNotificationSoundPreference();
   const claimAchievement = useClaimAchievement();
-
   const [friends, setFriends] = useState<FriendInfo[]>([]);
   const [incomingRequests, setIncomingRequests] = useState<IncomingFriendRequestInfo[]>([]);
   const [incomingRequestCount, setIncomingRequestCount] = useState(0);
