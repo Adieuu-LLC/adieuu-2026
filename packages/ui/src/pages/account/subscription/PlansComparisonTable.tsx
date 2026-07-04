@@ -146,9 +146,9 @@ export function PlansComparisonTable({
                 </>
               }
             >
-              <span className="comparison-table-free-subtext" tabIndex={0}>
+              <button type="button" className="comparison-table-free-subtext">
                 {t('account.subscription.comparison.cellFreeSubtext')}
-              </span>
+              </button>
             </InfoTip>
           </div>
         </td>

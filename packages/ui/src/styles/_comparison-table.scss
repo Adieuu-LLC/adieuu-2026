@@ -346,6 +346,9 @@ a.comparison-footnote-ref {
 }
 
 .comparison-table-free-subtext {
+  all: unset;
+  font: inherit;
+  color: inherit;
   cursor: help;
   text-decoration: underline dotted;
   text-underline-offset: 2px;
