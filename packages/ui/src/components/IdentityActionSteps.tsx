@@ -4,7 +4,6 @@ import { Card } from './Card';
 import { Button } from './Button';
 import { Spinner } from './Spinner';
 import { Icon } from '../icons/Icon';
-import { useTourContext } from '../hooks/useTourContext';
 import type { AppIconName } from '../icons/appIcons';
 import type { IdentityProgress, AccountProgressStep } from '../hooks/useHomeProgress';
 
@@ -68,7 +67,6 @@ function PrimaryStepAction({ step }: { step: AccountProgressStep }) {
 
 function SecondaryLink({ step }: { step: AccountProgressStep }) {
   const { t } = useTranslation();
-  const tour = useTourContext();
 
   switch (step.id) {
     case 'appearance':
@@ -82,14 +80,6 @@ function SecondaryLink({ step }: { step: AccountProgressStep }) {
         <Link to="/identity/profile" className="btn btn-secondary btn-sm">
           {t('home.identity.secondary.editProfile.action')}
         </Link>
-      );
-    case 'tour':
-      return (
-        <Button variant="secondary" size="sm" type="button" onClick={() => tour.start()}>
-          {step.completed
-            ? t('home.identity.secondary.tour.actionRetake')
-            : t('home.identity.secondary.tour.action')}
-        </Button>
       );
     default:
       return null;

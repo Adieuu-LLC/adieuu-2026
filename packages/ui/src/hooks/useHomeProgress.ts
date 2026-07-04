@@ -103,7 +103,7 @@ export function useHomeProgress(): HomeProgress {
     tourCompleted,
     firstMessageSent,
   );
-  const identityProgress = useIdentityProgress(api, tourCompleted, isIdentityMode);
+  const identityProgress = useIdentityProgress(api, isIdentityMode);
 
   return isIdentityMode ? identityProgress : accountProgress;
 }
@@ -273,7 +273,6 @@ function useAccountProgress(
 
 function useIdentityProgress(
   api: ReturnType<typeof createApiClient>,
-  tourCompleted: boolean,
   enabled: boolean,
 ): IdentityProgress {
   const { friends } = useFriends();
@@ -316,11 +315,11 @@ function useIdentityProgress(
       enabled
         ? [
             { id: 'addFriend', completed: hasFriend, disabled: false },
-            { id: 'startConversation', completed: false, disabled: false },
+            { id: 'startConversation', completed: conversationsLen > 0, disabled: false },
             { id: 'joinSpace', completed: false, disabled: true },
           ]
         : [],
-    [enabled, hasFriend],
+    [enabled, hasFriend, conversationsLen],
   );
 
   const secondarySteps: AccountProgressStep[] = useMemo(
@@ -329,10 +328,9 @@ function useIdentityProgress(
         ? [
             { id: 'appearance', completed: false, disabled: false },
             { id: 'editProfile', completed: false, disabled: false },
-            { id: 'tour', completed: tourCompleted, disabled: false },
           ]
         : [],
-    [enabled, tourCompleted],
+    [enabled],
   );
 
   const stats = useMemo(
