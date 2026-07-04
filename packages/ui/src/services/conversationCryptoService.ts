@@ -87,7 +87,9 @@ export interface EncryptedMessage {
   /**
    * Devices whose signed pre-key failed signature verification against the
    * recipient's identity key. These fall back to static wrapping rather than
-   * being silently skipped. Subset of {@link fsDowngradedDeviceIds}.
+   * being silently skipped. Overlaps with {@link fsDowngradedDeviceIds} only
+   * when forward secrecy was requested; otherwise devices appear here but
+   * not in `fsDowngradedDeviceIds`.
    */
   spkVerificationFailedDeviceIds: string[];
 }

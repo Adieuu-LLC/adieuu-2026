@@ -76,6 +76,11 @@ export function AccountFlyout({ supportUnreadCount = 0 }: { supportUnreadCount?:
 
   const isActive = (path: string) => location.pathname === path;
   const isAccountActive = location.pathname.startsWith('/account');
+  const isAccountPageActive = isAccountActive
+    && !location.pathname.startsWith('/account/subscription')
+    && !location.pathname.startsWith('/account/referrals')
+    && !location.pathname.startsWith('/account/age-verification')
+    && !location.pathname.startsWith('/account/appearance');
 
   const handleLogout = async () => {
     setDrawerOpen(false);
@@ -95,11 +100,8 @@ export function AccountFlyout({ supportUnreadCount = 0 }: { supportUnreadCount?:
 
   const menuItems = (
     <>
-      <Link to="/account/overview" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/account/overview') ? 'sidebar-flyout-item-active' : ''}`}>
-        {t('account.overview.title')}
-      </Link>
-      <Link to="/account/security" onClick={handleNavClick} className={`sidebar-flyout-item ${location.pathname.startsWith('/account/security') ? 'sidebar-flyout-item-active' : ''}`}>
-        {t('account.security.title')}
+      <Link to="/account/overview" onClick={handleNavClick} className={`sidebar-flyout-item ${isAccountPageActive ? 'sidebar-flyout-item-active' : ''}`}>
+        {t('account.page.title')}
       </Link>
       <Link to="/account/subscription" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/account/subscription') ? 'sidebar-flyout-item-active' : ''}`}>
         {t('account.subscription.title')}

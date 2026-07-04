@@ -2,6 +2,12 @@
  * Account (non-alias) settings and overview.
  */
 export const account = {
+    // Merged account page header
+    page: {
+      title: 'Account',
+      subtitle: 'Manage your account details, security settings, and active sessions.',
+    },
+
     // Overview
     overview: {
       title: 'Account Overview',
@@ -80,7 +86,7 @@ export const account = {
       location: {
         title: 'Location (account)',
         subtitle:
-          'Country may be visible to other users (via a flag by your name); other info you see here is used only for determining compliance requirements and localizing your support tickets.',
+          'Info you see here is used only for determining compliance requirements and localizing your support tickets.',
         maskedIp: 'Connection IP (masked)',
         jurisdiction: 'Jurisdiction',
         countryCode: 'Country',
@@ -110,6 +116,9 @@ export const account = {
         startedAt: 'Started on {{date}}',
         expiresAt: 'Expires on {{date}}',
         completedAt: 'Completed on {{date}}',
+        detailStarted: 'Started',
+        detailCompleted: 'Completed',
+        detailExpires: 'Expires',
         copyUrl: 'Copy Verification Link',
         copyUrlHint: 'Paste this link in any browser to resume verification.',
         urlCopied: 'Copied to Clipboard.',
@@ -323,6 +332,7 @@ export const account = {
       subtitle: 'Manage your security settings and active sessions.',
       // Tabs
       tabs: {
+        overview: 'Overview',
         authentication: 'Authentication',
         passphrase: 'Alias Password',
         sessions: 'Sessions',

@@ -341,6 +341,27 @@ export async function editMessage(
 
   const { ciphertext, nonce, wrappedKeys, signature, cryptoProfile, clientEditId, e2eMediaIds } = input;
 
+  if (e2eMediaIds?.length) {
+    const e2eRepo = getE2EMediaRepository();
+    const mediaRecords = await e2eRepo.findManyByE2EMediaIds(e2eMediaIds);
+
+    if (mediaRecords.length !== e2eMediaIds.length) {
+      return { success: false, error: 'One or more E2E media references not found', errorCode: 'INVALID_MEDIA' as const };
+    }
+
+    for (const media of mediaRecords) {
+      if (!media.identityId.equals(senderObjId)) {
+        return { success: false, error: 'E2E media does not belong to sender', errorCode: 'INVALID_MEDIA' as const };
+      }
+      if (media.status === 'pending') {
+        return { success: false, error: 'E2E media upload has not been completed', errorCode: 'INVALID_MEDIA' as const };
+      }
+      if (media.moderationStatus === 'rejected') {
+        return { success: false, error: 'E2E media has not cleared moderation', errorCode: 'INVALID_MEDIA' as const };
+      }
+    }
+  }
+
   // Verify the context-bound (v2) signature over the replacement ciphertext.
   // Edits sign with the original message's clientMessageId (stable across
   // revisions), so the message doc is loaded first to resolve it.
@@ -414,6 +435,11 @@ export async function editMessage(
   }
 
   const message = result.doc;
+
+  if (e2eMediaIds?.length && message.expiresAt) {
+    const e2eRepo = getE2EMediaRepository();
+    await e2eRepo.setExpiresAt(e2eMediaIds, message.expiresAt);
+  }
 
   // Fan-out: same as send — exclude ineligible in groups
   const deliveryRecipients = blockedPairSet

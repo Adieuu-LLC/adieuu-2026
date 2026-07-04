@@ -8,7 +8,7 @@ export {
   Search,
   Login,
   Verify,
-  AccountOverview,
+  AccountOverviewContent,
   AccountSecurity,
   AccountSettings,
   ThemeBrowser,

@@ -50,6 +50,7 @@ import {
   toIdentityPublicKeys,
   type CryptoProfile,
   type IdentityDevice,
+  type IdentityDocument,
 } from '../../models/identity';
 import {
   attachActiveSignedPreKeysToPublicKeys,
@@ -85,6 +86,29 @@ const BlockIdentitySchema = z.object({
 
 /** Allowed username chars after stripping invisibles (must match {@link CreateIdentitySchema}). */
 const USERNAME_ALLOWED = /^[a-zA-Z0-9_-]+$/;
+
+/**
+ * Shared "require-if-flagged, verify-if-present" attestation gate used by
+ * both {@link registerDeviceCtrl} and {@link initializeE2ECtrl}.
+ *
+ * Returns a 400 Response when validation fails, or `null` when the
+ * attestation is absent-but-optional or present-and-valid.
+ */
+function verifyStaticKeyAttestationOrReject(
+  identity: IdentityDocument,
+  device: IdentityDevice,
+  attestation: string | undefined,
+): Response | null {
+  if (config.security.requireDeviceAttestation && !attestation) {
+    return errors.badRequest('Static key attestation is required to register a device.');
+  }
+  if (attestation) {
+    if (!verifyDeviceStoredStaticKeyAttestation(identity, device, attestation)) {
+      return errors.badRequest('Invalid static key attestation.');
+    }
+  }
+  return null;
+}
 
 // ============================================================================
 // Identity Search & Profile Controllers
@@ -547,14 +571,9 @@ export async function registerDeviceCtrl(ctx: RouteContext): Promise<Response> {
     lastActiveAt: now,
   };
 
-  if (config.security.requireDeviceAttestation && !staticKeyAttestation) {
-    return errors.badRequest('Static key attestation is required to register a device.');
-  }
-
+  const attestationError = verifyStaticKeyAttestationOrReject(identity, device, staticKeyAttestation);
+  if (attestationError) return attestationError;
   if (staticKeyAttestation) {
-    if (!verifyDeviceStoredStaticKeyAttestation(identity, device, staticKeyAttestation)) {
-      return errors.badRequest('Invalid static key attestation.');
-    }
     device.staticKeyAttestation = staticKeyAttestation;
   }
 
@@ -1008,30 +1027,27 @@ export async function initializeE2ECtrl(ctx: RouteContext): Promise<Response> {
 
   const { signingPublicKey, preferredCryptoProfile, device, bundle } = parseResult.data;
 
-  if (config.security.requireDeviceAttestation && !device.staticKeyAttestation) {
-    return errors.badRequest('Static key attestation is required to register a device.');
-  }
-
-  if (device.staticKeyAttestation) {
-    // The signing key is not stored on the identity yet, so verify the
-    // attestation against the signing public key provided in this request.
-    const attestationIdentity = {
-      ...identity,
-      signingPublicKey,
-      preferredCryptoProfile: (preferredCryptoProfile as CryptoProfile) ?? 'default',
-    };
-    const attestationDevice: IdentityDevice = {
-      deviceId: device.deviceId,
-      name: device.name,
-      ecdhPublicKey: device.ecdhPublicKey,
-      kemPublicKey: device.kemPublicKey,
-      registeredAt: new Date(),
-      lastActiveAt: new Date(),
-    };
-    if (!verifyDeviceStoredStaticKeyAttestation(attestationIdentity, attestationDevice, device.staticKeyAttestation)) {
-      return errors.badRequest('Invalid static key attestation.');
-    }
-  }
+  // The signing key is not stored on the identity yet, so verify the
+  // attestation against the signing public key provided in this request.
+  const attestationIdentity = {
+    ...identity,
+    signingPublicKey,
+    preferredCryptoProfile: (preferredCryptoProfile as CryptoProfile) ?? 'default',
+  };
+  const attestationDevice: IdentityDevice = {
+    deviceId: device.deviceId,
+    name: device.name,
+    ecdhPublicKey: device.ecdhPublicKey,
+    kemPublicKey: device.kemPublicKey,
+    registeredAt: new Date(),
+    lastActiveAt: new Date(),
+  };
+  const e2eAttestationError = verifyStaticKeyAttestationOrReject(
+    attestationIdentity,
+    attestationDevice,
+    device.staticKeyAttestation,
+  );
+  if (e2eAttestationError) return e2eAttestationError;
 
   // Debug logging for E2E initialization
   console.log('[E2E Init] Identity ID:', identity._id.toHexString());

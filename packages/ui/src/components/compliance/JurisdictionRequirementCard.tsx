@@ -4,21 +4,28 @@ import type { PublicJurisdictionRequirement } from '@adieuu/shared';
 export interface JurisdictionRequirementCardProps {
   row: PublicJurisdictionRequirement;
   compact?: boolean;
+  borderless?: boolean;
 }
 
 function formatSlugs(slugs: string[]): string {
   return slugs.map((slug) => slug.replaceAll('_', ' ')).join(' · ');
 }
 
-export function JurisdictionRequirementCard({ row, compact = false }: JurisdictionRequirementCardProps) {
+export function JurisdictionRequirementCard({ row, compact = false, borderless = false }: JurisdictionRequirementCardProps) {
   const { t } = useTranslation();
 
+  const classNames = [
+    'jurisdiction-requirement-card',
+    compact && 'jurisdiction-requirement-card--compact',
+    borderless && 'jurisdiction-requirement-card--borderless',
+  ].filter(Boolean).join(' ');
+
   return (
-    <article className={`jurisdiction-requirement-card${compact ? ' jurisdiction-requirement-card--compact' : ''}`}>
+    <article className={classNames}>
       <div className="jurisdiction-requirement-card__header">
         <strong className="jurisdiction-requirement-card__name">{row.jurisdictionName}</strong>
         <span className="jurisdiction-requirement-card__meta account-detail-muted">
-          {row.jurisdiction} — {row.region}
+          {borderless ? row.jurisdiction : `${row.jurisdiction} — ${row.region}`}
         </span>
         {row.status === 'proposed' && (
           <span className="jurisdiction-requirement-card__proposed">

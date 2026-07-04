@@ -369,10 +369,12 @@ export function ConversationMessageList({
       flashingMessageId, onReply, onStartEdit, onLinkClick, onMentionClick,
       pinnedSet, canManagePins, onPinMessage, onUnpinMessage,
       onOpenMemberSecurity,
+      onDeviceTrustMismatch,
       peerPublicKeysById,
       verificationRevision,
       customEmojisDisabledByAdmin,
       customEmojis,
+      hideUnmoderatedMedia,
       pageTagCtx,
     ],
   );

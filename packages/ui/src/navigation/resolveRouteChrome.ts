@@ -132,9 +132,6 @@ export function resolveRouteChrome(pathname: string): RouteChromeDescriptor {
     return { icon: 'mask', titleKey: 'identity.profile.title', titleDefault: 'Profile' };
   }
 
-  if (pathname.startsWith('/account/security')) {
-    return { icon: 'user', titleKey: 'account.security.title', titleDefault: 'Security' };
-  }
   if (pathname.startsWith('/account/subscription')) {
     return { icon: 'user', titleKey: 'account.subscription.title', titleDefault: 'Subscription' };
   }
@@ -147,11 +144,8 @@ export function resolveRouteChrome(pathname: string): RouteChromeDescriptor {
   if (pathname.startsWith('/account/age-verification')) {
     return { icon: 'shield', titleKey: 'account.overview.ageVerification.pageTitle', titleDefault: 'Age Verification' };
   }
-  if (pathname.startsWith('/account/overview')) {
-    return { icon: 'user', titleKey: 'account.overview.title', titleDefault: 'Account Overview' };
-  }
   if (pathname.startsWith('/account')) {
-    return { icon: 'user', titleKey: 'account.overview.title', titleDefault: 'Account Overview' };
+    return { icon: 'user', titleKey: 'account.page.title', titleDefault: 'Account' };
   }
 
   if (pathname === '/support/new') {

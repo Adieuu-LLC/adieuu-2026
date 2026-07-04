@@ -174,7 +174,7 @@ export async function gatherConversationMediaFromDataTransfer(
   const seenRaw = new Set<string>();
   const seenResolved = new Set<string>();
 
-  const rawDedupeKey = (f: File) => `${f.size}\0${f.type}`;
+  const rawDedupeKey = (f: File) => `${f.name}\0${f.size}\0${f.type}\0${f.lastModified}`;
 
   const tryAdd = async (raw: File | null) => {
     if (!raw) return;
@@ -280,7 +280,7 @@ export async function readClipboardMediaFilesViaApi(
       const mime = normalizeMimeType(blob.type || type);
       const useType = isAcceptedConversationMediaType(mime) ? mime : normalizeMimeType(type);
       if (!isAcceptedConversationMediaType(useType)) continue;
-      const dedupeKey = `${blob.size}\0${useType}`;
+      const dedupeKey = `${blob.size}\0${useType}\0${seq}`;
       if (seen.has(dedupeKey)) continue;
       seen.add(dedupeKey);
       const f = new File([blob], `pasted-${Date.now()}-${seq}.${extensionForMime(useType)}`, { type: useType });

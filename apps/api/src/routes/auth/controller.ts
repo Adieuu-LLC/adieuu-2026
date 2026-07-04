@@ -1257,7 +1257,14 @@ export async function getSessionHandler(
     geo,
     subscriptions,
     entitlements,
-    captchaSitekey: config.friendlyCaptcha?.enabled ? config.friendlyCaptcha.sitekey || undefined : undefined,
+    captchaSitekey: (() => {
+      if (!config.friendlyCaptcha?.enabled) return undefined;
+      if (!config.friendlyCaptcha.sitekey) {
+        elog.warn('FriendlyCaptcha is enabled but FRIENDLY_CAPTCHA_SITEKEY is not configured');
+        return undefined;
+      }
+      return config.friendlyCaptcha.sitekey;
+    })(),
     ageVerification,
     aliasGate,
     compliance,

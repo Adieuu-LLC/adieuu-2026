@@ -59,7 +59,7 @@ export const EditMessageSchema = z.object({
   signature: z.string().min(1).max(500),
   cryptoProfile: z.enum(['default', 'cnsa2']),
   clientEditId: z.string().uuid(),
-  e2eMediaIds: z.array(z.string().uuid()).max(10).optional(),
+  e2eMediaIds: z.array(z.string().min(1).max(100)).max(10).optional(),
 });
 
 export const AddMemberSchema = z.object({

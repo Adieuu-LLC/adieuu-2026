@@ -170,7 +170,7 @@ function SecondaryStepAction({ step }: { step: AccountProgressStep }) {
     case 'mfa':
       if (step.completed) return null;
       return (
-        <Link to="/account/security" className="btn btn-secondary btn-sm">
+        <Link to="/account/authentication" className="btn btn-secondary btn-sm">
           {t('home.account.secondary.mfa.action')}
         </Link>
       );
@@ -231,7 +231,7 @@ export function AccountActionSteps({ progress }: AccountActionStepsProps) {
               </Link>
             </li>
             <li>
-              <Link to="/account/security" className="btn btn-secondary">
+              <Link to="/account/authentication" className="btn btn-secondary">
                 {t('home.account.allComplete.security')}
               </Link>
             </li>

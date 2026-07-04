@@ -18,7 +18,10 @@ function deleteDb(): Promise<void> {
     const req = indexedDB.deleteDatabase(DB_NAME);
     req.onsuccess = () => resolve();
     req.onerror = () => resolve();
-    req.onblocked = () => resolve();
+    req.onblocked = () => {
+      console.warn(`[deleteDb] indexedDB.deleteDatabase("${DB_NAME}") blocked – cached connections may leave stale state between tests`);
+      resolve();
+    };
   });
 }
 

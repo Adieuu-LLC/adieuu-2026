@@ -100,16 +100,16 @@ export function JurisdictionRequirementsList({
         </p>
       )}
 
-      {[...groupedRows.entries()].map(([region, regionRows]) => (
-        <section key={region} className="jurisdiction-requirements-list__region">
-          <h4 className="jurisdiction-requirements-list__region-title">{region}</h4>
-          {layout === 'flat' ? (
-            <div className="jurisdiction-requirements-list__flat">
-              {regionRows.map((row) => (
-                <JurisdictionRequirementCard key={row.jurisdiction} row={row} />
-              ))}
-            </div>
-          ) : (
+      {layout === 'flat' ? (
+        <div className="jurisdiction-requirements-list__flat">
+          {filteredRows.map((row) => (
+            <JurisdictionRequirementCard key={row.jurisdiction} row={row} borderless />
+          ))}
+        </div>
+      ) : (
+        [...groupedRows.entries()].map(([region, regionRows]) => (
+          <section key={region} className="jurisdiction-requirements-list__region">
+            <h4 className="jurisdiction-requirements-list__region-title">{region}</h4>
             <Accordion.Root multiple collapsible className="jurisdiction-requirements-list__accordion">
               {regionRows.map((row) => (
                 <Accordion.Item
@@ -134,9 +134,9 @@ export function JurisdictionRequirementsList({
                 </Accordion.Item>
               ))}
             </Accordion.Root>
-          )}
-        </section>
-      ))}
+          </section>
+        ))
+      )}
     </div>
   );
 }

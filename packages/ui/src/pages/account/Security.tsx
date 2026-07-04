@@ -12,14 +12,15 @@ import { useAppConfig } from '../../config';
 import { ChangePassphrasePanel } from './ChangePassphrasePanel';
 import { DataExportPanel } from './DataExportPanel';
 import { DeleteAccountPanel } from './DeleteAccountPanel';
+import { AccountOverviewContent } from './Overview';
 import {
   useCrashReportingPreference,
   setCrashReportingEnabled,
   setCrashReportingIncludeUser,
 } from '../../hooks/useCrashReportingPreference';
 
-const VALID_TABS = ['authentication', 'passphrase', 'sessions', 'data-export', 'delete-account'] as const;
-type SecurityTab = typeof VALID_TABS[number];
+const VALID_TABS = ['overview', 'authentication', 'passphrase', 'sessions', 'data-export', 'delete-account'] as const;
+type AccountTab = typeof VALID_TABS[number];
 
 /**
  * Parse user agent string to get a readable device/browser name
@@ -269,25 +270,27 @@ export function AccountSecurity() {
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
   const crashReporting = useCrashReportingPreference();
 
-  // Validate tab parameter and default to authentication
-  const activeTab: SecurityTab = VALID_TABS.includes(tab as SecurityTab)
-    ? (tab as SecurityTab)
-    : 'authentication';
+  const activeTab: AccountTab = VALID_TABS.includes(tab as AccountTab)
+    ? (tab as AccountTab)
+    : 'overview';
 
   const handleTabChange = (newTab: string) => {
-    navigate(`/account/security/${newTab}`, { replace: true });
+    navigate(`/account/${newTab}`, { replace: true });
   };
 
   return (
     <div className="page-content">
       <div className="container">
         <div className="page-header">
-          <h1 className="page-title">{t('account.security.title')}</h1>
-          <p className="page-subtitle">{t('account.security.subtitle')}</p>
+          <h1 className="page-title">{t('account.page.title')}</h1>
+          <p className="page-subtitle">{t('account.page.subtitle')}</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={handleTabChange} className="slide-up">
           <TabList>
+            <TabTrigger value="overview">
+              {t('account.security.tabs.overview')}
+            </TabTrigger>
             <TabTrigger value="authentication">
               {t('account.security.tabs.authentication')}
             </TabTrigger>
@@ -304,6 +307,10 @@ export function AccountSecurity() {
               {t('account.security.tabs.deleteAccount')}
             </TabTrigger>
           </TabList>
+
+          <TabContent value="overview">
+            <AccountOverviewContent />
+          </TabContent>
 
           <TabContent value="authentication">
             <AuthenticationSettings />

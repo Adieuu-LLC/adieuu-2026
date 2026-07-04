@@ -185,12 +185,11 @@ export async function claimPreKeysCtrl(ctx: RouteContext): Promise<Response> {
   // Rate limit claims per caller and per caller-target pair so a single
   // authenticated caller cannot drain one-time pre-key pools.
   const callerId = callerIdentity._id.toHexString();
-  const callerLimit = await checkRateLimit('prekeys:claim:identity', callerId);
-  if (!callerLimit.allowed) {
-    return ctx.errors.rateLimited();
-  }
-  const pairLimit = await checkRateLimit('prekeys:claim:target', `${callerId}:${parsedId.id}`);
-  if (!pairLimit.allowed) {
+  const [callerLimit, pairLimit] = await Promise.all([
+    checkRateLimit('prekeys:claim:identity', callerId),
+    checkRateLimit('prekeys:claim:target', `${callerId}:${parsedId.id}`),
+  ]);
+  if (!callerLimit.allowed || !pairLimit.allowed) {
     return ctx.errors.rateLimited();
   }
 

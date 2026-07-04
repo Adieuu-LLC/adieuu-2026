@@ -8,7 +8,7 @@ export { Login, Verify } from './auth';
 
 // Account pages
 export {
-  AccountOverview,
+  AccountOverviewContent,
   AccountSecurity,
   AccountSettings,
   ThemeBrowser,
