@@ -100,6 +100,13 @@ export function setupAdieuuCookieBridge(
       headers['Origin'] = PRODUCTION_APP_ORIGIN;
     }
 
+    // Preflight requests never carry cookies; skip the async cookie lookup
+    // so the callback fires synchronously and Chromium doesn't abort it.
+    if (details.method === 'OPTIONS') {
+      callback({ requestHeaders: headers });
+      return;
+    }
+
     session.cookies
       .get({ url: details.url })
       .then((cookies) => {

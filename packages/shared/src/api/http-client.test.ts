@@ -141,6 +141,70 @@ describe('ApiClient', () => {
       expect(res.error.message).toContain('boom');
     }
   });
+
+  it('retries GET once on network error and succeeds', async () => {
+    let callCount = 0;
+    const fetchImpl: typeof fetch = async () => {
+      callCount++;
+      if (callCount === 1) throw new Error('transient');
+      return new Response(JSON.stringify({ success: true, data: { ok: true } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    };
+
+    const client = new ApiClient({
+      baseUrl: 'http://example.test',
+      fetchImpl,
+      timeout: 5000,
+    });
+
+    const res = await client.get('/api/foo');
+    expect(callCount).toBe(2);
+    expect(res.success).toBe(true);
+  });
+
+  it('does not retry POST on network error', async () => {
+    let callCount = 0;
+    const fetchImpl: typeof fetch = async () => {
+      callCount++;
+      throw new Error('transient');
+    };
+
+    const client = new ApiClient({
+      baseUrl: 'http://example.test',
+      fetchImpl,
+      timeout: 5000,
+    });
+
+    const res = await client.post('/api/foo', { a: 1 });
+    expect(callCount).toBe(1);
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error.code).toBe('NETWORK_ERROR');
+    }
+  });
+
+  it('retries GET at most once on persistent network error', async () => {
+    let callCount = 0;
+    const fetchImpl: typeof fetch = async () => {
+      callCount++;
+      throw new Error('persistent');
+    };
+
+    const client = new ApiClient({
+      baseUrl: 'http://example.test',
+      fetchImpl,
+      timeout: 5000,
+    });
+
+    const res = await client.get('/api/foo');
+    expect(callCount).toBe(2);
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error.code).toBe('NETWORK_ERROR');
+    }
+  });
 });
 
 describe('CAPTCHA_REQUIRED interceptor', () => {

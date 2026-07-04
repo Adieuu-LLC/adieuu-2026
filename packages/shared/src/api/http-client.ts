@@ -98,6 +98,7 @@ export class ApiClient implements HttpClient {
     body?: unknown,
     options?: RequestOptions,
     isRetry = false,
+    networkRetry = false,
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${path}`;
     const headers: Record<string, string> = {
@@ -162,7 +163,7 @@ export class ApiClient implements HttpClient {
             ...((body as Record<string, unknown>) ?? {}),
             'frc-captcha-response': token,
           };
-          return this.request<T>(method, path, retryBody, options, true);
+          return this.request<T>(method, path, retryBody, options, true, networkRetry);
         }
       }
 
@@ -184,6 +185,15 @@ export class ApiClient implements HttpClient {
           };
         }
 
+        if (
+          !networkRetry &&
+          !MUTATING_METHODS.has(method.toUpperCase()) &&
+          !options?.signal?.aborted
+        ) {
+          await new Promise((r) => setTimeout(r, 500));
+          return this.request<T>(method, path, body, options, isRetry, true);
+        }
+
         return {
           success: false,
           error: {
@@ -191,6 +201,15 @@ export class ApiClient implements HttpClient {
             message: error.message || 'Network error',
           },
         };
+      }
+
+      if (
+        !networkRetry &&
+        !MUTATING_METHODS.has(method.toUpperCase()) &&
+        !options?.signal?.aborted
+      ) {
+        await new Promise((r) => setTimeout(r, 500));
+        return this.request<T>(method, path, body, options, isRetry, true);
       }
 
       return {

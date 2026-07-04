@@ -535,7 +535,7 @@ export const identity = {
       messageSearchModeWarm: 'As I read messages (faster search, more plaintext on device)',
       changePassword: {
         title: 'Change Alias Password',
-        description: 'Change the password used to sign in to this alias. Your encrypted key bundle will be re-encrypted with the new password.',
+        description: 'Change the password used to sign into one of your Aliases. Your encrypted key bundle will be re-encrypted with the new password.',
         currentPassword: 'Current password',
         newPassword: 'New password',
         confirmPassword: 'Confirm new password',
