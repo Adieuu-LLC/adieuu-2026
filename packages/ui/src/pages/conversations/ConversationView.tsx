@@ -288,9 +288,11 @@ export function ConversationView() {
     setKeyChangeAlertDismissed(false);
   }, [id]);
   const handleDeviceTrustMismatch = useCallback((identityId: string) => {
-    setKeyChangeAlertIdentityIds((prev) =>
-      prev.includes(identityId) ? prev : [...prev, identityId]
-    );
+    setKeyChangeAlertIdentityIds((prev) => {
+      if (prev.includes(identityId)) return prev;
+      setKeyChangeAlertDismissed(false);
+      return [...prev, identityId];
+    });
   }, []);
   const [gifVisibility] = useGifPreference(identity?.id ?? '');
   const gifsGloballyDisabled = gifVisibility === 'disabled';

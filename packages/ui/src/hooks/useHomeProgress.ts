@@ -237,7 +237,7 @@ function useAccountProgress(
   const canSkipAvWithUpgrade = useMemo(() => {
     if (!isFreeTier || !avStepRelevant) return false;
     if (jurisdictionReqs.length === 0) return true;
-    return jurisdictionReqs.some((r) =>
+    return jurisdictionReqs.every((r) =>
       r.compatibleMethods.includes('credit_card'),
     );
   }, [isFreeTier, avStepRelevant, jurisdictionReqs]);

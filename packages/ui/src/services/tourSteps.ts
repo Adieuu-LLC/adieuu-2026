@@ -127,6 +127,7 @@ export function createOnboardingSteps(
         return () => {
           cleanup();
           document.removeEventListener('click', onClick, true);
+          document.body.classList.remove('tour-account-flyout-open');
         };
       },
     },
@@ -283,9 +284,13 @@ export function createOnboardingSteps(
       effect: ({ show }) => {
         navigate('/');
         document.body.classList.add('tour-account-flyout-open');
-        return waitForElement('[data-tour="logout"]', () => {
+        const cleanup = waitForElement('[data-tour="logout"]', () => {
           show();
         });
+        return () => {
+          cleanup();
+          document.body.classList.remove('tour-account-flyout-open');
+        };
       },
     },
     // 19. Completion dialog

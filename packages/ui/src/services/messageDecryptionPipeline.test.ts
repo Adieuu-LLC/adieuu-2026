@@ -19,7 +19,10 @@ function makeMessage(overrides: Partial<PublicMessage> = {}): PublicMessage {
     wrappedKeys: [],
     signature: 'sig',
     cryptoProfile: 'default',
+    clientMessageId: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
+    deleted: false,
+    revisionCount: 0,
     ...overrides,
   };
 }
@@ -112,6 +115,8 @@ function toPublicMsg(
     cryptoProfile: encrypted.cryptoProfile,
     clientMessageId: context.clientMessageId,
     createdAt: new Date().toISOString(),
+    deleted: false,
+    revisionCount: 0,
   };
 }
 

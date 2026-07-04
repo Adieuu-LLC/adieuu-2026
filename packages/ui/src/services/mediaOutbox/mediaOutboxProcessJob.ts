@@ -217,6 +217,13 @@ async function sendMessageForJob(job: MediaOutboxJobRecord, deps: MediaOutboxPro
       ...(job.editClientMessageId ? { clientMessageId: job.editClientMessageId } : {}),
     });
     if (result != null && typeof result === 'object' && 'errorCode' in result) {
+      const code = (result as { errorCode: string }).errorCode;
+      if (code === 'MAX_EDITS_REACHED') {
+        throw new Error(deps.t('conversations.messageEditMax', 'Edit limit reached. Send a new message.'));
+      }
+      if (code === 'BLOCKED') {
+        throw new Error(deps.t('conversations.sendBlocked', 'Message could not be sent'));
+      }
       throw new Error(deps.t('conversations.uploadFailed', 'Upload failed'));
     }
     if (result == null) {

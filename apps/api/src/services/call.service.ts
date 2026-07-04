@@ -629,7 +629,7 @@ function enforceCallSettings(
   conversation: { audioCallsDisabled?: boolean; videoCallsDisabled?: boolean; screenshareDisabled?: boolean },
   billing?: { subscriptions: readonly SubscriptionTierId[]; entitlements?: readonly string[]; isLifetime?: boolean },
 ): CallMediaOptions {
-  const isFreeTier = billing ? !hasPaidAccess(billing) : false;
+  const isFreeTier = billing ? !hasPaidAccess(billing) : true;
 
   return {
     audio: requested.audio && !conversation.audioCallsDisabled,
