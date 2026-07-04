@@ -281,6 +281,7 @@ export const identity = {
       createPrompt: 'Create one to get started.',
       /** Shown on login when user already has at least one alias but may create another */
       createAnotherPrompt: 'Create a new alias',
+      changePasswordLink: 'Change alias password',
       // Login status messages
       status: {
         authenticating: 'Verifying password...',

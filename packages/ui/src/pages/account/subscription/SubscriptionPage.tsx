@@ -423,7 +423,7 @@ export function AccountSubscription() {
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="slide-up">
         <TabList>
-          <TabTrigger value="manage">
+          <TabTrigger value="manage" data-tour="subscription-tab-manage">
             {t('account.subscription.tabs.manage')}
           </TabTrigger>
           <TabTrigger value="billing">
@@ -432,7 +432,7 @@ export function AccountSubscription() {
           <TabTrigger value="lifetime">
             {t('account.subscription.tabs.lifetime')}
           </TabTrigger>
-          <TabTrigger value="sponsorships">
+          <TabTrigger value="sponsorships" data-tour="subscription-tab-sponsorships">
             {t('account.subscription.tabs.sponsorships')}
           </TabTrigger>
         </TabList>

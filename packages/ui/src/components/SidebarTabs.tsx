@@ -35,7 +35,7 @@ export function SidebarTabs({ tabs, activeTab, onTabChange }: SidebarTabsProps) 
   const { isExpanded } = useSidebar();
 
   return (
-    <div className={`sidebar-tabs ${!isExpanded ? 'sidebar-tabs-collapsed' : ''}`}>
+    <div className={`sidebar-tabs ${!isExpanded ? 'sidebar-tabs-collapsed' : ''}`} data-tour="sidebar-tabs">
       {tabs.map((tab) => (
         <Tooltip key={tab.id} content={tab.label} position="bottom">
           <button

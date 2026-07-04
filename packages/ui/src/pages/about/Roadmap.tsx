@@ -56,7 +56,7 @@ export function AboutRoadmap() {
                   </button>
                 </Tooltip>
               </div>
-              <Link to="/feedback" className="roadmap-browse-proposals-link">
+              <Link to="/feedback" className="roadmap-browse-proposals-link" data-tour="roadmap-browse-proposals">
                 {t('about.roadmap.browseProposals')}
               </Link>
               <Link

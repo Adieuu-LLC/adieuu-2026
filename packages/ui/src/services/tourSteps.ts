@@ -20,13 +20,37 @@ export function waitForElement(
   return () => clearInterval(id);
 }
 
+export const ONBOARDING_STEP_IDS = [
+  'welcome',
+  'search',
+  'sidebarTabs',
+  'identity',
+  'account',
+  'accountLink',
+  'accountOverview',
+  'accountAuthentication',
+  'accountSessions',
+  'accountDataExport',
+  'subscription',
+  'subscriptionOverview',
+  'subscriptionPromo',
+  'subscriptionSponsorships',
+  'roadmap',
+  'roadmapOverview',
+  'roadmapProposals',
+  'logout',
+  'complete',
+] as const;
+
 export function createOnboardingSteps(
   platform: 'web' | 'desktop' | 'mobile',
-  t: TFunction
+  t: TFunction,
+  navigate: (path: string) => void
 ) {
   const platformSuffix =
     platform === 'desktop' ? ' Desktop' : platform === 'mobile' ? ' Mobile' : '';
   return createTourSteps([
+    // 1. Welcome dialog
     {
       id: 'welcome',
       type: 'dialog',
@@ -38,10 +62,217 @@ export function createOnboardingSteps(
             ? t('tour.steps.welcome.descriptionMobile')
             : t('tour.steps.welcome.descriptionWeb'),
     },
-    { id: 'search', type: 'tooltip', target: '[data-tour="search"]', title: t('tour.steps.search.title'), description: t('tour.steps.search.description'), placement: 'right' },
-    { id: 'sidebarTabs', type: 'tooltip', target: '[data-tour="sidebar-tabs"]', title: t('tour.steps.sidebarTabs.title'), description: t('tour.steps.sidebarTabs.description'), placement: 'right' },
-    { id: 'identity', type: 'tooltip', target: '[data-tour="identity"]', title: t('tour.steps.identity.title'), description: t('tour.steps.identity.description'), placement: 'right' },
-    { id: 'account', type: 'tooltip', target: '[data-tour="account"]', title: t('tour.steps.account.title'), description: t('tour.steps.account.description'), placement: 'right' },
+    // 2. Search
+    {
+      id: 'search',
+      type: 'tooltip',
+      target: '[data-tour="search"]',
+      title: t('tour.steps.search.title'),
+      description: t('tour.steps.search.description'),
+      placement: 'right',
+    },
+    // 4. Sidebar tabs
+    {
+      id: 'sidebarTabs',
+      type: 'tooltip',
+      target: '[data-tour="sidebar-tabs"]',
+      title: t('tour.steps.sidebarTabs.title'),
+      description: t('tour.steps.sidebarTabs.description'),
+      placement: 'right',
+    },
+    // 5. Alias control
+    {
+      id: 'identity',
+      type: 'tooltip',
+      target: '[data-tour="identity"]',
+      title: t('tour.steps.identity.title'),
+      description: t('tour.steps.identity.description'),
+      placement: 'right',
+    },
+    // 6. Account menu (highlight the flyout submenu)
+    {
+      id: 'account',
+      type: 'tooltip',
+      target: '[data-tour="account-flyout"]',
+      title: t('tour.steps.account.title'),
+      description: t('tour.steps.account.description'),
+      placement: 'right',
+      effect: ({ show }) => {
+        document.body.classList.add('tour-account-flyout-open');
+        show();
+        return () => document.body.classList.remove('tour-account-flyout-open');
+      },
+    },
+    // 7. Account page link (inside flyout)
+    {
+      id: 'accountLink',
+      type: 'tooltip',
+      target: '[data-tour="account-page-link"]',
+      title: t('tour.steps.accountLink.title'),
+      description: t('tour.steps.accountLink.description'),
+      placement: 'right',
+      effect: ({ show, next }) => {
+        navigate('/');
+        document.body.classList.add('tour-account-flyout-open');
+        const onClick = (e: Event) => {
+          const link = (e.target as HTMLElement)?.closest?.('[data-tour="account-page-link"]');
+          if (link) {
+            setTimeout(next, 100);
+          }
+        };
+        const cleanup = waitForElement('[data-tour="account-page-link"]', () => {
+          show();
+          document.addEventListener('click', onClick, true);
+        });
+        return () => {
+          cleanup();
+          document.removeEventListener('click', onClick, true);
+        };
+      },
+    },
+    // 8. Account Overview tab
+    {
+      id: 'accountOverview',
+      type: 'tooltip',
+      target: '[data-tour="account-tab-overview"]',
+      title: t('tour.steps.accountOverview.title'),
+      description: t('tour.steps.accountOverview.description'),
+      placement: 'bottom',
+      effect: ({ show }) => {
+        document.body.classList.remove('tour-account-flyout-open');
+        navigate('/account/overview');
+        return waitForElement('[data-tour="account-tab-overview"]', show);
+      },
+    },
+    // 8. Authentication tab
+    {
+      id: 'accountAuthentication',
+      type: 'tooltip',
+      target: '[data-tour="account-tab-authentication"]',
+      title: t('tour.steps.accountAuthentication.title'),
+      description: t('tour.steps.accountAuthentication.description'),
+      placement: 'bottom',
+      effect: ({ show }) => {
+        navigate('/account/authentication');
+        return waitForElement('[data-tour="account-tab-authentication"]', show);
+      },
+    },
+    // 9. Sessions tab
+    {
+      id: 'accountSessions',
+      type: 'tooltip',
+      target: '[data-tour="account-tab-sessions"]',
+      title: t('tour.steps.accountSessions.title'),
+      description: t('tour.steps.accountSessions.description'),
+      placement: 'bottom',
+      effect: ({ show }) => {
+        navigate('/account/sessions');
+        return waitForElement('[data-tour="account-tab-sessions"]', show);
+      },
+    },
+    // 10. Data Export tab
+    {
+      id: 'accountDataExport',
+      type: 'tooltip',
+      target: '[data-tour="account-tab-data-export"]',
+      title: t('tour.steps.accountDataExport.title'),
+      description: t('tour.steps.accountDataExport.description'),
+      placement: 'bottom',
+      effect: ({ show }) => {
+        navigate('/account/data-export');
+        return waitForElement('[data-tour="account-tab-data-export"]', show);
+      },
+    },
+    // 11. Subscription nav link (opens flyout to prompt click)
+    {
+      id: 'subscription',
+      type: 'tooltip',
+      target: '[data-tour="subscription-nav-link"]',
+      title: t('tour.steps.subscription.title'),
+      description: t('tour.steps.subscription.description'),
+      placement: 'right',
+      effect: ({ show }) => {
+        document.body.classList.add('tour-account-flyout-open');
+        show();
+        return () => document.body.classList.remove('tour-account-flyout-open');
+      },
+    },
+    // 12. Subscription overview (manage tab)
+    {
+      id: 'subscriptionOverview',
+      type: 'tooltip',
+      target: '[data-tour="subscription-tab-manage"]',
+      title: t('tour.steps.subscriptionOverview.title'),
+      description: t('tour.steps.subscriptionOverview.description'),
+      placement: 'bottom',
+      effect: ({ show }) => {
+        document.body.classList.remove('tour-account-flyout-open');
+        navigate('/account/subscription/manage');
+        return waitForElement('[data-tour="subscription-tab-manage"]', show);
+      },
+    },
+    // 13. Promo code area
+    {
+      id: 'subscriptionPromo',
+      type: 'tooltip',
+      target: '#subscription-promo-code-card',
+      title: t('tour.steps.subscriptionPromo.title'),
+      description: t('tour.steps.subscriptionPromo.description'),
+      placement: 'top',
+      effect: ({ show }) => {
+        const el = document.getElementById('subscription-promo-code-card');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        show();
+        return () => {};
+      },
+    },
+    // 14. Sponsorships tab
+    {
+      id: 'subscriptionSponsorships',
+      type: 'tooltip',
+      target: '[data-tour="subscription-tab-sponsorships"]',
+      title: t('tour.steps.subscriptionSponsorships.title'),
+      description: t('tour.steps.subscriptionSponsorships.description'),
+      placement: 'bottom',
+      effect: ({ show }) => {
+        navigate('/account/subscription/sponsorships');
+        return waitForElement('[data-tour="subscription-tab-sponsorships"]', show);
+      },
+    },
+    // 15. Roadmap nav link
+    {
+      id: 'roadmap',
+      type: 'tooltip',
+      target: '[data-tour="roadmap-nav"]',
+      title: t('tour.steps.roadmap.title'),
+      description: t('tour.steps.roadmap.description'),
+      placement: 'right',
+    },
+    // 16. Roadmap overview
+    {
+      id: 'roadmapOverview',
+      type: 'tooltip',
+      target: '[data-tour="roadmap-latest-card"]',
+      title: t('tour.steps.roadmapOverview.title'),
+      description: t('tour.steps.roadmapOverview.description'),
+      placement: 'bottom',
+      effect: ({ show }) => {
+        navigate('/about/roadmap');
+        return waitForElement('[data-tour="roadmap-latest-card"]', show);
+      },
+    },
+    // 17. Browse All Proposals
+    {
+      id: 'roadmapProposals',
+      type: 'tooltip',
+      target: '[data-tour="roadmap-browse-proposals"]',
+      title: t('tour.steps.roadmapProposals.title'),
+      description: t('tour.steps.roadmapProposals.description'),
+      placement: 'bottom',
+    },
+    // 18. Sign out
     {
       id: 'logout',
       type: 'tooltip',
@@ -50,9 +281,23 @@ export function createOnboardingSteps(
       description: t('tour.steps.logout.description'),
       placement: 'right',
       effect: ({ show }) => {
+        navigate('/');
         document.body.classList.add('tour-account-flyout-open');
+        return waitForElement('[data-tour="logout"]', () => {
+          show();
+        });
+      },
+    },
+    // 19. Completion dialog
+    {
+      id: 'complete',
+      type: 'dialog',
+      title: t('tour.steps.complete.title'),
+      description: t('tour.steps.complete.description'),
+      effect: ({ show }) => {
+        document.body.classList.remove('tour-account-flyout-open');
         show();
-        return () => document.body.classList.remove('tour-account-flyout-open');
+        return () => {};
       },
     },
   ]);
