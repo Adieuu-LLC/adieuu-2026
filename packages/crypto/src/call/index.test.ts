@@ -140,4 +140,66 @@ describe('call E2EE keys', () => {
     expect(unwrapped).not.toBeNull();
     expect(constantTimeEqual(unwrapped!, callKey)).toBe(true);
   });
+
+  test('findAndUnwrapCallKey throws when keys exist for the identity but none decrypt', () => {
+    const callKey = generateCallKey();
+    const alice = generateIdentityKeyBundle();
+    const wrapped = wrapCallKeyForRecipient(callKey, extractPublicKeys(alice), 'alice');
+
+    // Wrong device keys for the right identity: exhausts all candidates and
+    // all profiles, then surfaces a hard failure (not null).
+    const stranger = generateIdentityKeyBundle();
+    expect(() =>
+      findAndUnwrapCallKey(
+        [wrapped],
+        'alice',
+        stranger.ecdh.privateKey,
+        stranger.kem.privateKey,
+      ),
+    ).toThrow('Failed to unwrap call key');
+  });
+
+  test('deriveCallE2EEKey binds the callId: different calls get different keys', () => {
+    const material = new Uint8Array(32).fill(9);
+    const keyA = deriveCallE2EEKey(material, 'call-a');
+    const keyB = deriveCallE2EEKey(material, 'call-b');
+    expect(constantTimeEqual(keyA, keyB)).toBe(false);
+  });
+
+  test('deriveCallE2EEKey binds the key material: different conversations get different keys', () => {
+    const callId = '507f1f77bcf86cd799439012';
+    const keyA = deriveCallE2EEKey(new Uint8Array(32).fill(1), callId);
+    const keyB = deriveCallE2EEKey(new Uint8Array(32).fill(2), callId);
+    expect(constantTimeEqual(keyA, keyB)).toBe(false);
+  });
+
+  test('wrapping the same call key twice produces unique ephemeral material and ciphertexts', () => {
+    const callKey = generateCallKey();
+    const alice = generateIdentityKeyBundle();
+    const publicKeys = extractPublicKeys(alice);
+
+    const wrap1 = wrapCallKeyForRecipient(callKey, publicKeys, 'alice');
+    const wrap2 = wrapCallKeyForRecipient(callKey, publicKeys, 'alice');
+
+    expect(constantTimeEqual(wrap1.ephemeralPublicKey, wrap2.ephemeralPublicKey)).toBe(false);
+    expect(constantTimeEqual(wrap1.wrappedKey, wrap2.wrappedKey)).toBe(false);
+    expect(constantTimeEqual(wrap1.wrappingNonce, wrap2.wrappingNonce)).toBe(false);
+  });
+
+  test('tampered wrapped call key fails to unwrap', () => {
+    const callKey = generateCallKey();
+    const alice = generateIdentityKeyBundle();
+    const wrapped = wrapCallKeyForRecipient(callKey, extractPublicKeys(alice), 'alice');
+
+    const tamperedKey = new Uint8Array(wrapped.wrappedKey);
+    tamperedKey[0]! ^= 0xff;
+
+    expect(() =>
+      unwrapCallKey(
+        { ...wrapped, wrappedKey: tamperedKey },
+        alice.ecdh.privateKey,
+        alice.kem.privateKey,
+      ),
+    ).toThrow();
+  });
 });

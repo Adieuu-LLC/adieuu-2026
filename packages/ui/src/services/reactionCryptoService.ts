@@ -43,14 +43,13 @@ import type {
   PublicReaction,
   PublicDevice,
   ClaimedDevicePreKeys,
+  ReactionSignatureContext,
+} from '@adieuu/shared';
+import {
+  REACTION_SIGN_DOMAIN_V1,
+  buildReactionSignaturePreimageV2,
 } from '@adieuu/shared';
 import type { RecipientKeys, EncryptedMessage } from './conversationCryptoService';
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-const REACTION_SIGN_DOMAIN = 'adieuu-reaction-v1';
 
 // ============================================================================
 // Types
@@ -89,12 +88,17 @@ export interface DecryptedReaction {
 
 /**
  * Encrypt a reaction for all conversation participants.
+ *
+ * The v2 signature binds the reaction to its conversation, target message,
+ * reactor identity, and clientReactionId, preventing server-side replay
+ * into other contexts.
  */
 export function encryptReaction(
   emoji: string,
   fromIdentityId: string,
   recipients: RecipientKeys[],
   signingPrivateKey: Uint8Array,
+  context: ReactionSignatureContext,
   senderCryptoProfile: CryptoProfile = 'default',
   customEmoji?: ReactionCustomEmoji
 ): EncryptedMessage {
@@ -111,6 +115,8 @@ export function encryptReaction(
   const { ciphertext, nonce } = encrypt(sessionKey, plaintextBytes, senderCryptoProfile);
 
   const wrappedKeys: SerializedWrappedKey[] = [];
+  const fsDowngradedDeviceIds: string[] = [];
+  const spkVerificationFailedDeviceIds: string[] = [];
 
   for (const recipient of recipients) {
     const profile = senderCryptoProfile;
@@ -120,8 +126,11 @@ export function encryptReaction(
         (pk) => pk.deviceId === device.deviceId
       );
 
+      let spkVerified = false;
+      let spk: SignedPreKeyPublic | undefined;
+
       if (devicePreKeys?.signedPreKey) {
-        const spk: SignedPreKeyPublic = {
+        spk = {
           keyId: devicePreKeys.signedPreKey.keyId,
           ecdhPublicKey: fromBase64(devicePreKeys.signedPreKey.ecdhPublicKey),
           kemPublicKey: fromBase64(devicePreKeys.signedPreKey.kemPublicKey),
@@ -129,16 +138,22 @@ export function encryptReaction(
         };
 
         const sigPub = fromBase64(recipient.signingPublicKey);
-        if (!verifySignedPreKey(spk, sigPub)) {
-          continue;
+        spkVerified = verifySignedPreKey(spk, sigPub);
+        if (!spkVerified) {
+          // Unverified SPK: fall back to static wrapping instead of
+          // silently skipping the device.
+          spkVerificationFailedDeviceIds.push(device.deviceId);
+          fsDowngradedDeviceIds.push(device.deviceId);
         }
+      }
 
+      if (spk && spkVerified) {
         let otpk: OneTimePreKeyPublic | undefined;
-        if (devicePreKeys.oneTimePreKey) {
+        if (devicePreKeys!.oneTimePreKey) {
           otpk = {
-            keyId: devicePreKeys.oneTimePreKey.keyId,
-            ecdhPublicKey: fromBase64(devicePreKeys.oneTimePreKey.ecdhPublicKey),
-            kemPublicKey: fromBase64(devicePreKeys.oneTimePreKey.kemPublicKey),
+            keyId: devicePreKeys!.oneTimePreKey.keyId,
+            ecdhPublicKey: fromBase64(devicePreKeys!.oneTimePreKey.ecdhPublicKey),
+            kemPublicKey: fromBase64(devicePreKeys!.oneTimePreKey.kemPublicKey),
           };
         }
 
@@ -151,8 +166,8 @@ export function encryptReaction(
           wrappedSessionKey: toBase64(wrapped.wrappedSessionKey),
           wrappingNonce: toBase64(wrapped.wrappingNonce),
           preKeyType: otpk ? 'otpk' : 'spk',
-          signedPreKeyId: devicePreKeys.signedPreKey.keyId,
-          oneTimePreKeyId: otpk ? devicePreKeys.oneTimePreKey!.keyId : undefined,
+          signedPreKeyId: devicePreKeys!.signedPreKey!.keyId,
+          oneTimePreKeyId: otpk ? devicePreKeys!.oneTimePreKey!.keyId : undefined,
           spkKemCiphertext: toBase64(wrapped.spkKemCiphertext),
           otpkKemCiphertext: wrapped.otpkKemCiphertext
             ? toBase64(wrapped.otpkKemCiphertext)
@@ -160,6 +175,7 @@ export function encryptReaction(
           routingTag: device.kemPublicKey
             ? computeRoutingTag(device.ecdhPublicKey, device.kemPublicKey)
             : undefined,
+          wrapVersion: wrapped.wrapVersion,
         });
       } else {
         if (!device.kemPublicKey) {
@@ -183,25 +199,31 @@ export function encryptReaction(
           wrappingNonce: toBase64(wrapped.wrappingNonce),
           preKeyType: 'static',
           routingTag: computeRoutingTag(device.ecdhPublicKey, device.kemPublicKey),
+          wrapVersion: wrapped.wrapVersion,
         });
       }
     }
   }
 
-  const dataToSign = concatBytes(
-    toBytes(REACTION_SIGN_DOMAIN),
-    ciphertext,
-    nonce,
-    toBytes(JSON.stringify(wrappedKeys))
+  const ciphertextB64 = toBase64(ciphertext);
+  const nonceB64 = toBase64(nonce);
+
+  const preimage = buildReactionSignaturePreimageV2(
+    context,
+    ciphertextB64,
+    nonceB64,
+    wrappedKeys
   );
-  const signature = sign(signingPrivateKey, dataToSign);
+  const signature = sign(signingPrivateKey, toBytes(preimage));
 
   return {
-    ciphertext: toBase64(ciphertext),
-    nonce: toBase64(nonce),
+    ciphertext: ciphertextB64,
+    nonce: nonceB64,
     wrappedKeys,
     signature: toBase64(signature),
     cryptoProfile: senderCryptoProfile,
+    fsDowngradedDeviceIds,
+    spkVerificationFailedDeviceIds,
   };
 }
 
@@ -260,6 +282,9 @@ export function decryptReaction(
           : undefined,
         wrappedSessionKey: fromBase64(myWrappedKey.wrappedSessionKey),
         wrappingNonce: fromBase64(myWrappedKey.wrappingNonce),
+        signedPreKeyId: myWrappedKey.signedPreKeyId,
+        oneTimePreKeyId: myWrappedKey.oneTimePreKeyId,
+        wrapVersion: myWrappedKey.wrapVersion,
       };
 
       sessionKey = unwrapSessionKeyWithPreKeys(
@@ -277,6 +302,7 @@ export function decryptReaction(
         kemCiphertext: fromBase64(myWrappedKey.kemCiphertext),
         wrappedSessionKey: fromBase64(myWrappedKey.wrappedSessionKey),
         wrappingNonce: fromBase64(myWrappedKey.wrappingNonce),
+        wrapVersion: myWrappedKey.wrapVersion,
       };
 
       sessionKey = unwrapSessionKey(
@@ -296,17 +322,40 @@ export function decryptReaction(
   let verified = false;
   if (!identityMismatch) {
     const sigPub = fromBase64(senderSigningPublicKey);
-    const dataToVerify = concatBytes(
-      toBytes(REACTION_SIGN_DOMAIN),
-      ciphertext,
-      nonce,
-      toBytes(JSON.stringify(reaction.wrappedKeys))
+
+    // Try v2 (context-bound) first, then fall back to legacy v1 for
+    // reactions signed before context binding existed.
+    const preimageV2 = buildReactionSignaturePreimageV2(
+      {
+        conversationId: reaction.conversationId,
+        messageId: reaction.messageId,
+        fromIdentityId: reaction.fromIdentityId,
+        clientReactionId: reaction.clientReactionId,
+      },
+      reaction.ciphertext,
+      reaction.nonce,
+      reaction.wrappedKeys
     );
 
     try {
-      verified = verify(sigPub, dataToVerify, fromBase64(reaction.signature));
+      verified = verify(sigPub, toBytes(preimageV2), fromBase64(reaction.signature));
     } catch {
       verified = false;
+    }
+
+    if (!verified) {
+      const dataToVerifyV1 = concatBytes(
+        toBytes(REACTION_SIGN_DOMAIN_V1),
+        ciphertext,
+        nonce,
+        toBytes(JSON.stringify(reaction.wrappedKeys))
+      );
+
+      try {
+        verified = verify(sigPub, dataToVerifyV1, fromBase64(reaction.signature));
+      } catch {
+        verified = false;
+      }
     }
   }
 

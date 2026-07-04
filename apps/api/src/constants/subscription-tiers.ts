@@ -9,6 +9,7 @@
 import type { SubscriptionTierId, PurchasableProductId } from '@adieuu/shared';
 
 export type StripePriceConfigKey =
+  | 'freeMonthly'
   | 'accessAnnual'
   | 'insiderAnnual'
   | 'vanguardLifetime'
@@ -29,6 +30,14 @@ export interface ProductMeta {
 }
 
 export const PURCHASABLE_PRODUCTS: Record<PurchasableProductId, ProductMeta> = {
+  free: {
+    id: 'free',
+    checkoutMode: 'subscription',
+    priceConfigKey: 'freeMonthly',
+    grantsTiers: ['free'],
+    grantsEntitlements: [],
+    isLifetime: false,
+  },
   access: {
     id: 'access',
     checkoutMode: 'subscription',

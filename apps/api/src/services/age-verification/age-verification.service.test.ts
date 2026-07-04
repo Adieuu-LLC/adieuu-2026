@@ -34,6 +34,12 @@ const mockResolveBusinessSettings = mock((_jurisdiction: string, _policy: unknow
 const mockResolveBusinessSettingsId = mock((id: string | undefined) => Promise.resolve(id));
 mock.module('./jurisdiction-policy', () => ({
   getAgeVerificationPolicy: mockGetAgeVerificationPolicy,
+  getDefaultAgeVerificationPolicy: () => ({
+    required: true,
+    compatibleMethods: ['Email', 'AgeEstimation'],
+    leastInvasiveMethod: 'Email',
+    legislation: [],
+  }),
   resolveBusinessSettings: mockResolveBusinessSettings,
   resolveBusinessSettingsId: mockResolveBusinessSettingsId,
 }));

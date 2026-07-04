@@ -7,7 +7,7 @@
 .activity-settings {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-lg);
+  gap: var(--spacing-md);
 }
 
 .activity-section {
@@ -240,6 +240,12 @@
     flex-shrink: 0;
     cursor: pointer;
     accent-color: var(--color-accent-primary);
+  }
+
+  &--disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
   }
 }
 

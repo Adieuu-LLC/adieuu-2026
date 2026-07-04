@@ -257,6 +257,27 @@ export async function getOrCreateWrappingSalt(identityId: string): Promise<Uint8
   return salt;
 }
 
+/**
+ * Deletes the stored Argon2id wrapping salt for an identity.
+ * Part of the tier-2 identity-scoped local wipe.
+ */
+export async function deleteWrappingSalt(identityId: string): Promise<void> {
+  if (getDkBackend()) {
+    const keyId = await wrappingSaltKeyId(identityId);
+    await getDkBackend()!.deleteKey(keyId);
+    return;
+  }
+
+  const db = await openWrappingSaltDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(WRAPPING_SALT_IDB_STORE, 'readwrite');
+    const request = tx.objectStore(WRAPPING_SALT_IDB_STORE).delete(identityId);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve();
+    tx.oncomplete = () => db.close();
+  });
+}
+
 // ============================================================================
 // Per-identity unlock timestamp (lastIdentityUnlockAt)
 //
@@ -341,6 +362,28 @@ export async function getLastIdentityUnlockAt(identityId: string): Promise<strin
     const request = tx.objectStore(UNLOCK_META_IDB_STORE).get(keyId);
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve((request.result?.lastUnlockAt as string | undefined) ?? null);
+    tx.oncomplete = () => db.close();
+  });
+}
+
+/**
+ * Deletes the recorded last-unlock timestamp for an identity.
+ * Part of the tier-2 identity-scoped local wipe.
+ */
+export async function deleteLastIdentityUnlockAt(identityId: string): Promise<void> {
+  const keyId = await unlockMetaKeyId(identityId);
+
+  if (getDkBackend()) {
+    await getDkBackend()!.deleteKey(keyId);
+    return;
+  }
+
+  const db = await openUnlockMetaDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(UNLOCK_META_IDB_STORE, 'readwrite');
+    const request = tx.objectStore(UNLOCK_META_IDB_STORE).delete(keyId);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve();
     tx.oncomplete = () => db.close();
   });
 }

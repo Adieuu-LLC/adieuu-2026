@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'bun:test';
-import { ApiClient } from './http-client';
+import { describe, expect, it, beforeEach } from 'bun:test';
+import { ApiClient, registerCaptchaHandler, clearCaptchaHandler } from './http-client';
 import { API_ERROR_SESSION_EXPIRED } from '../constants/api-errors';
 
 describe('ApiClient', () => {
@@ -139,6 +139,199 @@ describe('ApiClient', () => {
     if (!res.success) {
       expect(res.error.code).toBe('NETWORK_ERROR');
       expect(res.error.message).toContain('boom');
+    }
+  });
+
+  it('retries GET once on network error and succeeds', async () => {
+    let callCount = 0;
+    const fetchImpl: typeof fetch = async () => {
+      callCount++;
+      if (callCount === 1) throw new Error('transient');
+      return new Response(JSON.stringify({ success: true, data: { ok: true } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    };
+
+    const client = new ApiClient({
+      baseUrl: 'http://example.test',
+      fetchImpl,
+      timeout: 5000,
+    });
+
+    const res = await client.get('/api/foo');
+    expect(callCount).toBe(2);
+    expect(res.success).toBe(true);
+  });
+
+  it('does not retry POST on network error', async () => {
+    let callCount = 0;
+    const fetchImpl: typeof fetch = async () => {
+      callCount++;
+      throw new Error('transient');
+    };
+
+    const client = new ApiClient({
+      baseUrl: 'http://example.test',
+      fetchImpl,
+      timeout: 5000,
+    });
+
+    const res = await client.post('/api/foo', { a: 1 });
+    expect(callCount).toBe(1);
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error.code).toBe('NETWORK_ERROR');
+    }
+  });
+
+  it('retries GET at most once on persistent network error', async () => {
+    let callCount = 0;
+    const fetchImpl: typeof fetch = async () => {
+      callCount++;
+      throw new Error('persistent');
+    };
+
+    const client = new ApiClient({
+      baseUrl: 'http://example.test',
+      fetchImpl,
+      timeout: 5000,
+    });
+
+    const res = await client.get('/api/foo');
+    expect(callCount).toBe(2);
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error.code).toBe('NETWORK_ERROR');
+    }
+  });
+});
+
+describe('CAPTCHA_REQUIRED interceptor', () => {
+  beforeEach(() => {
+    clearCaptchaHandler();
+  });
+
+  function captchaRequiredResponse() {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: { code: 'CAPTCHA_REQUIRED', message: 'Captcha required' },
+      }),
+      { status: 422, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
+  function successResponse(data: unknown = { ok: true }) {
+    return new Response(
+      JSON.stringify({ success: true, data }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
+  it('retries with captcha token when handler returns a token', async () => {
+    let callCount = 0;
+    let retryBodyParsed: Record<string, unknown> | undefined;
+
+    const fetchImpl: typeof fetch = async (_url, init) => {
+      callCount++;
+      if (callCount === 1) return captchaRequiredResponse();
+      retryBodyParsed = JSON.parse(init?.body as string);
+      return successResponse();
+    };
+
+    registerCaptchaHandler(async () => 'captcha-token-abc');
+
+    const client = new ApiClient({ baseUrl: 'http://example.test', fetchImpl, timeout: 5000 });
+    const res = await client.post('/api/friends/requests', { identityId: 'id-1' });
+
+    expect(callCount).toBe(2);
+    expect(res.success).toBe(true);
+    expect(retryBodyParsed?.['frc-captcha-response']).toBe('captcha-token-abc');
+    expect(retryBodyParsed?.identityId).toBe('id-1');
+  });
+
+  it('returns original CAPTCHA_REQUIRED response when handler returns null (cancelled)', async () => {
+    const fetchImpl: typeof fetch = async () => captchaRequiredResponse();
+
+    registerCaptchaHandler(async () => null);
+
+    const client = new ApiClient({ baseUrl: 'http://example.test', fetchImpl, timeout: 5000 });
+    const res = await client.post('/api/test', { data: 1 });
+
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error.code).toBe('CAPTCHA_REQUIRED');
+    }
+  });
+
+  it('returns CAPTCHA_REQUIRED without retry when no handler is registered', async () => {
+    const fetchImpl: typeof fetch = async () => captchaRequiredResponse();
+
+    const client = new ApiClient({ baseUrl: 'http://example.test', fetchImpl, timeout: 5000 });
+    const res = await client.post('/api/test', {});
+
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error.code).toBe('CAPTCHA_REQUIRED');
+    }
+  });
+
+  it('does not retry more than once (recursion guard)', async () => {
+    let callCount = 0;
+    const fetchImpl: typeof fetch = async () => {
+      callCount++;
+      return captchaRequiredResponse();
+    };
+
+    registerCaptchaHandler(async () => 'token');
+
+    const client = new ApiClient({ baseUrl: 'http://example.test', fetchImpl, timeout: 5000 });
+    const res = await client.post('/api/test', {});
+
+    expect(callCount).toBe(2);
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error.code).toBe('CAPTCHA_REQUIRED');
+    }
+  });
+
+  it('passes captcha token via header for GET requests on retry', async () => {
+    let callCount = 0;
+    let retryHeaders: Record<string, string> | undefined;
+    let retryBody: string | undefined;
+
+    const fetchImpl: typeof fetch = async (_url, init) => {
+      callCount++;
+      if (callCount === 1) return captchaRequiredResponse();
+      retryHeaders = Object.fromEntries(new Headers(init?.headers as HeadersInit).entries());
+      retryBody = init?.body as string | undefined;
+      return successResponse();
+    };
+
+    registerCaptchaHandler(async () => 'token-for-get');
+
+    const client = new ApiClient({ baseUrl: 'http://example.test', fetchImpl, timeout: 5000 });
+    const res = await client.get('/api/data');
+
+    expect(callCount).toBe(2);
+    expect(res.success).toBe(true);
+    expect(retryHeaders?.['x-frc-captcha-response']).toBe('token-for-get');
+    expect(retryBody).toBeUndefined();
+  });
+
+  it('clears handler with clearCaptchaHandler', async () => {
+    registerCaptchaHandler(async () => 'should-not-be-used');
+    clearCaptchaHandler();
+
+    const fetchImpl: typeof fetch = async () => captchaRequiredResponse();
+
+    const client = new ApiClient({ baseUrl: 'http://example.test', fetchImpl, timeout: 5000 });
+    const res = await client.post('/api/test', {});
+
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error.code).toBe('CAPTCHA_REQUIRED');
     }
   });
 });

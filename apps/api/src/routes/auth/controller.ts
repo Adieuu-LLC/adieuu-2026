@@ -629,15 +629,20 @@ async function findOrCreateUser(
     });
   }
 
-  if (config.stripe?.enabled && !user.stripeCustomerId) {
-    import('../../services/billing/billing.service')
-      .then(({ getOrCreateStripeCustomer }) => getOrCreateStripeCustomer(user))
-      .catch((err) =>
-        elog.warn('Failed to ensure Stripe customer', {
+  const needsFreeSubscription =
+    !user.stripeCustomerId || !user.billing?.activeSubscriptions?.length;
+  if (config.stripe?.enabled && needsFreeSubscription) {
+    void (async () => {
+      try {
+        const { ensureFreeSubscription } = await import('../../services/billing/billing.service');
+        await ensureFreeSubscription(user);
+      } catch (err) {
+        elog.warn('Failed to create Stripe customer/free subscription for user', {
           userId: user._id.toHexString(),
           error: err instanceof Error ? err.message : String(err),
-        }),
-      );
+        });
+      }
+    })();
   }
 
   return user;
@@ -944,6 +949,26 @@ async function reconcileBillingIfStale(user: UserDocument): Promise<UserDocument
     }
   }
 
+  // Last resort: user has a customer but still no active subscription after
+  // reconciliation attempts. Create a free subscription so they aren't stuck.
+  if (!user.billing?.activeSubscriptions?.length) {
+    try {
+      const { ensureFreeSubscription } = await import('../../services/billing/billing.service');
+      const freeBilling = await ensureFreeSubscription(user);
+      if (freeBilling) {
+        elog.info('Session-time free subscription fallback created', {
+          userId: user._id.toHexString(),
+        });
+        return { ...user, billing: freeBilling };
+      }
+    } catch (err) {
+      elog.warn('Session-time free subscription fallback failed', {
+        userId: user._id.toHexString(),
+        ...billingErrorLogFields(err),
+      });
+    }
+  }
+
   // Reconcile MFA discount in the background (ensures subscription coupon
   // stays in sync if credentials were added/removed while offline)
   void reconcileMfaDiscount(user._id.toHexString());
@@ -960,6 +985,7 @@ export type GetSessionHandlerSuccess = {
   geo?: { jurisdiction: string; countryCode: string; regionCode?: string; checkedAt: string };
   subscriptions: string[];
   entitlements: string[];
+  captchaSitekey?: string;
   ageVerification?: {
     status: AgeVerificationStatus;
     verifiedAt?: string;
@@ -1231,6 +1257,14 @@ export async function getSessionHandler(
     geo,
     subscriptions,
     entitlements,
+    captchaSitekey: (() => {
+      if (!config.friendlyCaptcha?.enabled) return undefined;
+      if (!config.friendlyCaptcha.sitekey) {
+        elog.warn('FriendlyCaptcha is enabled but FRIENDLY_CAPTCHA_SITEKEY is not configured');
+        return undefined;
+      }
+      return config.friendlyCaptcha.sitekey;
+    })(),
     ageVerification,
     aliasGate,
     compliance,

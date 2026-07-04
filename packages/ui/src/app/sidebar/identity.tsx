@@ -76,6 +76,11 @@ export function AccountFlyout({ supportUnreadCount = 0 }: { supportUnreadCount?:
 
   const isActive = (path: string) => location.pathname === path;
   const isAccountActive = location.pathname.startsWith('/account');
+  const isAccountPageActive = isAccountActive
+    && !location.pathname.startsWith('/account/subscription')
+    && !location.pathname.startsWith('/account/referrals')
+    && !location.pathname.startsWith('/account/age-verification')
+    && !location.pathname.startsWith('/account/appearance');
 
   const handleLogout = async () => {
     setDrawerOpen(false);
@@ -95,13 +100,10 @@ export function AccountFlyout({ supportUnreadCount = 0 }: { supportUnreadCount?:
 
   const menuItems = (
     <>
-      <Link to="/account/overview" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/account/overview') ? 'sidebar-flyout-item-active' : ''}`}>
-        {t('account.overview.title')}
+      <Link to="/account/overview" onClick={handleNavClick} className={`sidebar-flyout-item ${isAccountPageActive ? 'sidebar-flyout-item-active' : ''}`} data-tour="account-page-link">
+        {t('account.page.title')}
       </Link>
-      <Link to="/account/security" onClick={handleNavClick} className={`sidebar-flyout-item ${location.pathname.startsWith('/account/security') ? 'sidebar-flyout-item-active' : ''}`}>
-        {t('account.security.title')}
-      </Link>
-      <Link to="/account/subscription" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/account/subscription') ? 'sidebar-flyout-item-active' : ''}`}>
+      <Link to="/account/subscription" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/account/subscription') ? 'sidebar-flyout-item-active' : ''}`} data-tour="subscription-nav-link">
         {t('account.subscription.title')}
       </Link>
       <Link to="/account/referrals" onClick={handleNavClick} className={`sidebar-flyout-item ${location.pathname.startsWith('/account/referrals') ? 'sidebar-flyout-item-active' : ''}`}>
@@ -193,7 +195,7 @@ export function AccountFlyout({ supportUnreadCount = 0 }: { supportUnreadCount?:
     <div className="sidebar-account-flyout-wrapper" data-tour="account">
       {triggerButton}
       <div className={`sidebar-account-flyout ${!isExpanded ? 'sidebar-account-flyout-collapsed' : ''}`}>
-        <div className="sidebar-account-flyout-content">
+        <div className="sidebar-account-flyout-content" data-tour="account-flyout">
           {menuItems}
         </div>
       </div>

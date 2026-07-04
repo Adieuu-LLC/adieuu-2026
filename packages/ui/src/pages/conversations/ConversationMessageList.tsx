@@ -7,6 +7,7 @@ import type { IdentityPublicKeys, PublicCustomEmoji, PublicIdentity } from '@adi
 import type { MemberColorDisplay } from '../../hooks/useMemberColorPreference';
 import { Tooltip } from '../../components/Tooltip';
 import { Icon } from '../../icons/Icon';
+import { UpgradePrompt } from '../../components/UpgradePrompt';
 import {
   useGifPreference,
   useConversationGifHidden,
@@ -26,6 +27,9 @@ import { scrollViewportCanScroll } from './conversationScrollUtils';
 import { useTaggablePages } from '../../navigation/taggablePages';
 import { useNavigate } from 'react-router-dom';
 import type { PageTagRenderContext } from '../../utils/markdownParser';
+
+const FREE_TIER_HISTORY_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+const CUTOFF_TOLERANCE_MS = 24 * 60 * 60 * 1000;
 
 export function ConversationMessageList({
   conversationId,
@@ -79,9 +83,11 @@ export function ConversationMessageList({
   onPinMessage,
   onUnpinMessage,
   onOpenMemberSecurity,
+  onDeviceTrustMismatch,
   peerPublicKeysById,
   verificationRevision,
   customEmojis,
+  isFreeTier,
 }: {
   conversationId: string | undefined;
   activeConversationId: string | null;
@@ -140,9 +146,12 @@ export function ConversationMessageList({
   onPinMessage: (messageId: string) => void;
   onUnpinMessage: (messageId: string) => void;
   onOpenMemberSecurity?: (identityId: string, displayLabel: string) => void;
+  /** Fired when a message reveals a verified device fingerprint mismatch (key change). */
+  onDeviceTrustMismatch?: (identityId: string, deviceId: string) => void;
   peerPublicKeysById: Record<string, IdentityPublicKeys>;
   verificationRevision: number;
   customEmojis?: PublicCustomEmoji[];
+  isFreeTier?: boolean;
 }) {
   const { t: tLocal } = useTranslation();
   const navigate = useNavigate();
@@ -160,6 +169,15 @@ export function ConversationMessageList({
   const hideUnmoderatedMedia = unmoderatedMediaPref === 'hide';
 
   const pinnedSet = useMemo(() => new Set(pinnedMessageIds), [pinnedMessageIds]);
+
+  const isOldestMessageNearTierCutoff = useMemo(() => {
+    if (!isFreeTier) return false;
+    const oldestMsg = flatItems.find((item) => item.type === 'message');
+    if (!oldestMsg || oldestMsg.type !== 'message') return false;
+    const oldestTs = new Date(oldestMsg.msg.createdAt).getTime();
+    const cutoffTs = Date.now() - FREE_TIER_HISTORY_WINDOW_MS;
+    return Math.abs(oldestTs - cutoffTs) <= CUTOFF_TOLERANCE_MS;
+  }, [isFreeTier, flatItems]);
 
   const topSentinelRef = useRef<HTMLDivElement | null>(null);
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
@@ -334,6 +352,7 @@ export function ConversationMessageList({
             onPin={() => onPinMessage(msg.id)}
             onUnpin={() => onUnpinMessage(msg.id)}
             onOpenMemberSecurity={onOpenMemberSecurity}
+            onDeviceTrustMismatch={onDeviceTrustMismatch}
             peerPublicKeysById={peerPublicKeysById}
             verificationRevision={verificationRevision}
             hideUnmoderatedMedia={hideUnmoderatedMedia}
@@ -350,10 +369,12 @@ export function ConversationMessageList({
       flashingMessageId, onReply, onStartEdit, onLinkClick, onMentionClick,
       pinnedSet, canManagePins, onPinMessage, onUnpinMessage,
       onOpenMemberSecurity,
+      onDeviceTrustMismatch,
       peerPublicKeysById,
       verificationRevision,
       customEmojisDisabledByAdmin,
       customEmojis,
+      hideUnmoderatedMedia,
       pageTagCtx,
     ],
   );
@@ -423,6 +444,15 @@ export function ConversationMessageList({
             </div>
           ) : null}
           <div ref={topSentinelRef} className="dm-messages-top-sentinel" aria-hidden />
+          {isFreeTier && !hasMoreOlder && !messagesLoading && reversedMessagesLength > 0 && isOldestMessageNearTierCutoff && (
+            <UpgradePrompt
+              variant="banner"
+              message={tLocal('conversations.upgradeForOlderMessages', { defaultValue: 'Upgrade to view older messages' })}
+              description={tLocal('conversations.upgradeForOlderMessagesDescription', { defaultValue: 'Free accounts can access the most recent 14 days of message history.' })}
+              ctaLabel={tLocal('conversations.upgradeCta', { defaultValue: 'View Plans' })}
+              onUpgrade={() => navigate('/account/subscription')}
+            />
+          )}
           <div ref={messagesContentRef as React.RefObject<HTMLDivElement>} className="dm-messages-content">
             {flatItems.map((item, idx) => (
               <div

@@ -25,6 +25,7 @@ import {
   awardTvReferenceDisplayNameAchievements,
 } from '../../services/tv-reference-text-achievement.service';
 import { publishProfileUpdated } from '../../services/profile-event.service';
+import { hasPaidAccess } from '../../services/billing/resolve-access';
 import { contrastRatio } from '../../utils/color';
 import { getIdentityRepository } from '../../repositories/identity.repository';
 import { getMediaUploadRepository } from '../../repositories/media-upload.repository';
@@ -201,6 +202,9 @@ export async function updateProfileCtrl(ctx: RouteContext): Promise<Response> {
   }
 
   if (data.profileColors !== undefined) {
+    if (!hasPaidAccess(ctx.identitySession!)) {
+      return errors.forbidden('Upgrade to a paid plan to customize profile colors.');
+    }
     const colors: Record<string, string | undefined> = {};
     if (data.profileColors.accent !== undefined) {
       colors.accent = data.profileColors.accent ?? undefined;

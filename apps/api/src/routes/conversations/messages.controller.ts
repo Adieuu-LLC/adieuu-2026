@@ -143,7 +143,7 @@ export async function listMessagesCtrl(
   const validDirection =
     directionParam === 'older' || directionParam === 'newer' ? directionParam : undefined;
 
-  const result = await getMessages(conv.id, identity._id, limit, validCursor, validDirection);
+  const result = await getMessages(conv.id, identity._id, limit, validCursor, validDirection, ctx.identitySession);
 
   if ('errorCode' in result) {
     if (result.errorCode === 'CONVERSATION_NOT_FOUND') {
@@ -210,7 +210,7 @@ export async function messagesAroundCtrl(
   if (before > 100) before = 100;
   if (after > 100) after = 100;
 
-  const result = await getMessagesAround(conv.id, identity._id, msg.id, before, after);
+  const result = await getMessagesAround(conv.id, identity._id, msg.id, before, after, ctx.identitySession);
 
   if (!('messages' in result)) {
     if (result.errorCode === 'CONVERSATION_NOT_FOUND') {
@@ -256,7 +256,7 @@ export async function getOneMessageCtrl(ctx: RouteContext): Promise<Conversation
 
   const result = await getMessage(conv.id, msg.id, identity._id, {
     includeRevisionHistory: includeRev,
-  });
+  }, ctx.identitySession);
 
   if (!result.success) {
     if (result.errorCode === 'CONVERSATION_NOT_FOUND') {

@@ -27,11 +27,11 @@ export function usePlatformContext(): PlatformContextValue {
  * Access just the app configuration.
  */
 export function useAppConfig(): AppConfig {
-  const { apiBaseUrl, chatWsUrl, externalLinkBase, platform, livekitUrl } =
+  const { apiBaseUrl, chatWsUrl, externalLinkBase, platform, livekitUrl, friendlyCaptchaSitekey } =
     usePlatformContext();
   return useMemo(
-    () => ({ apiBaseUrl, chatWsUrl, externalLinkBase, platform, livekitUrl }),
-    [apiBaseUrl, chatWsUrl, externalLinkBase, platform, livekitUrl],
+    () => ({ apiBaseUrl, chatWsUrl, externalLinkBase, platform, livekitUrl, friendlyCaptchaSitekey }),
+    [apiBaseUrl, chatWsUrl, externalLinkBase, platform, livekitUrl, friendlyCaptchaSitekey],
   );
 }
 

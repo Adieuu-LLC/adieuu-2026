@@ -33,8 +33,7 @@ export const TAGGABLE_PAGES: readonly TaggablePage[] = [
   { id: 'support', path: '/support', labelKey: 'support.title', labelDefault: 'Support', icon: 'mask', access: 'authenticated', aliases: ['help', 'tickets'] },
 
   // Account (authenticated session)
-  { id: 'account', path: '/account/overview', labelKey: 'account.overview.title', labelDefault: 'Account', icon: 'user', access: 'authenticated', aliases: ['account-overview'] },
-  { id: 'security', path: '/account/security', labelKey: 'account.security.title', labelDefault: 'Security', icon: 'user', access: 'authenticated', aliases: ['password', 'mfa', 'sessions'] },
+  { id: 'account', path: '/account/overview', labelKey: 'account.page.title', labelDefault: 'Account', icon: 'user', access: 'authenticated', aliases: ['account-overview', 'security', 'password', 'mfa', 'sessions'] },
   { id: 'account-subscription', path: '/account/subscription', labelKey: 'account.subscription.title', labelDefault: 'Subscription', icon: 'user', access: 'authenticated', aliases: ['billing', 'plan'] },
   { id: 'referrals', path: '/account/referrals', labelKey: 'account.referral.title', labelDefault: 'Referrals', icon: 'user', access: 'authenticated', aliases: ['invite', 'refer'] },
 

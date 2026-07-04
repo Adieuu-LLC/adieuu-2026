@@ -88,6 +88,7 @@ export interface ApiErrorResponse {
       retryAfter?: string;
       verificationUrl?: string;
       leastInvasiveMethod?: string;
+      captchaError?: string;
     };
   };
   /** Response metadata */

@@ -76,6 +76,17 @@ router.post('/uploads/e2e/request', async (ctx) => {
   const { identity, maxVideoDurationSeconds, subscriptions, entitlements, isLifetime } =
     ctx.identitySession;
 
+  const hasPaidTier = subscriptions.some(
+    (t) => t === 'access' || t === 'insider',
+  );
+  if (!hasPaidTier) {
+    return error(
+      'TIER_REQUIRED',
+      'Upgrade to a paid plan to send media attachments',
+      403,
+    );
+  }
+
   const result = await requestE2EUploadResult(
     {
       identityId: identity._id.toHexString(),

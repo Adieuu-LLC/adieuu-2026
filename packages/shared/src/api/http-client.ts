@@ -8,6 +8,24 @@ import { API_ERROR_SESSION_EXPIRED } from '../constants/api-errors';
 const CSRF_COOKIE_NAME = 'adieuu_csrf';
 const CSRF_HEADER_NAME = 'X-CSRF-Token';
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const API_ERROR_CAPTCHA_REQUIRED = 'CAPTCHA_REQUIRED';
+
+type CaptchaHandler = () => Promise<string | null>;
+let captchaHandler: CaptchaHandler | null = null;
+
+/**
+ * Registers a global handler that is invoked when any API request receives
+ * a CAPTCHA_REQUIRED error. The handler should show a captcha dialog and
+ * resolve with the FriendlyCaptcha response token, or `null` if cancelled.
+ * The client will automatically retry the failed request with the token.
+ */
+export function registerCaptchaHandler(handler: CaptchaHandler): void {
+  captchaHandler = handler;
+}
+
+export function clearCaptchaHandler(): void {
+  captchaHandler = null;
+}
 
 function readCookie(name: string): string | undefined {
   if (typeof document === 'undefined' || !document.cookie) {
@@ -78,7 +96,9 @@ export class ApiClient implements HttpClient {
     method: string,
     path: string,
     body?: unknown,
-    options?: RequestOptions
+    options?: RequestOptions,
+    isRetry = false,
+    networkRetry = false,
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${path}`;
     const headers: Record<string, string> = {
@@ -130,6 +150,31 @@ export class ApiClient implements HttpClient {
       ) {
         this.onSessionExpired();
       }
+
+      if (
+        !data.success &&
+        data.error?.code === API_ERROR_CAPTCHA_REQUIRED &&
+        captchaHandler &&
+        !isRetry
+      ) {
+        const token = await captchaHandler();
+        if (token) {
+          const NO_BODY_METHODS = new Set(['GET', 'HEAD']);
+          if (NO_BODY_METHODS.has(method.toUpperCase())) {
+            const retryOptions: RequestOptions = {
+              ...options,
+              headers: { ...options?.headers, 'X-FRC-Captcha-Response': token },
+            };
+            return this.request<T>(method, path, undefined, retryOptions, true, networkRetry);
+          }
+          const retryBody = {
+            ...((body as Record<string, unknown>) ?? {}),
+            'frc-captcha-response': token,
+          };
+          return this.request<T>(method, path, retryBody, options, true, networkRetry);
+        }
+      }
+
       return data;
     } catch (error) {
       clearTimeout(timeoutId);
@@ -148,6 +193,15 @@ export class ApiClient implements HttpClient {
           };
         }
 
+        if (
+          !networkRetry &&
+          !MUTATING_METHODS.has(method.toUpperCase()) &&
+          !options?.signal?.aborted
+        ) {
+          await new Promise((r) => setTimeout(r, 500));
+          return this.request<T>(method, path, body, options, isRetry, true);
+        }
+
         return {
           success: false,
           error: {
@@ -155,6 +209,15 @@ export class ApiClient implements HttpClient {
             message: error.message || 'Network error',
           },
         };
+      }
+
+      if (
+        !networkRetry &&
+        !MUTATING_METHODS.has(method.toUpperCase()) &&
+        !options?.signal?.aborted
+      ) {
+        await new Promise((r) => setTimeout(r, 500));
+        return this.request<T>(method, path, body, options, isRetry, true);
       }
 
       return {

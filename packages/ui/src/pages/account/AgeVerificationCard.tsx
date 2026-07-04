@@ -4,7 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { Card } from '../../components/Card';
 import { Alert } from '../../components/Alert';
 import { Button } from '../../components/Button';
+import { Spinner } from '../../components/Spinner';
 import { JurisdictionRequirementCard } from '../../components/compliance/JurisdictionRequirementCard';
+import { JurisdictionRequirementsList } from '../../components/compliance/JurisdictionRequirementsList';
 import { Icon } from '../../icons/Icon';
 import type {
   AgeVerificationDetails,
@@ -17,7 +19,9 @@ interface AgeVerificationCardProps {
   ageVerification?: SessionAgeVerification;
   aliasGate?: SessionAliasGate;
   details?: AgeVerificationDetails;
-  jurisdictionReqs?: PublicJurisdictionRequirement[];
+  jurisdictionReqs: PublicJurisdictionRequirement[];
+  jreqLoading: boolean;
+  hasGeo: boolean;
 }
 
 export function AgeVerificationCard({
@@ -25,6 +29,8 @@ export function AgeVerificationCard({
   aliasGate,
   details,
   jurisdictionReqs,
+  jreqLoading,
+  hasGeo,
 }: AgeVerificationCardProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -36,8 +42,10 @@ export function AgeVerificationCard({
   const isCooldown = gateCode === 'AGE_VERIFICATION_COOLDOWN';
   const isFailed = gateCode === 'AGE_VERIFICATION_FAILED';
 
-  const showCard = status != null || isRequired || isCooldown || isFailed;
-  if (!showCard) return null;
+  const hasAvInfo = status != null || isRequired || isCooldown || isFailed;
+  const hasReqs = jurisdictionReqs.length > 0;
+
+  if (!hasAvInfo && !hasGeo) return null;
 
   const alertVariant = status === 'verified'
     ? 'success' as const
@@ -50,7 +58,7 @@ export function AgeVerificationCard({
   const jurisdictionCode =
     details?.jurisdiction ?? aliasGate?.jurisdiction;
   const matchedReq = jurisdictionCode
-    ? jurisdictionReqs?.find(
+    ? jurisdictionReqs.find(
         (r) => r.jurisdiction.toUpperCase() === jurisdictionCode.toUpperCase(),
       )
     : undefined;
@@ -61,58 +69,78 @@ export function AgeVerificationCard({
   return (
     <Card variant="elevated" className="slide-up" style={{ marginTop: '1.5rem' }}>
       <h2 className="page-title" style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>
-        {t('account.overview.ageVerification.title')}
+        {t('account.overview.compliance.title')}
       </h2>
       <p className="page-subtitle" style={{ marginBottom: '1rem' }}>
-        {t('account.overview.ageVerification.subtitle')}
+        {t('account.overview.compliance.subtitle')}
       </p>
 
-      <Alert variant={alertVariant} style={{ marginBottom: '1rem' }}>
-        <StatusMessage
-          status={status}
-          ageVerification={ageVerification}
-          aliasGate={aliasGate}
-          details={details}
-          isRequired={isRequired}
-          isFailed={isFailed}
-          isCooldown={isCooldown}
-        />
-      </Alert>
+      {hasAvInfo && (
+        <>
+          <Alert variant={alertVariant} style={{ marginBottom: '1rem' }}>
+            <StatusMessage
+              status={status}
+              ageVerification={ageVerification}
+              aliasGate={aliasGate}
+              details={details}
+              isRequired={isRequired}
+              isFailed={isFailed}
+              isCooldown={isCooldown}
+            />
+          </Alert>
 
-      {details?.optedIn && (
-        <p className="account-detail-muted" style={{ fontSize: '0.85rem', margin: '0 0 0.75rem' }}>
-          {t('account.overview.ageVerification.optedInLabel')}
-        </p>
-      )}
+          {details?.optedIn && (
+            <p className="account-detail-muted" style={{ fontSize: '0.85rem', margin: '0 0 0.75rem' }}>
+              {t('account.overview.ageVerification.optedInLabel')}
+            </p>
+          )}
 
-      <DetailsRows details={details} />
+          <DetailsRows details={details} />
 
-      {matchedReq && (
-        <JurisdictionRequirementCard row={matchedReq} compact />
-      )}
+          {matchedReq && (
+            <JurisdictionRequirementCard row={matchedReq} compact />
+          )}
 
-      {showAction && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.75rem' }}>
-          <Button variant="primary" size="md" onClick={() => navigate('/account/age-verification')}>
-            {isPending
-              ? t('account.overview.ageVerification.resumeButton')
-              : t('account.overview.ageVerification.startButton')}
-          </Button>
+          {showAction && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.75rem' }}>
+              <Button variant="primary" size="md" onClick={() => navigate('/account/age-verification')}>
+                {isPending
+                  ? t('account.overview.ageVerification.resumeButton')
+                  : t('account.overview.ageVerification.startButton')}
+              </Button>
+
+              {isPending && details?.redirectUrl && (
+                <CopyUrlButton
+                  url={details.redirectUrl}
+                  copied={urlCopied}
+                  onCopied={setUrlCopied}
+                />
+              )}
+            </div>
+          )}
 
           {isPending && details?.redirectUrl && (
-            <CopyUrlButton
-              url={details.redirectUrl}
-              copied={urlCopied}
-              onCopied={setUrlCopied}
-            />
+            <p className="account-detail-muted" style={{ fontSize: '0.8rem', margin: '0.5rem 0 0' }}>
+              {t('account.overview.ageVerification.copyUrlHint')}
+            </p>
           )}
-        </div>
+        </>
       )}
 
-      {isPending && details?.redirectUrl && (
-        <p className="account-detail-muted" style={{ fontSize: '0.8rem', margin: '0.5rem 0 0' }}>
-          {t('account.overview.ageVerification.copyUrlHint')}
+      {jreqLoading && (
+        <div className="loading-container" style={hasAvInfo ? { marginTop: '1.5rem' } : undefined}>
+          <Spinner size="md" />
+        </div>
+      )}
+      {!jreqLoading && !hasReqs && hasGeo && !hasAvInfo && (
+        <p className="account-detail-muted" style={{ margin: 0 }}>
+          {t('account.overview.compliance.empty')}
         </p>
+      )}
+      {!jreqLoading && hasReqs && (
+        <div style={hasAvInfo ? { marginTop: '1.5rem' } : undefined}>
+          <JurisdictionRequirementsList rows={jurisdictionReqs} layout="flat" />
+        </div>
       )}
     </Card>
   );
@@ -137,10 +165,12 @@ function StatusMessage({
 }) {
   const { t } = useTranslation();
 
-  if (status === 'verified' && ageVerification?.verifiedAt) {
-    const msg = t('account.overview.ageVerification.verifiedAt', {
-      date: new Date(ageVerification.verifiedAt).toLocaleDateString(),
-    });
+  if (status === 'verified') {
+    const msg = ageVerification?.verifiedAt
+      ? t('account.overview.ageVerification.verifiedAt', {
+          date: new Date(ageVerification.verifiedAt).toLocaleDateString(),
+        })
+      : t('account.overview.ageVerification.statusVerified');
     if (details?.approvalMethod) {
       return (
         <>
@@ -218,28 +248,22 @@ function DetailsRows({ details }: { details?: AgeVerificationDetails }) {
 
   if (details.startedAt) {
     rows.push({
-      label: t('account.overview.ageVerification.startedAt', {
-        date: new Date(details.startedAt).toLocaleString(),
-      }),
-      value: '',
+      label: t('account.overview.ageVerification.detailStarted'),
+      value: new Date(details.startedAt).toLocaleString(),
+    });
+  }
+
+  if (details.completedAt) {
+    rows.push({
+      label: t('account.overview.ageVerification.detailCompleted'),
+      value: new Date(details.completedAt).toLocaleString(),
     });
   }
 
   if (details.expiresAt && (details.status === 'started' || details.status === 'pending')) {
     rows.push({
-      label: t('account.overview.ageVerification.expiresAt', {
-        date: new Date(details.expiresAt).toLocaleString(),
-      }),
-      value: '',
-    });
-  }
-
-  if (details.completedAt && details.status !== 'started' && details.status !== 'pending') {
-    rows.push({
-      label: t('account.overview.ageVerification.completedAt', {
-        date: new Date(details.completedAt).toLocaleString(),
-      }),
-      value: '',
+      label: t('account.overview.ageVerification.detailExpires'),
+      value: new Date(details.expiresAt).toLocaleString(),
     });
   }
 

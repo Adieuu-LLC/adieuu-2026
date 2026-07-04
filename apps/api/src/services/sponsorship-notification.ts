@@ -15,6 +15,7 @@ import { sendEmail, sendSms } from './messaging';
 import elog from '../utils/adieuuLogger';
 
 const PLAN_DISPLAY_NAMES: Record<PurchasableProductId, string> = {
+  free: 'Free',
   access: 'Access',
   insider: 'Insider',
   vanguard: 'Vanguard',

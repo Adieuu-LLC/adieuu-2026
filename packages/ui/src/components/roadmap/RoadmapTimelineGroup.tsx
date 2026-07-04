@@ -60,7 +60,7 @@ export function RoadmapTimelineGroupView({
           dateLabel
         )}
         <RoadmapHorizontalRow>
-          {group.items.map((post: PublicFeedbackPost) => (
+          {group.items.map((post: PublicFeedbackPost, postIndex: number) => (
             <RoadmapTimelineCard
               key={post.postId}
               post={post}
@@ -68,6 +68,7 @@ export function RoadmapTimelineGroupView({
               highlighted={highlightedPostId === post.postId}
               isFocused={isFocused}
               onToggle={() => onTogglePost(post.postId)}
+              dataTourId={isLatestRelease && postIndex === 0 ? 'roadmap-latest-card' : undefined}
             />
           ))}
         </RoadmapHorizontalRow>

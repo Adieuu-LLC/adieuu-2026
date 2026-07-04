@@ -114,7 +114,7 @@ export function resolveIdentityOverrides(
  * a higher-ranked tier implicitly satisfies checks for any lower-ranked tier
  * (inherited mode). Add new tiers in ascending order of privilege.
  */
-const TIER_HIERARCHY: readonly SubscriptionTierId[] = ['access', 'insider'];
+const TIER_HIERARCHY: readonly SubscriptionTierId[] = ['free', 'access', 'insider'];
 
 const TIER_RANK = new Map<SubscriptionTierId, number>(
   TIER_HIERARCHY.map((t, i) => [t, i]),
@@ -175,4 +175,29 @@ export function requiresEntitlement(
   entitlement: string,
 ): boolean {
   return ctx.entitlements.includes(entitlement);
+}
+
+// ---------------------------------------------------------------------------
+// Paid-access convenience helper
+// ---------------------------------------------------------------------------
+
+interface PaidAccessInput {
+  subscriptions: readonly SubscriptionTierId[];
+  entitlements?: readonly string[];
+  isLifetime?: boolean;
+}
+
+/**
+ * Whether the user has paid-level access through any mechanism: a paid
+ * subscription tier (`access` or `insider`), a lifetime purchase, or a
+ * `gifted` entitlement from sponsorship.
+ *
+ * Use this everywhere a feature is restricted to "non-free" users to avoid
+ * inconsistent ad-hoc checks that miss lifetime or gifted edge cases.
+ */
+export function hasPaidAccess(ctx: PaidAccessInput): boolean {
+  if (ctx.isLifetime) return true;
+  if (ctx.subscriptions.some((t) => t === 'access' || t === 'insider')) return true;
+  if (ctx.entitlements?.includes('gifted')) return true;
+  return false;
 }

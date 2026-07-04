@@ -67,7 +67,7 @@ export function MediaOutboxProvider({ children }: { children: ReactNode }) {
   const { apiBaseUrl } = useAppConfig();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
 
-  const { sendTextMessage, jumpToLatestMessages, setIsAtBottom, computeAtLiveTail } = useConversations();
+  const { sendTextMessage, editTextMessage, jumpToLatestMessages, setIsAtBottom, computeAtLiveTail } = useConversations();
 
   const checkMessageAchievements = useMessageAchievements();
 
@@ -165,6 +165,29 @@ export function MediaOutboxProvider({ children }: { children: ReactNode }) {
     [sendTextMessage, computeAtLiveTail, checkMessageAchievements, setIsAtBottom, jumpToLatestMessages]
   );
 
+  const editForOutbox = useCallback(
+    async (
+      conversationId: string,
+      messageId: string,
+      plaintext: string,
+      options: {
+        useForwardSecrecy?: boolean;
+        e2eMediaIds?: string[];
+        signal?: AbortSignal;
+        clientMessageId?: string;
+      }
+    ) => {
+      const result = await editTextMessage(conversationId, messageId, plaintext, {
+        useForwardSecrecy: options.useForwardSecrecy,
+        e2eMediaIds: options.e2eMediaIds,
+        signal: options.signal,
+        clientMessageId: options.clientMessageId,
+      });
+      return result;
+    },
+    [editTextMessage]
+  );
+
   const pumpRef = useRef<() => void>(() => {});
 
   pumpRef.current = () => {
@@ -191,6 +214,7 @@ export function MediaOutboxProvider({ children }: { children: ReactNode }) {
           loadJob: mediaOutboxGetJob,
           saveJob,
           sendForOutbox,
+          editForOutbox,
           toastScanFailed,
           t,
         });
@@ -261,6 +285,9 @@ export function MediaOutboxProvider({ children }: { children: ReactNode }) {
           ? { composerCustomEmojisSnapshotJson: input.composerCustomEmojisSnapshotJson }
           : {}),
         attachmentBlobs,
+        ...(input.editMessageId ? { editMessageId: input.editMessageId } : {}),
+        ...(input.editClientMessageId ? { editClientMessageId: input.editClientMessageId } : {}),
+        ...(input.existingE2eMediaIds?.length ? { existingE2eMediaIds: input.existingE2eMediaIds } : {}),
       };
       await mediaOutboxPutJob(record);
       await refreshCache();

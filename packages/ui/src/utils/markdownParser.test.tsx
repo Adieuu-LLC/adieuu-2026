@@ -201,6 +201,28 @@ describe('renderFormattedMessage with mentions', () => {
     expect(html).toContain('Hello world');
     expect(html).not.toContain('dm-mention');
   });
+
+  test('renders @here group mention with dm-mention--group class', () => {
+    const markedText = `\uFFF0__HERE__\uFFF1`;
+    const html = renderToHtml(markedText, mentionCtx);
+    expect(html).toContain('dm-mention--group');
+    expect(html).toContain('@here');
+  });
+
+  test('renders @everyone group mention with dm-mention--group class', () => {
+    const markedText = `\uFFF0__EVERYONE__\uFFF1`;
+    const html = renderToHtml(markedText, mentionCtx);
+    expect(html).toContain('dm-mention--group');
+    expect(html).toContain('@everyone');
+  });
+
+  test('group mention alongside user mention renders both', () => {
+    const markedText = `\uFFF0__HERE__\uFFF1 hey \uFFF0${ID_A}\uFFF1`;
+    const html = renderToHtml(markedText, mentionCtx);
+    expect(html).toContain('@here');
+    expect(html).toContain('@Alice');
+    expect(html).toContain('dm-mention--group');
+  });
 });
 
 describe('renderFormattedMessage with custom emojis', () => {

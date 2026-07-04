@@ -7,7 +7,6 @@ import { OtpInput } from '../../components/OtpInput';
 import { Alert } from '../../components/Alert';
 import { Tooltip } from '../../components/Tooltip';
 import { Spinner } from '../../components/Spinner';
-import { JurisdictionRequirementsList } from '../../components/compliance/JurisdictionRequirementsList';
 import { useToast } from '../../components/Toast';
 import {
   createApiClient,
@@ -33,13 +32,16 @@ function normalizePhone(phone: string | undefined | null): string {
   return (phone ?? '').replace(/\D/g, '');
 }
 
-export function AccountOverview() {
+/**
+ * Self-contained overview content suitable for embedding in a tab.
+ * Manages its own data-fetching and state internally.
+ */
+export function AccountOverviewContent() {
   const { t } = useTranslation();
   const { session } = useAuth();
   const { apiBaseUrl } = useAppConfig();
   const toast = useToast();
 
-  // Create API client using configured base URL
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
 
   // Profile state
@@ -341,50 +343,28 @@ export function AccountOverview() {
     return t('common.notSet');
   };
 
-  // Loading state
   if (loading) {
     return (
-      <div className="page-content">
-        <div className="container">
-          <div className="page-header">
-            <h1 className="page-title">{t('account.overview.title')}</h1>
-          </div>
-          <div className="loading-container">
-            <Spinner size="lg" />
-          </div>
-        </div>
+      <div className="loading-container">
+        <Spinner size="lg" />
       </div>
     );
   }
 
-  // Error state
   if (error && !profile) {
     return (
-      <div className="page-content">
-        <div className="container">
-          <div className="page-header">
-            <h1 className="page-title">{t('account.overview.title')}</h1>
-          </div>
-          <Alert variant="error">{error}</Alert>
-          <Button onClick={loadProfile} className="btn btn-secondary btn-md" style={{ marginTop: '1rem' }}>
-            {t('common.retry')}
-          </Button>
-        </div>
-      </div>
+      <>
+        <Alert variant="error">{error}</Alert>
+        <Button onClick={loadProfile} className="btn btn-secondary btn-md" style={{ marginTop: '1rem' }}>
+          {t('common.retry')}
+        </Button>
+      </>
     );
   }
 
   return (
-    <div className="page-content">
-      <div className="container">
-        <div className="page-header">
-          <h1 className="page-title">{t('account.overview.title')}</h1>
-          <p className="page-subtitle">
-            {t('account.overview.subtitle')}
-          </p>
-        </div>
-
-        <Card variant="elevated" className="slide-up">
+    <>
+      <Card variant="elevated" className="slide-up">
           <div className="account-overview">
             {/* Account details */}
             <div className="account-details">
@@ -689,24 +669,6 @@ export function AccountOverview() {
                   <span className="account-detail-value">{geo.jurisdiction}</span>
                 </div>
                 <div className="account-detail-row">
-                  <span className="account-detail-label">{t('account.overview.location.ageVerification')}</span>
-                  <span className="account-detail-value">
-                    {session?.ageVerification?.status === 'verified'
-                      ? t('account.overview.ageVerification.statusVerified')
-                      : session?.ageVerification?.status === 'pending'
-                        ? t('account.overview.ageVerification.statusPending')
-                        : session?.ageVerification?.status === 'failed'
-                          ? t('account.overview.ageVerification.statusFailed')
-                          : session?.ageVerification?.status === 'expired'
-                            ? t('account.overview.ageVerification.statusExpired')
-                            : session?.aliasGate?.code === 'AGE_VERIFICATION_REQUIRED'
-                              ? t('account.overview.ageVerification.statusRequired')
-                              : session?.aliasGate?.code === 'AGE_VERIFICATION_COOLDOWN'
-                                ? t('account.overview.ageVerification.statusCooldown')
-                                : t('account.overview.ageVerification.statusNotRequired')}
-                  </span>
-                </div>
-                <div className="account-detail-row">
                   <span className="account-detail-label">{t('account.overview.location.countryCode')}</span>
                   <span className="account-detail-value">{geo.countryCode}</span>
                 </div>
@@ -737,34 +699,10 @@ export function AccountOverview() {
             aliasGate={session.aliasGate}
             details={avDetails ?? undefined}
             jurisdictionReqs={jurisdictionReqs}
+            jreqLoading={jreqLoading}
+            hasGeo={geo != null}
           />
         )}
-
-        {geo != null && (
-          <Card variant="elevated" className="slide-up" style={{ marginTop: '1.5rem' }}>
-            <h2 className="page-title" style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>
-              {t('account.overview.compliance.title')}
-            </h2>
-            <p className="page-subtitle" style={{ marginBottom: '1rem' }}>
-              {t('account.overview.compliance.subtitle')}
-            </p>
-            {jreqLoading && (
-              <div className="loading-container">
-                <Spinner size="md" />
-              </div>
-            )}
-            {!jreqLoading && jurisdictionReqs.length === 0 && geo && (
-              <p className="account-detail-muted" style={{ margin: 0 }}>
-                {t('account.overview.compliance.empty')}
-              </p>
-            )}
-            {!jreqLoading && jurisdictionReqs.length > 0 && (
-              <JurisdictionRequirementsList rows={jurisdictionReqs} layout="flat" />
-            )}
-          </Card>
-        )}
-
-      </div>
-    </div>
+    </>
   );
 }

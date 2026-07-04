@@ -49,6 +49,10 @@ router.get('/account/data-export', async (ctx) => {
  * @route POST /api/account/delete/request
  */
 router.post('/account/delete/request', async (ctx) => {
+  const { requireCaptchaForFreeTier } = await import('../../../middleware/captcha');
+  const captchaError = await requireCaptchaForFreeTier(ctx);
+  if (captchaError) return captchaError;
+
   const session = await requireAccountSession(ctx.request);
   if (!session) return ctx.errors.unauthorized();
 

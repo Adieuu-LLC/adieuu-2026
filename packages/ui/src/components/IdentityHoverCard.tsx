@@ -17,6 +17,7 @@ import { HoverCard } from './HoverCard';
 import { Button } from './Button';
 import { ReportModal } from './ReportModal';
 import { Icon } from '../icons/Icon';
+import { useAuth } from '../hooks/useAuth';
 import { useIdentity } from '../hooks/useIdentity';
 import { useBlockContext } from '../hooks/useBlockContext';
 import { useFriends } from '../hooks/useFriends';
@@ -42,10 +43,14 @@ export function IdentityHoverCardContent({
 }: IdentityHoverCardContentProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { session } = useAuth();
   const { identity: selfIdentity } = useIdentity();
   const { isBlocked, requestBlockConfirm } = useBlockContext();
   const { friends, getFriendshipStatus } = useFriends();
   const [reportOpen, setReportOpen] = useState(false);
+  const canReportProfiles = session?.isLifetime ||
+    (session?.subscriptions ?? []).some((t_) => t_ === 'access' || t_ === 'insider') ||
+    (session?.entitlements ?? []).includes('gifted');
   const [fetchedFriendsSince, setFetchedFriendsSince] = useState<string | undefined>(undefined);
 
   const friendsSinceFromList = useMemo(
@@ -182,14 +187,16 @@ export function IdentityHoverCardContent({
                         ? t('identityCard.unblock')
                         : t('identityCard.block')}
                     </Menu.Item>
-                    <Menu.Item
-                      value="report"
-                      className="identity-hover-card-menu-item identity-hover-card-menu-item--danger"
-                      onClick={() => setReportOpen(true)}
-                    >
-                      <Icon name="warning" />
-                      {t('identityCard.report')}
-                    </Menu.Item>
+                    {canReportProfiles && (
+                      <Menu.Item
+                        value="report"
+                        className="identity-hover-card-menu-item identity-hover-card-menu-item--danger"
+                        onClick={() => setReportOpen(true)}
+                      >
+                        <Icon name="warning" />
+                        {t('identityCard.report')}
+                      </Menu.Item>
+                    )}
                     {extraMenuItems}
                   </Menu.Content>
                 </Menu.Positioner>

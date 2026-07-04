@@ -70,7 +70,7 @@ import {
 } from './e2e.controller';
 import { e2eUploadRoutes } from './e2e';
 
-e2eUploadRoutes.use(testIdentityEnrichment(myIdentityId, { username: 'me' }));
+e2eUploadRoutes.use(testIdentityEnrichment(myIdentityId, { username: 'me', subscriptions: ['access'] }));
 
 function makeRequest(
   path: string,

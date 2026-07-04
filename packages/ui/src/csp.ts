@@ -11,6 +11,8 @@
  * - `script-src https://unpkg.com` + `wasm-unsafe-eval`: optional ffmpeg.wasm (video→MP4 in browser).
  * - `worker-src blob:`: ffmpeg web workers.
  * - `connect-src https://unpkg.com`: fetch of `ffmpeg-core.wasm` from CDN.
+ * - `frame-src https://*.frcapi.com`: FriendlyCaptcha widget iframes
+ *    (eu.frcapi.com, eu0.frcapi.com, global.frcapi.com, etc.).
  *
  * @module ui/csp
  */
@@ -19,7 +21,7 @@ export const uiCspManifest: Record<string, string[]> = {
   'style-src': ["'unsafe-inline'"],
   'img-src': ['data:', 'blob:'],
   'media-src': ['blob:'],
-  'frame-src': ['https://www.youtube-nocookie.com'],
+  'frame-src': ['https://www.youtube-nocookie.com', 'https://*.frcapi.com'],
   'script-src': ['https://unpkg.com', "'wasm-unsafe-eval'"],
   'worker-src': ['blob:'],
   'connect-src': ['https://unpkg.com'],

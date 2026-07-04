@@ -20,6 +20,7 @@ mock.module('../../config', () => ({
       otpSecret: 'test-otp-secret',
       accountHashSecret: 'test-account-hash-secret-32bytes!',
     },
+    friendlyCaptcha: { enabled: false },
   },
 }));
 
@@ -1361,7 +1362,7 @@ describe('auth controller', () => {
 
       expect(response.status).toBe(200);
       const body = await response.json() as { data: { maxIdentities: number } };
-      expect(body.data.maxIdentities).toBe(1);
+      expect(body.data.maxIdentities).toBe(2);
     });
 
     test('returns lifetime maxIdentities for founder entitlement override', async () => {

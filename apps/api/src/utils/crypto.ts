@@ -24,6 +24,14 @@
 
 import { createHash, createHmac, createCipheriv, createDecipheriv, timingSafeEqual } from 'crypto';
 import { verify as ed25519Verify, fromBase64, toBytes, concatBytes } from '@adieuu/crypto';
+import {
+  MESSAGE_SIGN_DOMAIN_V1,
+  buildMessageSignaturePreimageV2,
+  buildReactionSignaturePreimageV2,
+  type MessageSignatureContext,
+  type ReactionSignatureContext,
+  type SerializedWrappedKey,
+} from '@adieuu/shared';
 import { config } from '../config';
 
 /**
@@ -460,10 +468,12 @@ export function deriveScanHash(identityId: string, e2eMediaId: string): string {
 }
 
 /**
- * Verifies an Ed25519 signature for a DM message.
+ * Verifies a legacy (v1) Ed25519 signature for a DM message.
  *
- * The signature is over: ciphertext || nonce || wrappedKeysJson
- * This matches the client-side signing format in dmMessageService.ts.
+ * The v1 signature is over: domain || ciphertext || nonce || wrappedKeysJson
+ * where domain is `adieuu-msg-v1`. This matches the pre-context-binding
+ * client-side signing format in conversationCryptoService.ts. New messages
+ * are signed with the v2 preimage; use {@link verifyMessageSignatureV2}.
  *
  * @param signingPublicKey - Base64-encoded Ed25519 public key
  * @param ciphertext - Base64-encoded ciphertext
@@ -488,12 +498,78 @@ export function verifyDmMessageSignature(
     const signatureBytes = fromBase64(signature);
 
     const signatureData = concatBytes(
+      toBytes(MESSAGE_SIGN_DOMAIN_V1),
       ciphertextBytes,
       nonceBytes,
       wrappedKeysBytes
     );
 
     return ed25519Verify(publicKeyBytes, signatureData, signatureBytes);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Verifies a v2 (context-bound) Ed25519 message signature.
+ *
+ * The v2 preimage binds conversationId, fromIdentityId, and clientMessageId
+ * so a validly signed message cannot be replayed by the server into a
+ * different conversation or attributed to a different sender. The preimage
+ * is built via the shared helper so client signing and server verification
+ * stay byte-identical (canonical wrapped-key serialization is used to guard
+ * against key re-ordering by request parsing).
+ *
+ * @param signingPublicKey - Base64-encoded Ed25519 public key of the sender
+ * @param context - Conversation/sender/clientMessageId bound at signing time
+ * @param ciphertext - Base64-encoded ciphertext (as sent on the wire)
+ * @param nonce - Base64-encoded nonce (as sent on the wire)
+ * @param wrappedKeys - Wrapped session keys from the request body
+ * @param signature - Base64-encoded Ed25519 signature
+ * @returns true if the signature is valid, false otherwise
+ */
+export function verifyMessageSignatureV2(
+  signingPublicKey: string,
+  context: MessageSignatureContext,
+  ciphertext: string,
+  nonce: string,
+  wrappedKeys: readonly SerializedWrappedKey[],
+  signature: string
+): boolean {
+  try {
+    const preimage = buildMessageSignaturePreimageV2(context, ciphertext, nonce, wrappedKeys);
+    return ed25519Verify(
+      fromBase64(signingPublicKey),
+      toBytes(preimage),
+      fromBase64(signature)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Verifies a v2 (context-bound) Ed25519 reaction signature.
+ *
+ * Binds conversationId, messageId, fromIdentityId, and clientReactionId.
+ *
+ * @returns true if the signature is valid, false otherwise
+ */
+export function verifyReactionSignatureV2(
+  signingPublicKey: string,
+  context: ReactionSignatureContext,
+  ciphertext: string,
+  nonce: string,
+  wrappedKeys: readonly SerializedWrappedKey[],
+  signature: string
+): boolean {
+  try {
+    const preimage = buildReactionSignaturePreimageV2(context, ciphertext, nonce, wrappedKeys);
+    return ed25519Verify(
+      fromBase64(signingPublicKey),
+      toBytes(preimage),
+      fromBase64(signature)
+    );
   } catch {
     return false;
   }

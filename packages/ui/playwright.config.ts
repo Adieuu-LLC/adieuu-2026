@@ -49,5 +49,14 @@ export default defineConfig({
         storageState: AUTH_STATE,
       },
     },
+    {
+      name: 'crypto',
+      testDir: './tests/crypto',
+      testMatch: '**/*.spec.ts',
+      dependencies: ['setup'],
+      use: {
+        storageState: AUTH_STATE,
+      },
+    },
   ],
 });

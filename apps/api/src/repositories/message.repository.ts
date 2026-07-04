@@ -340,6 +340,7 @@ export class MessageRepository
       wrappedKeys: MessageDocument['wrappedKeys'];
       signature: string;
       cryptoProfile: MessageDocument['cryptoProfile'];
+      e2eMediaIds?: string[];
     }
   ): Promise<{
     doc: MessageDocument | null;
@@ -412,6 +413,7 @@ export class MessageRepository
         lastClientEditId: clientEditId,
         lastEditedAt: now,
         updatedAt: now,
+        ...(newPayload.e2eMediaIds !== undefined ? { e2eMediaIds: newPayload.e2eMediaIds } : {}),
       },
     });
 

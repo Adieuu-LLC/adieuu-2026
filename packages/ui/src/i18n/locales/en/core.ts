@@ -58,6 +58,7 @@ export const core = {
       spaces: 'Spaces',
     },
     newConversation: 'Start New',
+    signInForConversations: 'Sign into an Alias to see Conversations',
     update: {
       available: 'Update Available',
       downloading: 'Downloading Update',
@@ -105,6 +106,7 @@ export const core = {
     pending: 'Friend Request Sent',
     alreadyFriends: 'Friends',
     requestSent: 'Friend request sent.',
+    requestError: 'Could not send friend request. Please try again.',
     requestAccepted: 'Friend request accepted.',
     requestIgnored: 'Friend request ignored.',
     friendRemoved: 'Friend removed.',

@@ -167,6 +167,72 @@ export async function getOrCreateStripeCustomer(user: UserDocument): Promise<str
 }
 
 // ---------------------------------------------------------------------------
+// Free tier subscription management
+// ---------------------------------------------------------------------------
+
+/**
+ * Creates a $0/month free subscription for a user who has no active
+ * subscription. Used at registration (synchronous) and as a downgrade
+ * fallback when a paid subscription is deleted.
+ *
+ * Skips creation if the user already has an active or trialing subscription.
+ * Returns the derived billing state, or null if creation was skipped.
+ */
+export async function ensureFreeSubscription(
+  user: UserDocument,
+): Promise<UserBilling | null> {
+  const freePriceId = config.stripe.prices.freeMonthly;
+  if (!freePriceId) {
+    elog.warn('STRIPE_PRICE_FREE_MONTHLY not configured; cannot create free subscription', {
+      userId: user._id.toHexString(),
+    });
+    return null;
+  }
+
+  const stripe = getStripe();
+  const customerId = await getOrCreateStripeCustomer(user);
+
+  const existing = await stripe.subscriptions.list({
+    customer: customerId,
+    status: 'active',
+    limit: 1,
+  });
+  if (existing.data.length > 0) {
+    return user.billing ?? await deriveSubscriptionBilling(stripe, existing.data[0]!.id, user.billing);
+  }
+
+  const trialingSubs = await stripe.subscriptions.list({
+    customer: customerId,
+    status: 'trialing',
+    limit: 1,
+  });
+  if (trialingSubs.data.length > 0) {
+    return user.billing ?? await deriveSubscriptionBilling(stripe, trialingSubs.data[0]!.id, user.billing);
+  }
+
+  const userId = user._id.toHexString();
+  const subscription = await stripe.subscriptions.create({
+    customer: customerId,
+    items: [{ price: freePriceId }],
+    metadata: { userId, productId: 'free' },
+  }, {
+    idempotencyKey: `free-sub-${userId}`,
+  });
+
+  const billing = await deriveSubscriptionBilling(stripe, subscription.id, user.billing);
+  const userRepo = getUserRepository();
+  await userRepo.updateBilling(user._id, billing);
+
+  elog.info('Free subscription created', {
+    userId,
+    subscriptionId: subscription.id,
+    customerId,
+  });
+
+  return billing;
+}
+
+// ---------------------------------------------------------------------------
 // Checkout + Portal
 // ---------------------------------------------------------------------------
 
@@ -847,6 +913,24 @@ async function handleSubscriptionDeleted(
       subscriptionId: subscription.id,
     });
     return;
+  }
+
+  // Downgrade to free tier rather than leaving the user with no access
+  try {
+    const freeBilling = await ensureFreeSubscription(user);
+    if (freeBilling) {
+      elog.info('Downgraded to free subscription after paid subscription deletion', {
+        userId,
+        deletedSubscriptionId: subscription.id,
+      });
+      return;
+    }
+  } catch (err) {
+    elog.warn('Failed to create free subscription on downgrade; clearing billing', {
+      userId,
+      subscriptionId: subscription.id,
+      ...billingErrorLogFields(err),
+    });
   }
 
   const billing: UserBilling = {

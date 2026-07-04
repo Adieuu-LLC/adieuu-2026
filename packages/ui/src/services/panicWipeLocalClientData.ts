@@ -9,6 +9,7 @@ const INDEXEDDB_DATABASES_TO_DELETE: readonly string[] = [
   'adieuu-ciphers',
   'adieuu-device-keys',
   'adieuu-wrapping-keys',
+  'adieuu-identity-meta',
   'adieuu-pre-keys',
   'adieuu-session-keys',
   'adieuu-device-signature-verification',

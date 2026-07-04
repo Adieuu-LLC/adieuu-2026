@@ -64,14 +64,25 @@ export interface ManageTabProps extends SubscriptionTabProps {
 }
 
 /** Column order in the comparison table (and keys used in `featureVariables`). */
-export const COMPARISON_COLUMN_IDS = ['access', 'insider', 'vanguard', 'founder'] as const;
+export const COMPARISON_COLUMN_IDS = ['free', 'access', 'insider', 'vanguard', 'founder'] as const;
 export type ComparisonColumnId = (typeof COMPARISON_COLUMN_IDS)[number];
+
+/** Features available on the free tier. */
+export const FREE_FEATURES = [
+  'aliases',
+  'encryption',
+  'forwardSecrecy',
+  'liveVoice',
+  'ttlMessages',
+  'mfa',
+] as const;
 
 export const ACCESS_FEATURES = [
   'aliases',
   'encryption',
   'forwardSecrecy',
-  'liveMedia',
+  'liveVoice',
+  'liveVideo',
   'streamQuality',
   'uploadSize',
   'emojiLimit',
@@ -111,6 +122,7 @@ export const COMPARISON_FEATURE_ORDER = [
 export type ComparisonFeatureKey = (typeof COMPARISON_FEATURE_ORDER)[number];
 
 export const COMPARISON_TIER_FEATURE_SETS: Record<ComparisonColumnId, ReadonlySet<string>> = {
+  free: new Set(FREE_FEATURES),
   access: new Set(ACCESS_FEATURES),
   insider: new Set(INSIDER_FEATURES),
   vanguard: new Set(VANGUARD_FEATURES),

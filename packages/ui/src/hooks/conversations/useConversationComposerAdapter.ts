@@ -38,7 +38,7 @@ export function useConversationComposerAdapter(params: {
     convId: string,
     messageId: string,
     plaintext: string,
-    options?: { useForwardSecrecy?: boolean }
+    options?: { useForwardSecrecy?: boolean; e2eMediaIds?: string[]; clientMessageId?: string }
   ) => Promise<unknown>;
   onEditMaxReached: () => void;
   participantProfiles: Record<string, PublicIdentity>;
@@ -78,6 +78,8 @@ export function useConversationComposerAdapter(params: {
       if (editingMessage) {
         const r = await editTextMessage(conversationId, editingMessage.id, plaintext, {
           useForwardSecrecy: options?.useForwardSecrecy,
+          e2eMediaIds: options?.e2eMediaIds,
+          clientMessageId: editingMessage.clientMessageId,
         });
         if (r != null && typeof r === 'object' && 'errorCode' in r) {
           if ((r as { errorCode: string }).errorCode === 'MAX_EDITS_REACHED') {

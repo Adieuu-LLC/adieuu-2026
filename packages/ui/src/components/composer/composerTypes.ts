@@ -61,6 +61,8 @@ export interface PendingAttachment {
   uploadStatus: AttachmentUploadStatus;
   uploadProgress: number;
   uploadError?: string;
+  /** When set, this attachment already exists on the server and should not be re-uploaded. */
+  existingMediaId?: string;
 }
 
 export interface TrackedMention {

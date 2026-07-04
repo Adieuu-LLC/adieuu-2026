@@ -62,9 +62,18 @@ export function FeedbackList() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const limit = FEEDBACK_LIST_PAGE_SIZE;
+  const isInitialPageRef = useRef(true);
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fetchAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (isInitialPageRef.current) {
+      isInitialPageRef.current = false;
+      return;
+    }
+    document.querySelector('.app-content')?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [page]);
 
   const sortCollection = useMemo(
     () =>

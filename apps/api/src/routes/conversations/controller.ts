@@ -53,6 +53,7 @@ import {
   PromoteAdminSchema,
   LeaveSchema,
 } from './conversation-schemas';
+import { hasPaidAccess } from '../../services/billing/resolve-access';
 import {
   sanitizeObjectId24,
   parseOptionalObjectIdCursor,
@@ -70,6 +71,13 @@ export async function createConversationCtrl(
   if (!parseResult.success) return { kind: 'validation_failed' };
 
   const { type, participants, encryptedName, nameNonce, forceNew } = parseResult.data;
+
+  if (type === 'group') {
+    if (!hasPaidAccess(ctx.identitySession)) {
+      return { kind: 'forbidden', message: 'Upgrade to a paid plan to create group conversations.' };
+    }
+  }
+
   const parts = sanitizeParticipantIds(participants);
   if (!parts.ok) return { kind: 'bad_request', message: 'Invalid participant ID.' };
 

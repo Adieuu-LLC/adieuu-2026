@@ -7,7 +7,8 @@
  */
 
 import { Router, type RouteContext } from '../../router';
-import { success } from '../../utils/response';
+import { success, error } from '../../utils/response';
+import { hasPaidAccess } from '../../services/billing/resolve-access';
 import {
   listThemesResult,
   getSharedChecksumsResult,
@@ -118,6 +119,10 @@ router.delete('/themes/:id', async (ctx) => {
 router.post('/themes/:id/upvote', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
+
+  if (!hasPaidAccess(ctx.identitySession)) {
+    return error('TIER_REQUIRED', 'Upgrade to a paid plan to upvote themes.', 403);
+  }
 
   const result = await upvoteThemeResult(identity._id, ctx.params.id ?? '');
   if (!result.ok) return mapThemeFailure(ctx, result);

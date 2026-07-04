@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, type ComponentType, type ReactNode } from 'react';
-import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet, useParams } from 'react-router-dom';
 import { useIdentity } from '../hooks/useIdentity';
 import { AppLayout } from '../components/AppLayout';
 import { TourRoot } from '../components/Tour';
@@ -9,6 +9,7 @@ import { TourProvider, useTourContext, useAppearanceTour } from '../hooks/useTou
 import { CipherStoreProvider } from '../hooks/useCipherStore';
 import { ChatSocketProvider } from '../hooks/useChatSocket';
 import { FriendsProvider } from '../hooks/useFriends';
+import { CaptchaGateProvider } from '../components/CaptchaGateProvider';
 import { BlockProvider } from '../hooks/useBlockContext';
 import { ConversationsProvider } from '../hooks/useConversations';
 import { MediaOutboxProvider } from '../services/mediaOutbox';
@@ -57,7 +58,6 @@ const PublicSpaces = lazyRoute(() => import('../pages/spaces'), 'PublicSpaces');
 const Login = lazyRoute(() => import('../pages/auth'), 'Login');
 const Verify = lazyRoute(() => import('../pages/auth'), 'Verify');
 const MfaVerify = lazyRoute(() => import('../pages/auth'), 'MfaVerify');
-const AccountOverview = lazyRoute(() => import('../pages/account'), 'AccountOverview');
 const AccountSecurity = lazyRoute(() => import('../pages/account'), 'AccountSecurity');
 const AccountSubscription = lazyRoute(() => import('../pages/account'), 'AccountSubscription');
 const ThemeBrowser = lazyRoute(() => import('../pages/account'), 'ThemeBrowser');
@@ -136,23 +136,25 @@ function AuthenticatedShell() {
       <TourProvider>
         <CipherStoreProvider>
           <ChatSocketProvider>
-            <FriendsProvider>
-              <BlockProvider>
-                <ConversationPreferencesProvider>
-                  <ConversationFoldersProvider>
-                    <ConversationsProvider>
-                      <MediaOutboxProvider>
-                      <CallSessionProvider>
-                        <GlobalCallEventsProvider>
-                          <AuthenticatedShellContent />
-                        </GlobalCallEventsProvider>
-                      </CallSessionProvider>
-                      </MediaOutboxProvider>
-                    </ConversationsProvider>
-                  </ConversationFoldersProvider>
-                </ConversationPreferencesProvider>
-              </BlockProvider>
-            </FriendsProvider>
+            <CaptchaGateProvider>
+              <FriendsProvider>
+                <BlockProvider>
+                  <ConversationPreferencesProvider>
+                    <ConversationFoldersProvider>
+                      <ConversationsProvider>
+                        <MediaOutboxProvider>
+                        <CallSessionProvider>
+                          <GlobalCallEventsProvider>
+                            <AuthenticatedShellContent />
+                          </GlobalCallEventsProvider>
+                        </CallSessionProvider>
+                        </MediaOutboxProvider>
+                      </ConversationsProvider>
+                    </ConversationFoldersProvider>
+                  </ConversationPreferencesProvider>
+                </BlockProvider>
+              </FriendsProvider>
+            </CaptchaGateProvider>
           </ChatSocketProvider>
         </CipherStoreProvider>
       </TourProvider>
@@ -246,6 +248,12 @@ function AccountSessionOnlyOutlet() {
     return <Navigate to="/identity/profile" replace />;
   }
   return <Outlet />;
+}
+
+/** Redirect legacy /account/security/:tab URLs to /account/:tab */
+function SecurityTabRedirect() {
+  const { tab } = useParams<{ tab: string }>();
+  return <Navigate to={`/account/${tab ?? 'authentication'}`} replace />;
 }
 
 function AuthRoute({ children }: { children: ReactNode }) {
@@ -354,9 +362,9 @@ export function App() {
           {/* Account Routes (not available while alias session is unlocked) */}
           <Route element={<AccountSessionOnlyOutlet />}>
             <Route path="/account" element={<Navigate to="/account/overview" replace />} />
-            <Route path="/account/overview" element={<AccountOverview />} />
-            <Route path="/account/security" element={<Navigate to="/account/security/authentication" replace />} />
-            <Route path="/account/security/:tab" element={<AccountSecurity />} />
+            <Route path="/account/security" element={<Navigate to="/account/authentication" replace />} />
+            <Route path="/account/security/:tab" element={<SecurityTabRedirect />} />
+            <Route path="/account/:tab" element={<AccountSecurity />} />
             <Route path="/account/subscription" element={<Navigate to="/account/subscription/manage" replace />} />
             <Route path="/account/subscription/:tab" element={<AccountSubscription />} />
             <Route path="/account/referrals" element={<ReferralPage />} />

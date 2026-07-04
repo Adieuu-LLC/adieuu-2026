@@ -25,6 +25,7 @@ import { ReportModal } from '../../components/ReportModal';
 import { AchievementGrid } from '../../components/AchievementGrid';
 import { ProfileContentTabs } from '../../components/ProfileContentTabs';
 import { BlockActionButton } from '../../components/BlockActionButton';
+import { useAuth } from '../../hooks/useAuth';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useFriends } from '../../hooks/useFriends';
 import { useBlockContext } from '../../hooks/useBlockContext';
@@ -60,8 +61,12 @@ export function IdentityProfileView() {
   const [achievementsLoaded, setAchievementsLoaded] = useState(false);
   const [myAchievementIds, setMyAchievementIds] = useState<Set<string>>(new Set());
 
+  const { session } = useAuth();
   const isSelf = selfIdentity?.id === id;
   const isIdentityLoggedIn = selfIdentity != null;
+  const canReportProfiles = session?.isLifetime ||
+    (session?.subscriptions ?? []).some((t) => t === 'access' || t === 'insider') ||
+    (session?.entitlements ?? []).includes('gifted');
 
   useEffect(() => {
     if (!id) {
@@ -330,14 +335,16 @@ export function IdentityProfileView() {
                       </Button>
                     )}
                     <BlockActionButton identityId={id} />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setReportOpen(true)}
-                    >
-                      <Icon name="warning" />
-                      {t('report.reportProfile')}
-                    </Button>
+                    {canReportProfiles && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setReportOpen(true)}
+                      >
+                        <Icon name="warning" />
+                        {t('report.reportProfile')}
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>

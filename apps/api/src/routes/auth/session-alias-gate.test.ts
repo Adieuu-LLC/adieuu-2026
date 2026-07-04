@@ -97,6 +97,7 @@ mock.module('../../config', () => ({
     cookie: { domain: '' },
     webAppUrl: 'http://localhost:3000',
     email: { fromName: 'Adieuu' },
+    friendlyCaptcha: { enabled: false },
   },
 }));
 

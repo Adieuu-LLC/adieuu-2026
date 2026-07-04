@@ -755,7 +755,8 @@ export function ConversationsSidebarSection({
     addConversationToFolder,
     toggleFolderFavorite,
   } = useConversationFolders();
-  const { identity } = useIdentity();
+  const { identity, status: identityStatus } = useIdentity();
+  const isIdentityLoggedIn = identityStatus === 'logged_in' && !!identity;
   const { activeCallConversationIds } = useGlobalCallEvents();
   const { activeSession } = useCallSession();
   const { closeMobile } = useSidebar();
@@ -1096,11 +1097,13 @@ export function ConversationsSidebarSection({
                 showArchived={showArchived}
                 onShowArchived={setShowArchived}
               />
-              <SidebarItem
-                icon={<Icon name="plus" />}
-                label={t('sidebar.newConversation', 'New')}
-                onClick={handleNewConversation}
-              />
+              {isIdentityLoggedIn && (
+                <SidebarItem
+                  icon={<Icon name="plus" />}
+                  label={t('sidebar.newConversation', 'New')}
+                  onClick={handleNewConversation}
+                />
+              )}
             </div>
 
             {loading && conversations.length === 0 && (
@@ -1132,7 +1135,9 @@ export function ConversationsSidebarSection({
                   mainList.length === 0 &&
                   folders.length === 0 && (
                     <div className="sidebar-conversations-empty">
-                      {t('sidebar.noConversations', 'No conversations yet')}
+                      {isIdentityLoggedIn
+                        ? t('sidebar.noConversations', 'No conversations yet')
+                        : t('sidebar.signInForConversations', 'Sign into an Alias to see Conversations')}
                     </div>
                   )}
               </div>

@@ -197,3 +197,40 @@ export function getOrCreateDeviceId(): string {
 
   return deviceId;
 }
+
+// ============================================================================
+// E2E device ID registry
+// ============================================================================
+//
+// The E2E crypto device ID (the UUID under which this device's ECDH/KEM keys
+// are registered server-side) lives in `useIdentity`'s in-memory ref and is
+// mirrored here so non-React services (message payload construction, media
+// outbox) can embed it in encrypted payloads as `senderDeviceId`.
+//
+// SECURITY: `senderDeviceId` MUST be the E2E device UUID, never the
+// localStorage browser ID from `getOrCreateDeviceId()`. Peer clients compare
+// it against the sender's registered E2E devices to detect key changes;
+// a browser ID never matches and silently disables that check.
+
+let activeE2eDeviceId: string | null = null;
+
+/** Called by `useIdentity` whenever the unlocked E2E device ID changes. */
+export function setActiveE2eDeviceId(deviceId: string | null): void {
+  activeE2eDeviceId = deviceId;
+}
+
+/** The E2E crypto device ID of the currently unlocked identity, if any. */
+export function getActiveE2eDeviceId(): string | null {
+  return activeE2eDeviceId;
+}
+
+/**
+ * Device ID to embed in outgoing message payloads (`senderDeviceId`).
+ *
+ * Returns the E2E device UUID when an identity is unlocked, `undefined`
+ * otherwise. Callers should omit the field entirely when undefined rather
+ * than falling back to the browser ID.
+ */
+export function getSenderDeviceIdForPayload(): string | undefined {
+  return activeE2eDeviceId ?? undefined;
+}

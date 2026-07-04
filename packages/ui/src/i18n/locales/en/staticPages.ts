@@ -95,7 +95,7 @@ export const staticPages = {
   // Home page
   home: {
     title: 'Welcome to Adieuu',
-    subtitle: 'Your secure messaging platform. Running on {{platform}}.',
+    subtitle: "Making the internet more human and private, starting with ... messaging!",
     subtitleIdentity: 'Welcome back. Here is an overview of your activity.',
     loading: 'Loading your progress...',
     badgeComingSoon: 'Coming soon',
@@ -134,14 +134,21 @@ export const staticPages = {
       sectionSecondary: 'Recommendations',
       steps: {
         subscribe: {
-          title: 'Choose a plan',
-          description: 'An active subscription unlocks messaging, and social features.',
-          action: 'View plans',
+          title: "You're on our Free plan",
+          titlePaid: "You're subscribed",
+          description:
+            'Upgrading unlocks additional features, massive upload limits, and exclusive perks.',
+          descriptionPaid: 'Thanks for supporting Adieuu! Manage your plan or billing details from the subscription page.',
+          action: 'View upgrade options',
           promoAction: 'Have a promo code?',
         },
         verifyAge: {
           title: 'Verify your age',
           description: 'Your jurisdiction requires age verification.',
+          descriptionFreeCanSkip:
+            'Upgrade to a paid plan to skip age verification! Free users require it to reduce botting and our liability.',
+          descriptionJurisdictionRequired:
+            "Your jurisdiction requires age verification. We use the least invasive method possible, and we're the only platform where it can't be attached to your message history or activity.",
           descriptionJurisdiction:
             "Required by your jurisdiction ({{jurisdiction}}). We're the only platform that fully detaches your account (and age data) from your Alias and activity - the verification satisfies legal requirements, while our Alias system maintains your privacy.",
           disclosureTitle: 'What your jurisdiction requires',
@@ -160,8 +167,8 @@ export const staticPages = {
           verifyAgeFirstTooltip: 'Verify your age before creating an Alias',
         },
         sendFirstMessage: {
-          title: 'Send your First Message',
-          description: "You're ready to go! Add a friend, find a Space, and say Adieuu!",
+          title: "... and that's it!",
+          description: "Sign into your Alias, add a friend, and say Adieuu!",
           action: 'Log in to Alias',
           createAliasFirstTooltip: 'Create an Alias before you can start messaging',
         },
@@ -169,8 +176,11 @@ export const staticPages = {
       secondary: {
         tour: {
           title: 'Take the tour',
+          titleContinue: 'Continue the tour',
           description: 'See where search, your Alias, account settings, and more live in the app.',
+          descriptionContinue: "Finish your Account tour: next you'll learn about \"{{nextStep}}\".",
           action: 'Start tour',
+          actionContinue: 'Continue tour',
           actionRetake: 'Retake tour',
         },
         mfa: {
@@ -643,38 +653,108 @@ export const staticPages = {
   tour: {
     steps: {
       welcome: {
-        title: 'Welcome to Adieuu{{platform}}!',
+        title: 'Welcome to Adieuu!',
         descriptionWeb:
-          'You sign in to your Adieuu account first (email or phone). Then you open your Alias to use messaging and social features. Your Alias is separate from your account login for privacy. Let us show you around.',
+          "You are currently signed into your Account. From here you can handle billing, security, and settings. You'll notice you're unable to add friends, send messages, etc: those are done with your Alias, which is completely separate from your Account for your privacy. This is one of the special things about Adieuu! We'll talk more about Aliases later on: if you already have an Alias, you can sign into it and start the Alias Tour to learn more about those features.",
         descriptionDesktop:
-          'You sign in to your Adieuu account first (email or phone). Then you open your Alias to use messaging and social features. Your Alias is separate from your account login for privacy. Let us show you around.',
+        "You are currently signed into your Account. From here you can handle billing, security, and settings. You'll notice you're unable to add friends, send messages, etc: those are done with your Alias, which is completely separate from your Account for your privacy. This is one of the special things about Adieuu! We'll talk more about Aliases later on: if you already have an Alias, you can sign into it and start the Alias Tour to learn more about those features!",
         descriptionMobile:
-          'You sign in to your Adieuu account first (email or phone). Then you open your Alias to use messaging and social features. Your Alias is separate from your account login for privacy. Let us show you around.',
+        "You are currently signed into your Account. From here you can handle billing, security, and settings. You'll notice you're unable to add friends, send messages, etc: those are done with your Alias, which is completely separate from your Account for your privacy. This is one of the special things about Adieuu! We'll talk more about Aliases later on: if you already have an Alias, you can sign into it and start the Alias Tour to learn more about those features!",
+      },
+      getStarted: {
+        title: 'Get started',
+        description:
+          'This is your home base. Follow these steps to set up your account and start messaging.',
       },
       search: {
         title: 'Search',
         description:
-          'Search for people by display name or username. Pick a result to open their profile, or press Enter to see all matches on the search page.',
+          'Search for people by display name or username. Only public content and profiles are visible until you create an Alias. You will need to sign in to an Alias to add friends, message, and more.',
       },
       sidebarTabs: {
         title: 'Friends and conversations',
         description:
-          'Switch between Friends, Conversations, and Spaces. Your friends list and direct messages live here.',
+          'Your sidebar will populate once you sign into your Alias. Once it does, you will be able to easily swap between DMs, Group Conversations, and Spaces.',
       },
       identity: {
         title: 'Your Alias',
         description:
-          'Use this control to log in to your Alias, switch Aliases, or manage Alias settings. Messaging and social features use your Alias, not your account email or phone.',
+          "This is where you'll log in to (or create) an anonymous Alias to start messaging, posting, etc. Your activity can't be tracked back to your Account and real info! You could do this now, but we have a few more things worth mentioning on this tour - up to you!",
       },
       account: {
-        title: 'Account',
+        title: 'Account menu',
         description:
-          'Manage your profile, security (including MFA), notification settings, and sign out of your account here.',
+          'Access your account settings, subscription, referrals, and sign out from here.',
+      },
+      accountLink: {
+        title: 'Account page',
+        description:
+          "Click here to open your Account page, where you'll manage your profile, security, and sessions. Let's take a look (click Next to advance the tour).",
+      },
+      accountOverview: {
+        title: 'Overview',
+        description:
+          'Your overview shows your email, phone, and account standing. We use your email (or phone, whatever you add) to reach out to you for updates that affect your account, authentication, etc. We never share you info. See our Privacy Policy for details.',
+      },
+      accountAuthentication: {
+        title: 'Authentication',
+        description:
+          'Set up multi-factor authentication here using an authenticator app or a passkey (hardware keys are supported!). MFA is the single best thing you can do to protect your account. We believe so strongly in this, we offer billing discounts for users that add MFA (even more for hardware keys like Yubikeys!)',
+      },
+      accountSessions: {
+        title: 'Sessions',
+        description:
+          "View all the places your account is signed in at ('sessions'), and revoke any you don't recognize. If something looks off, you can sign out all other sessions at once.",
+      },
+      accountDataExport: {
+        title: 'Data export',
+        description:
+          "Want to know what data we have about you? Browse or download everything! You may notice there's no activity, messages, friends, etc: we have no idea about any of that, by design. If we receive a subpoena for your account, everything you see here is all that we could provide.",
+      },
+      subscription: {
+        title: 'Subscription',
+        description:
+          "Let's check out your subscription. Click Subscription in the menu (hit Next to continue the tour).",
+      },
+      subscriptionOverview: {
+        title: 'Your plan',
+        description:
+          "This is where you manage your plan. You can see your current tier, upgrade, or check your billing status. If you select a paid plan, you'll see a link to your Stripe billing portal where you can manage billing details (we do not store any card or other billing info in our servers).",
+      },
+      subscriptionPromo: {
+        title: 'Promo codes',
+        description:
+          'Have a promo code? Redeem it here for discounts and more!',
+      },
+      subscriptionSponsorships: {
+        title: 'Sponsorships',
+        description:
+          "One of our goals is to make privacy as accessible as possible. Not everyone can afford a paid subscription. If that's you, you can use this tab to ask for someone else to gift you a paid subscription. Alternatively, if you've got some cash to spare and grok our mission, maybe consider sponsoring someone that needs it? Adieuu staff gift a few sponsorship requests each month - so if you need it, ask, and maybe you'll get some help!",
+      },
+      roadmap: {
+        title: 'Roadmap',
+        description:
+          "Let's visit the Roadmap! Click Roadmap in the sidebar, or hit Next.",
+      },
+      roadmapOverview: {
+        title: 'What we are building',
+        description:
+          "The Roadmap shows what we've released recently and what we're actively working on. For example, here's one of the things in our most recent release. You can scroll up to look back in our history, or down to see what's coming next! Our Roadmap is heavily influenced by community input. In fact .... (click Next)",
+      },
+      roadmapProposals: {
+        title: 'Community proposals',
+        description:
+          'We accept bug reports and feature proposals from the community, and use upvotes to help prioritise what we build next. Your voice matters! Tell us how we can make Adieuu better for YOU!',
       },
       logout: {
         title: 'Sign out',
         description:
-          'When you are done, sign out of your account from this menu. Your session ends securely.',
+          "Whenver you would like, you can sign out via this menu option. When logged into your Alias, you'll see a similar option.",
+      },
+      complete: {
+        title: 'You are all set!',
+        description:
+          'Head back to the Get Started checklist to continue setting up your account.',
       },
     },
     appearance: {

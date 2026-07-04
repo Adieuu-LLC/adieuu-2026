@@ -1,6 +1,7 @@
-import { describe, expect, mock, test, beforeEach } from 'bun:test';
+import { describe, expect, mock, test, beforeEach, afterEach } from 'bun:test';
 import { executeGifSendNow, runGifSendNow } from './composerGifSendNow';
 import { parsePayload, type GifAttachment } from '../../services/messagePayload';
+import { setActiveE2eDeviceId } from '../../services/deviceInfo';
 
 class MemoryStorage implements Storage {
   private map = new Map<string, string>();
@@ -43,12 +44,19 @@ const sampleGif: GifAttachment = {
   slug: 'hello-662',
 };
 
+const TEST_E2E_DEVICE_ID = 'e2e-device-uuid-1234';
+
 beforeEach(() => {
   Object.defineProperty(globalThis, 'localStorage', {
     value: new MemoryStorage(),
     configurable: true,
     writable: true,
   });
+  setActiveE2eDeviceId(TEST_E2E_DEVICE_ID);
+});
+
+afterEach(() => {
+  setActiveE2eDeviceId(null);
 });
 
 describe('executeGifSendNow', () => {
@@ -76,10 +84,27 @@ describe('executeGifSendNow', () => {
     const parsed = parsePayload(plaintext);
     expect(parsed.text).toBe('');
     expect(parsed.gifAttachments?.[0]?.slug).toBe('hello-662');
-    expect(parsed.senderDeviceId).toBeTruthy();
+    // senderDeviceId must be the E2E crypto device UUID, not the browser ID
+    expect(parsed.senderDeviceId).toBe(TEST_E2E_DEVICE_ID);
     expect(options).toEqual({});
     expect(onSendSucceeded).toHaveBeenCalledTimes(1);
     expect(focusInput).toHaveBeenCalledTimes(1);
+  });
+
+  test('omits senderDeviceId when no E2E device is active', async () => {
+    setActiveE2eDeviceId(null);
+    const onSend = mock(async () => 'msg-1');
+
+    await executeGifSendNow({
+      gif: sampleGif,
+      onSend,
+      klipyShare: async () => ({}),
+    });
+
+    const [plaintext] = onSend.mock.calls[0]!;
+    const parsed = parsePayload(plaintext);
+    // Never falls back to the localStorage browser ID
+    expect(parsed.senderDeviceId).toBeUndefined();
   });
 
   test('passes reply, ttl, and forward secrecy options to onSend', async () => {

@@ -169,6 +169,24 @@ function getRateLimits(): Record<string, RateLimitConfig> {
       limit: config.rateLimit.callsInitiateIdentityLimit,
       windowSeconds: config.rateLimit.callsInitiateIdentityWindow,
     },
+
+    /**
+     * Pre-key claim per caller identity (all targets combined).
+     * Generous to allow large-conversation session establishment bursts.
+     */
+    'prekeys:claim:identity': {
+      limit: config.rateLimit.prekeyClaimIdentityLimit,
+      windowSeconds: config.rateLimit.prekeyClaimIdentityWindow,
+    },
+
+    /**
+     * Pre-key claim per caller-target pair.
+     * Prevents a single caller from draining one target's one-time pre-key pool.
+     */
+    'prekeys:claim:target': {
+      limit: config.rateLimit.prekeyClaimTargetLimit,
+      windowSeconds: config.rateLimit.prekeyClaimTargetWindow,
+    },
   };
 }
 

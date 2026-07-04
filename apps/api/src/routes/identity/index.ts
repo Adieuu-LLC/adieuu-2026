@@ -274,6 +274,9 @@ router.post('/identity/bundle-by-passphrase', async (ctx) => {
  * @returns 429 Too Many Requests if rate limited or locked out
  */
 router.post('/identity/login', async (ctx) => {
+  const { requireCaptchaForFreeTier } = await import('../../middleware/captcha');
+  const captchaError = await requireCaptchaForFreeTier(ctx);
+  if (captchaError) return captchaError;
   return await loginIdentityCtrl(ctx);
 });
 

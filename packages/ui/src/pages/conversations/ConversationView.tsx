@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { useConversations, type DisplayMessage } from '../../hooks/useConversations';
 import { useConversationScroll } from '../../hooks/useConversationScroll';
 import { useIdentity } from '../../hooks/useIdentity';
+import { useAuth } from '../../hooks/useAuth';
 import { useCustomEmojis } from '../../hooks/useCustomEmojis';
 import { usePreKeys } from '../../hooks/usePreKeys';
 import { useReactions } from '../../hooks/useReactions';
@@ -70,6 +71,7 @@ import {
   resolveToolbarParticipantName,
 } from './conversationViewModel';
 import { ConversationPinsMenu } from './ConversationPinsMenu';
+import { resolveDisplayName } from './conversationUtils';
 import { useMediaOutbox, useMediaOutboxJobList } from '../../services/mediaOutbox';
 import { ConversationMediaOutboxMenu } from './ConversationMediaOutboxMenu';
 import { MemberSecurityModal } from './MemberSecurityModal';
@@ -84,6 +86,14 @@ export function ConversationView() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { identity } = useIdentity();
+  const { session } = useAuth();
+  const isFreeTier = useMemo(() => {
+    if (!session) return false;
+    if (session.isLifetime) return false;
+    if ((session.subscriptions ?? []).some((t_) => t_ === 'access' || t_ === 'insider')) return false;
+    if ((session.entitlements ?? []).includes('gifted')) return false;
+    return true;
+  }, [session]);
   const { emojis: composerCustomEmojis } = useCustomEmojis(identity?.id);
   const { config: fsConfig } = usePreKeys();
   const {
@@ -265,6 +275,24 @@ export function ConversationView() {
   const [verificationRevision, setVerificationRevision] = useState(0);
   const bumpVerificationRevision = useCallback(() => {
     setVerificationRevision((n) => n + 1);
+  }, []);
+
+  // Conversation-level key-change alert: set when any rendered message reveals
+  // that a previously verified device fingerprint no longer matches the
+  // sender's current keys. Per-message icons remain; this banner makes the
+  // first mismatch impossible to miss. Dismissal is per conversation view.
+  const [keyChangeAlertIdentityIds, setKeyChangeAlertIdentityIds] = useState<string[]>([]);
+  const [keyChangeAlertDismissed, setKeyChangeAlertDismissed] = useState(false);
+  useEffect(() => {
+    setKeyChangeAlertIdentityIds([]);
+    setKeyChangeAlertDismissed(false);
+  }, [id]);
+  const handleDeviceTrustMismatch = useCallback((identityId: string) => {
+    setKeyChangeAlertIdentityIds((prev) => {
+      if (prev.includes(identityId)) return prev;
+      setKeyChangeAlertDismissed(false);
+      return [...prev, identityId];
+    });
   }, []);
   const [gifVisibility] = useGifPreference(identity?.id ?? '');
   const gifsGloballyDisabled = gifVisibility === 'disabled';
@@ -851,16 +879,10 @@ export function ConversationView() {
 
   const handleStartEdit = useCallback(
     (msg: DisplayMessage) => {
-      const raw = msg.decryptedContent ?? '';
-      const parsed = parsePayload(raw);
-      if (parsed.gifAttachments.length > 0 || parsed.attachments.length > 0) {
-        toast.error(t('conversations.editNoAttachments'));
-        return;
-      }
       setReplyingTo(null);
       setEditingMessage(msg);
     },
-    [t, toast]
+    []
   );
 
   const onEditMaxReached = useCallback(() => {
@@ -872,6 +894,13 @@ export function ConversationView() {
   const editingInitialPlaintext = useMemo(() => {
     if (!editingMessage?.decryptedContent) return '';
     return parsePayload(editingMessage.decryptedContent).text;
+  }, [editingMessage]);
+
+  const editingInitialAttachments = useMemo(() => {
+    if (!editingMessage?.decryptedContent) return undefined;
+    const parsed = parsePayload(editingMessage.decryptedContent);
+    if (parsed.attachments.length === 0 && parsed.gifAttachments.length === 0) return undefined;
+    return { media: parsed.attachments, gifs: parsed.gifAttachments };
   }, [editingMessage]);
 
   const { composerSend, composerReplyContext, composerMentionSource, composerPageTagSource } = useConversationComposerAdapter({
@@ -1167,10 +1196,52 @@ export function ConversationView() {
               onPinMessage={handlePinMessage}
               onUnpinMessage={handleUnpinMessage}
               onOpenMemberSecurity={openMemberSecurity}
+              onDeviceTrustMismatch={handleDeviceTrustMismatch}
               peerPublicKeysById={peerPublicKeysById}
               verificationRevision={verificationRevision}
               customEmojis={composerCustomEmojis}
+              isFreeTier={isFreeTier}
             />
+
+            {keyChangeAlertIdentityIds.length > 0 && !keyChangeAlertDismissed && (
+              <div className="key-change-alert-banner" role="alert">
+                <Icon name="error" />
+                <span>
+                  {t(
+                    'conversations.memberSecurity.keyChangeBanner',
+                    '{{names}} may have changed devices or keys. Review their device fingerprints before sharing sensitive information.',
+                    {
+                      names: keyChangeAlertIdentityIds
+                        .map((pid) =>
+                          resolveDisplayName(pid, participantProfiles, memberSettings, identity?.id, t)
+                        )
+                        .join(', '),
+                    },
+                  )}
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    const firstId = keyChangeAlertIdentityIds[0]!;
+                    openMemberSecurity(
+                      firstId,
+                      resolveDisplayName(firstId, participantProfiles, memberSettings, identity?.id, t),
+                    );
+                  }}
+                >
+                  {t('conversations.memberSecurity.reviewFingerprints', 'Review')}
+                </Button>
+                <button
+                  type="button"
+                  className="key-change-alert-banner__dismiss"
+                  onClick={() => setKeyChangeAlertDismissed(true)}
+                  aria-label={t('common.dismiss', 'Dismiss')}
+                >
+                  <Icon name="x" />
+                </button>
+              </div>
+            )}
 
             {isDmBlocked && (
               <div className="blocked-conversation-banner">
@@ -1216,11 +1287,16 @@ export function ConversationView() {
               customEmojisDisabled={conversation.customEmojisDisabled === true}
               editContext={
                 editingMessage
-                  ? { messageId: editingMessage.id, onCancel: () => setEditingMessage(null) }
+                  ? {
+                      messageId: editingMessage.id,
+                      clientMessageId: editingMessage.clientMessageId,
+                      onCancel: () => setEditingMessage(null),
+                    }
                   : null
               }
               editingMessageKey={editingMessage?.id ?? null}
               editingInitialPlaintext={editingInitialPlaintext}
+              editingInitialAttachments={editingInitialAttachments}
               allowSkipModeration={conversation.allowSkipModeration === true}
             />
           </div>

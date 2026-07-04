@@ -21,6 +21,7 @@ import {
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import type { Conditions as PostCondition } from '@aws-sdk/s3-presigned-post/dist-types/types';
 import type { SubscriptionTierId } from '@adieuu/shared';
+import { hasPaidAccess } from './billing/resolve-access';
 import { config } from '../config';
 import { getMediaUploadRepository } from '../repositories/media-upload.repository';
 import {
@@ -108,6 +109,22 @@ export interface CompleteUploadResult {
 }
 
 /**
+ * Upload purposes restricted to paid (access+) subscription tiers.
+ * Free-tier users may only upload avatars; all other purposes require
+ * an active paid subscription.
+ */
+const PAID_ONLY_UPLOAD_PURPOSES: ReadonlySet<UploadPurpose> = new Set([
+  'banner',
+  'space_media',
+  'custom_emoji',
+  'dm_attachment',
+  'conv_media',
+  'conv_scan',
+  'ticket_attachment',
+  'feedback_attachment',
+]);
+
+/**
  * Request a presigned upload URL for a given purpose.
  */
 export async function requestUpload(
@@ -128,6 +145,20 @@ export async function requestUpload(
       error: 'Invalid upload purpose',
       errorCode: 'INVALID_CONTENT_TYPE',
     };
+  }
+
+  if (PAID_ONLY_UPLOAD_PURPOSES.has(input.purpose)) {
+    if (!hasPaidAccess({
+      subscriptions: input.subscriptions ?? [],
+      entitlements: input.entitlements,
+      isLifetime: input.isLifetime,
+    })) {
+      return {
+        success: false,
+        error: 'Upgrade to a paid plan to upload this content',
+        errorCode: 'UPLOAD_DISABLED',
+      };
+    }
   }
 
   if (!purposeConfig.allowedContentTypes.includes(input.contentType)) {

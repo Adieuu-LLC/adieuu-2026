@@ -38,6 +38,11 @@ const router = new Router();
  */
 router.post('/friends/requests', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
+
+  const { requireCaptchaForFreeTier } = await import('../../middleware/captcha');
+  const captchaError = await requireCaptchaForFreeTier(ctx, undefined, { skipSessionCache: true });
+  if (captchaError) return captchaError;
+
   const { identity } = ctx.identitySession;
 
   const result = await sendFriendRequestResult(identity._id, ctx.body);

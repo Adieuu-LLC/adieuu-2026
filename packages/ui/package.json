@@ -39,6 +39,7 @@
     "test:a11y": "node ./node_modules/@playwright/test/cli.js test --config playwright.config.ts --project=public",
     "test:a11y:all": "node ./node_modules/@playwright/test/cli.js test --config playwright.config.ts",
     "test:compliance": "node ./node_modules/@playwright/test/cli.js test --config playwright.config.ts --project=compliance",
+    "test:crypto": "node ./node_modules/@playwright/test/cli.js test --config playwright.config.ts --project=crypto",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist coverage"
   },
@@ -57,6 +58,7 @@
     "@ffmpeg/util": "0.12.2",
     "@fortawesome/fontawesome-svg-core": "npm:@adieuu-llc/fa-fontawesome-svg-core@7.2.0",
     "@fortawesome/react-fontawesome": "3.3.0",
+    "@friendlycaptcha/sdk": "1.0.1",
     "@livekit/components-react": "2.9.21",
     "@livekit/components-styles": "1.2.0",
     "@simplewebauthn/browser": "13.2.2",

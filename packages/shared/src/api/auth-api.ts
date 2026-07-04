@@ -128,4 +128,5 @@ export class AuthApi {
   async revokeAllOtherSessions(): Promise<ApiResponse<RevokeSessionsResponse>> {
     return this.client.delete('/api/auth/sessions');
   }
+
 }

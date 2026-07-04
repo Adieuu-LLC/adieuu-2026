@@ -19,6 +19,7 @@
 }
 
 .conversation-body {
+  position: relative;
   display: flex;
   flex: 1;
   min-height: 0;
@@ -783,6 +784,11 @@
       &--active {
         color: var(--color-success);
         background: var(--color-success-bg);
+      }
+
+      &--downgraded {
+        color: var(--color-warning);
+        background: var(--color-warning-bg);
       }
     }
 

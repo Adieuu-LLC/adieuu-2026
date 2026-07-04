@@ -5,8 +5,6 @@ import { useAppConfig } from '../config';
 import {
   TOUR_COMPLETED_EVENT,
   TOUR_COMPLETED_STORAGE_KEY,
-  APPEARANCE_TOUR_COMPLETED_EVENT,
-  APPEARANCE_TOUR_COMPLETED_STORAGE_KEY,
   FIRST_MESSAGE_SENT_EVENT,
   readFirstMessageSentFromStorage,
 } from '../constants/onboarding';
@@ -25,6 +23,7 @@ export interface AccountProgress {
   mode: 'account';
   loading: boolean;
   hasSubscription: boolean;
+  isFreeTier: boolean;
   avRequired: boolean;
   avStepRelevant: boolean;
   avStatus: string | undefined;
@@ -32,6 +31,7 @@ export interface AccountProgress {
   aliasGateRequiredReason?: string;
   jurisdictionReqs: PublicJurisdictionRequirement[];
   jurisdictionReqsLoading: boolean;
+  canSkipAvWithUpgrade: boolean;
   /** True when every primary and secondary onboarding step is completed. */
   allComplete: boolean;
   primarySteps: AccountProgressStep[];
@@ -62,14 +62,6 @@ function readTourCompletedFromStorage(): boolean {
   }
 }
 
-function readAppearanceTourCompletedFromStorage(): boolean {
-  try {
-    return localStorage.getItem(APPEARANCE_TOUR_COMPLETED_STORAGE_KEY) === 'true';
-  } catch {
-    return false;
-  }
-}
-
 export function useHomeProgress(): HomeProgress {
   const { apiBaseUrl } = useAppConfig();
   const { status: authStatus, session } = useAuth();
@@ -79,7 +71,6 @@ export function useHomeProgress(): HomeProgress {
   const subjectId = session?.identifier;
 
   const [tourCompleted, setTourCompleted] = useState(readTourCompletedFromStorage);
-  const [appearanceTourCompleted, setAppearanceTourCompleted] = useState(readAppearanceTourCompletedFromStorage);
   const [firstMessageSent, setFirstMessageSent] = useState(() => readFirstMessageSentFromStorage(subjectId));
 
   useEffect(() => {
@@ -88,7 +79,6 @@ export function useHomeProgress(): HomeProgress {
 
   useEffect(() => {
     const onTourDone = () => setTourCompleted(readTourCompletedFromStorage());
-    const onAppearanceTourDone = () => setAppearanceTourCompleted(readAppearanceTourCompletedFromStorage());
     const onFirstMessageSent = (e: Event) => {
       const detail = (e as CustomEvent<{ subjectId?: string }>).detail;
       if (!subjectId || detail?.subjectId === subjectId) {
@@ -96,11 +86,9 @@ export function useHomeProgress(): HomeProgress {
       }
     };
     window.addEventListener(TOUR_COMPLETED_EVENT, onTourDone);
-    window.addEventListener(APPEARANCE_TOUR_COMPLETED_EVENT, onAppearanceTourDone);
     window.addEventListener(FIRST_MESSAGE_SENT_EVENT, onFirstMessageSent);
     return () => {
       window.removeEventListener(TOUR_COMPLETED_EVENT, onTourDone);
-      window.removeEventListener(APPEARANCE_TOUR_COMPLETED_EVENT, onAppearanceTourDone);
       window.removeEventListener(FIRST_MESSAGE_SENT_EVENT, onFirstMessageSent);
     };
   }, [subjectId]);
@@ -113,10 +101,9 @@ export function useHomeProgress(): HomeProgress {
     session,
     hasIdentity,
     tourCompleted,
-    appearanceTourCompleted,
     firstMessageSent,
   );
-  const identityProgress = useIdentityProgress(api, tourCompleted, isIdentityMode);
+  const identityProgress = useIdentityProgress(api, isIdentityMode);
 
   return isIdentityMode ? identityProgress : accountProgress;
 }
@@ -127,7 +114,6 @@ function useAccountProgress(
   session: ReturnType<typeof useAuth>['session'],
   hasIdentity: boolean,
   tourCompleted: boolean,
-  appearanceTourCompleted: boolean,
   firstMessageSent: boolean,
 ): AccountProgress {
   const [mfaEnabled, setMfaEnabled] = useState<boolean | null>(null);
@@ -170,6 +156,10 @@ function useAccountProgress(
   }, [load]);
 
   const hasSubscription = (session?.subscriptions?.length ?? 0) > 0;
+  const subscriptions = session?.subscriptions ?? [];
+  const isFreeTier =
+    hasSubscription &&
+    subscriptions.every((t) => t === 'free');
   const avStatus = session?.ageVerification?.status;
   const aliasGateCode = session?.aliasGate?.code;
   const aliasGateJurisdiction = session?.aliasGate?.jurisdiction;
@@ -240,10 +230,17 @@ function useAccountProgress(
       { id: 'tour', completed: tourCompleted, disabled: false },
       { id: 'mfa', completed: mfaEnabled === true, disabled: false },
       { id: 'verify', completed: accountVerified === true, disabled: false },
-      { id: 'appearance', completed: appearanceTourCompleted, disabled: false },
     ],
-    [tourCompleted, mfaEnabled, accountVerified, appearanceTourCompleted]
+    [tourCompleted, mfaEnabled, accountVerified]
   );
+
+  const canSkipAvWithUpgrade = useMemo(() => {
+    if (!isFreeTier || !avStepRelevant) return false;
+    if (jurisdictionReqs.length === 0) return true;
+    return jurisdictionReqs.every((r) =>
+      r.compatibleMethods.includes('credit_card'),
+    );
+  }, [isFreeTier, avStepRelevant, jurisdictionReqs]);
 
   const allComplete = useMemo(
     () =>
@@ -258,6 +255,7 @@ function useAccountProgress(
     mode: 'account',
     loading,
     hasSubscription,
+    isFreeTier,
     avRequired,
     avStepRelevant,
     avStatus,
@@ -265,6 +263,7 @@ function useAccountProgress(
     aliasGateRequiredReason,
     jurisdictionReqs,
     jurisdictionReqsLoading,
+    canSkipAvWithUpgrade,
     allComplete,
     primarySteps,
     secondarySteps,
@@ -274,7 +273,6 @@ function useAccountProgress(
 
 function useIdentityProgress(
   api: ReturnType<typeof createApiClient>,
-  tourCompleted: boolean,
   enabled: boolean,
 ): IdentityProgress {
   const { friends } = useFriends();
@@ -317,11 +315,11 @@ function useIdentityProgress(
       enabled
         ? [
             { id: 'addFriend', completed: hasFriend, disabled: false },
-            { id: 'startConversation', completed: false, disabled: false },
+            { id: 'startConversation', completed: conversationsLen > 0, disabled: false },
             { id: 'joinSpace', completed: false, disabled: true },
           ]
         : [],
-    [enabled, hasFriend],
+    [enabled, hasFriend, conversationsLen],
   );
 
   const secondarySteps: AccountProgressStep[] = useMemo(
@@ -330,10 +328,9 @@ function useIdentityProgress(
         ? [
             { id: 'appearance', completed: false, disabled: false },
             { id: 'editProfile', completed: false, disabled: false },
-            { id: 'tour', completed: tourCompleted, disabled: false },
           ]
         : [],
-    [enabled, tourCompleted],
+    [enabled],
   );
 
   const stats = useMemo(

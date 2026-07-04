@@ -67,8 +67,8 @@ export const conversations = {
     headerLatestPinSystem: 'System message',
     headerLatestPinTooltip: 'Open the newest pinned message (by send time)',
     settings: 'Settings',
-    settingsTabPersonal: 'For you',
-    settingsTabConversation: 'Conversation',
+    settingsTabPersonal: 'Personal',
+    settingsTabConversation: 'Group-Wide',
     leave: 'Leave',
     you: 'You',
     admin: 'Admin',
@@ -269,6 +269,9 @@ export const conversations = {
       statusMember: 'Member',
       statusInvited: 'Invited',
     },
+
+    upgradeForOlderMessages: 'Upgrade to view older messages',
+    upgradeForOlderMessagesDescription: 'Free accounts can access the most recent 14 days of message history.',
 
     newUnreads: 'New messages',
     jumpToLatest: 'Jump to latest message',

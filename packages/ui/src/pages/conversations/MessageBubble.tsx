@@ -142,6 +142,7 @@ export const MessageBubble = memo(function MessageBubble({
   onPin,
   onUnpin,
   onOpenMemberSecurity,
+  onDeviceTrustMismatch,
   peerPublicKeysById = {},
   verificationRevision = 0,
   customEmojisDisabled = false,
@@ -185,6 +186,8 @@ export const MessageBubble = memo(function MessageBubble({
   onPin?: () => void;
   onUnpin?: () => void;
   onOpenMemberSecurity?: (identityId: string, displayLabel: string) => void;
+  /** Fired when a previously verified device fingerprint no longer matches (key change). */
+  onDeviceTrustMismatch?: (identityId: string, deviceId: string) => void;
   peerPublicKeysById?: Record<string, IdentityPublicKeys>;
   verificationRevision?: number;
   customEmojisDisabled?: boolean;
@@ -409,7 +412,11 @@ export const MessageBubble = memo(function MessageBubble({
         setDeviceSignatureTrust('none');
         return;
       }
-      setDeviceSignatureTrust(current === rec.verifiedDisplay ? 'match' : 'mismatch');
+      const trust = current === rec.verifiedDisplay ? 'match' : 'mismatch';
+      setDeviceSignatureTrust(trust);
+      if (trust === 'mismatch') {
+        onDeviceTrustMismatch?.(from, sid);
+      }
     }
     void run();
     return () => {
@@ -423,6 +430,7 @@ export const MessageBubble = memo(function MessageBubble({
     parsed.senderDeviceId,
     peerKeysForSender,
     verificationRevision,
+    onDeviceTrustMismatch,
   ]);
 
   const deviceSignatureTrustIcon =
@@ -465,6 +473,48 @@ export const MessageBubble = memo(function MessageBubble({
         </span>
       </Tooltip>
     ) : null;
+
+  // Explicit warning when the Ed25519 message signature failed verification:
+  // content decrypted, but its authorship/context could not be authenticated.
+  const showSignatureWarning =
+    !message.deleted && !!message.decryptedContent && message.signatureVerified === false;
+
+  const signatureWarningIcon = showSignatureWarning ? (
+    <Tooltip
+      content={t(
+        'conversations.signatureInvalidIndicator',
+        'Signature verification failed. This message may not have been sent by the displayed sender, or may have been moved from another conversation.',
+      )}
+      position="top"
+    >
+      <span
+        className="dm-message-signature-trust dm-message-signature-trust--bad"
+        role="img"
+        aria-label={t(
+          'conversations.signatureInvalidIndicator',
+          'Signature verification failed. This message may not have been sent by the displayed sender, or may have been moved from another conversation.',
+        )}
+      >
+        <Icon name="error" size="sm" />
+      </span>
+    </Tooltip>
+  ) : null;
+
+  // Sender-side notice: forward secrecy was requested but at least one
+  // recipient device fell back to static key wrapping.
+  const fsDowngradeIcon = message.fsDowngraded === true ? (
+    <Tooltip
+      content={t(
+        'conversations.fsDowngradedIndicator',
+        'Forward secrecy could not be applied for every recipient device; some received this message with static keys.',
+      )}
+      position="top"
+    >
+      <span className="dm-message-fs-indicator dm-message-fs-indicator--downgraded">
+        {t('conversations.fsDowngradedLabel', 'FS partial')}
+      </span>
+    </Tooltip>
+  ) : null;
 
   const handleChatContextAction = useCallback(
     (value: string) => {
@@ -752,6 +802,7 @@ export const MessageBubble = memo(function MessageBubble({
               <MessageEditHistoryLabel message={message} className="dm-message-edited-label" />
             )}
             {deviceSignatureTrustIcon}
+            {signatureWarningIcon}
             {isPinned && (
               <span className="dm-message-pin-indicator" title={t('conversations.pinnedMessage', 'Pinned')}>
                 <Icon name="locationPin" size="sm" />
@@ -773,6 +824,7 @@ export const MessageBubble = memo(function MessageBubble({
                 </span>
               </Tooltip>
             )}
+            {fsDowngradeIcon}
             {countdown && (
               <Tooltip content={t('conversations.ttlCountdown', 'This message will disappear when the timer expires')} position="top">
                 <span className="dm-message-expiry">{countdown}</span>
@@ -943,6 +995,7 @@ export const MessageBubble = memo(function MessageBubble({
           />
         )}
         {deviceSignatureTrustIcon}
+        {signatureWarningIcon}
         {isPinned && (
           <span className="dm-message-pin-indicator" title={t('conversations.pinnedMessage', 'Pinned')}>
             <Icon name="locationPin" size="sm" />
@@ -964,6 +1017,7 @@ export const MessageBubble = memo(function MessageBubble({
             </span>
           </Tooltip>
         )}
+        {fsDowngradeIcon}
         {countdown && (
           <Tooltip content={t('conversations.ttlCountdown', 'This message will disappear when the timer expires')} position="top">
             <span className="dm-message-expiry">{countdown}</span>
@@ -1000,6 +1054,7 @@ export const MessageBubble = memo(function MessageBubble({
   if (prev.isPinned !== next.isPinned) return false;
   if (prev.canManagePin !== next.canManagePin) return false;
   if (prev.onOpenMemberSecurity !== next.onOpenMemberSecurity) return false;
+  if (prev.onDeviceTrustMismatch !== next.onDeviceTrustMismatch) return false;
   if (prev.verificationRevision !== next.verificationRevision) return false;
   if (prev.peerPublicKeysById !== next.peerPublicKeysById) return false;
 
@@ -1012,6 +1067,8 @@ export const MessageBubble = memo(function MessageBubble({
   if (pm.lastEditedAt !== nm.lastEditedAt) return false;
   if (pm.deleted !== nm.deleted) return false;
   if (pm.forwardSecrecy !== nm.forwardSecrecy) return false;
+  if (pm.fsDowngraded !== nm.fsDowngraded) return false;
+  if (pm.signatureVerified !== nm.signatureVerified) return false;
   if (pm.expiresAt !== nm.expiresAt) return false;
   if (pm.decryptionError !== nm.decryptionError) return false;
   if (pm.replyToMessageId !== nm.replyToMessageId) return false;
