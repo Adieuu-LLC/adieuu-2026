@@ -171,9 +171,19 @@ export function FriendsProvider({ children }: FriendsProviderProps) {
   // --------------------------------------------------------------------------
 
   const sendRequest = useCallback(async (identityId: string): Promise<boolean> => {
-    const res = await api.friends.sendRequest(identityId);
-    return res.success;
-  }, [api]);
+    try {
+      const res = await api.friends.sendRequest(identityId);
+      if (res.success) {
+        toast.success(t('friends.requestSent'));
+      } else {
+        toast.error(t('friends.requestError'));
+      }
+      return res.success;
+    } catch {
+      toast.error(t('friends.requestError'));
+      return false;
+    }
+  }, [api, toast, t]);
 
   const acceptRequest = useCallback(async (requestId: string): Promise<boolean> => {
     const res = await api.friends.acceptRequest(requestId);

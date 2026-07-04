@@ -113,9 +113,9 @@ export const identity = {
       },
       forwardSecrecy: {
         title: 'Forward Secrecy',
-        betaBadge: 'Beta',
-        betaWarning: 'Forward secrecy is in late testing. There may be bugs that cause some messages to become unreadable earlier than expected.',
-        description: 'Control pre-key rotation and deletion behavior for DM forward secrecy.',
+        betaBadge: 'Advanced',
+        betaWarning: "If you usually want mid-long term history in your conversations, you should not enable Forward Secrecy as default. You can always enable it on-demand for individual messages by toggling on the 'FS' icon in your message composer. The settings below apply to such messages.",
+        description: "End-to-end encryption (E2EE) ensures only you and your recipients devices can read the messages, but what happens if your device is stolen? An attacker who can get into your phone can then read your messages. This is what Forward Secrecy aims to address: it swaps your keys more aggressively, meaning someone in the future (even you) can't read your old messages.",
         enabledTitle: 'Enable Forward Secrecy by default',
         enabledHint: 'When enabled, all new messages use forward secrecy unless overridden per-conversation or per-message. Messages sent without forward secrecy remain end-to-end encrypted but persist in history.',
         enabledUpdated: 'Forward secrecy default updated.',
@@ -535,7 +535,7 @@ export const identity = {
       messageSearchModeWarm: 'As I read messages (faster search, more plaintext on device)',
       changePassword: {
         title: 'Change Alias Password',
-        description: 'Change the password used to sign into one of your Aliases. Your encrypted key bundle will be re-encrypted with the new password.',
+        description: 'Passwords are used both to lookup and authenticate into your Aliases. Every Alias must have a different password. If you need to change the password for your Alias, you can do so below. Just enter your existing password for the alias you want to change, and the desired new password. Your encrypted key bundle will be re-encrypted with the new password.',
         currentPassword: 'Current password',
         newPassword: 'New password',
         confirmPassword: 'Confirm new password',
