@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { SegmentGroup, Tabs } from '@ark-ui/react';
+import { RadioGroup, SegmentGroup, Tabs } from '@ark-ui/react';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Icon } from '../../icons/Icon';
@@ -94,7 +94,7 @@ export function ConversationSettingsSidebar({
   const isMobile = useIsMobile();
 
   const hasConversationTab =
-    (isGroup && isAdmin) || (!isGroup && (!!onGifsDisabledByAdminToggle || !!onCustomEmojisDisabledByAdminToggle));
+    isGroup || (!isGroup && (!!onGifsDisabledByAdminToggle || !!onCustomEmojisDisabledByAdminToggle));
 
   const personalControls = (
     <>
@@ -121,23 +121,23 @@ export function ConversationSettingsSidebar({
         <span className="app-settings-toggle-title">
           {t('conversations.colorDisplayMode', 'Member colour display')}
         </span>
-        <div className="conversation-settings-color-options">
+        <RadioGroup.Root
+          className="conversation-settings-color-radio-group"
+          value={memberColorDisplay}
+          onValueChange={(e) => setMemberColorDisplay(e.value as MemberColorDisplay)}
+        >
           {(['name-only', 'name-and-accent', 'name-and-bubble'] as const).map((mode) => (
-            <label key={mode} className="conversation-settings-color-option">
-              <input
-                type="radio"
-                name="memberColorDisplay"
-                checked={memberColorDisplay === mode}
-                onChange={() => setMemberColorDisplay(mode)}
-              />
-              <span>
+            <RadioGroup.Item key={mode} value={mode} className="conversation-settings-color-radio-item">
+              <RadioGroup.ItemControl className="conversation-settings-color-radio-control" />
+              <RadioGroup.ItemText className="conversation-settings-color-radio-text">
                 {mode === 'name-only' && t('conversations.colorDisplayNameOnly', 'Name only')}
                 {mode === 'name-and-accent' && t('conversations.colorDisplayNameAccent', 'Name + avatar accent')}
                 {mode === 'name-and-bubble' && t('conversations.colorDisplayNameBubble', 'Name + bubble tint')}
-              </span>
-            </label>
+              </RadioGroup.ItemText>
+              <RadioGroup.ItemHiddenInput />
+            </RadioGroup.Item>
           ))}
-        </div>
+        </RadioGroup.Root>
       </div>
 
       {!gifsDisabledByAdmin && onGifsHiddenForMeToggle && (
@@ -181,9 +181,11 @@ export function ConversationSettingsSidebar({
     </>
   );
 
+  const canEditConversation = isAdmin || !isGroup;
+
   const conversationControls = (
     <>
-      {isGroup && isAdmin && (
+      {isGroup && (
         <div className="conversation-settings-rename">
           <span className="app-settings-toggle-title">
             {t('conversations.settingsRenameTitle', 'Conversation topic or name')}
@@ -195,13 +197,13 @@ export function ConversationSettingsSidebar({
               placeholder={
                 currentGroupName ?? t('conversations.settingsRenamePlaceholder', 'Enter new name...')
               }
-              disabled={renaming}
+              disabled={renaming || !isAdmin}
             />
             <Button
               variant="primary"
               size="sm"
               onClick={onRename}
-              disabled={!renameValue.trim() || renaming}
+              disabled={!renameValue.trim() || renaming || !isAdmin}
             >
               {renaming ? (
                 <span className="spinner spinner-sm" />
@@ -213,12 +215,13 @@ export function ConversationSettingsSidebar({
         </div>
       )}
 
-      {(isAdmin || !isGroup) && onGifsDisabledByAdminToggle && (
-        <label className="app-settings-toggle">
+      {onGifsDisabledByAdminToggle && (
+        <label className={`app-settings-toggle${!canEditConversation ? ' app-settings-toggle--disabled' : ''}`}>
           <input
             type="checkbox"
             checked={gifsDisabledByAdmin ?? false}
             onChange={(e) => onGifsDisabledByAdminToggle(e.target.checked)}
+            disabled={!canEditConversation}
           />
           <span className="app-settings-toggle-label">
             <span className="app-settings-toggle-title">
@@ -234,8 +237,8 @@ export function ConversationSettingsSidebar({
         </label>
       )}
 
-      {(isAdmin || !isGroup) && !gifsDisabledByAdmin && onGifContentFilterChange && (
-        <div className="conversation-settings-content-filter">
+      {!gifsDisabledByAdmin && onGifContentFilterChange && (
+        <div className={`conversation-settings-content-filter${!canEditConversation ? ' conversation-settings-content-filter--disabled' : ''}`}>
           <span className="app-settings-toggle-title">
             {t('gif.contentFilterTitle', 'GIF/Sticker content filter')}
             <InfoTip
@@ -268,6 +271,7 @@ export function ConversationSettingsSidebar({
             className="content-filter-segment-group"
             value={gifContentFilter ?? 'off'}
             onValueChange={(e) => onGifContentFilterChange(e.value as GifContentFilter)}
+            disabled={!canEditConversation}
           >
             <SegmentGroup.Indicator className="content-filter-segment-indicator" />
             {GIF_CONTENT_FILTER_OPTIONS.map((level) => (
@@ -275,6 +279,7 @@ export function ConversationSettingsSidebar({
                 key={level}
                 className="content-filter-segment-item"
                 value={level}
+                disabled={!canEditConversation}
               >
                 <SegmentGroup.ItemText>{t(CONTENT_FILTER_LABEL_KEYS[level] as never)}</SegmentGroup.ItemText>
                 <SegmentGroup.ItemControl />
@@ -285,12 +290,13 @@ export function ConversationSettingsSidebar({
         </div>
       )}
 
-      {(isAdmin || !isGroup) && onCustomEmojisDisabledByAdminToggle && (
-        <label className="app-settings-toggle">
+      {onCustomEmojisDisabledByAdminToggle && (
+        <label className={`app-settings-toggle${!canEditConversation ? ' app-settings-toggle--disabled' : ''}`}>
           <input
             type="checkbox"
             checked={customEmojisDisabledByAdmin ?? false}
             onChange={(e) => onCustomEmojisDisabledByAdminToggle(e.target.checked)}
+            disabled={!canEditConversation}
           />
           <span className="app-settings-toggle-label">
             <span className="app-settings-toggle-title">
@@ -306,12 +312,13 @@ export function ConversationSettingsSidebar({
         </label>
       )}
 
-      {(isAdmin || !isGroup) && onMessageSearchCachePolicyToggle && (
-        <label className="app-settings-toggle">
+      {onMessageSearchCachePolicyToggle && (
+        <label className={`app-settings-toggle${!canEditConversation ? ' app-settings-toggle--disabled' : ''}`}>
           <input
             type="checkbox"
             checked={disallowPersistentMessageSearchCache ?? false}
             onChange={(e) => onMessageSearchCachePolicyToggle(e.target.checked)}
+            disabled={!canEditConversation}
           />
           <span className="app-settings-toggle-label">
             <span className="app-settings-toggle-title">
@@ -322,12 +329,13 @@ export function ConversationSettingsSidebar({
         </label>
       )}
 
-      {(isAdmin || !isGroup) && onAllowSkipModerationToggle && (
-        <label className="app-settings-toggle">
+      {onAllowSkipModerationToggle && (
+        <label className={`app-settings-toggle${!canEditConversation ? ' app-settings-toggle--disabled' : ''}`}>
           <input
             type="checkbox"
             checked={allowSkipModeration ?? false}
             onChange={(e) => onAllowSkipModerationToggle(e.target.checked)}
+            disabled={!canEditConversation}
           />
           <span className="app-settings-toggle-label">
             <span className="app-settings-toggle-title">
@@ -343,12 +351,13 @@ export function ConversationSettingsSidebar({
         </label>
       )}
 
-      {(isAdmin || !isGroup) && onAudioCallsDisabledToggle && (
-        <label className="app-settings-toggle">
+      {onAudioCallsDisabledToggle && (
+        <label className={`app-settings-toggle${!canEditConversation ? ' app-settings-toggle--disabled' : ''}`}>
           <input
             type="checkbox"
             checked={!(audioCallsDisabled ?? false)}
             onChange={(e) => onAudioCallsDisabledToggle(!e.target.checked)}
+            disabled={!canEditConversation}
           />
           <span className="app-settings-toggle-label">
             <span className="app-settings-toggle-title">
@@ -361,12 +370,13 @@ export function ConversationSettingsSidebar({
         </label>
       )}
 
-      {(isAdmin || !isGroup) && onVideoCallsDisabledToggle && (
-        <label className="app-settings-toggle">
+      {onVideoCallsDisabledToggle && (
+        <label className={`app-settings-toggle${!canEditConversation ? ' app-settings-toggle--disabled' : ''}`}>
           <input
             type="checkbox"
             checked={!(videoCallsDisabled ?? false)}
             onChange={(e) => onVideoCallsDisabledToggle(!e.target.checked)}
+            disabled={!canEditConversation}
           />
           <span className="app-settings-toggle-label">
             <span className="app-settings-toggle-title">
@@ -379,12 +389,13 @@ export function ConversationSettingsSidebar({
         </label>
       )}
 
-      {(isAdmin || !isGroup) && onScreenshareDisabledToggle && (
-        <label className="app-settings-toggle">
+      {onScreenshareDisabledToggle && (
+        <label className={`app-settings-toggle${!canEditConversation ? ' app-settings-toggle--disabled' : ''}`}>
           <input
             type="checkbox"
             checked={!(screenshareDisabled ?? false)}
             onChange={(e) => onScreenshareDisabledToggle(!e.target.checked)}
+            disabled={!canEditConversation}
           />
           <span className="app-settings-toggle-label">
             <span className="app-settings-toggle-title">

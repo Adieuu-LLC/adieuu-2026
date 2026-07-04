@@ -46,7 +46,7 @@ const DEFAULT_PRIVACY: ProfilePrivacySettings = {
 };
 
 type PreviewMode = 'self' | 'friend' | 'stranger';
-type EditingField = 'displayName' | 'bio' | null;
+type EditingField = 'displayName' | null;
 
 export function IdentityProfile() {
   const { t } = useTranslation();
@@ -105,8 +105,6 @@ export function IdentityProfile() {
     if (editingField === 'displayName') {
       displayNameInputRef.current?.focus();
       displayNameInputRef.current?.select();
-    } else if (editingField === 'bio') {
-      bioInputRef.current?.focus();
     }
   }, [editingField]);
 
@@ -543,37 +541,20 @@ export function IdentityProfile() {
 
                   {/* Bio */}
                   {isEditable ? (
-                    editingField === 'bio' ? (
-                      <div className="profile-edit-field profile-edit-field--editing">
-                        <textarea
-                          ref={bioInputRef}
-                          className="profile-edit-inline-input profile-edit-inline-input--bio"
-                          value={bio}
-                          onChange={(e) => setBio(e.target.value.slice(0, BIO_MAX_LENGTH))}
-                          onBlur={() => setEditingField(null)}
-                          onKeyDown={handleFieldKeyDown('bio')}
-                          maxLength={BIO_MAX_LENGTH}
-                          rows={3}
-                          placeholder={t('identity.profile.bioPlaceholder')}
-                        />
-                        <span className="profile-bio-count">
-                          {t('identity.profile.bioCharCount', { count: bio.length, max: BIO_MAX_LENGTH })}
-                        </span>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        className="profile-edit-field profile-edit-field--clickable"
-                        onClick={() => setEditingField('bio')}
-                      >
-                        <p className={`profile-preview-bio ${!bio ? 'profile-preview-bio--placeholder' : ''}`}>
-                          {bio || t('identity.profile.bioPlaceholder')}
-                        </p>
-                        <span className="profile-edit-field-icon">
-                          <Icon name="pen" size="xs" />
-                        </span>
-                      </button>
-                    )
+                    <div className="profile-edit-field profile-edit-field--editing">
+                      <textarea
+                        ref={bioInputRef}
+                        className="profile-edit-inline-input profile-edit-inline-input--bio"
+                        value={bio}
+                        onChange={(e) => setBio(e.target.value.slice(0, BIO_MAX_LENGTH))}
+                        maxLength={BIO_MAX_LENGTH}
+                        rows={3}
+                        placeholder={t('identity.profile.bioPlaceholder')}
+                      />
+                      <span className="profile-bio-count">
+                        {t('identity.profile.bioCharCount', { count: bio.length, max: BIO_MAX_LENGTH })}
+                      </span>
+                    </div>
                   ) : previewProfile.bio ? (
                     <p className="profile-preview-bio">{previewProfile.bio}</p>
                   ) : null}
