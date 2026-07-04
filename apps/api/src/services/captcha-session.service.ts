@@ -37,16 +37,16 @@ export async function markCaptchaVerified(sessionId: string): Promise<void> {
  * Returns true if the user has verified within the last 15 minutes.
  */
 export async function isCaptchaVerifiedRecently(sessionId: string): Promise<boolean> {
-  if (!isRedisConnected()) return true;
+  if (!isRedisConnected()) return false;
   try {
     const redis = getRedis();
     const value = await redis.get(`${CAPTCHA_VERIFIED_PREFIX}${sessionId}`);
     return value !== null;
   } catch (err) {
-    elog.warn('Failed to check captcha verified state in Redis; allowing (fail-open)', {
+    elog.warn('Failed to check captcha verified state in Redis; requiring re-verification (fail-closed)', {
       error: err instanceof Error ? err.message : String(err),
     });
-    return true;
+    return false;
   }
 }
 

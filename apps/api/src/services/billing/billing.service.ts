@@ -198,7 +198,7 @@ export async function ensureFreeSubscription(
     limit: 1,
   });
   if (existing.data.length > 0) {
-    return null;
+    return user.billing ?? await deriveSubscriptionBilling(stripe, existing.data[0]!.id, user.billing);
   }
 
   const trialingSubs = await stripe.subscriptions.list({
@@ -207,7 +207,7 @@ export async function ensureFreeSubscription(
     limit: 1,
   });
   if (trialingSubs.data.length > 0) {
-    return null;
+    return user.billing ?? await deriveSubscriptionBilling(stripe, trialingSubs.data[0]!.id, user.billing);
   }
 
   const userId = user._id.toHexString();

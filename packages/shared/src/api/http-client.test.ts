@@ -296,14 +296,16 @@ describe('CAPTCHA_REQUIRED interceptor', () => {
     }
   });
 
-  it('constructs body correctly for GET requests (no original body) on retry', async () => {
+  it('passes captcha token via header for GET requests on retry', async () => {
     let callCount = 0;
-    let retryBodyParsed: Record<string, unknown> | undefined;
+    let retryHeaders: Record<string, string> | undefined;
+    let retryBody: string | undefined;
 
     const fetchImpl: typeof fetch = async (_url, init) => {
       callCount++;
       if (callCount === 1) return captchaRequiredResponse();
-      retryBodyParsed = init?.body ? JSON.parse(init.body as string) : undefined;
+      retryHeaders = Object.fromEntries(new Headers(init?.headers as HeadersInit).entries());
+      retryBody = init?.body as string | undefined;
       return successResponse();
     };
 
@@ -314,7 +316,8 @@ describe('CAPTCHA_REQUIRED interceptor', () => {
 
     expect(callCount).toBe(2);
     expect(res.success).toBe(true);
-    expect(retryBodyParsed?.['frc-captcha-response']).toBe('token-for-get');
+    expect(retryHeaders?.['x-frc-captcha-response']).toBe('token-for-get');
+    expect(retryBody).toBeUndefined();
   });
 
   it('clears handler with clearCaptchaHandler', async () => {

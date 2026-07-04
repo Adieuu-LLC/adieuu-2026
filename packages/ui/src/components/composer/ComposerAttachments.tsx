@@ -48,7 +48,7 @@ export function ComposerAttachments({
 
           if (!isVisual) {
             return (
-              <div key={att.previewUrl || att.file.name} className={`conversation-composer-attachment conversation-composer-attachment--file conversation-composer-attachment--${att.existingMediaId ? 'existing' : att.uploadStatus}`}>
+              <div key={att.existingMediaId || att.previewUrl || `file-${idx}`} className={`conversation-composer-attachment conversation-composer-attachment--file conversation-composer-attachment--${att.existingMediaId ? 'existing' : att.uploadStatus}`}>
                 <div className="conversation-composer-attachment-file-info">
                   <Icon name={fileAttachmentIconName(att.file.type)} className="conversation-composer-attachment-file-icon" />
                   <div className="conversation-composer-attachment-file-meta">

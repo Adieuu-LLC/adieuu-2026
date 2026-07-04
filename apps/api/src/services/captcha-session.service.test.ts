@@ -61,15 +61,15 @@ describe('isCaptchaVerifiedRecently', () => {
     expect(result).toBe(false);
   });
 
-  test('returns true (fail-open) when Redis is not connected', async () => {
+  test('returns false (fail-closed) when Redis is not connected', async () => {
     mockIsRedisConnected.mockImplementation(() => false);
     const result = await isCaptchaVerifiedRecently('session-123');
-    expect(result).toBe(true);
+    expect(result).toBe(false);
   });
 
-  test('returns true (fail-open) when Redis throws', async () => {
+  test('returns false (fail-closed) when Redis throws', async () => {
     mockRedisGet.mockImplementation(() => Promise.reject(new Error('Connection lost')));
     const result = await isCaptchaVerifiedRecently('session-123');
-    expect(result).toBe(true);
+    expect(result).toBe(false);
   });
 });

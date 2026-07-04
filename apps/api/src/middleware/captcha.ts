@@ -60,7 +60,26 @@ export async function requireCaptchaForFreeTier(
 
   const user = preloadedUser ?? await resolveAccountUser(ctx);
   if (!user) {
-    return null;
+    const body = ctx.body as Record<string, unknown> | undefined;
+    const captchaResponse = typeof body?.['frc-captcha-response'] === 'string'
+      ? body['frc-captcha-response']
+      : (ctx.request.headers.get('x-frc-captcha-response') ?? undefined);
+
+    if (!captchaResponse) {
+      return error('CAPTCHA_REQUIRED', 'Captcha verification is required for this action.', 422);
+    }
+    const result = await verifyCaptcha(captchaResponse);
+    if (result.valid) {
+      const sessionId = getSessionIdFromRequest(ctx.request);
+      if (sessionId) await markCaptchaVerified(sessionId);
+      return null;
+    }
+    return error(
+      'CAPTCHA_REQUIRED',
+      'Captcha verification is required for this action.',
+      422,
+      { captchaError: result.error },
+    );
   }
 
   if (!isFreeTierOnly(user)) {
@@ -75,7 +94,7 @@ export async function requireCaptchaForFreeTier(
   const body = ctx.body as Record<string, unknown> | undefined;
   const captchaResponse = typeof body?.['frc-captcha-response'] === 'string'
     ? body['frc-captcha-response']
-    : undefined;
+    : (ctx.request.headers.get('x-frc-captcha-response') ?? undefined);
 
   const result = await verifyCaptcha(captchaResponse);
 

@@ -159,6 +159,14 @@ export class ApiClient implements HttpClient {
       ) {
         const token = await captchaHandler();
         if (token) {
+          const NO_BODY_METHODS = new Set(['GET', 'HEAD']);
+          if (NO_BODY_METHODS.has(method.toUpperCase())) {
+            const retryOptions: RequestOptions = {
+              ...options,
+              headers: { ...options?.headers, 'X-FRC-Captcha-Response': token },
+            };
+            return this.request<T>(method, path, undefined, retryOptions, true, networkRetry);
+          }
           const retryBody = {
             ...((body as Record<string, unknown>) ?? {}),
             'frc-captcha-response': token,

@@ -533,8 +533,12 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
             existingMediaId: att.e2eMediaId,
           }));
           setAttachments(existingAtts);
+          if (editingInitialAttachments.gifs?.length) {
+            setPendingGif(editingInitialAttachments.gifs[0] ?? null);
+          }
         } else {
           setAttachments([]);
+          setPendingGif(null);
         }
 
         window.requestAnimationFrame(() => {
@@ -617,11 +621,13 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
 
       const mentionedIdentityIds = resolveMentionedIdentityIds(mentions, mentionSource);
 
-      api.klipy.share({
-        slug: currentPendingGif.slug,
-        type: currentPendingGif.type,
-        searchTerm: currentPendingGif.searchTerm || undefined,
-      });
+      if (!editContext) {
+        api.klipy.share({
+          slug: currentPendingGif.slug,
+          type: currentPendingGif.type,
+          searchTerm: currentPendingGif.searchTerm || undefined,
+        });
+      }
 
       const sent = await onSend(plaintext, {
         ...(forwardSecrecy?.enabled ? { useForwardSecrecy: true } : {}),

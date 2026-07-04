@@ -659,6 +659,9 @@ export function validateProductionConfig(): void {
     if (!config.friendlyCaptcha.apiKey) {
       errors.push('FRIENDLY_CAPTCHA_API_KEY must be set when FRIENDLY_CAPTCHA_ENABLED is true');
     }
+    if (!config.friendlyCaptcha.sitekey) {
+      errors.push('FRIENDLY_CAPTCHA_SITEKEY must be set when FRIENDLY_CAPTCHA_ENABLED is true');
+    }
   }
 
   if (errors.length > 0) {

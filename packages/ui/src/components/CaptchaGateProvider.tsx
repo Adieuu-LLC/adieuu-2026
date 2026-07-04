@@ -47,6 +47,9 @@ export function CaptchaGateProvider({ children }: { children: ReactNode }) {
     }
 
     return new Promise<string | null>((resolve) => {
+      if (resolveRef.current) {
+        resolveRef.current(null);
+      }
       resolveRef.current = resolve;
       setCaptchaResponse(null);
       setOpen(true);

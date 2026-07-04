@@ -168,10 +168,11 @@ describe('requireCaptchaForFreeTier', () => {
     expect(result).toBeNull();
   });
 
-  test('returns null when no user can be resolved (no session)', async () => {
+  test('requires captcha when no user can be resolved (no session)', async () => {
     const ctx = makeCtx({ body: {} });
     const result = await requireCaptchaForFreeTier(ctx);
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(result!.status).toBe(422);
   });
 
   test('user with no billing is not treated as free-tier', async () => {
