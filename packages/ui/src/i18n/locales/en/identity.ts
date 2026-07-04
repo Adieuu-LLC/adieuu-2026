@@ -174,7 +174,7 @@ export const identity = {
           immediateConfirmAction: 'Enable immediate deletion',
         },
         clearCacheOnRotation: 'Also clear local message cache when keys are deleted',
-        clearCacheOnRotationHint: 'When enabled, the local FS message cache is cleared alongside key deletion, making old messages fully unreadable.',
+        clearCacheOnRotationHint: 'When enabled, the local FS message cache is cleared alongside key deletion, making old messages fully unreadable. When disabled, decrypted copies of forward-secrecy messages stay cached on this device after keys are deleted — anyone with access to this device could still read them, which weakens forward secrecy locally.',
         clearCacheConfirmTitle: 'Enable cache clearing on rotation?',
         clearCacheConfirmBody: 'When keys are deleted (by policy or manually), the locally cached decrypted messages will also be removed. Old forward-secrecy messages will become permanently unreadable, with no fallback.',
         clearCacheConfirmAction: 'Enable cache clearing',

@@ -35,10 +35,9 @@ import type {
   ReportEvidence,
 } from '../models/report';
 import { checkAndAward } from './achievement.service';
+import { verifyMessageSignatureV2 } from '../utils/crypto';
 import elog from '../utils/adieuuLogger';
-import { isReportContextMessageCount } from '@adieuu/shared';
-
-const MESSAGE_SIGN_DOMAIN = 'adieuu-msg-v1';
+import { isReportContextMessageCount, MESSAGE_SIGN_DOMAIN_V1 } from '@adieuu/shared';
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -143,13 +142,30 @@ function verifyMessageSignature(
   signingPublicKey: string,
   msg: MessageDocument,
 ): boolean {
+  // v2 (context-bound) first: current clients bind conversationId, sender,
+  // and clientMessageId into the signature preimage.
+  const v2Valid = verifyMessageSignatureV2(
+    signingPublicKey,
+    {
+      conversationId: msg.conversationId.toHexString(),
+      fromIdentityId: msg.fromIdentityId.toHexString(),
+      clientMessageId: msg.clientMessageId,
+    },
+    msg.ciphertext,
+    msg.nonce,
+    msg.wrappedKeys,
+    msg.signature,
+  );
+  if (v2Valid) return true;
+
+  // Legacy v1: domain || ciphertext || nonce || JSON(wrappedKeys)
   try {
     const pubKey = fromBase64(signingPublicKey);
     const ciphertext = fromBase64(msg.ciphertext);
     const nonce = fromBase64(msg.nonce);
     const wrappedKeysJson = JSON.stringify(msg.wrappedKeys);
     const dataToVerify = concatBytes(
-      toBytes(MESSAGE_SIGN_DOMAIN),
+      toBytes(MESSAGE_SIGN_DOMAIN_V1),
       ciphertext,
       nonce,
       toBytes(wrappedKeysJson),

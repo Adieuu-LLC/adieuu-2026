@@ -21,6 +21,12 @@ export interface DisplayMessage extends PublicMessage {
   signatureVerified?: boolean;
   decryptionError?: string;
   forwardSecrecy?: boolean;
+  /**
+   * Forward secrecy was requested at send time but one or more recipient
+   * devices fell back to static key wrapping (no pre-keys available or SPK
+   * verification failed). Only set on locally sent messages.
+   */
+  fsDowngraded?: boolean;
 }
 
 /** One prior ciphertext version after E2E edit (decrypted in the client for history UI). */
@@ -105,12 +111,18 @@ export interface ConversationsContextValue {
     }
   ) => Promise<PublicMessage | SendMessageErrorResult | null>;
 
-  /** Replace text for an existing message (E2E); max 3 edits per message server-side. */
+  /** Replace text/attachments for an existing message (E2E); max 3 edits per message server-side. */
   editTextMessage: (
     conversationId: string,
     messageId: string,
     plaintext: string,
-    options?: { useForwardSecrecy?: boolean; signal?: AbortSignal }
+    options?: {
+      useForwardSecrecy?: boolean;
+      e2eMediaIds?: string[];
+      signal?: AbortSignal;
+      /** Original message clientMessageId (bound into the v2 signature). */
+      clientMessageId?: string;
+    }
   ) => Promise<PublicMessage | SendMessageErrorResult | null>;
 
   /** Fetches and decrypts `encryptedRevisionHistory` for a message (read-only, no pre-key side effects). */

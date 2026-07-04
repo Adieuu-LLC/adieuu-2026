@@ -3,7 +3,7 @@ import {
   serializePayload,
   type GifAttachment,
 } from '../../services/messagePayload';
-import { getOrCreateDeviceId } from '../../services/deviceInfo';
+import { getSenderDeviceIdForPayload } from '../../services/deviceInfo';
 import type { ComposerSendFn } from './composerTypes';
 
 export type KlipyShareFn = (params: {
@@ -38,7 +38,8 @@ export async function executeGifSendNow(options: GifSendNowOptions): Promise<voi
   } = options;
 
   const payload = gifPayload(undefined, gif);
-  payload.senderDeviceId = getOrCreateDeviceId();
+  const senderDeviceId = getSenderDeviceIdForPayload();
+  if (senderDeviceId) payload.senderDeviceId = senderDeviceId;
   const plaintext = serializePayload(payload);
 
   await klipyShare({

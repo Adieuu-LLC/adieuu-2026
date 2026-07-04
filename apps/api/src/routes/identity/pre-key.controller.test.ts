@@ -45,6 +45,15 @@ mock.module('@adieuu/crypto', () => ({
   verifySignedPreKey: mock(() => true),
 }));
 
+const mockCheckRateLimit = mock(
+  (_action: string, _identifier: string) =>
+    Promise.resolve({ allowed: true, remaining: 10, resetAt: 0, limit: 10 }),
+) as AnyMock;
+
+mock.module('../../services/rate-limit.service', () => ({
+  checkRateLimit: mockCheckRateLimit,
+}));
+
 const mockClaimPreKeys = mock(() => Promise.resolve([] as unknown[]));
 const mockStoreSignedPreKey = mock(() => Promise.resolve()) as AnyMock;
 const mockStoreOneTimePreKeys = mock(() => Promise.resolve(1)) as AnyMock;
@@ -137,11 +146,15 @@ describe('pre-key.controller', () => {
     mockFindByIdentityId.mockReset();
     mockCanViewerAccess.mockReset();
     mockClaimPreKeys.mockReset();
+    mockCheckRateLimit.mockReset();
     mockFindByIdentityId.mockImplementation((_id: string) =>
       _id === targetIdStr ? Promise.resolve({ _id: targetOid } as never) : Promise.resolve(null),
     );
     mockCanViewerAccess.mockImplementation(() => Promise.resolve(true));
     mockClaimPreKeys.mockImplementation(() => Promise.resolve([]));
+    mockCheckRateLimit.mockImplementation(() =>
+      Promise.resolve({ allowed: true, remaining: 10, resetAt: 0, limit: 10 }),
+    );
   });
 
   test('claimPreKeysCtrl returns 400 when target identity id invalid', async () => {
@@ -160,6 +173,47 @@ describe('pre-key.controller', () => {
     );
     expect(res.status).toBe(403);
     expect(mockClaimPreKeys).not.toHaveBeenCalled();
+  });
+
+  test('claimPreKeysCtrl returns 429 when caller identity limit is exceeded', async () => {
+    mockCheckRateLimit.mockImplementation((action: string) =>
+      Promise.resolve(
+        action === 'prekeys:claim:identity'
+          ? { allowed: false, remaining: 0, resetAt: 0, limit: 10 }
+          : { allowed: true, remaining: 10, resetAt: 0, limit: 10 },
+      ),
+    );
+    const req = new Request('http://x/');
+    const res = await claimPreKeysCtrl(ctxWithCaller(req, { id: targetIdStr }));
+    expect(res.status).toBe(429);
+    // Pre-keys must never be consumed for a rate-limited request.
+    expect(mockClaimPreKeys).not.toHaveBeenCalled();
+  });
+
+  test('claimPreKeysCtrl returns 429 when caller-target pair limit is exceeded', async () => {
+    mockCheckRateLimit.mockImplementation((action: string) =>
+      Promise.resolve(
+        action === 'prekeys:claim:target'
+          ? { allowed: false, remaining: 0, resetAt: 0, limit: 5 }
+          : { allowed: true, remaining: 10, resetAt: 0, limit: 10 },
+      ),
+    );
+    const req = new Request('http://x/');
+    const res = await claimPreKeysCtrl(ctxWithCaller(req, { id: targetIdStr }));
+    expect(res.status).toBe(429);
+    expect(mockClaimPreKeys).not.toHaveBeenCalled();
+  });
+
+  test('claimPreKeysCtrl scopes rate limit keys to caller and caller-target pair', async () => {
+    const req = new Request('http://x/');
+    await claimPreKeysCtrl(ctxWithCaller(req, { id: targetIdStr }));
+
+    const calls = mockCheckRateLimit.mock.calls as Array<[string, string]>;
+    expect(calls).toContainEqual(['prekeys:claim:identity', callerId.toHexString()]);
+    expect(calls).toContainEqual([
+      'prekeys:claim:target',
+      `${callerId.toHexString()}:${targetIdStr}`,
+    ]);
   });
 
   test('claimPreKeysCtrl passes sanitized device id list to repo', async () => {

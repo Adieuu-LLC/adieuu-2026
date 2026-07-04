@@ -142,6 +142,8 @@ export interface InitializeE2EParams {
     name: string;
     ecdhPublicKey: string;
     kemPublicKey?: string;
+    /** Ed25519 attestation (base64) over the device's static public keys */
+    staticKeyAttestation?: string;
   };
   bundle: {
     encryptedBundle: string;

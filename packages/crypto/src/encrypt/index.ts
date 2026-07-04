@@ -27,5 +27,8 @@ export {
   wrapSessionKeyForRecipients,
   findAndUnwrapSessionKey,
   computeRoutingTag,
+  buildStaticWrapAad,
   SESSION_KEY_SIZE,
+  WRAP_AAD_DOMAIN,
+  WRAP_VERSION_AAD,
 } from './hybrid';

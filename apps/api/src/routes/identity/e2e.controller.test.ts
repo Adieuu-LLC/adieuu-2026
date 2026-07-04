@@ -47,8 +47,10 @@ mock.module('../../repositories/key-bundle.repository', () => ({
   }),
 }));
 
+const mockVerifyAttestation = mock(() => true) as AnyMock;
+
 mock.module('../../services/device-static-attestation.service', () => ({
-  verifyDeviceStoredStaticKeyAttestation: mock(() => true),
+  verifyDeviceStoredStaticKeyAttestation: mockVerifyAttestation,
 }));
 
 mock.module('../../repositories/pre-key.repository', () => ({
@@ -79,6 +81,13 @@ import {
   listDevicesCtrl,
   initializeE2ECtrl,
 } from './controller';
+import { config } from '../../config';
+
+type MutableSecurityConfig = { requireDeviceAttestation?: boolean };
+
+function setRequireAttestation(value: boolean | undefined): void {
+  (config.security as unknown as MutableSecurityConfig).requireDeviceAttestation = value;
+}
 
 afterAll(() => {
   mock.restore();
@@ -164,6 +173,8 @@ describe('identity e2e controllers', () => {
     mockCreateBundle.mockReset();
     mockUpdateBundle.mockReset();
 
+    mockVerifyAttestation.mockReset();
+
     mockGetDevices.mockImplementation(() => Promise.resolve([]));
     mockAddDevice.mockImplementation(() => Promise.resolve(true));
     mockFindByIdentityId.mockImplementation(() =>
@@ -176,6 +187,8 @@ describe('identity e2e controllers', () => {
     );
     mockCanViewerAccess.mockImplementation(() => Promise.resolve(true));
     mockFindByBundleId.mockImplementation(() => Promise.resolve(null));
+    mockVerifyAttestation.mockImplementation(() => true);
+    setRequireAttestation(false);
   });
 
   test('registerDeviceCtrl returns 401 without identity session', async () => {
@@ -205,6 +218,50 @@ describe('identity e2e controllers', () => {
     const res = await registerDeviceCtrl(ctxWithSession({ id: identityHex }, body));
     expect(res.status).toBe(200);
     expect(mockAddDevice).toHaveBeenCalled();
+  });
+
+  test('registerDeviceCtrl returns 400 when attestation is required but missing', async () => {
+    setRequireAttestation(true);
+    const body = {
+      deviceId,
+      name: 'Phone',
+      ecdhPublicKey: keyMaterial,
+      kemPublicKey: keyMaterial,
+    };
+    const res = await registerDeviceCtrl(ctxWithSession({ id: identityHex }, body));
+    expect(res.status).toBe(400);
+    expect(mockAddDevice).not.toHaveBeenCalled();
+  });
+
+  test('registerDeviceCtrl returns 400 when attestation fails verification', async () => {
+    mockVerifyAttestation.mockImplementation(() => false);
+    const body = {
+      deviceId,
+      name: 'Phone',
+      ecdhPublicKey: keyMaterial,
+      kemPublicKey: keyMaterial,
+      staticKeyAttestation: 'B'.repeat(88),
+    };
+    const res = await registerDeviceCtrl(ctxWithSession({ id: identityHex }, body));
+    expect(res.status).toBe(400);
+    expect(mockAddDevice).not.toHaveBeenCalled();
+  });
+
+  test('registerDeviceCtrl stores a valid attestation on the device record', async () => {
+    setRequireAttestation(true);
+    const attestation = 'B'.repeat(88);
+    const body = {
+      deviceId,
+      name: 'Phone',
+      ecdhPublicKey: keyMaterial,
+      kemPublicKey: keyMaterial,
+      staticKeyAttestation: attestation,
+    };
+    const res = await registerDeviceCtrl(ctxWithSession({ id: identityHex }, body));
+    expect(res.status).toBe(200);
+    expect(mockVerifyAttestation).toHaveBeenCalled();
+    const [, storedDevice] = mockAddDevice.mock.calls[0] as [unknown, { staticKeyAttestation?: string }];
+    expect(storedDevice.staticKeyAttestation).toBe(attestation);
   });
 
   test('getIdentityKeysCtrl returns 403 when access denied', async () => {
@@ -286,5 +343,75 @@ describe('identity e2e controllers', () => {
     expect(mockSetSigningPublicKey).toHaveBeenCalled();
     expect(mockCreateBundle).toHaveBeenCalled();
     expect(mockAddDevice).toHaveBeenCalled();
+  });
+
+  test('initializeE2ECtrl returns 400 when attestation is required but missing', async () => {
+    setRequireAttestation(true);
+    const body = {
+      signingPublicKey: keyMaterial,
+      device: { deviceId, name: 'Phone', ecdhPublicKey: keyMaterial, kemPublicKey: keyMaterial },
+      bundle: {
+        encryptedBundle: 'encrypted-bundle-data-min-32-chars-long',
+        salt: 'salt-value-16chars',
+        nonce: 'nonce-value-16chars',
+      },
+    };
+    const session = makeIdentitySession([]);
+    (session.identity as { signingPublicKey?: string }).signingPublicKey = undefined;
+    const res = await initializeE2ECtrl(ctxWithSession({ id: identityHex }, body, session));
+    expect(res.status).toBe(400);
+    expect(mockSetSigningPublicKey).not.toHaveBeenCalled();
+  });
+
+  test('initializeE2ECtrl returns 400 when attestation fails verification', async () => {
+    setRequireAttestation(true);
+    mockVerifyAttestation.mockImplementation(() => false);
+    const body = {
+      signingPublicKey: keyMaterial,
+      device: {
+        deviceId,
+        name: 'Phone',
+        ecdhPublicKey: keyMaterial,
+        kemPublicKey: keyMaterial,
+        staticKeyAttestation: 'B'.repeat(88),
+      },
+      bundle: {
+        encryptedBundle: 'encrypted-bundle-data-min-32-chars-long',
+        salt: 'salt-value-16chars',
+        nonce: 'nonce-value-16chars',
+      },
+    };
+    const session = makeIdentitySession([]);
+    (session.identity as { signingPublicKey?: string }).signingPublicKey = undefined;
+    const res = await initializeE2ECtrl(ctxWithSession({ id: identityHex }, body, session));
+    expect(res.status).toBe(400);
+    expect(mockSetSigningPublicKey).not.toHaveBeenCalled();
+  });
+
+  test('initializeE2ECtrl stores a valid attestation on the initial device', async () => {
+    setRequireAttestation(true);
+    const attestation = 'B'.repeat(88);
+    const body = {
+      signingPublicKey: keyMaterial,
+      device: {
+        deviceId,
+        name: 'Phone',
+        ecdhPublicKey: keyMaterial,
+        kemPublicKey: keyMaterial,
+        staticKeyAttestation: attestation,
+      },
+      bundle: {
+        encryptedBundle: 'encrypted-bundle-data-min-32-chars-long',
+        salt: 'salt-value-16chars',
+        nonce: 'nonce-value-16chars',
+      },
+    };
+    const session = makeIdentitySession([]);
+    (session.identity as { signingPublicKey?: string }).signingPublicKey = undefined;
+    const res = await initializeE2ECtrl(ctxWithSession({ id: identityHex }, body, session));
+    expect(res.status).toBe(200);
+    expect(mockVerifyAttestation).toHaveBeenCalled();
+    const [, storedDevice] = mockAddDevice.mock.calls[0] as [unknown, { staticKeyAttestation?: string }];
+    expect(storedDevice.staticKeyAttestation).toBe(attestation);
   });
 });

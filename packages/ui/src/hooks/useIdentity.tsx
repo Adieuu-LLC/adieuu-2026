@@ -25,6 +25,8 @@ import {
   setLastIdentityUnlockAt,
 } from '../services/deviceKeyStorage';
 import { generateAndUploadPreKeys } from '../services/preKeyService';
+import { buildDeviceStaticKeyAttestationB64 } from '../services/deviceStaticKeyAttestationUpload';
+import { setActiveE2eDeviceId } from '../services/deviceInfo';
 import { crashReporter } from '../services/crashReporter';
 import type {
   CreateIdentityResult,
@@ -135,6 +137,14 @@ function useIdentityState(): IdentityContextValue {
   const signingKeyRef = useRef<Uint8Array | null>(null);
   const currentDeviceIdRef = useRef<string | null>(null);
 
+  // Mirror the E2E device ID into the deviceInfo registry so non-React
+  // services (message payloads, media outbox) embed the correct
+  // senderDeviceId for peer key-change detection.
+  const setCurrentDeviceId = useCallback((deviceId: string | null) => {
+    currentDeviceIdRef.current = deviceId;
+    setActiveE2eDeviceId(deviceId);
+  }, []);
+
   // Getters for wrapping key (used by cipher store)
   const getWrappingKey = useCallback(() => wrappingKeyRef.current, []);
   const getWrappingSalt = useCallback(() => wrappingSaltRef.current, []);
@@ -173,8 +183,8 @@ function useIdentityState(): IdentityContextValue {
       clearBytes(signingKeyRef.current);
       signingKeyRef.current = null;
     }
-    currentDeviceIdRef.current = null;
-  }, []);
+    setCurrentDeviceId(null);
+  }, [setCurrentDeviceId]);
 
   const onSessionExpired = useCallback(() => {
     clearSessionKeys();
@@ -331,7 +341,7 @@ function useIdentityState(): IdentityContextValue {
       wrappingKeyRef.current = flow.wrappingKey;
       wrappingSaltRef.current = flow.wrappingSalt;
       signingKeyRef.current = flow.signingPrivateKey;
-      currentDeviceIdRef.current = flow.deviceId;
+      setCurrentDeviceId(flow.deviceId);
 
       // Baseline unlock timestamp so a later passphrase change is detected.
       try {
@@ -553,11 +563,19 @@ function useIdentityState(): IdentityContextValue {
                   if (useShared) {
                     // Register the web device on the server
                     console.debug('[Identity] loginToIdentity: registering shared web device...');
+                    const webEcdhPub = toBase64(webDev.ecdhPublicKey);
+                    const webKemPub = toBase64(webDev.kemPublicKey);
                     const regResponse = await api.identity.registerDevice(loggedInIdentity.id, {
                       deviceId: webDev.deviceId,
                       name: 'Web (shared)',
-                      ecdhPublicKey: toBase64(webDev.ecdhPublicKey),
-                      kemPublicKey: toBase64(webDev.kemPublicKey),
+                      ecdhPublicKey: webEcdhPub,
+                      kemPublicKey: webKemPub,
+                      staticKeyAttestation: buildDeviceStaticKeyAttestationB64({
+                        signingPrivateKey: signingPrivateKey!,
+                        deviceId: webDev.deviceId,
+                        ecdhPublicKey: webEcdhPub,
+                        kemPublicKey: webKemPub,
+                      }),
                     });
 
                     if (!regResponse.success) {
@@ -666,6 +684,39 @@ function useIdentityState(): IdentityContextValue {
               };
             }
 
+            // The registration attestation must be signed with the identity
+            // signing key. If the bundle was not decrypted earlier (fresh
+            // desktop login), decrypt it now before registering.
+            if (!signingPrivateKey) {
+              onStatus?.('decrypting_bundle');
+              try {
+                const bundleResponse = await api.identity.getKeyBundle(loggedInIdentity.id);
+                if (!bundleResponse.success || !bundleResponse.data) {
+                  throw new Error('Failed to fetch key bundle');
+                }
+                if (bundleResponse.data.useSeparatePassphrase) {
+                  console.warn('[Identity] loginToIdentity: separate bundle passphrase not yet supported');
+                }
+                const decryptedBundle = await decryptKeyBundle(bundleResponse.data, passphrase);
+                signingPrivateKey = decryptedBundle.signingPrivateKey;
+                bundleAlreadyDecrypted = true;
+                if (decryptedBundle.webDevice) {
+                  clearWebDeviceKeys(decryptedBundle.webDevice);
+                }
+              } catch (err) {
+                console.error('[Identity] loginToIdentity: failed to decrypt bundle before device registration:', err);
+                clearBytes(newDeviceKeys.privateKeys.ecdh);
+                clearBytes(newDeviceKeys.privateKeys.kem);
+                clearBytes(wrappingKey);
+                try { await api.identity.logout(); } catch { /* ignore */ }
+                return {
+                  success: false,
+                  error: 'Failed to decrypt signing key. Check your passphrase.',
+                  errorCode: 'BUNDLE_DECRYPT_FAILED',
+                };
+              }
+            }
+
             onStatus?.('registering_device');
             try {
               console.debug('[Identity] loginToIdentity: registering device with server...');
@@ -674,6 +725,12 @@ function useIdentityState(): IdentityContextValue {
                 name: newDeviceKeys.name,
                 ecdhPublicKey: newDeviceKeys.ecdhPublicKey,
                 kemPublicKey: newDeviceKeys.kemPublicKey,
+                staticKeyAttestation: buildDeviceStaticKeyAttestationB64({
+                  signingPrivateKey,
+                  deviceId: newDeviceKeys.deviceId,
+                  ecdhPublicKey: newDeviceKeys.ecdhPublicKey,
+                  kemPublicKey: newDeviceKeys.kemPublicKey,
+                }),
               });
 
               if (!registerResponse.success) {
@@ -752,7 +809,7 @@ function useIdentityState(): IdentityContextValue {
         wrappingKeyRef.current = wrappingKey;
         wrappingSaltRef.current = salt;
         signingKeyRef.current = signingPrivateKey ?? null;
-        currentDeviceIdRef.current = deviceId;
+        setCurrentDeviceId(deviceId ?? null);
         console.debug('[Identity] loginToIdentity: keys cached');
 
         // Generate and upload pre-keys for new devices (forward secrecy)
@@ -936,6 +993,12 @@ function useIdentityState(): IdentityContextValue {
               name: newDeviceKeys.name,
               ecdhPublicKey: newDeviceKeys.ecdhPublicKey,
               kemPublicKey: newDeviceKeys.kemPublicKey,
+              staticKeyAttestation: buildDeviceStaticKeyAttestationB64({
+                signingPrivateKey,
+                deviceId: newDeviceKeys.deviceId,
+                ecdhPublicKey: newDeviceKeys.ecdhPublicKey,
+                kemPublicKey: newDeviceKeys.kemPublicKey,
+              }),
             });
             if (!regResponse.success) {
               clearBytes(newDeviceKeys.privateKeys.ecdh);
@@ -990,7 +1053,7 @@ function useIdentityState(): IdentityContextValue {
         wrappingKeyRef.current = wrappingKey;
         wrappingSaltRef.current = salt;
         signingKeyRef.current = signingPrivateKey;
-        currentDeviceIdRef.current = deviceId;
+        setCurrentDeviceId(deviceId ?? null);
         console.debug('[Identity] unlockIdentity: keys cached');
 
         // Record this successful unlock for remote passphrase-change detection.

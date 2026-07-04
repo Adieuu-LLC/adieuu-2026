@@ -18,7 +18,7 @@
 import { x25519 } from '@noble/curves/ed25519';
 import { ml_kem768, ml_kem1024 } from '@noble/post-quantum/ml-kem';
 import { sha256 } from '@noble/hashes/sha2';
-import { randomBytes, toBase64, fromBase64, concatBytes, toBytes } from '../utils';
+import { randomBytes, toBase64, fromBase64, concatBytes, toBytes, clearBytes } from '../utils';
 import { deriveWrappingKey } from '../kdf';
 import { encrypt as symmetricEncrypt, decrypt as symmetricDecrypt } from './symmetric';
 import type {
@@ -32,6 +32,38 @@ import type {
  * Session key size (256 bits).
  */
 export const SESSION_KEY_SIZE = 32;
+
+/**
+ * Domain separator for v2 wrap associated data.
+ */
+export const WRAP_AAD_DOMAIN = 'adieuu-wrap-aad-v2';
+
+/**
+ * Current wrap format version. Version 2 binds wrap metadata as AEAD
+ * associated data so it cannot be swapped or tampered independently of
+ * the wrapped session key.
+ */
+export const WRAP_VERSION_AAD = 2;
+
+/**
+ * Builds the associated data for a v2 static (hybrid) session key wrap.
+ *
+ * Binds the recipient identity, ephemeral public key, and KEM ciphertext
+ * into the AEAD tag. The string header fields are newline-joined (none may
+ * contain a newline: hex IDs only) and the ephemeral key is fixed-length
+ * (32 bytes), so the encoding is unambiguous.
+ */
+export function buildStaticWrapAad(
+  identityId: string,
+  ephemeralPublicKey: Uint8Array,
+  kemCiphertext: Uint8Array
+): Uint8Array {
+  return concatBytes(
+    toBytes([WRAP_AAD_DOMAIN, 'static', identityId].join('\n') + '\n'),
+    ephemeralPublicKey,
+    kemCiphertext
+  );
+}
 
 /**
  * Performs hybrid key exchange with a recipient's public keys.
@@ -75,6 +107,12 @@ export function hybridKeyExchange(
 
   // Derive combined shared secret
   const sharedSecret = deriveWrappingKey(ecdhShared, kemShared, undefined, profile);
+
+  // Zeroize the ephemeral private key and intermediate secrets: only the
+  // derived shared secret leaves this function.
+  clearBytes(ephemeralPrivate);
+  clearBytes(ecdhShared);
+  clearBytes(kemShared);
 
   return {
     sharedSecret,
@@ -121,7 +159,13 @@ export function hybridDecapsulate(
   const kemShared = kem.decapsulate(kemCiphertext, kemPrivate);
 
   // Derive combined shared secret
-  return deriveWrappingKey(ecdhShared, kemShared, undefined, profile);
+  const sharedSecret = deriveWrappingKey(ecdhShared, kemShared, undefined, profile);
+
+  // Zeroize intermediate secrets.
+  clearBytes(ecdhShared);
+  clearBytes(kemShared);
+
+  return sharedSecret;
 }
 
 /**
@@ -163,12 +207,17 @@ export function wrapSessionKey(
     recipientKeys.profile
   );
 
-  // Encrypt session key with derived wrapping key
+  // Encrypt session key with derived wrapping key, binding the wrap
+  // metadata as associated data (v2).
   const { ciphertext: wrappedSessionKey, nonce: wrappingNonce } = symmetricEncrypt(
     sharedSecret,
     sessionKey,
-    recipientKeys.profile
+    recipientKeys.profile,
+    undefined,
+    buildStaticWrapAad(identityId, ephemeralPublicKey, kemCiphertext)
   );
+
+  clearBytes(sharedSecret);
 
   return {
     identityId,
@@ -176,6 +225,7 @@ export function wrapSessionKey(
     kemCiphertext,
     wrappedSessionKey,
     wrappingNonce,
+    wrapVersion: WRAP_VERSION_AAD,
   };
 }
 
@@ -219,13 +269,29 @@ export function unwrapSessionKey(
     profile
   );
 
+  // v2 wraps authenticate the wrap metadata as associated data; legacy
+  // wraps (no version) used no associated data.
+  const aad =
+    wrappedKey.wrapVersion === WRAP_VERSION_AAD
+      ? buildStaticWrapAad(
+          wrappedKey.identityId,
+          wrappedKey.ephemeralPublicKey,
+          wrappedKey.kemCiphertext
+        )
+      : undefined;
+
   // Decrypt session key
-  return symmetricDecrypt(
-    sharedSecret,
-    wrappedKey.wrappedSessionKey,
-    wrappedKey.wrappingNonce,
-    profile
-  );
+  try {
+    return symmetricDecrypt(
+      sharedSecret,
+      wrappedKey.wrappedSessionKey,
+      wrappedKey.wrappingNonce,
+      profile,
+      aad
+    );
+  } finally {
+    clearBytes(sharedSecret);
+  }
 }
 
 /**

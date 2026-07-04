@@ -69,6 +69,8 @@ export interface SerializedWrappedKey {
   otpkKemCiphertext?: string;
   /** Truncated SHA-256 routing tag for O(1) wrapped key lookup on multi-device identities */
   routingTag?: string;
+  /** Wrap format version (2 = wrap metadata bound as AEAD associated data) */
+  wrapVersion?: number;
 }
 
 /**

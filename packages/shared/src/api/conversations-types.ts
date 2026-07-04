@@ -79,6 +79,12 @@ export interface SerializedWrappedKey {
    * Absent on messages created before this field was introduced.
    */
   routingTag?: string;
+  /**
+   * Wrap format version. 2 = wrap metadata (identity/pre-key IDs, ephemeral
+   * public key, KEM ciphertexts) bound as AEAD associated data. Absent =
+   * legacy wrap with no associated data.
+   */
+  wrapVersion?: number;
 }
 
 /**
@@ -199,6 +205,7 @@ export interface EditMessageParams {
   signature: string;
   cryptoProfile: MessageCryptoProfile;
   clientEditId: string;
+  e2eMediaIds?: string[];
 }
 
 export interface ConversationPreferences {

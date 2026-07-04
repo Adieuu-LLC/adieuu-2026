@@ -1257,7 +1257,7 @@ export async function getSessionHandler(
     geo,
     subscriptions,
     entitlements,
-    captchaSitekey: config.friendlyCaptcha.enabled ? config.friendlyCaptcha.sitekey || undefined : undefined,
+    captchaSitekey: config.friendlyCaptcha?.enabled ? config.friendlyCaptcha.sitekey || undefined : undefined,
     ageVerification,
     aliasGate,
     compliance,

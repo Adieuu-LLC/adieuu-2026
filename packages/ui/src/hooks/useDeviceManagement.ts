@@ -15,7 +15,7 @@ import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { createApiClient, type PublicDevice } from '@adieuu/shared';
 import { useAppConfig } from '../config';
 import { useIdentity } from './useIdentity';
-import { deleteAllDeviceKeysForIdentity } from '../services/deviceKeyStorage';
+import { clearIdentityLocalData } from '../services/clearIdentityLocalData';
 import { decryptKeyBundle } from '../services/e2eKeyService';
 import {
   getActivityPreferences,
@@ -272,19 +272,16 @@ export function useDeviceManagement() {
   );
 
   /**
-   * Clear all local data and logout.
+   * Tier-2 logout: wipe all identity-scoped local data (message caches,
+   * device keys, pre-keys, session keys, wrapping salts, search index,
+   * outbox, TOFU records, per-identity preferences), then logout.
+   * The server-side device registration is kept.
    */
   const clearLocalDataAndLogout = useCallback(async (): Promise<void> => {
     if (!identity) return;
 
     try {
-      // Clear device keys from IndexedDB
-      await deleteAllDeviceKeysForIdentity(identity.id);
-
-      // Clear device ID from localStorage
-      if (typeof localStorage !== 'undefined') {
-        localStorage.removeItem('adieuu-device-id');
-      }
+      await clearIdentityLocalData(identity.id);
     } catch (err) {
       console.error('Failed to clear local data:', err);
     }
@@ -390,6 +387,7 @@ export function useDeviceManagement() {
     renameDevice,
     removeDevice,
     removeAllOtherDevices,
+    clearLocalDataAndLogout,
     activityPrefs,
     setActivityPreferences,
     sendHeartbeat,

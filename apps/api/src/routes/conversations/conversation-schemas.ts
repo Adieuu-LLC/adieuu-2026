@@ -6,6 +6,23 @@
 
 import { z } from '@adieuu/shared/schemas';
 
+/** Shared shape for a single wrapped session key entry (messages and reactions). */
+const WrappedKeyEntrySchema = z.object({
+  identityId: z.string().length(24),
+  ephemeralPublicKey: z.string().min(1).max(200),
+  kemCiphertext: z.string().min(1).max(3000),
+  wrappedSessionKey: z.string().min(1).max(500),
+  wrappingNonce: z.string().min(1).max(100),
+  preKeyType: z.enum(['static', 'spk', 'otpk']),
+  signedPreKeyId: z.string().uuid().optional(),
+  oneTimePreKeyId: z.string().uuid().optional(),
+  spkKemCiphertext: z.string().max(3000).optional(),
+  otpkKemCiphertext: z.string().max(3000).optional(),
+  routingTag: z.string().max(100).optional(),
+  /** Wrap format version (2 = metadata bound as AEAD associated data) */
+  wrapVersion: z.number().int().min(1).max(2).optional(),
+});
+
 export const CreateConversationSchema = z.object({
   type: z.enum(['dm', 'group']),
   participants: z.array(z.string().length(24)).min(1).max(24),
@@ -19,21 +36,7 @@ export const SendMessageSchema = z.object({
   ciphertext: z.string().min(1).max(1_000_000),
   nonce: z.string().min(1).max(100),
   wrappedKeys: z
-    .array(
-      z.object({
-        identityId: z.string().length(24),
-        ephemeralPublicKey: z.string().min(1).max(200),
-        kemCiphertext: z.string().min(1).max(3000),
-        wrappedSessionKey: z.string().min(1).max(500),
-        wrappingNonce: z.string().min(1).max(100),
-        preKeyType: z.enum(['static', 'spk', 'otpk']),
-        signedPreKeyId: z.string().uuid().optional(),
-        oneTimePreKeyId: z.string().uuid().optional(),
-        spkKemCiphertext: z.string().max(3000).optional(),
-        otpkKemCiphertext: z.string().max(3000).optional(),
-        routingTag: z.string().max(100).optional(),
-      }),
-    )
+    .array(WrappedKeyEntrySchema)
     .min(1)
     .max(200),
   signature: z.string().min(1).max(500),
@@ -50,26 +53,13 @@ export const EditMessageSchema = z.object({
   ciphertext: z.string().min(1).max(1_000_000),
   nonce: z.string().min(1).max(100),
   wrappedKeys: z
-    .array(
-      z.object({
-        identityId: z.string().length(24),
-        ephemeralPublicKey: z.string().min(1).max(200),
-        kemCiphertext: z.string().min(1).max(3000),
-        wrappedSessionKey: z.string().min(1).max(500),
-        wrappingNonce: z.string().min(1).max(100),
-        preKeyType: z.enum(['static', 'spk', 'otpk']),
-        signedPreKeyId: z.string().uuid().optional(),
-        oneTimePreKeyId: z.string().uuid().optional(),
-        spkKemCiphertext: z.string().max(3000).optional(),
-        otpkKemCiphertext: z.string().max(3000).optional(),
-        routingTag: z.string().max(100).optional(),
-      }),
-    )
+    .array(WrappedKeyEntrySchema)
     .min(1)
     .max(200),
   signature: z.string().min(1).max(500),
   cryptoProfile: z.enum(['default', 'cnsa2']),
   clientEditId: z.string().uuid(),
+  e2eMediaIds: z.array(z.string().uuid()).max(10).optional(),
 });
 
 export const AddMemberSchema = z.object({
@@ -132,21 +122,7 @@ export const SendReactionSchema = z.object({
   ciphertext: z.string().min(1).max(50_000),
   nonce: z.string().min(1).max(100),
   wrappedKeys: z
-    .array(
-      z.object({
-        identityId: z.string().length(24),
-        ephemeralPublicKey: z.string().min(1).max(200),
-        kemCiphertext: z.string().min(1).max(3000),
-        wrappedSessionKey: z.string().min(1).max(500),
-        wrappingNonce: z.string().min(1).max(100),
-        preKeyType: z.enum(['static', 'spk', 'otpk']),
-        signedPreKeyId: z.string().uuid().optional(),
-        oneTimePreKeyId: z.string().uuid().optional(),
-        spkKemCiphertext: z.string().max(3000).optional(),
-        otpkKemCiphertext: z.string().max(3000).optional(),
-        routingTag: z.string().max(100).optional(),
-      }),
-    )
+    .array(WrappedKeyEntrySchema)
     .min(1)
     .max(200),
   signature: z.string().min(1).max(500),

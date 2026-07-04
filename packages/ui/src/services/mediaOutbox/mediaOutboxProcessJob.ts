@@ -2,7 +2,7 @@ import { createApiClient } from '@adieuu/shared';
 import { encrypt as encryptBytes, randomBytes, toBase64 } from '@adieuu/crypto';
 import { convertShortcodes } from '../../utils/emojiShortcodes';
 import { serializePayload, mediaPayload, buildCustomEmojiPayloadMap, parseCustomEmojiComposerSnapshot, type MentionEntity, type PageTagEntity, type MediaAttachment } from '../messagePayload';
-import { getOrCreateDeviceId } from '../deviceInfo';
+import { getSenderDeviceIdForPayload } from '../deviceInfo';
 import { stripExifMetadata } from '../../utils/imageProcessing';
 import { withTimeout } from '../../utils/withTimeout';
 import {
@@ -38,6 +38,18 @@ export interface MediaOutboxProcessDeps {
       moderationEnabled?: boolean;
       mentionedIdentityIds?: string[];
       signal?: AbortSignal;
+    }
+  ) => Promise<unknown>;
+  editForOutbox: (
+    conversationId: string,
+    messageId: string,
+    plaintext: string,
+    options: {
+      useForwardSecrecy?: boolean;
+      e2eMediaIds?: string[];
+      signal?: AbortSignal;
+      /** Original message clientMessageId for edit signature binding. */
+      clientMessageId?: string;
     }
   ) => Promise<unknown>;
   toastScanFailed: () => void;
@@ -189,32 +201,50 @@ async function sendMessageForJob(job: MediaOutboxJobRecord, deps: MediaOutboxPro
   if (customEmojiMap && Object.keys(customEmojiMap).length > 0) {
     payload.customEmojis = customEmojiMap;
   }
-  payload.senderDeviceId = getOrCreateDeviceId();
+  const senderDeviceId = getSenderDeviceIdForPayload();
+  if (senderDeviceId) payload.senderDeviceId = senderDeviceId;
   const plaintext = serializePayload(payload);
-  const e2eMediaIds = snap.map((m) => m.e2eMediaId);
-  const mentionedIdentityIds = job.mentionedIdentityIdsJson
-    ? (JSON.parse(job.mentionedIdentityIdsJson) as string[])
-    : mentions.length > 0
-      ? [...new Set(mentions.map((m) => m.id).filter((id) => !isGroupMentionId(id)))]
-      : undefined;
+  const newE2eMediaIds = snap.map((m) => m.e2eMediaId);
+  const e2eMediaIds = [...(job.existingE2eMediaIds ?? []), ...newE2eMediaIds];
 
   throwIfAborted(deps.abortSignal);
 
-  const result = await deps.sendForOutbox(job.conversationId, plaintext, {
-    useForwardSecrecy: job.useForwardSecrecy,
-    ...(job.replyToMessageId ? { replyToMessageId: job.replyToMessageId } : {}),
-    ...(job.ttlSeconds != null ? { expiresInSeconds: job.ttlSeconds } : {}),
-    e2eMediaIds,
-    moderationEnabled: job.moderationEnabled,
-    mentionedIdentityIds,
-    signal: deps.abortSignal,
-  });
+  if (job.editMessageId) {
+    const result = await deps.editForOutbox(job.conversationId, job.editMessageId, plaintext, {
+      useForwardSecrecy: job.useForwardSecrecy,
+      e2eMediaIds,
+      signal: deps.abortSignal,
+      ...(job.editClientMessageId ? { clientMessageId: job.editClientMessageId } : {}),
+    });
+    if (result != null && typeof result === 'object' && 'errorCode' in result) {
+      throw new Error(deps.t('conversations.uploadFailed', 'Upload failed'));
+    }
+    if (result == null) {
+      throw new Error(deps.t('conversations.uploadFailed', 'Upload failed'));
+    }
+  } else {
+    const mentionedIdentityIds = job.mentionedIdentityIdsJson
+      ? (JSON.parse(job.mentionedIdentityIdsJson) as string[])
+      : mentions.length > 0
+        ? [...new Set(mentions.map((m) => m.id).filter((id) => !isGroupMentionId(id)))]
+        : undefined;
 
-  if (result != null && typeof result === 'object' && 'errorCode' in result && result.errorCode === 'BLOCKED') {
-    throw new Error(deps.t('conversations.sendBlocked', 'Message could not be sent'));
-  }
-  if (result == null || (typeof result === 'object' && 'errorCode' in result)) {
-    throw new Error(deps.t('conversations.uploadFailed', 'Upload failed'));
+    const result = await deps.sendForOutbox(job.conversationId, plaintext, {
+      useForwardSecrecy: job.useForwardSecrecy,
+      ...(job.replyToMessageId ? { replyToMessageId: job.replyToMessageId } : {}),
+      ...(job.ttlSeconds != null ? { expiresInSeconds: job.ttlSeconds } : {}),
+      e2eMediaIds,
+      moderationEnabled: job.moderationEnabled,
+      mentionedIdentityIds,
+      signal: deps.abortSignal,
+    });
+
+    if (result != null && typeof result === 'object' && 'errorCode' in result && result.errorCode === 'BLOCKED') {
+      throw new Error(deps.t('conversations.sendBlocked', 'Message could not be sent'));
+    }
+    if (result == null || (typeof result === 'object' && 'errorCode' in result)) {
+      throw new Error(deps.t('conversations.uploadFailed', 'Upload failed'));
+    }
   }
 }
 

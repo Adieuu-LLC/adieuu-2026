@@ -28,6 +28,9 @@ import { useTaggablePages } from '../../navigation/taggablePages';
 import { useNavigate } from 'react-router-dom';
 import type { PageTagRenderContext } from '../../utils/markdownParser';
 
+const FREE_TIER_HISTORY_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+const CUTOFF_TOLERANCE_MS = 24 * 60 * 60 * 1000;
+
 export function ConversationMessageList({
   conversationId,
   activeConversationId,
@@ -80,6 +83,7 @@ export function ConversationMessageList({
   onPinMessage,
   onUnpinMessage,
   onOpenMemberSecurity,
+  onDeviceTrustMismatch,
   peerPublicKeysById,
   verificationRevision,
   customEmojis,
@@ -142,6 +146,8 @@ export function ConversationMessageList({
   onPinMessage: (messageId: string) => void;
   onUnpinMessage: (messageId: string) => void;
   onOpenMemberSecurity?: (identityId: string, displayLabel: string) => void;
+  /** Fired when a message reveals a verified device fingerprint mismatch (key change). */
+  onDeviceTrustMismatch?: (identityId: string, deviceId: string) => void;
   peerPublicKeysById: Record<string, IdentityPublicKeys>;
   verificationRevision: number;
   customEmojis?: PublicCustomEmoji[];
@@ -164,16 +170,13 @@ export function ConversationMessageList({
 
   const pinnedSet = useMemo(() => new Set(pinnedMessageIds), [pinnedMessageIds]);
 
-  const FREE_TIER_HISTORY_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
-  const CUTOFF_TOLERANCE_MS = 24 * 60 * 60 * 1000;
-
   const isOldestMessageNearTierCutoff = useMemo(() => {
     if (!isFreeTier) return false;
     const oldestMsg = flatItems.find((item) => item.type === 'message');
     if (!oldestMsg || oldestMsg.type !== 'message') return false;
     const oldestTs = new Date(oldestMsg.msg.createdAt).getTime();
     const cutoffTs = Date.now() - FREE_TIER_HISTORY_WINDOW_MS;
-    return oldestTs - cutoffTs <= CUTOFF_TOLERANCE_MS;
+    return Math.abs(oldestTs - cutoffTs) <= CUTOFF_TOLERANCE_MS;
   }, [isFreeTier, flatItems]);
 
   const topSentinelRef = useRef<HTMLDivElement | null>(null);
@@ -349,6 +352,7 @@ export function ConversationMessageList({
             onPin={() => onPinMessage(msg.id)}
             onUnpin={() => onUnpinMessage(msg.id)}
             onOpenMemberSecurity={onOpenMemberSecurity}
+            onDeviceTrustMismatch={onDeviceTrustMismatch}
             peerPublicKeysById={peerPublicKeysById}
             verificationRevision={verificationRevision}
             hideUnmoderatedMedia={hideUnmoderatedMedia}

@@ -21,6 +21,7 @@ import { sanitizeObjectId, sanitizeString } from '../../utils/sanitize';
 import { z } from '@adieuu/shared/schemas';
 import { verifySignedPreKey, fromBase64, type SignedPreKeyPublic } from '@adieuu/crypto';
 import { canViewerAccessTargetIdentityKeys } from '../../services/identity-keys-access.service';
+import { checkRateLimit } from '../../services/rate-limit.service';
 
 // ============================================================================
 // Zod Schemas
@@ -179,6 +180,18 @@ export async function claimPreKeysCtrl(ctx: RouteContext): Promise<Response> {
   const parsedId = sanitizeObjectId(ctx.params.id);
   if (!parsedId.ok) {
     return errors.badRequest('Invalid identity ID.');
+  }
+
+  // Rate limit claims per caller and per caller-target pair so a single
+  // authenticated caller cannot drain one-time pre-key pools.
+  const callerId = callerIdentity._id.toHexString();
+  const callerLimit = await checkRateLimit('prekeys:claim:identity', callerId);
+  if (!callerLimit.allowed) {
+    return ctx.errors.rateLimited();
+  }
+  const pairLimit = await checkRateLimit('prekeys:claim:target', `${callerId}:${parsedId.id}`);
+  if (!pairLimit.allowed) {
+    return ctx.errors.rateLimited();
   }
 
   const identityRepo = getIdentityRepository();

@@ -46,6 +46,11 @@ import type {
   PublicMessage,
   ClaimedDevicePreKeys,
   PublicDevice,
+  MessageSignatureContext,
+} from '@adieuu/shared';
+import {
+  MESSAGE_SIGN_DOMAIN_V1,
+  buildMessageSignaturePreimageV2,
 } from '@adieuu/shared';
 
 // ============================================================================
@@ -54,7 +59,6 @@ import type {
 
 const GROUP_NAME_KDF_INFO = 'adieuu-conv-name-v1';
 const MEMBER_SETTINGS_KDF_INFO = 'adieuu-conv-member-settings-v1';
-const MESSAGE_SIGN_DOMAIN = 'adieuu-msg-v1';
 
 // ============================================================================
 // Types
@@ -74,12 +78,35 @@ export interface EncryptedMessage {
   wrappedKeys: SerializedWrappedKey[];
   signature: string;
   cryptoProfile: MessageCryptoProfile;
+  /**
+   * Devices that were wrapped with static keys even though forward secrecy
+   * was requested (pre-keys unavailable or SPK signature invalid).
+   * Always empty when forward secrecy was not requested.
+   */
+  fsDowngradedDeviceIds: string[];
+  /**
+   * Devices whose signed pre-key failed signature verification against the
+   * recipient's identity key. These fall back to static wrapping rather than
+   * being silently skipped. Subset of {@link fsDowngradedDeviceIds}.
+   */
+  spkVerificationFailedDeviceIds: string[];
 }
 
 export interface DecryptedMessage {
   plaintext: string;
   verified: boolean;
+  /** Which signature preimage version verified (undefined when verification failed). */
+  signatureVersion?: 1 | 2;
   sessionKey: Uint8Array;
+}
+
+export interface EncryptMessageOptions {
+  /**
+   * Whether the sender requested forward secrecy for this message. Used only
+   * for downgrade reporting: when true, devices that end up statically
+   * wrapped are recorded in `fsDowngradedDeviceIds`.
+   */
+  forwardSecrecyRequested?: boolean;
 }
 
 export interface EncryptedGroupName {
@@ -112,13 +139,24 @@ export interface EncryptedMemberSettings {
  * 3. For each recipient device:
  *    a. If pre-keys available: wrap session key with pre-key exchange (forward secrecy)
  *    b. Otherwise: wrap session key with static device ECDH+KEM keys
- * 4. Sign ciphertext || nonce || serialised wrapped keys with Ed25519
+ * 4. Sign the v2 preimage (domain, conversation, sender, clientMessageId,
+ *    ciphertext, nonce, canonical wrapped keys) with Ed25519
+ *
+ * Devices whose signed pre-key fails signature verification fall back to
+ * static wrapping (never silently skipped) and are reported via
+ * `spkVerificationFailedDeviceIds` / `fsDowngradedDeviceIds`.
+ *
+ * @param context - Message context bound into the signature (conversationId,
+ *   fromIdentityId, clientMessageId). For edits, pass the original message's
+ *   clientMessageId (stable across revisions).
  */
 export function encryptMessage(
   plaintext: string,
   recipients: RecipientKeys[],
   signingPrivateKey: Uint8Array,
-  senderCryptoProfile: CryptoProfile = 'default'
+  context: MessageSignatureContext,
+  senderCryptoProfile: CryptoProfile = 'default',
+  options?: EncryptMessageOptions
 ): EncryptedMessage {
   const plaintextBytes = new TextEncoder().encode(plaintext);
   const sessionKey = randomBytes(32);
@@ -126,6 +164,9 @@ export function encryptMessage(
   const { ciphertext, nonce } = encrypt(sessionKey, plaintextBytes, senderCryptoProfile);
 
   const wrappedKeys: SerializedWrappedKey[] = [];
+  const fsRequested = options?.forwardSecrecyRequested === true;
+  const fsDowngradedDeviceIds: string[] = [];
+  const spkVerificationFailedDeviceIds: string[] = [];
 
   for (const recipient of recipients) {
     // Use the sender's profile for wrapping so that message.cryptoProfile
@@ -139,8 +180,11 @@ export function encryptMessage(
         (pk) => pk.deviceId === device.deviceId
       );
 
+      let spkVerified = false;
+      let spk: SignedPreKeyPublic | undefined;
+
       if (devicePreKeys?.signedPreKey) {
-        const spk: SignedPreKeyPublic = {
+        spk = {
           keyId: devicePreKeys.signedPreKey.keyId,
           ecdhPublicKey: fromBase64(devicePreKeys.signedPreKey.ecdhPublicKey),
           kemPublicKey: fromBase64(devicePreKeys.signedPreKey.kemPublicKey),
@@ -148,16 +192,22 @@ export function encryptMessage(
         };
 
         const sigPub = fromBase64(recipient.signingPublicKey);
-        if (!verifySignedPreKey(spk, sigPub)) {
-          continue;
+        spkVerified = verifySignedPreKey(spk, sigPub);
+        if (!spkVerified) {
+          // Never encrypt to an unverified SPK: it may be a substituted key.
+          // Fall back to the device's static keys instead of skipping the
+          // device, and surface the downgrade to the caller.
+          spkVerificationFailedDeviceIds.push(device.deviceId);
         }
+      }
 
+      if (spk && spkVerified) {
         let otpk: OneTimePreKeyPublic | undefined;
-        if (devicePreKeys.oneTimePreKey) {
+        if (devicePreKeys!.oneTimePreKey) {
           otpk = {
-            keyId: devicePreKeys.oneTimePreKey.keyId,
-            ecdhPublicKey: fromBase64(devicePreKeys.oneTimePreKey.ecdhPublicKey),
-            kemPublicKey: fromBase64(devicePreKeys.oneTimePreKey.kemPublicKey),
+            keyId: devicePreKeys!.oneTimePreKey.keyId,
+            ecdhPublicKey: fromBase64(devicePreKeys!.oneTimePreKey.ecdhPublicKey),
+            kemPublicKey: fromBase64(devicePreKeys!.oneTimePreKey.kemPublicKey),
           };
         }
 
@@ -170,8 +220,8 @@ export function encryptMessage(
           wrappedSessionKey: toBase64(wrapped.wrappedSessionKey),
           wrappingNonce: toBase64(wrapped.wrappingNonce),
           preKeyType: otpk ? 'otpk' : 'spk',
-          signedPreKeyId: devicePreKeys.signedPreKey.keyId,
-          oneTimePreKeyId: otpk ? devicePreKeys.oneTimePreKey!.keyId : undefined,
+          signedPreKeyId: devicePreKeys!.signedPreKey!.keyId,
+          oneTimePreKeyId: otpk ? devicePreKeys!.oneTimePreKey!.keyId : undefined,
           spkKemCiphertext: toBase64(wrapped.spkKemCiphertext),
           otpkKemCiphertext: wrapped.otpkKemCiphertext
             ? toBase64(wrapped.otpkKemCiphertext)
@@ -179,11 +229,16 @@ export function encryptMessage(
           routingTag: device.kemPublicKey
             ? computeRoutingTag(device.ecdhPublicKey, device.kemPublicKey)
             : undefined,
+          wrapVersion: wrapped.wrapVersion,
         });
       } else {
         if (!device.kemPublicKey) {
           console.warn('[Crypto] Skipping device without kemPublicKey:', device.deviceId);
           continue;
+        }
+
+        if (fsRequested) {
+          fsDowngradedDeviceIds.push(device.deviceId);
         }
 
         const recipientPublicKeys: CryptoIdentityPublicKeys = {
@@ -203,26 +258,33 @@ export function encryptMessage(
           wrappingNonce: toBase64(wrapped.wrappingNonce),
           preKeyType: 'static',
           routingTag: computeRoutingTag(device.ecdhPublicKey, device.kemPublicKey),
+          wrapVersion: wrapped.wrapVersion,
         });
       }
     }
   }
 
-  // Sign: domain || ciphertext || nonce || JSON(wrappedKeys)
-  const dataToSign = concatBytes(
-    toBytes(MESSAGE_SIGN_DOMAIN),
-    ciphertext,
-    nonce,
-    toBytes(JSON.stringify(wrappedKeys))
+  const ciphertextB64 = toBase64(ciphertext);
+  const nonceB64 = toBase64(nonce);
+
+  // v2 signature: binds conversation, sender, and clientMessageId so a
+  // malicious server cannot replay this message in another context.
+  const preimage = buildMessageSignaturePreimageV2(
+    context,
+    ciphertextB64,
+    nonceB64,
+    wrappedKeys
   );
-  const signature = sign(signingPrivateKey, dataToSign);
+  const signature = sign(signingPrivateKey, toBytes(preimage));
 
   return {
-    ciphertext: toBase64(ciphertext),
-    nonce: toBase64(nonce),
+    ciphertext: ciphertextB64,
+    nonce: nonceB64,
     wrappedKeys,
     signature: toBase64(signature),
     cryptoProfile: senderCryptoProfile,
+    fsDowngradedDeviceIds,
+    spkVerificationFailedDeviceIds,
   };
 }
 
@@ -292,6 +354,9 @@ export function decryptMessage(
           : undefined,
         wrappedSessionKey: fromBase64(myWrappedKey.wrappedSessionKey),
         wrappingNonce: fromBase64(myWrappedKey.wrappingNonce),
+        signedPreKeyId: myWrappedKey.signedPreKeyId,
+        oneTimePreKeyId: myWrappedKey.oneTimePreKeyId,
+        wrapVersion: myWrappedKey.wrapVersion,
       };
 
       sessionKey = unwrapSessionKeyWithPreKeys(
@@ -309,6 +374,7 @@ export function decryptMessage(
         kemCiphertext: fromBase64(myWrappedKey.kemCiphertext),
         wrappedSessionKey: fromBase64(myWrappedKey.wrappedSessionKey),
         wrappingNonce: fromBase64(myWrappedKey.wrappingNonce),
+        wrapVersion: myWrappedKey.wrapVersion,
       };
 
       sessionKey = unwrapSessionKey(
@@ -324,21 +390,63 @@ export function decryptMessage(
   const plaintextStr = new TextDecoder().decode(plaintext);
 
   const sigPub = fromBase64(senderSigningPublicKey);
-  const dataToVerify = concatBytes(
-    toBytes(MESSAGE_SIGN_DOMAIN),
-    ciphertext,
-    nonce,
-    toBytes(JSON.stringify(message.wrappedKeys))
-  );
+  const signatureBytes = safeFromBase64(message.signature);
 
   let verified = false;
-  try {
-    verified = verify(sigPub, dataToVerify, fromBase64(message.signature!));
-  } catch {
-    verified = false;
+  let signatureVersion: 1 | 2 | undefined;
+
+  if (signatureBytes) {
+    // Try v2 first (context-bound). The domain string inside the preimage
+    // prevents a v2 signature from verifying as v1 and vice versa.
+    const preimageV2 = buildMessageSignaturePreimageV2(
+      {
+        conversationId: message.conversationId,
+        fromIdentityId: message.fromIdentityId,
+        clientMessageId: message.clientMessageId,
+      },
+      message.ciphertext!,
+      message.nonce!,
+      message.wrappedKeys!
+    );
+    try {
+      if (verify(sigPub, toBytes(preimageV2), signatureBytes)) {
+        verified = true;
+        signatureVersion = 2;
+      }
+    } catch {
+      // fall through to v1
+    }
+
+    if (!verified) {
+      // Legacy v1: domain || ciphertext || nonce || JSON(wrappedKeys).
+      // Accepted only for messages signed before context binding existed.
+      const dataToVerifyV1 = concatBytes(
+        toBytes(MESSAGE_SIGN_DOMAIN_V1),
+        ciphertext,
+        nonce,
+        toBytes(JSON.stringify(message.wrappedKeys))
+      );
+      try {
+        if (verify(sigPub, dataToVerifyV1, signatureBytes)) {
+          verified = true;
+          signatureVersion = 1;
+        }
+      } catch {
+        verified = false;
+      }
+    }
   }
 
-  return { plaintext: plaintextStr, verified, sessionKey };
+  return { plaintext: plaintextStr, verified, signatureVersion, sessionKey };
+}
+
+function safeFromBase64(value: string | undefined): Uint8Array | null {
+  if (!value) return null;
+  try {
+    return fromBase64(value);
+  } catch {
+    return null;
+  }
 }
 
 // ============================================================================

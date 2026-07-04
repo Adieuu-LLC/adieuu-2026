@@ -24,7 +24,7 @@ let client: FriendlyCaptchaClient | null = null;
 
 function getClient(): FriendlyCaptchaClient | null {
   if (client) return client;
-  if (!config.friendlyCaptcha.apiKey) return null;
+  if (!config.friendlyCaptcha?.apiKey) return null;
 
   client = new FriendlyCaptchaClient({
     apiKey: config.friendlyCaptcha.apiKey,
@@ -50,7 +50,7 @@ function getClient(): FriendlyCaptchaClient | null {
  * - The response is invalid, expired, or already used
  */
 export async function verifyCaptcha(response: string | undefined): Promise<CaptchaVerificationResult> {
-  if (!config.friendlyCaptcha.enabled) {
+  if (!config.friendlyCaptcha?.enabled) {
     return { valid: true };
   }
 

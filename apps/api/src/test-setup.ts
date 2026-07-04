@@ -7,6 +7,11 @@
  */
 import { mock } from 'bun:test';
 
+// The dev-only OTP bypass (DEV_OTP_CODE) may be present in a local .env that
+// Bun auto-loads. Tests must be deterministic and independent of it, so ensure
+// it is never active during the suite.
+delete process.env.DEV_OTP_CODE;
+
 // Mock the config module with test values
 mock.module('./config', () => ({
   config: {

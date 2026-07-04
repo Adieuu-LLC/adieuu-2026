@@ -24,7 +24,7 @@ import { generateECDHKeyPair, generateKEMKeyPair } from '../keys/generate';
 import { sign, verify } from '../sign/ed25519';
 import { encrypt as symmetricEncrypt, decrypt as symmetricDecrypt } from '../encrypt/symmetric';
 import { deriveKey, KDF_INFO } from '../kdf/hkdf';
-import { randomBytes, concatBytes, toBytes } from '../utils';
+import { randomBytes, concatBytes, toBytes, clearBytes } from '../utils';
 import type {
   CryptoProfile,
   ECDHKeyPair,
@@ -40,6 +40,16 @@ export const PREKEY_KDF_INFO = 'adieuu-prekey-v1';
 
 /** Domain separator for signed pre-key signatures */
 export const SPK_SIGNATURE_DOMAIN = 'adieuu-spk-v1';
+
+/** Domain separator for v2 pre-key wrap associated data */
+export const PREKEY_WRAP_AAD_DOMAIN = 'adieuu-wrap-aad-v2';
+
+/**
+ * Current pre-key wrap format version. Version 2 binds the wrap metadata
+ * (pre-key IDs, ephemeral public key, KEM ciphertexts) as AEAD associated
+ * data. Absent/1 = legacy wraps with no associated data.
+ */
+export const PREKEY_WRAP_VERSION_AAD = 2;
 
 // ============================================================================
 // Types
@@ -94,6 +104,42 @@ export interface PreKeyWrappedKey {
   otpkKemCiphertext?: Uint8Array;
   wrappedSessionKey: Uint8Array;
   wrappingNonce: Uint8Array;
+  /** Signed pre-key ID used (bound as AEAD associated data in v2 wraps) */
+  signedPreKeyId?: string;
+  /** One-time pre-key ID consumed (bound as AEAD associated data in v2 wraps) */
+  oneTimePreKeyId?: string;
+  /** Wrap format version (2 = metadata bound as AEAD associated data) */
+  wrapVersion?: number;
+}
+
+/**
+ * Builds the associated data for a v2 pre-key session key wrap.
+ *
+ * Binds the pre-key IDs, ephemeral public key, and KEM ciphertexts into
+ * the AEAD tag. The string header fields are newline-joined (UUIDs cannot
+ * contain newlines) and the ephemeral key is fixed-length (32 bytes), so
+ * the encoding is unambiguous.
+ */
+export function buildPreKeyWrapAad(params: {
+  signedPreKeyId: string;
+  oneTimePreKeyId?: string;
+  ephemeralPublicKey: Uint8Array;
+  spkKemCiphertext: Uint8Array;
+  otpkKemCiphertext?: Uint8Array;
+}): Uint8Array {
+  const header = [
+    PREKEY_WRAP_AAD_DOMAIN,
+    'prekey',
+    params.signedPreKeyId,
+    params.oneTimePreKeyId ?? '',
+  ].join('\n') + '\n';
+
+  return concatBytes(
+    toBytes(header),
+    params.ephemeralPublicKey,
+    params.spkKemCiphertext,
+    params.otpkKemCiphertext ?? new Uint8Array(0)
+  );
 }
 
 // ============================================================================
@@ -234,6 +280,8 @@ export function preKeyExchange(
     const kem2Shared = kem2Result.sharedSecret;
 
     ikm = concatBytes(dh1, kem1Shared, dh2, kem2Shared);
+    clearBytes(dh2);
+    clearBytes(kem2Shared);
   } else {
     ikm = concatBytes(dh1, kem1Shared);
   }
@@ -242,6 +290,13 @@ export function preKeyExchange(
     { ikm, info: PREKEY_KDF_INFO, length: 32 },
     profile
   );
+
+  // Zeroize the ephemeral private key and intermediate secrets: only the
+  // derived shared secret leaves this function.
+  clearBytes(ephemeralPrivate);
+  clearBytes(dh1);
+  clearBytes(kem1Shared);
+  clearBytes(ikm);
 
   return {
     sharedSecret,
@@ -275,11 +330,23 @@ export function wrapSessionKeyWithPreKeys(
 
   const exchange = preKeyExchange(signedPreKey, oneTimePreKey, profile);
 
+  const aad = buildPreKeyWrapAad({
+    signedPreKeyId: signedPreKey.keyId,
+    oneTimePreKeyId: oneTimePreKey?.keyId,
+    ephemeralPublicKey: exchange.ephemeralPublicKey,
+    spkKemCiphertext: exchange.spkKemCiphertext,
+    otpkKemCiphertext: exchange.otpkKemCiphertext,
+  });
+
   const { ciphertext: wrappedSessionKey, nonce: wrappingNonce } = symmetricEncrypt(
     exchange.sharedSecret,
     sessionKey,
-    profile
+    profile,
+    undefined,
+    aad
   );
+
+  clearBytes(exchange.sharedSecret);
 
   return {
     ephemeralPublicKey: exchange.ephemeralPublicKey,
@@ -287,6 +354,9 @@ export function wrapSessionKeyWithPreKeys(
     otpkKemCiphertext: exchange.otpkKemCiphertext,
     wrappedSessionKey,
     wrappingNonce,
+    signedPreKeyId: signedPreKey.keyId,
+    oneTimePreKeyId: oneTimePreKey?.keyId,
+    wrapVersion: PREKEY_WRAP_VERSION_AAD,
   };
 }
 
@@ -337,14 +407,23 @@ export function preKeyDecapsulate(
     const kem2Shared = kemAlgo.decapsulate(otpkKemCiphertext, otpkKemPrivate);
 
     ikm = concatBytes(dh1, kem1Shared, dh2, kem2Shared);
+    clearBytes(dh2);
+    clearBytes(kem2Shared);
   } else {
     ikm = concatBytes(dh1, kem1Shared);
   }
 
-  return deriveKey(
+  const sharedSecret = deriveKey(
     { ikm, info: PREKEY_KDF_INFO, length: 32 },
     profile
   );
+
+  // Zeroize intermediate secrets.
+  clearBytes(dh1);
+  clearBytes(kem1Shared);
+  clearBytes(ikm);
+
+  return sharedSecret;
 }
 
 /**
@@ -379,10 +458,31 @@ export function unwrapSessionKeyWithPreKeys(
     profile
   );
 
-  return symmetricDecrypt(
-    sharedSecret,
-    wrapped.wrappedSessionKey,
-    wrapped.wrappingNonce,
-    profile
-  );
+  // v2 wraps authenticate the wrap metadata as associated data; legacy
+  // wraps (no version) used no associated data.
+  let aad: Uint8Array | undefined;
+  if (wrapped.wrapVersion === PREKEY_WRAP_VERSION_AAD) {
+    if (!wrapped.signedPreKeyId) {
+      throw new Error('signedPreKeyId required to unwrap a v2 pre-key wrap');
+    }
+    aad = buildPreKeyWrapAad({
+      signedPreKeyId: wrapped.signedPreKeyId,
+      oneTimePreKeyId: wrapped.oneTimePreKeyId,
+      ephemeralPublicKey: wrapped.ephemeralPublicKey,
+      spkKemCiphertext: wrapped.spkKemCiphertext,
+      otpkKemCiphertext: wrapped.otpkKemCiphertext,
+    });
+  }
+
+  try {
+    return symmetricDecrypt(
+      sharedSecret,
+      wrapped.wrappedSessionKey,
+      wrapped.wrappingNonce,
+      profile,
+      aad
+    );
+  } finally {
+    clearBytes(sharedSecret);
+  }
 }

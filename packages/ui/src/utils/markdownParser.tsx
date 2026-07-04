@@ -278,7 +278,7 @@ interface FormatRule {
  * text-style markers.
  */
 const MENTION_PATTERN = new RegExp(
-  `${MENTION_START}([a-f0-9]{24})${MENTION_END}`,
+  `${MENTION_START}([a-f0-9]{24}|__[A-Z]+__)${MENTION_END}`,
 );
 
 const PAGE_TAG_PATTERN = new RegExp(

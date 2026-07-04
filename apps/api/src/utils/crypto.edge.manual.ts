@@ -582,12 +582,15 @@ describe('crypto utilities', () => {
   describe('verifyDmMessageSignature', () => {
     test('returns true for a valid signature', async () => {
       const { generateSigningKeyPair, sign, toBase64, concatBytes, toBytes, fromBase64 } = await import('@adieuu/crypto');
+      const { MESSAGE_SIGN_DOMAIN_V1 } = await import('@adieuu/shared');
       const { publicKey, privateKey } = generateSigningKeyPair();
       const ciphertext = Buffer.from('encrypted-data').toString('base64');
       const nonce = Buffer.from('nonce-data').toString('base64');
       const wrappedKeys = [{ identityId: 'id-1', key: 'wrapped' }];
 
+      // v1 client preimage: domain || ciphertext || nonce || JSON(wrappedKeys)
       const signatureData = concatBytes(
+        toBytes(MESSAGE_SIGN_DOMAIN_V1),
         fromBase64(ciphertext), fromBase64(nonce), toBytes(JSON.stringify(wrappedKeys))
       );
       const signature = sign(privateKey, signatureData);

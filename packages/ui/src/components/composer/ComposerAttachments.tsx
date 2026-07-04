@@ -44,9 +44,11 @@ export function ComposerAttachments({
         {attachments.map((att, idx) => {
           const isVisual = isVisualMediaContentType(att.file.type);
 
+          const canRemove = att.uploadStatus === 'pending' || att.uploadStatus === 'error' || !!att.existingMediaId;
+
           if (!isVisual) {
             return (
-              <div key={att.previewUrl || att.file.name} className={`conversation-composer-attachment conversation-composer-attachment--file conversation-composer-attachment--${att.uploadStatus}`}>
+              <div key={att.previewUrl || att.file.name} className={`conversation-composer-attachment conversation-composer-attachment--file conversation-composer-attachment--${att.existingMediaId ? 'existing' : att.uploadStatus}`}>
                 <div className="conversation-composer-attachment-file-info">
                   <Icon name={fileAttachmentIconName(att.file.type)} className="conversation-composer-attachment-file-icon" />
                   <div className="conversation-composer-attachment-file-meta">
@@ -54,11 +56,11 @@ export function ComposerAttachments({
                       {truncateFileName(att.file.name)}
                     </span>
                     <span className="conversation-composer-attachment-file-size">
-                      {formatFileSize(att.file.size)}
+                      {att.file.size > 0 ? formatFileSize(att.file.size) : ''}
                     </span>
                   </div>
                 </div>
-                {(att.uploadStatus === 'pending' || att.uploadStatus === 'error') && (
+                {canRemove && (
                   <button
                     type="button"
                     className="conversation-composer-attachment-remove"
@@ -73,8 +75,12 @@ export function ComposerAttachments({
           }
 
           return (
-          <div key={att.previewUrl} className={`conversation-composer-attachment conversation-composer-attachment--${att.uploadStatus}`}>
-            {att.file.type.startsWith('video/') ? (
+          <div key={att.previewUrl || att.existingMediaId || idx} className={`conversation-composer-attachment conversation-composer-attachment--${att.existingMediaId ? 'existing' : att.uploadStatus}`}>
+            {att.existingMediaId && !att.previewUrl ? (
+              <div className="conversation-composer-attachment-thumb conversation-composer-attachment-thumb--existing">
+                <Icon name={fileAttachmentIconName(att.file.type)} />
+              </div>
+            ) : att.file.type.startsWith('video/') ? (
               <video
                 src={att.previewUrl}
                 className="conversation-composer-attachment-thumb"
@@ -86,7 +92,7 @@ export function ComposerAttachments({
             ) : (
               <img src={att.previewUrl} alt="" className="conversation-composer-attachment-thumb" />
             )}
-            {att.uploadStatus !== 'pending' && att.uploadStatus !== 'done' && (
+            {!att.existingMediaId && att.uploadStatus !== 'pending' && att.uploadStatus !== 'done' && (
               <div className="conversation-composer-attachment-overlay">
                 {att.uploadStatus === 'error' ? (
                   <span className="conversation-composer-attachment-error-icon" title={att.uploadError}>
@@ -111,12 +117,12 @@ export function ComposerAttachments({
                 )}
               </div>
             )}
-            {att.uploadStatus === 'done' && (
+            {!att.existingMediaId && att.uploadStatus === 'done' && (
               <div className="conversation-composer-attachment-done">
                 <Icon name="success" />
               </div>
             )}
-            {(att.uploadStatus === 'pending' || att.uploadStatus === 'error') && (
+            {canRemove && (
               <button
                 type="button"
                 className="conversation-composer-attachment-remove"

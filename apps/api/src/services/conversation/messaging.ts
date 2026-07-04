@@ -29,6 +29,7 @@ import {
 } from '../../models/message';
 import type { CryptoProfile } from '../../models/identity';
 import { deleteE2EMedia } from '../e2e-upload.service';
+import { verifyMessageSignatureV2 } from '../../utils/crypto';
 import elog from '../../utils/adieuuLogger';
 import type { MessagePagePayload, MessageResult } from './types';
 import { publishConversationEvent, publishToParticipants } from './redis-events';
@@ -116,6 +117,42 @@ export async function sendMessage(
     return {
       success: true,
       message: toPublicMessage(existing, senderObjId),
+    };
+  }
+
+  // Verify the sender's context-bound (v2) message signature. This rejects
+  // payloads whose signature does not cover this conversation, sender, and
+  // clientMessageId, so stored messages cannot later be replayed by a
+  // compromised server into a different context without detection.
+  const senderIdentity = await getIdentityRepository().findByIdentityId(senderObjId);
+  if (!senderIdentity?.signingPublicKey) {
+    return {
+      success: false,
+      error: 'Sender has no registered signing key.',
+      errorCode: 'INVALID_SIGNATURE',
+    };
+  }
+  const signatureValid = verifyMessageSignatureV2(
+    senderIdentity.signingPublicKey,
+    {
+      conversationId: convObjId.toHexString(),
+      fromIdentityId: senderObjId.toHexString(),
+      clientMessageId: input.clientMessageId,
+    },
+    input.ciphertext,
+    input.nonce,
+    input.wrappedKeys,
+    input.signature
+  );
+  if (!signatureValid) {
+    elog.warn('Rejected message with invalid signature', {
+      conversationId: convObjId.toHexString(),
+      senderIdentityId: senderObjId.toHexString(),
+    });
+    return {
+      success: false,
+      error: 'Message signature verification failed.',
+      errorCode: 'INVALID_SIGNATURE',
     };
   }
 
@@ -260,6 +297,7 @@ export async function editMessage(
     signature: string;
     cryptoProfile: CryptoProfile;
     clientEditId: string;
+    e2eMediaIds?: string[];
   }
 ): Promise<MessageResult> {
   const conversationRepo = getConversationRepository();
@@ -301,14 +339,54 @@ export async function editMessage(
     }
   }
 
-  const { ciphertext, nonce, wrappedKeys, signature, cryptoProfile, clientEditId } = input;
+  const { ciphertext, nonce, wrappedKeys, signature, cryptoProfile, clientEditId, e2eMediaIds } = input;
+
+  // Verify the context-bound (v2) signature over the replacement ciphertext.
+  // Edits sign with the original message's clientMessageId (stable across
+  // revisions), so the message doc is loaded first to resolve it.
+  const existingMessage = await messageRepo.findByIdInConversation(convObjId, msgObjId);
+  if (!existingMessage) {
+    return { success: false, error: 'Message not found', errorCode: 'MESSAGE_NOT_FOUND' };
+  }
+  const editorIdentity = await getIdentityRepository().findByIdentityId(senderObjId);
+  if (!editorIdentity?.signingPublicKey) {
+    return {
+      success: false,
+      error: 'Sender has no registered signing key.',
+      errorCode: 'INVALID_SIGNATURE',
+    };
+  }
+  const editSignatureValid = verifyMessageSignatureV2(
+    editorIdentity.signingPublicKey,
+    {
+      conversationId: convObjId.toHexString(),
+      fromIdentityId: senderObjId.toHexString(),
+      clientMessageId: existingMessage.clientMessageId,
+    },
+    ciphertext,
+    nonce,
+    wrappedKeys,
+    signature
+  );
+  if (!editSignatureValid) {
+    elog.warn('Rejected message edit with invalid signature', {
+      conversationId: convObjId.toHexString(),
+      messageId: msgObjId.toHexString(),
+      senderIdentityId: senderObjId.toHexString(),
+    });
+    return {
+      success: false,
+      error: 'Message signature verification failed.',
+      errorCode: 'INVALID_SIGNATURE',
+    };
+  }
 
   const result = await messageRepo.applyMessageEdit(
     convObjId,
     msgObjId,
     senderObjId,
     clientEditId,
-    { ciphertext, nonce, wrappedKeys, signature, cryptoProfile }
+    { ciphertext, nonce, wrappedKeys, signature, cryptoProfile, ...(e2eMediaIds ? { e2eMediaIds } : {}) }
   );
 
   if (result.idempotentReplay && result.doc) {

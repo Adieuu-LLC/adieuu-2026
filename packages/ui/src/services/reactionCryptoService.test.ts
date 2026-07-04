@@ -7,12 +7,18 @@ import {
   generateOneTimePreKeys,
   toBase64,
   fromBase64,
+  sign,
   verify,
   concatBytes,
   toBytes,
   randomBytes,
 } from '@adieuu/crypto';
-import type { SerializedWrappedKey, PublicReaction } from '@adieuu/shared';
+import type { PublicReaction, ReactionSignatureContext } from '@adieuu/shared';
+import {
+  REACTION_SIGN_DOMAIN_V1,
+  buildReactionSignaturePreimageV2,
+  buildMessageSignaturePreimageV2,
+} from '@adieuu/shared';
 import { encryptReaction, decryptReaction } from './reactionCryptoService';
 import type { RecipientKeys } from './conversationCryptoService';
 
@@ -91,21 +97,36 @@ function makeSender() {
   };
 }
 
+function makeContext(fromIdentityId: string): ReactionSignatureContext {
+  return {
+    conversationId: crypto.randomUUID(),
+    messageId: crypto.randomUUID(),
+    fromIdentityId,
+    clientReactionId: crypto.randomUUID(),
+  };
+}
+
+/**
+ * Build the server-shaped PublicReaction. The context fields must match those
+ * used at encryption time for v2 verification to succeed. `fromIdentityId`
+ * can be overridden to simulate server-side sender substitution.
+ */
 function toPublicReaction(
   encrypted: ReturnType<typeof encryptReaction>,
-  fromIdentityId: string
+  context: ReactionSignatureContext,
+  fromIdentityIdOverride?: string
 ): PublicReaction {
   return {
     id: crypto.randomUUID(),
-    messageId: crypto.randomUUID(),
-    conversationId: crypto.randomUUID(),
-    fromIdentityId,
+    messageId: context.messageId,
+    conversationId: context.conversationId,
+    fromIdentityId: fromIdentityIdOverride ?? context.fromIdentityId,
     ciphertext: encrypted.ciphertext,
     nonce: encrypted.nonce,
     wrappedKeys: encrypted.wrappedKeys,
     signature: encrypted.signature,
     cryptoProfile: encrypted.cryptoProfile,
-    clientReactionId: crypto.randomUUID(),
+    clientReactionId: context.clientReactionId,
     createdAt: new Date().toISOString(),
   };
 }
@@ -123,7 +144,8 @@ describe('reactionCryptoService', () => {
 
       const result = encryptReaction(
         '\u2764\uFE0F', sender.identityId,
-        [r1.recipient, r2.recipient], sender.signingPrivateKey
+        [r1.recipient, r2.recipient], sender.signingPrivateKey,
+        makeContext(sender.identityId)
       );
 
       expect(result.ciphertext).toBeTruthy();
@@ -135,12 +157,14 @@ describe('reactionCryptoService', () => {
     test('payload contains DecryptedReactionContent structure', () => {
       const sender = makeSender();
       const r = makeRecipient();
+      const context = makeContext(sender.identityId);
 
       const encrypted = encryptReaction(
         '\uD83D\uDE00', sender.identityId,
-        [r.recipient], sender.signingPrivateKey
+        [r.recipient], sender.signingPrivateKey,
+        context
       );
-      const reaction = toPublicReaction(encrypted, sender.identityId);
+      const reaction = toPublicReaction(encrypted, context);
 
       const decrypted = decryptReaction(
         reaction, r.recipient.identityId,
@@ -158,7 +182,8 @@ describe('reactionCryptoService', () => {
 
       const result = encryptReaction(
         '\uD83D\uDC4D', sender.identityId,
-        [recipient], sender.signingPrivateKey
+        [recipient], sender.signingPrivateKey,
+        makeContext(sender.identityId)
       );
 
       expect(result.wrappedKeys[0]?.preKeyType).toBe('otpk');
@@ -170,13 +195,14 @@ describe('reactionCryptoService', () => {
 
       const result = encryptReaction(
         '\uD83D\uDE02', sender.identityId,
-        [recipient], sender.signingPrivateKey
+        [recipient], sender.signingPrivateKey,
+        makeContext(sender.identityId)
       );
 
       expect(result.wrappedKeys[0]?.preKeyType).toBe('static');
     });
 
-    test('skips pre-key wrapping when signed pre-key signature is invalid', () => {
+    test('falls back to static wrapping when signed pre-key signature is invalid', () => {
       const sender = makeSender();
       const { recipient } = makeRecipient({ preKeys: true });
       recipient.preKeys![0]!.signedPreKey.signature = toBase64(randomBytes(64));
@@ -185,38 +211,59 @@ describe('reactionCryptoService', () => {
         '\uD83D\uDE02',
         sender.identityId,
         [recipient],
-        sender.signingPrivateKey
+        sender.signingPrivateKey,
+        makeContext(sender.identityId)
       );
-      expect(result.wrappedKeys.length).toBe(0);
+      // Device is not skipped: it gets a static wrap and the failure is reported.
+      expect(result.wrappedKeys.length).toBe(1);
+      expect(result.wrappedKeys[0]?.preKeyType).toBe('static');
+      expect(result.spkVerificationFailedDeviceIds).toEqual([
+        recipient.devices[0]!.deviceId,
+      ]);
     });
 
-    test('signature uses adieuu-reaction-v1 domain', () => {
+    test('signature uses the v2 reaction domain and does not verify under other domains', () => {
       const sender = makeSender();
       const { recipient } = makeRecipient();
+      const context = makeContext(sender.identityId);
 
       const result = encryptReaction(
         '\u2764\uFE0F', sender.identityId,
-        [recipient], sender.signingPrivateKey
-      );
-
-      const dataToVerify = concatBytes(
-        toBytes('adieuu-reaction-v1'),
-        fromBase64(result.ciphertext),
-        fromBase64(result.nonce),
-        toBytes(JSON.stringify(result.wrappedKeys))
+        [recipient], sender.signingPrivateKey,
+        context
       );
 
       const sigPub = fromBase64(sender.signingPublicKey);
-      expect(verify(sigPub, dataToVerify, fromBase64(result.signature))).toBe(true);
 
-      // Verify it does NOT match message domain
-      const wrongDomain = concatBytes(
-        toBytes('adieuu-msg-v1'),
+      const preimageV2 = buildReactionSignaturePreimageV2(
+        context,
+        result.ciphertext,
+        result.nonce,
+        result.wrappedKeys
+      );
+      expect(verify(sigPub, toBytes(preimageV2), fromBase64(result.signature))).toBe(true);
+
+      // Must NOT verify under the legacy v1 reaction domain
+      const v1Preimage = concatBytes(
+        toBytes(REACTION_SIGN_DOMAIN_V1),
         fromBase64(result.ciphertext),
         fromBase64(result.nonce),
         toBytes(JSON.stringify(result.wrappedKeys))
       );
-      expect(verify(sigPub, wrongDomain, fromBase64(result.signature))).toBe(false);
+      expect(verify(sigPub, v1Preimage, fromBase64(result.signature))).toBe(false);
+
+      // Must NOT verify as a message signature (domain separation)
+      const msgPreimage = buildMessageSignaturePreimageV2(
+        {
+          conversationId: context.conversationId,
+          fromIdentityId: context.fromIdentityId,
+          clientMessageId: context.clientReactionId,
+        },
+        result.ciphertext,
+        result.nonce,
+        result.wrappedKeys
+      );
+      expect(verify(sigPub, toBytes(msgPreimage), fromBase64(result.signature))).toBe(false);
     });
 
     test('multi-recipient wrapping assigns correct identityIds', () => {
@@ -226,7 +273,8 @@ describe('reactionCryptoService', () => {
 
       const result = encryptReaction(
         '\uD83D\uDE80', sender.identityId,
-        [r1.recipient, r2.recipient], sender.signingPrivateKey
+        [r1.recipient, r2.recipient], sender.signingPrivateKey,
+        makeContext(sender.identityId)
       );
 
       const ids = result.wrappedKeys.map((wk) => wk.identityId);
@@ -239,12 +287,14 @@ describe('reactionCryptoService', () => {
     test('round-trip: encrypt then decrypt recovers emoji', () => {
       const sender = makeSender();
       const r = makeRecipient();
+      const context = makeContext(sender.identityId);
 
       const encrypted = encryptReaction(
         '\uD83C\uDF89', sender.identityId,
-        [r.recipient], sender.signingPrivateKey
+        [r.recipient], sender.signingPrivateKey,
+        context
       );
-      const reaction = toPublicReaction(encrypted, sender.identityId);
+      const reaction = toPublicReaction(encrypted, context);
 
       const result = decryptReaction(
         reaction, r.recipient.identityId,
@@ -258,12 +308,14 @@ describe('reactionCryptoService', () => {
     test('verified flag is true for valid signatures', () => {
       const sender = makeSender();
       const r = makeRecipient();
+      const context = makeContext(sender.identityId);
 
       const encrypted = encryptReaction(
         '\uD83D\uDE00', sender.identityId,
-        [r.recipient], sender.signingPrivateKey
+        [r.recipient], sender.signingPrivateKey,
+        context
       );
-      const reaction = toPublicReaction(encrypted, sender.identityId);
+      const reaction = toPublicReaction(encrypted, context);
 
       const result = decryptReaction(
         reaction, r.recipient.identityId,
@@ -274,15 +326,69 @@ describe('reactionCryptoService', () => {
       expect(result.verified).toBe(true);
     });
 
-    test('verified is false when fromIdentityId mismatches reaction sender', () => {
+    test('legacy v1-signed reaction still verifies', () => {
       const sender = makeSender();
       const r = makeRecipient();
+      const context = makeContext(sender.identityId);
 
       const encrypted = encryptReaction(
         '\uD83D\uDE00', sender.identityId,
-        [r.recipient], sender.signingPrivateKey
+        [r.recipient], sender.signingPrivateKey,
+        context
       );
-      const reaction = toPublicReaction(encrypted, 'different-sender-id');
+      const reaction = toPublicReaction(encrypted, context);
+
+      // Replace the v2 signature with a legacy v1 signature as an old client
+      // would have produced it.
+      const v1Preimage = concatBytes(
+        toBytes(REACTION_SIGN_DOMAIN_V1),
+        fromBase64(encrypted.ciphertext),
+        fromBase64(encrypted.nonce),
+        toBytes(JSON.stringify(encrypted.wrappedKeys))
+      );
+      reaction.signature = toBase64(sign(sender.signingPrivateKey, v1Preimage));
+
+      const result = decryptReaction(
+        reaction, r.recipient.identityId,
+        r.ecdhPrivateKey, r.kemPrivateKey,
+        sender.signingPublicKey
+      );
+      expect(result.emoji).toBe('\uD83D\uDE00');
+      expect(result.verified).toBe(true);
+    });
+
+    test('replayed reaction onto a different message fails verification', () => {
+      const sender = makeSender();
+      const r = makeRecipient();
+      const context = makeContext(sender.identityId);
+
+      const encrypted = encryptReaction(
+        '\uD83D\uDE00', sender.identityId,
+        [r.recipient], sender.signingPrivateKey,
+        context
+      );
+      const reaction = toPublicReaction(encrypted, context);
+      reaction.messageId = crypto.randomUUID();
+
+      const result = decryptReaction(
+        reaction, r.recipient.identityId,
+        r.ecdhPrivateKey, r.kemPrivateKey,
+        sender.signingPublicKey
+      );
+      expect(result.verified).toBe(false);
+    });
+
+    test('verified is false when fromIdentityId mismatches reaction sender', () => {
+      const sender = makeSender();
+      const r = makeRecipient();
+      const context = makeContext(sender.identityId);
+
+      const encrypted = encryptReaction(
+        '\uD83D\uDE00', sender.identityId,
+        [r.recipient], sender.signingPrivateKey,
+        context
+      );
+      const reaction = toPublicReaction(encrypted, context, 'different-sender-id');
 
       const result = decryptReaction(
         reaction, r.recipient.identityId,
@@ -296,12 +402,14 @@ describe('reactionCryptoService', () => {
     test('throws when no wrapped key found for identity', () => {
       const sender = makeSender();
       const r = makeRecipient();
+      const context = makeContext(sender.identityId);
 
       const encrypted = encryptReaction(
         '\uD83D\uDE00', sender.identityId,
-        [r.recipient], sender.signingPrivateKey
+        [r.recipient], sender.signingPrivateKey,
+        context
       );
-      const reaction = toPublicReaction(encrypted, sender.identityId);
+      const reaction = toPublicReaction(encrypted, context);
 
       expect(() => {
         decryptReaction(
@@ -315,12 +423,14 @@ describe('reactionCryptoService', () => {
     test('decryption with pre-key private keys (SPK+OTPK)', () => {
       const sender = makeSender();
       const r = makeRecipient({ preKeys: true, otpk: true });
+      const context = makeContext(sender.identityId);
 
       const encrypted = encryptReaction(
         '\uD83D\uDC4D', sender.identityId,
-        [r.recipient], sender.signingPrivateKey
+        [r.recipient], sender.signingPrivateKey,
+        context
       );
-      const reaction = toPublicReaction(encrypted, sender.identityId);
+      const reaction = toPublicReaction(encrypted, context);
 
       const result = decryptReaction(
         reaction, r.recipient.identityId,
@@ -341,13 +451,15 @@ describe('reactionCryptoService', () => {
     test('throws when pre-key wrapped reaction is decrypted without pre-key private keys', () => {
       const sender = makeSender();
       const r = makeRecipient({ preKeys: true });
+      const context = makeContext(sender.identityId);
       const encrypted = encryptReaction(
         '\uD83D\uDC4D',
         sender.identityId,
         [r.recipient],
-        sender.signingPrivateKey
+        sender.signingPrivateKey,
+        context
       );
-      const reaction = toPublicReaction(encrypted, sender.identityId);
+      const reaction = toPublicReaction(encrypted, context);
 
       expect(() =>
         decryptReaction(
@@ -363,12 +475,14 @@ describe('reactionCryptoService', () => {
     test('decryption with static device keys', () => {
       const sender = makeSender();
       const r = makeRecipient();
+      const context = makeContext(sender.identityId);
 
       const encrypted = encryptReaction(
         '\uD83D\uDE80', sender.identityId,
-        [r.recipient], sender.signingPrivateKey
+        [r.recipient], sender.signingPrivateKey,
+        context
       );
-      const reaction = toPublicReaction(encrypted, sender.identityId);
+      const reaction = toPublicReaction(encrypted, context);
 
       const result = decryptReaction(
         reaction, r.recipient.identityId,
@@ -383,13 +497,15 @@ describe('reactionCryptoService', () => {
     test('uses cachedSessionKey when provided', () => {
       const sender = makeSender();
       const r = makeRecipient();
+      const context = makeContext(sender.identityId);
       const encrypted = encryptReaction(
         '\uD83D\uDE80',
         sender.identityId,
         [r.recipient],
-        sender.signingPrivateKey
+        sender.signingPrivateKey,
+        context
       );
-      const reaction = toPublicReaction(encrypted, sender.identityId);
+      const reaction = toPublicReaction(encrypted, context);
       const first = decryptReaction(
         reaction,
         r.recipient.identityId,
@@ -415,13 +531,15 @@ describe('reactionCryptoService', () => {
     test('returns verified=false when signature is malformed but payload decrypts', () => {
       const sender = makeSender();
       const r = makeRecipient();
+      const context = makeContext(sender.identityId);
       const encrypted = encryptReaction(
         '\uD83C\uDF89',
         sender.identityId,
         [r.recipient],
-        sender.signingPrivateKey
+        sender.signingPrivateKey,
+        context
       );
-      const reaction = toPublicReaction(encrypted, sender.identityId);
+      const reaction = toPublicReaction(encrypted, context);
       reaction.signature = 'not-base64-signature';
 
       const result = decryptReaction(

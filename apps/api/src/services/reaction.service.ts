@@ -18,6 +18,8 @@ import { getReactionRepository } from '../repositories/reaction.repository';
 import { getConversationRepository } from '../repositories/conversation.repository';
 import { getMessageRepository } from '../repositories/message.repository';
 import { getBlockRepository } from '../repositories/block.repository';
+import { getIdentityRepository } from '../repositories/identity.repository';
+import { verifyReactionSignatureV2 } from '../utils/crypto';
 import { createNotification } from './notification.service';
 import { checkAndAward } from './achievement.service';
 import {
@@ -145,6 +147,34 @@ export async function addReaction(
   const message = await msgRepo.findById(msgObjId);
   if (!message || !message.conversationId.equals(convObjId)) {
     return { success: false, error: 'Message not found in this conversation.' };
+  }
+
+  // Verify the reactor's context-bound (v2) signature so a stored reaction
+  // cannot later be replayed into another conversation/message context.
+  const reactorIdentity = await getIdentityRepository().findByIdentityId(identityObjId);
+  if (!reactorIdentity?.signingPublicKey) {
+    return { success: false, error: 'Reaction signature verification failed.' };
+  }
+  const reactionSignatureValid = verifyReactionSignatureV2(
+    reactorIdentity.signingPublicKey,
+    {
+      conversationId: convObjId.toHexString(),
+      messageId: msgObjId.toHexString(),
+      fromIdentityId: identityObjId.toHexString(),
+      clientReactionId: reactionData.clientReactionId,
+    },
+    reactionData.ciphertext,
+    reactionData.nonce,
+    reactionData.wrappedKeys,
+    reactionData.signature
+  );
+  if (!reactionSignatureValid) {
+    elog.warn('Rejected reaction with invalid signature', {
+      conversationId: convObjId.toHexString(),
+      messageId: msgObjId.toHexString(),
+      fromIdentityId: identityObjId.toHexString(),
+    });
+    return { success: false, error: 'Reaction signature verification failed.' };
   }
 
   const reactionRepo = getReactionRepository();

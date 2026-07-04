@@ -54,7 +54,7 @@ export async function requireCaptchaForFreeTier(
   preloadedUser?: UserDocument | null,
   options?: CaptchaOptions,
 ): Promise<Response | null> {
-  if (!config.friendlyCaptcha.enabled) {
+  if (!config.friendlyCaptcha?.enabled) {
     return null;
   }
 

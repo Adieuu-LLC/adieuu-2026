@@ -235,7 +235,7 @@ describe('calls.controller', () => {
       VALID_CALL,
       ROUTE_TEST_IDENTITY_ID.toHexString(),
       MEDIA,
-      undefined,
+      { subscriptions: undefined, entitlements: undefined, isLifetime: undefined },
     );
   });
 

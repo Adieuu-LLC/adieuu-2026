@@ -56,6 +56,7 @@ import {
   canViewerAccessTargetIdentityKeys,
 } from '../../services/identity-keys-access.service';
 import { verifyDeviceStoredStaticKeyAttestation } from '../../services/device-static-attestation.service';
+import { config } from '../../config';
 import { toPublicIdentitySession } from '../../models/session';
 import { applyPrivacyFilter, areFriends } from './profile.controller';
 
@@ -546,6 +547,10 @@ export async function registerDeviceCtrl(ctx: RouteContext): Promise<Response> {
     lastActiveAt: now,
   };
 
+  if (config.security.requireDeviceAttestation && !staticKeyAttestation) {
+    return errors.badRequest('Static key attestation is required to register a device.');
+  }
+
   if (staticKeyAttestation) {
     if (!verifyDeviceStoredStaticKeyAttestation(identity, device, staticKeyAttestation)) {
       return errors.badRequest('Invalid static key attestation.');
@@ -1003,6 +1008,31 @@ export async function initializeE2ECtrl(ctx: RouteContext): Promise<Response> {
 
   const { signingPublicKey, preferredCryptoProfile, device, bundle } = parseResult.data;
 
+  if (config.security.requireDeviceAttestation && !device.staticKeyAttestation) {
+    return errors.badRequest('Static key attestation is required to register a device.');
+  }
+
+  if (device.staticKeyAttestation) {
+    // The signing key is not stored on the identity yet, so verify the
+    // attestation against the signing public key provided in this request.
+    const attestationIdentity = {
+      ...identity,
+      signingPublicKey,
+      preferredCryptoProfile: (preferredCryptoProfile as CryptoProfile) ?? 'default',
+    };
+    const attestationDevice: IdentityDevice = {
+      deviceId: device.deviceId,
+      name: device.name,
+      ecdhPublicKey: device.ecdhPublicKey,
+      kemPublicKey: device.kemPublicKey,
+      registeredAt: new Date(),
+      lastActiveAt: new Date(),
+    };
+    if (!verifyDeviceStoredStaticKeyAttestation(attestationIdentity, attestationDevice, device.staticKeyAttestation)) {
+      return errors.badRequest('Invalid static key attestation.');
+    }
+  }
+
   // Debug logging for E2E initialization
   console.log('[E2E Init] Identity ID:', identity._id.toHexString());
   console.log('[E2E Init] Identity ident:', identity.ident);
@@ -1039,6 +1069,10 @@ export async function initializeE2ECtrl(ctx: RouteContext): Promise<Response> {
         registeredAt: now,
         lastActiveAt: now,
       };
+
+      if (device.staticKeyAttestation) {
+        deviceDoc.staticKeyAttestation = device.staticKeyAttestation;
+      }
 
       await identityRepo.addDevice(identity._id, deviceDoc);
     });

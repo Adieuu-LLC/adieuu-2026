@@ -119,7 +119,10 @@ export {
   wrapSessionKeyForRecipients,
   findAndUnwrapSessionKey,
   computeRoutingTag,
+  buildStaticWrapAad,
   SESSION_KEY_SIZE,
+  WRAP_AAD_DOMAIN,
+  WRAP_VERSION_AAD,
 } from './encrypt';
 
 // Digital signatures
@@ -196,9 +199,13 @@ export {
   // Decapsulation (recipient side)
   preKeyDecapsulate,
   unwrapSessionKeyWithPreKeys,
+  // AAD binding (v2 wraps)
+  buildPreKeyWrapAad,
   // Constants
   PREKEY_KDF_INFO,
   SPK_SIGNATURE_DOMAIN,
+  PREKEY_WRAP_AAD_DOMAIN,
+  PREKEY_WRAP_VERSION_AAD,
 } from './prekeys';
 
 // Safety fingerprint (Stage A transparency)

@@ -6,11 +6,12 @@ import {
   serializePayload,
   gifPayload,
   buildCustomEmojiPayloadMap,
+  type MediaAttachment,
   type MentionEntity,
   type PageTagEntity,
   type GifAttachment,
 } from '../../services/messagePayload';
-import { getOrCreateDeviceId } from '../../services/deviceInfo';
+import { getSenderDeviceIdForPayload } from '../../services/deviceInfo';
 import { createApiClient, CONV_MEDIA_BASE_MAX_BYTES, type PublicCustomEmoji } from '@adieuu/shared';
 import { EmojiPicker, type EmojiSelectResult } from '../EmojiPicker';
 import { GifPicker, type ContentTab } from '../GifPicker';
@@ -90,7 +91,7 @@ export type MessageComposerProps = {
   /** When true, disables all input and hides action buttons (e.g. when conversation is blocked). */
   disabled?: boolean;
   /** When set, the composer is in “edit message” mode (text-only; send updates the message). */
-  editContext?: { messageId: string; onCancel: () => void } | null;
+  editContext?: { messageId: string; clientMessageId?: string; onCancel: () => void } | null;
   /**
    * When this value changes, the input is replaced with `editingInitialPlaintext` (for edit mode).
    * Use a stable value like the message id or a monotonic key.
@@ -98,6 +99,8 @@ export type MessageComposerProps = {
   editingMessageKey?: string | null;
   /** Plain text (plus shortcodes) to load when entering edit mode. */
   editingInitialPlaintext?: string;
+  /** Existing attachments from the message being edited (loaded into staging on edit entry). */
+  editingInitialAttachments?: { media: MediaAttachment[]; gifs: GifAttachment[] };
   /** When true, conversation allows participants to skip moderation per-send. */
   allowSkipModeration?: boolean;
 };
@@ -123,6 +126,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   editContext,
   editingMessageKey,
   editingInitialPlaintext,
+  editingInitialAttachments,
   allowSkipModeration,
 }: MessageComposerProps,
   ref,
@@ -519,6 +523,20 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
         mentionEntriesRef.current = [];
         pageTagEntriesRef.current = [];
         prevEditKey.current = editingMessageKey;
+
+        if (editingInitialAttachments) {
+          const existingAtts: PendingAttachment[] = editingInitialAttachments.media.map((att) => ({
+            file: new File([], att.fileName ?? 'attachment', { type: att.contentType }),
+            previewUrl: '',
+            uploadStatus: 'done' as const,
+            uploadProgress: 100,
+            existingMediaId: att.e2eMediaId,
+          }));
+          setAttachments(existingAtts);
+        } else {
+          setAttachments([]);
+        }
+
         window.requestAnimationFrame(() => {
           const ta = inputRef.current;
           if (ta) {
@@ -531,9 +549,15 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     } else if (prevEditKey.current !== null) {
       setMessageText('', 0);
       mentionEntriesRef.current = [];
+      setAttachments((prev) => {
+        for (const a of prev) {
+          if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
+        }
+        return [];
+      });
       prevEditKey.current = null;
     }
-  }, [editContext, editingMessageKey, editingInitialPlaintext, setMessageText]);
+  }, [editContext, editingMessageKey, editingInitialPlaintext, editingInitialAttachments, setMessageText]);
 
   const [isMultiLine, setIsMultiLine] = useState(false);
 
@@ -560,10 +584,6 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     const text = messageTextRef.current.trim();
     if (!channelId || (!text && attachments.length === 0 && !pendingGif) || sending) return;
 
-    if (editContext && (attachments.length > 0 || pendingGif)) {
-      toastError(t('conversations.editNoAttachments'));
-      return;
-    }
 
     const currentPendingGif = pendingGif;
     const pendingAttachments = [...attachments];
@@ -591,7 +611,8 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       if (mentions.length > 0) payload.mentions = mentions;
       const pageTags: PageTagEntity[] = currentPageTags.map((p) => ({ id: p.pageId, offset: p.offset, length: p.length }));
       if (pageTags.length > 0) payload.pageTags = pageTags;
-      payload.senderDeviceId = getOrCreateDeviceId();
+      const gifSenderDeviceId = getSenderDeviceIdForPayload();
+      if (gifSenderDeviceId) payload.senderDeviceId = gifSenderDeviceId;
       const plaintext = serializePayload(payload);
 
       const mentionedIdentityIds = resolveMentionedIdentityIds(mentions, mentionSource);
@@ -616,7 +637,75 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       return;
     }
 
-    if (pendingAttachments.length > 0) {
+    if (pendingAttachments.length > 0 && editContext) {
+      const existingAtts = pendingAttachments.filter((a) => a.existingMediaId);
+      const newAtts = pendingAttachments.filter((a) => !a.existingMediaId);
+      const existingE2eMediaIds = existingAtts.map((a) => a.existingMediaId!);
+
+      if (newAtts.length > 0) {
+        try {
+          await enqueueMediaSend({
+            conversationId: channelId,
+            caption: text,
+            mentions: currentMentions,
+            pageTags: currentPageTags,
+            useForwardSecrecy: forwardSecrecy?.enabled ?? false,
+            stripExif,
+            moderationEnabled,
+            ...(sendMp4WithoutReencode && allVideosAreMp4 ? { sendMp4WithoutReencode: true } : {}),
+            ...(customEmojis?.length && !customEmojisDisabled
+              ? { composerCustomEmojisSnapshotJson: JSON.stringify(customEmojis) }
+              : {}),
+            files: newAtts.map((a) => a.file),
+            editMessageId: editContext.messageId,
+            ...(editContext.clientMessageId
+              ? { editClientMessageId: editContext.clientMessageId }
+              : {}),
+            existingE2eMediaIds,
+          });
+        } catch (err) {
+          console.error('[Composer] Media outbox edit enqueue failed:', err);
+          toastError(
+            t('conversations.uploadFailed', 'Upload failed'),
+            err instanceof Error ? err.message : t('conversations.uploadFailedDesc', 'One or more attachments could not be uploaded.'),
+          );
+          return;
+        }
+      } else {
+        const convertedText = convertShortcodes(text);
+        const mentions: MentionEntity[] = currentMentions.map((m) => ({ id: m.identityId, offset: m.offset, length: m.length }));
+        const pageTags: PageTagEntity[] = currentPageTags.map((p) => ({ id: p.pageId, offset: p.offset, length: p.length }));
+        const senderDeviceId = getSenderDeviceIdForPayload();
+        const customEmojiMap = buildCustomEmojiPayloadMap(convertedText, customEmojis, customEmojisDisabled === true);
+        const plaintext = serializePayload({
+          version: 1,
+          text: convertedText,
+          ...(mentions.length > 0 ? { mentions } : {}),
+          ...(pageTags.length > 0 ? { pageTags } : {}),
+          ...(customEmojiMap ? { customEmojis: customEmojiMap } : {}),
+          ...(editingInitialAttachments?.media.filter((a) => existingE2eMediaIds.includes(a.e2eMediaId)).length
+            ? { attachments: editingInitialAttachments.media.filter((a) => existingE2eMediaIds.includes(a.e2eMediaId)) }
+            : {}),
+          ...(senderDeviceId ? { senderDeviceId } : {}),
+        });
+        const sent = await onSend(plaintext, {
+          ...(forwardSecrecy?.enabled ? { useForwardSecrecy: true } : {}),
+          e2eMediaIds: existingE2eMediaIds,
+        });
+        if (sent != null) {
+          onSendSucceeded?.();
+        }
+      }
+
+      setSendMp4WithoutReencode(false);
+      setAttachments((prev) => {
+        for (const a of prev) {
+          if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
+        }
+        return [];
+      });
+      inputRef.current?.focus();
+    } else if (pendingAttachments.length > 0) {
       try {
         await enqueueMediaSend({
           conversationId: channelId,
@@ -659,7 +748,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       const mentions: MentionEntity[] = currentMentions.map((m) => ({ id: m.identityId, offset: m.offset, length: m.length }));
       const pageTags: PageTagEntity[] = currentPageTags.map((p) => ({ id: p.pageId, offset: p.offset, length: p.length }));
       const mentionedIdentityIds = resolveMentionedIdentityIds(mentions, mentionSource);
-      const senderDeviceId = getOrCreateDeviceId();
+      const senderDeviceId = getSenderDeviceIdForPayload();
 
       const customEmojiMap = buildCustomEmojiPayloadMap(
         convertedText,
@@ -673,7 +762,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
         ...(mentions.length > 0 ? { mentions } : {}),
         ...(pageTags.length > 0 ? { pageTags } : {}),
         ...(customEmojiMap ? { customEmojis: customEmojiMap } : {}),
-        senderDeviceId,
+        ...(senderDeviceId ? { senderDeviceId } : {}),
       });
       if (editContext) {
         const sent = await onSend(plaintext, {
@@ -720,6 +809,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     customEmojis,
     customEmojisDisabled,
     mentionSource,
+    editingInitialAttachments,
   ]);
 
   const handleCopy = useCallback(() => {

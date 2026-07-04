@@ -4,6 +4,7 @@
  */
 
 import { ObjectId } from 'mongodb';
+import type { SubscriptionTierId } from '@adieuu/shared';
 import type { RouteContext, Middleware } from '../router/types';
 
 /** Fixed identity id used wherever route tests compare Mongo ObjectId arguments. */
@@ -37,7 +38,13 @@ export function parseAdieuuSessionCookie(request: Request): string | null {
  */
 export function testIdentityEnrichment(
   identityId: ObjectId,
-  overrides: { username?: string; passphraseChangedAt?: Date | null } = {},
+  overrides: {
+    username?: string;
+    passphraseChangedAt?: Date | null;
+    subscriptions?: SubscriptionTierId[];
+    entitlements?: string[];
+    isLifetime?: boolean;
+  } = {},
 ): Middleware {
   return async (ctx: RouteContext, next: () => Promise<Response>) => {
     const cookie = ctx.request.headers.get('Cookie') ?? '';
@@ -55,9 +62,9 @@ export function testIdentityEnrichment(
         } as never,
         sessionId: 'test-session',
         maxVideoDurationSeconds: 300,
-        subscriptions: [],
-        entitlements: [],
-        isLifetime: false,
+        subscriptions: overrides.subscriptions ?? [],
+        entitlements: overrides.entitlements ?? [],
+        isLifetime: overrides.isLifetime ?? false,
       };
     } else {
       ctx.identitySession = null;

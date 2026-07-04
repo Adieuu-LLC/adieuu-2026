@@ -9,7 +9,9 @@ import {
   findAndUnwrapSessionKey,
   computeRoutingTag,
   SESSION_KEY_SIZE,
+  WRAP_VERSION_AAD,
 } from './hybrid';
+import { encrypt as symmetricEncrypt } from './symmetric';
 import {
   generateIdentityKeyBundle,
   generateECDHKeyPair,
@@ -327,6 +329,57 @@ describe('encrypt/hybrid', () => {
           wrongKem.privateKey
         )
       ).toThrow();
+    });
+  });
+
+  describe('v2 AAD binding', () => {
+    test('new wraps carry wrapVersion=2', () => {
+      const bundle = generateIdentityKeyBundle();
+      const wrapped = wrapSessionKey(randomBytes(32), extractPublicKeys(bundle), 'test');
+      expect(wrapped.wrapVersion).toBe(WRAP_VERSION_AAD);
+    });
+
+    test('tampered identityId fails to unwrap (AAD mismatch)', () => {
+      const bundle = generateIdentityKeyBundle();
+      const wrapped = wrapSessionKey(randomBytes(32), extractPublicKeys(bundle), 'alice');
+
+      // A malicious server re-addressing the wrap to another identity breaks
+      // the AEAD tag even though the key material is untouched.
+      const tampered: WrappedKey = { ...wrapped, identityId: 'mallory' };
+      expect(() =>
+        unwrapSessionKey(tampered, bundle.ecdh.privateKey, bundle.kem.privateKey)
+      ).toThrow();
+    });
+
+    test('stripping wrapVersion from a v2 wrap fails to unwrap (downgrade rejected)', () => {
+      const bundle = generateIdentityKeyBundle();
+      const wrapped = wrapSessionKey(randomBytes(32), extractPublicKeys(bundle), 'test');
+
+      const downgraded: WrappedKey = { ...wrapped, wrapVersion: undefined };
+      expect(() =>
+        unwrapSessionKey(downgraded, bundle.ecdh.privateKey, bundle.kem.privateKey)
+      ).toThrow();
+    });
+
+    test('legacy wrap without wrapVersion (wire compat) still unwraps', () => {
+      const bundle = generateIdentityKeyBundle();
+      const publicKeys = extractPublicKeys(bundle);
+      const sessionKey = randomBytes(32);
+
+      // Build a wrap exactly as a pre-AAD client would have: same exchange,
+      // but no associated data and no version field.
+      const exchange = hybridKeyExchange(publicKeys.ecdh, publicKeys.kem);
+      const { ciphertext, nonce } = symmetricEncrypt(exchange.sharedSecret, sessionKey);
+      const legacy: WrappedKey = {
+        identityId: 'test',
+        ephemeralPublicKey: exchange.ephemeralPublicKey,
+        kemCiphertext: exchange.kemCiphertext,
+        wrappedSessionKey: ciphertext,
+        wrappingNonce: nonce,
+      };
+
+      const unwrapped = unwrapSessionKey(legacy, bundle.ecdh.privateKey, bundle.kem.privateKey);
+      expect(constantTimeEqual(sessionKey, unwrapped)).toBe(true);
     });
   });
 

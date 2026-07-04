@@ -317,7 +317,7 @@ export async function updateMediaStateCtrl(
     call.id,
     identity._id.toHexString(),
     parseResult.data.media,
-    ctx.identitySession,
+    { subscriptions: ctx.identitySession.subscriptions, entitlements: ctx.identitySession.entitlements, isLifetime: ctx.identitySession.isLifetime },
   );
 
   if (!result.success) {

@@ -257,6 +257,12 @@ export const config = {
      * In production, injected by ECS from AWS Secrets Manager.
      */
     tokenSigningKey: optionalEnv('TOKEN_SIGNING_KEY', 'dev-token-signing-key-change-in-prod'),
+    /**
+     * Require a valid static-key attestation when registering new E2E devices.
+     * Existing devices without attestations are unaffected (lazy backfill).
+     * Escape hatch for older clients: set E2E_REQUIRE_DEVICE_ATTESTATION=false.
+     */
+    requireDeviceAttestation: optionalEnvBool('E2E_REQUIRE_DEVICE_ATTESTATION', true),
   },
 
   /** CSRF protection (double-submit cookie + X-CSRF-Token header) */
@@ -533,6 +539,15 @@ export const config = {
     callsInitiateIdentityWindow: optionalEnvInt('RATE_LIMIT_CALLS_INITIATE_IDENTITY_WINDOW', 300),
     /** Call initiate progressive throttle cooldown in seconds */
     callsInitiateThrottleCooldown: optionalEnvInt('RATE_LIMIT_CALLS_INITIATE_THROTTLE_COOLDOWN', 900),
+
+    /** Pre-key claim limit per caller identity (all targets combined) */
+    prekeyClaimIdentityLimit: optionalEnvInt('RATE_LIMIT_PREKEY_CLAIM_IDENTITY', 120),
+    /** Pre-key claim per caller identity window in seconds */
+    prekeyClaimIdentityWindow: optionalEnvInt('RATE_LIMIT_PREKEY_CLAIM_IDENTITY_WINDOW', 60),
+    /** Pre-key claim limit per caller-target pair (prevents draining one target's OTPK pool) */
+    prekeyClaimTargetLimit: optionalEnvInt('RATE_LIMIT_PREKEY_CLAIM_TARGET', 30),
+    /** Pre-key claim per caller-target pair window in seconds */
+    prekeyClaimTargetWindow: optionalEnvInt('RATE_LIMIT_PREKEY_CLAIM_TARGET_WINDOW', 300),
   },
 } as const;
 
