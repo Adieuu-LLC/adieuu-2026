@@ -74,14 +74,14 @@ export function JurisdictionRequirementCard({ row, compact = false, borderless =
         </div>
       )}
 
-      {row.requirements.length > 0 && (
+      {/* {row.requirements.length > 0 && (
         <p className="jurisdiction-requirement-card__field">
           <span className="account-detail-muted">
             {t('compliance.jurisdictionRequirement.requirements')}:{' '}
           </span>
           {formatSlugs(row.requirements)}
         </p>
-      )}
+      )} */}
 
       {row.compatibleMethods.length > 0 && (
         <p className="jurisdiction-requirement-card__field">

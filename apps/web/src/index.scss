@@ -6,7 +6,13 @@
 // =============================================================================
 
 .page-content {
-  padding: var(--spacing-xl);
+  padding: 0;
+  padding-top: 6rem;
+
+  @media (min-width: 768px) {
+    padding: var(--spacing-xl);
+  }
+
   min-height: 100vh;
 }
 
@@ -14,7 +20,7 @@
   width: 100%;
   max-width: 80rem;
   margin: 0 auto;
-  padding: var(--spacing-xl);
+  padding: var(--spacing-md);
 }
 
 // =============================================================================

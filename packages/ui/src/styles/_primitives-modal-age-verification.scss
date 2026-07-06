@@ -155,3 +155,21 @@
 .av-modal-opt-in-country {
   margin-top: var(--spacing-md);
 }
+
+// Mobile: full-width AV modal with reduced horizontal padding
+@media (max-width: $mobile-breakpoint) {
+  .av-modal-content {
+    width: 100%;
+    max-width: none;
+    border-radius: var(--radius-md);
+  }
+
+  .av-modal-header,
+  .av-modal-footer {
+    padding-inline: var(--spacing-md);
+  }
+
+  .av-modal-body {
+    padding: var(--spacing-md);
+  }
+}

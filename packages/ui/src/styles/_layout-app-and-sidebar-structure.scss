@@ -322,7 +322,8 @@
 
 // Action steps (shared between account and identity modes)
 .action-steps {
-  padding: var(--spacing-lg);
+  padding-top: var(--spacing-lg);
+  padding-bottom: var(--spacing-lg);
 }
 
 .action-steps-loading {
@@ -466,6 +467,88 @@
 
 .action-step-disabled-action {
   display: inline-flex;
+}
+
+// Mobile: only the title row shares space with the check icon;
+// description, actions, and expandable areas span full width.
+// Also flatten the disclosure box-in-box-in-box nesting.
+@media (max-width: $mobile-breakpoint) {
+  .card.action-steps {
+    padding-inline: var(--spacing-md);
+  }
+
+  .action-step-item {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0 var(--spacing-sm);
+
+    > .action-step-check {
+      grid-column: 1;
+      grid-row: 1;
+      align-self: center;
+      margin-top: 0;
+    }
+
+    > .action-step-body {
+      display: contents;
+    }
+
+    // Title (or heading wrapper) sits beside the check icon
+    .action-step-body > .action-step-title,
+    .action-step-body > .action-step-heading {
+      grid-column: 2;
+      grid-row: 1;
+      align-self: center;
+    }
+
+    // Everything else spans the full container width
+    .action-step-body > .action-step-description,
+    .action-step-body > .action-step-actions,
+    .action-step-body > .jurisdiction-requirement-disclosure {
+      grid-column: 1 / -1;
+    }
+
+    .action-step-description {
+      margin-top: var(--spacing-xs);
+    }
+  }
+
+  // Flatten the disclosure accordion: drop the outer border
+  // (the parent .action-step-item already provides one) and
+  // reduce horizontal padding so content isn't doubly indented.
+  .action-step-item .jurisdiction-requirement-disclosure {
+    border: none;
+    border-radius: 0;
+    border-top: 1px solid var(--color-border-subtle, var(--color-border));
+    margin: var(--spacing-sm) 0 0;
+  }
+
+  .action-step-item .jurisdiction-requirement-disclosure__trigger {
+    padding-inline: 0;
+  }
+
+  .action-step-item .jurisdiction-requirement-disclosure__content {
+    padding-inline: 0;
+  }
+
+  // Switch cards from bordered boxes to divider-separated items
+  .action-step-item .jurisdiction-requirement-disclosure__cards {
+    gap: 0;
+
+    .jurisdiction-requirement-card {
+      border: none;
+      border-radius: 0;
+      padding: var(--spacing-sm) 0;
+
+      &:not(:last-child) {
+        border-bottom: 1px solid var(--color-border-subtle, var(--color-border));
+      }
+    }
+
+    .jurisdiction-requirement-card--compact {
+      margin-bottom: 0;
+    }
+  }
 }
 
 .jurisdiction-requirement-disclosure {
@@ -1209,7 +1292,7 @@
 @media (max-width: $mobile-breakpoint) {
   .sidebar-hamburger {
     display: flex;
-    top: 42px; // Hamburger menu
+    top: 10px; // Hamburger menu
     z-index: 100;
   }
 

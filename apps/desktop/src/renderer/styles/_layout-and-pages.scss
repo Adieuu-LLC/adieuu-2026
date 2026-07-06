@@ -5,7 +5,14 @@
 // =============================================================================
 
 .page-content {
-  padding: var(--spacing-xl);
+
+  padding: 0;
+  padding-top: 6rem;
+
+  @media (min-width: 768px) {
+    padding: var(--spacing-xl);
+  }
+
   min-height: calc(100vh - $title-bar-height);
 }
 
@@ -13,7 +20,19 @@
   width: 100%;
   max-width: 80rem;
   margin: 0 auto;
-  padding: var(--spacing-xl);
+  padding: var(--spacing-md);
+}
+
+@media (max-width: $mobile-breakpoint) {
+  .sidebar-hamburger {
+    display: flex;
+    top: 40px; // Hamburger menu
+    z-index: 100;
+  }
+
+  .sidebar {
+    padding-top: 30px;
+  }
 }
 
 // Desktop: Sidebar header should be draggable for window moving
