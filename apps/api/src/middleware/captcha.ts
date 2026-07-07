@@ -20,6 +20,7 @@
 
 import type { RouteContext } from '../router/types';
 import type { UserDocument } from '../models/user';
+import type { IdentityContext } from './identity-session';
 import { verifyCaptcha } from '../services/captcha.service';
 import { isCaptchaVerifiedRecently, markCaptchaVerified } from '../services/captcha-session.service';
 import { isFreeTierOnly } from '../services/billing/is-free-tier';
@@ -60,6 +61,10 @@ export async function requireCaptchaForFreeTier(
 
   const user = preloadedUser ?? await resolveAccountUser(ctx);
   if (!user) {
+    if (ctx.identitySession && isIdentitySessionPaid(ctx.identitySession)) {
+      return null;
+    }
+
     const body = ctx.body as Record<string, unknown> | undefined;
     const captchaResponse = typeof body?.['frc-captcha-response'] === 'string'
       ? body['frc-captcha-response']
@@ -111,6 +116,11 @@ export async function requireCaptchaForFreeTier(
     422,
     { captchaError: result.error },
   );
+}
+
+function isIdentitySessionPaid(session: IdentityContext): boolean {
+  if (session.isLifetime) return true;
+  return session.subscriptions.some((s) => s !== 'free');
 }
 
 async function resolveAccountUser(ctx: RouteContext): Promise<UserDocument | null> {

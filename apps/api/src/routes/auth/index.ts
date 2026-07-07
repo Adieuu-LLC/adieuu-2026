@@ -36,6 +36,7 @@ import {
   verifyMfaTotpHandler,
   verifyMfaWebAuthnHandler,
   getClientIp,
+  getCaptchaSitekey,
 } from './controller';
 import { z } from '@adieuu/shared/schemas';
 
@@ -362,6 +363,7 @@ router.get('/auth/session', async (ctx) => {
         subscriptions,
         entitlements,
         isLifetime,
+        captchaSitekey: getCaptchaSitekey(),
       });
       const headers = new Headers(response.headers);
       await attachCsrfBootstrapIfNeeded(ctx.request, headers);
@@ -381,6 +383,7 @@ router.get('/auth/session', async (ctx) => {
         subscriptions: rawSession.subscriptions,
         entitlements: rawSession.entitlements,
         isLifetime: rawSession.isLifetime ?? false,
+        captchaSitekey: getCaptchaSitekey(),
       });
       const headers = new Headers(response.headers);
       await attachCsrfBootstrapIfNeeded(ctx.request, headers);
