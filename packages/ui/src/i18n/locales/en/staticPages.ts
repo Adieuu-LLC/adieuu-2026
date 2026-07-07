@@ -146,14 +146,14 @@ export const staticPages = {
           title: 'Verify your age',
           description: 'Your jurisdiction requires age verification.',
           descriptionFreeCanSkip:
-            'Upgrade to a paid plan to skip age verification! Free users require it to reduce botting and our liability.',
+            'Upgrade to a paid plan to skip age verification! Free users require it to reduce botting and compliance liability.',
           descriptionJurisdictionRequired:
             "Your jurisdiction requires age verification. We use the least invasive method possible, and we're the only platform where it can't be attached to your message history or activity.",
           descriptionJurisdiction:
-            "Required by your jurisdiction ({{jurisdiction}}). We're the only platform that fully detaches your account (and age data) from your Alias and activity - the verification satisfies legal requirements, while our Alias system maintains your privacy.",
+            "Required by your jurisdiction ({{jurisdiction}}). We don't keep any data related to verification, and it's never attached to your Alias (your posts, messages, etc). We're the only platform that fully detaches your account and your alias: we've built our platform specifically so we can handle compliance challenges like this without harming your privacy.",
           disclosureTitle: 'What your jurisdiction requires',
           verificationExplainerTitle: 'How verifications work',
-          aliasPrivacy: 'Verifications are attached to your "Account", while your messages, posts, and other activity are attached to your "Alias". Noone (not even us) can link an Alias to an Account without knowing your password.',
+          aliasPrivacy: 'Verifications are attached to your "Account", while your messages, posts, and other activity are attached to your "Alias". No one (not even us) can link an Alias to an Account without knowing your password.',
           aliasPrivacy2: "Plus, we specifically chose VerifyMy as our verification partner because they only ever tell us if you complete verification, and if you're over 18 (yes or no): we can't access any of the info you give them to verify. We can't even see your age! All we see is 'Yes, this person is (or isn't) over 18'.",
           aliasPrivacy3: "All of these were intentional choices when we built Adieuu: we're able to preserve your privacy, while other platforms still attach your activity to your email, phone, or ID. There's another benefit here, too - age verification and subscription make it harder (and expensive) for bots and dupe accounts: this means Adieuu has less noise, and more real humans.",
           subscribeFirstTooltip: 'Choose a plan before starting age verification',
