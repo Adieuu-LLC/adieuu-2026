@@ -150,7 +150,7 @@ export const staticPages = {
           descriptionJurisdictionRequired:
             "Your jurisdiction requires age verification. We use the least invasive method possible, and we're the only platform where it can't be attached to your message history or activity.",
           descriptionJurisdiction:
-            "Required by your jurisdiction ({{jurisdiction}}). We don't do keep any data related to verification, and it's never attached to your Alias (your posts, messages, etc). We're the only platform that fully detaches your account and your alias: we've built our platform like this specifically so we can handle compliance challenges like this withought harming your privacy.",
+            "Required by your jurisdiction ({{jurisdiction}}). We don't keep any data related to verification, and it's never attached to your Alias (your posts, messages, etc). We're the only platform that fully detaches your account and your alias: we've built our platform specifically so we can handle compliance challenges like this without harming your privacy.",
           disclosureTitle: 'What your jurisdiction requires',
           verificationExplainerTitle: 'How verifications work',
           aliasPrivacy: 'Verifications are attached to your "Account", while your messages, posts, and other activity are attached to your "Alias". No one (not even us) can link an Alias to an Account without knowing your password.',
