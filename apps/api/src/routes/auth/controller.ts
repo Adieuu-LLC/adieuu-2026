@@ -1257,18 +1257,20 @@ export async function getSessionHandler(
     geo,
     subscriptions,
     entitlements,
-    captchaSitekey: (() => {
-      if (!config.friendlyCaptcha?.enabled) return undefined;
-      if (!config.friendlyCaptcha.sitekey) {
-        elog.warn('FriendlyCaptcha is enabled but FRIENDLY_CAPTCHA_SITEKEY is not configured');
-        return undefined;
-      }
-      return config.friendlyCaptcha.sitekey;
-    })(),
+    captchaSitekey: getCaptchaSitekey(),
     ageVerification,
     aliasGate,
     compliance,
   };
+}
+
+export function getCaptchaSitekey(): string | undefined {
+  if (!config.friendlyCaptcha?.enabled) return undefined;
+  if (!config.friendlyCaptcha.sitekey) {
+    elog.warn('FriendlyCaptcha is enabled but FRIENDLY_CAPTCHA_SITEKEY is not configured');
+    return undefined;
+  }
+  return config.friendlyCaptcha.sitekey;
 }
 
 /**

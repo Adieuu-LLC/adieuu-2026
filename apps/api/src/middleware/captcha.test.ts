@@ -48,12 +48,13 @@ mock.module('../utils/response', () => ({
 
 const { requireCaptchaForFreeTier } = await import('./captcha');
 
-function makeCtx(opts?: { body?: unknown; accountUser?: unknown }) {
+function makeCtx(opts?: { body?: unknown; accountUser?: unknown; identitySession?: unknown }) {
   return {
     request: new Request('http://localhost:4000/test', { method: 'POST' }),
     url: new URL('http://localhost:4000/test'),
     body: opts?.body,
     accountUser: opts?.accountUser,
+    identitySession: opts?.identitySession ?? undefined,
   } as any;
 }
 
@@ -170,6 +171,54 @@ describe('requireCaptchaForFreeTier', () => {
 
   test('requires captcha when no user can be resolved (no session)', async () => {
     const ctx = makeCtx({ body: {} });
+    const result = await requireCaptchaForFreeTier(ctx);
+    expect(result).not.toBeNull();
+    expect(result!.status).toBe(422);
+  });
+
+  test('paid identity session bypasses captcha without account user', async () => {
+    const ctx = makeCtx({
+      body: {},
+      identitySession: {
+        identity: { _id: 'id-001' },
+        sessionId: 'sess-id',
+        subscriptions: ['access'],
+        entitlements: [],
+        isLifetime: false,
+      },
+    });
+    const result = await requireCaptchaForFreeTier(ctx);
+    expect(result).toBeNull();
+    expect(mockVerifyCaptcha).not.toHaveBeenCalled();
+  });
+
+  test('lifetime identity session bypasses captcha without account user', async () => {
+    const ctx = makeCtx({
+      body: {},
+      identitySession: {
+        identity: { _id: 'id-002' },
+        sessionId: 'sess-id',
+        subscriptions: [],
+        entitlements: ['vanguard'],
+        isLifetime: true,
+      },
+    });
+    const result = await requireCaptchaForFreeTier(ctx);
+    expect(result).toBeNull();
+    expect(mockVerifyCaptcha).not.toHaveBeenCalled();
+  });
+
+  test('free-tier identity session still requires captcha', async () => {
+    const ctx = makeCtx({
+      body: {},
+      identitySession: {
+        identity: { _id: 'id-003' },
+        sessionId: 'sess-id',
+        subscriptions: ['free'],
+        entitlements: [],
+        isLifetime: false,
+      },
+    });
     const result = await requireCaptchaForFreeTier(ctx);
     expect(result).not.toBeNull();
     expect(result!.status).toBe(422);
