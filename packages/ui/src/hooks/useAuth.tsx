@@ -154,6 +154,7 @@ function useAuthState(): AuthContextValue {
             subscriptions: (data.subscriptions as SubscriptionTierId[]) ?? [],
             entitlements: (data.entitlements as string[]) ?? [],
             isLifetime: (data.isLifetime as boolean) ?? false,
+            captchaSitekey: (data.captchaSitekey as string) ?? undefined,
           };
           const nextIdentityState: AuthState = { status: 'identity_mode', session: identitySession };
           setState((prev) => (authStateEqual(prev, nextIdentityState) ? prev : nextIdentityState));
