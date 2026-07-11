@@ -414,6 +414,9 @@ export function IdentityProfileView() {
                 friends={profileFriends}
                 hidden={profileFriendsHidden}
                 loading={!profileFriendsLoaded}
+                selfIdentityId={selfIdentity?.id}
+                onSendFriendRequest={isIdentityLoggedIn ? sendRequest : undefined}
+                onGetFriendshipStatus={isIdentityLoggedIn ? getFriendStatus : undefined}
               />
             }
           />

@@ -8,7 +8,7 @@
 
 import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { FriendInfo } from '@adieuu/shared';
+import type { FriendInfo, FriendshipStatusResult } from '@adieuu/shared';
 import { IdentityCard } from './IdentityCard';
 import { Input } from './Input';
 import { Icon } from '../icons/Icon';
@@ -17,9 +17,22 @@ export interface ProfileFriendsListProps {
   friends: FriendInfo[];
   hidden: boolean;
   loading: boolean;
+  /** Current viewer's identity ID so the card can hide the add-friend button on their own entry */
+  selfIdentityId?: string;
+  /** Send a friend request to the given identity */
+  onSendFriendRequest?: (identityId: string) => Promise<boolean>;
+  /** Get friendship status between the viewer and the given identity */
+  onGetFriendshipStatus?: (identityId: string) => Promise<FriendshipStatusResult>;
 }
 
-export function ProfileFriendsList({ friends, hidden, loading }: ProfileFriendsListProps) {
+export function ProfileFriendsList({
+  friends,
+  hidden,
+  loading,
+  selfIdentityId,
+  onSendFriendRequest,
+  onGetFriendshipStatus,
+}: ProfileFriendsListProps) {
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -82,7 +95,10 @@ export function ProfileFriendsList({ friends, hidden, loading }: ProfileFriendsL
             <IdentityCard
               key={friend.identity.id}
               identity={friend.identity}
-              showFriendAction={false}
+              showFriendAction={!!onSendFriendRequest}
+              onSendFriendRequest={onSendFriendRequest}
+              onGetFriendshipStatus={onGetFriendshipStatus}
+              selfIdentityId={selfIdentityId}
             />
           ))}
         </div>
