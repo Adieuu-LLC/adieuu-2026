@@ -183,7 +183,7 @@ export const conversations = {
       markVerified: 'Verified',
       verifyPersistFailed: 'Could not update verification',
       fingerprintMatchIndicator:
-        'This device matches your verified fingerprint.',
+        'This message came from a device you verified.',
       fingerprintMismatchIndicator:
         'Verified fingerprint no longer matches this device. Keys may have changed.',
     },

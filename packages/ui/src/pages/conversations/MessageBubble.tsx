@@ -438,7 +438,7 @@ export const MessageBubble = memo(function MessageBubble({
       <Tooltip
         content={t(
           'conversations.memberSecurity.fingerprintMatchIndicator',
-          'This device matches your verified fingerprint.',
+          "This message came from a device you verified.",
         )}
         position="top"
       >
@@ -447,7 +447,7 @@ export const MessageBubble = memo(function MessageBubble({
           role="img"
           aria-label={t(
             'conversations.memberSecurity.fingerprintMatchIndicator',
-            'This device matches your verified fingerprint.',
+            'This message came from a device you verified.',
           )}
         >
           <Icon name="key" size="sm" />

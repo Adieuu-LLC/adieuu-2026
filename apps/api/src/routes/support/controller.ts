@@ -154,10 +154,14 @@ export async function createTicketResult(
       : undefined,
     attachmentMediaIds: parsed.data.attachmentMediaIds?.map(
       (id) => sanitizeString(id, 'idenhanced').value,
-    ).filter(Boolean),
+    ),
   };
 
   if (!sanitizedData.title || !sanitizedData.body) {
+    return { ok: false, kind: 'validation_failed' };
+  }
+
+  if (sanitizedData.attachmentMediaIds?.some((id) => !id)) {
     return { ok: false, kind: 'validation_failed' };
   }
 

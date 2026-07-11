@@ -45,7 +45,7 @@ export async function createFolderCtrl(
   const sanitizedName = sanitizeString(parseResult.data.name, 'general').value;
   if (!sanitizedName) return { kind: 'validation_failed' };
   const sanitizedIconColor = parseResult.data.iconColor
-    ? sanitizeString(parseResult.data.iconColor, 'alphanumdash').value || undefined
+    ? (/^#[0-9a-fA-F]{6}$/.test(parseResult.data.iconColor) ? parseResult.data.iconColor : undefined)
     : undefined;
 
   const repo = getConversationFoldersRepository();
@@ -72,7 +72,7 @@ export async function updateFolderCtrl(
   const parseResult = UpdateFolderSchema.safeParse(ctx.body);
   if (!parseResult.success) return { kind: 'validation_failed' };
 
-  const patch = parseResult.data;
+  let patch = parseResult.data;
   if (
     patch.name === undefined &&
     patch.iconType === undefined &&
@@ -84,13 +84,16 @@ export async function updateFolderCtrl(
     return { kind: 'bad_request', message: 'At least one field is required.' };
   }
 
+  if (patch.name !== undefined) {
+    const sanitizedName = sanitizeString(patch.name, 'general').value;
+    if (!sanitizedName) return { kind: 'validation_failed' };
+    patch = { ...patch, name: sanitizedName };
+  }
+
   const sanitizedPatch = {
     ...patch,
-    name: patch.name !== undefined
-      ? sanitizeString(patch.name, 'general').value || undefined
-      : undefined,
     iconColor: patch.iconColor !== undefined
-      ? (patch.iconColor === null ? null : sanitizeString(patch.iconColor, 'alphanumdash').value || undefined)
+      ? (patch.iconColor === null ? null : (/^#[0-9a-fA-F]{6}$/.test(patch.iconColor!) ? patch.iconColor : undefined))
       : undefined,
   };
 
