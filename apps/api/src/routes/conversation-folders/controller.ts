@@ -18,6 +18,7 @@ import {
   UpdateFolderSchema,
   AddConversationToFolderSchema,
 } from './folder-schemas';
+import { sanitizeString } from '../../utils/sanitize';
 
 export async function listFoldersCtrl(
   ctx: RouteContext,
@@ -40,15 +41,20 @@ export async function createFolderCtrl(
   const parseResult = CreateFolderSchema.safeParse(ctx.body);
   if (!parseResult.success) return { kind: 'validation_failed' };
 
-  const { name, conversationIds, iconType, iconName, iconColor } = parseResult.data;
+  const { conversationIds, iconType, iconName } = parseResult.data;
+  const sanitizedName = sanitizeString(parseResult.data.name, 'general').value;
+  if (!sanitizedName) return { kind: 'validation_failed' };
+  const sanitizedIconColor = parseResult.data.iconColor
+    ? sanitizeString(parseResult.data.iconColor, 'alphanumdash').value || undefined
+    : undefined;
 
   const repo = getConversationFoldersRepository();
   const doc = await repo.create(identity._id, {
-    name,
+    name: sanitizedName,
     conversationIds: conversationIds.map((id) => new ObjectId(id)),
     iconType,
     iconName,
-    iconColor,
+    iconColor: sanitizedIconColor,
   });
 
   return { kind: 'ok', data: toPublicConversationFolder(doc) };
@@ -78,8 +84,18 @@ export async function updateFolderCtrl(
     return { kind: 'bad_request', message: 'At least one field is required.' };
   }
 
+  const sanitizedPatch = {
+    ...patch,
+    name: patch.name !== undefined
+      ? sanitizeString(patch.name, 'general').value || undefined
+      : undefined,
+    iconColor: patch.iconColor !== undefined
+      ? (patch.iconColor === null ? null : sanitizeString(patch.iconColor, 'alphanumdash').value || undefined)
+      : undefined,
+  };
+
   const repo = getConversationFoldersRepository();
-  const doc = await repo.update(identity._id, new ObjectId(folder.id), patch);
+  const doc = await repo.update(identity._id, new ObjectId(folder.id), sanitizedPatch);
   if (!doc) return { kind: 'not_found', message: 'Folder not found.' };
 
   return { kind: 'ok', data: toPublicConversationFolder(doc) };

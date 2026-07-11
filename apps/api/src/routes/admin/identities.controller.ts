@@ -18,6 +18,7 @@ import {
   identityHasPlatformAdminRole,
   isSelfIdentityTarget,
 } from './moderation-guards';
+import { sanitizeString, sanitizeObjectId } from '../../utils/sanitize';
 
 // ---------------------------------------------------------------------------
 // Schemas
@@ -186,12 +187,21 @@ export type SearchResult =
   | { ok: true; identities: AdminIdentitySearchItem[] }
   | { ok: false; reason: 'validation_failed' };
 
+function sanitizeIdentityIdSegment(segment: string | undefined): string | null {
+  if (!segment) return null;
+  const sanitized = sanitizeObjectId(segment);
+  return sanitized.ok ? sanitized.id : null;
+}
+
 export async function searchIdentities(query: unknown): Promise<SearchResult> {
   const parsed = SearchQuerySchema.safeParse(queryToRecord(query));
   if (!parsed.success) return { ok: false, reason: 'validation_failed' };
 
+  const sanitizedQ = sanitizeString(parsed.data.q.trim(), 'general').value;
+  if (!sanitizedQ) return { ok: false, reason: 'validation_failed' };
+
   const identityRepo = getIdentityRepository();
-  const docs = await identityRepo.searchForAdmin(parsed.data.q.trim());
+  const docs = await identityRepo.searchForAdmin(sanitizedQ);
   return { ok: true, identities: docs.map(toSearchItem) };
 }
 
@@ -200,12 +210,11 @@ export type GetProfileResult =
   | { ok: false; reason: 'not_found' | 'validation_failed' };
 
 export async function getIdentityProfile(idSegment: string | undefined): Promise<GetProfileResult> {
-  if (!idSegment || !ObjectId.isValid(idSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const identityId = sanitizeIdentityIdSegment(idSegment);
+  if (!identityId) return { ok: false, reason: 'validation_failed' };
 
   const identityRepo = getIdentityRepository();
-  const doc = await identityRepo.findByIdentityId(new ObjectId(idSegment));
+  const doc = await identityRepo.findByIdentityId(new ObjectId(identityId));
   if (!doc || isDeletedIdent(doc.ident)) return { ok: false, reason: 'not_found' };
 
   return { ok: true, profile: toAdminProfile(doc) };
@@ -216,12 +225,11 @@ export type GetSessionsResult =
   | { ok: false; reason: 'validation_failed' };
 
 export async function getIdentitySessions(idSegment: string | undefined): Promise<GetSessionsResult> {
-  if (!idSegment || !ObjectId.isValid(idSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const identityId = sanitizeIdentityIdSegment(idSegment);
+  if (!identityId) return { ok: false, reason: 'validation_failed' };
 
   const sessionRepo = getSessionRepository();
-  const sessions = await sessionRepo.findByIdentityId(new ObjectId(idSegment));
+  const sessions = await sessionRepo.findByIdentityId(new ObjectId(identityId));
   return { ok: true, sessions: sessions.map(toAdminSession) };
 }
 
@@ -233,16 +241,14 @@ export async function getIdentityReports(
   idSegment: string | undefined,
   query: unknown,
 ): Promise<GetReportsResult> {
-  if (!idSegment || !ObjectId.isValid(idSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const identityId = sanitizeIdentityIdSegment(idSegment);
+  if (!identityId) return { ok: false, reason: 'validation_failed' };
 
   const parsed = ReportsQuerySchema.safeParse(queryToRecord(query));
   if (!parsed.success) return { ok: false, reason: 'validation_failed' };
 
   const limit = parsed.data.limit ?? 25;
   const page = parsed.data.page ?? 1;
-  const identityId = idSegment;
   const reportRepo = getReportRepository();
 
   const [against, by] = await Promise.all([
@@ -260,12 +266,11 @@ export type GetEntitlementsResult =
 export async function getIdentityEntitlements(
   idSegment: string | undefined,
 ): Promise<GetEntitlementsResult> {
-  if (!idSegment || !ObjectId.isValid(idSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const identityId = sanitizeIdentityIdSegment(idSegment);
+  if (!identityId) return { ok: false, reason: 'validation_failed' };
 
   const identityRepo = getIdentityRepository();
-  const doc = await identityRepo.findByIdentityId(new ObjectId(idSegment));
+  const doc = await identityRepo.findByIdentityId(new ObjectId(identityId));
   if (!doc || isDeletedIdent(doc.ident)) return { ok: false, reason: 'not_found' };
 
   return { ok: true, overrides: doc.entitlementOverrides ?? [] };
@@ -280,18 +285,20 @@ export async function addIdentityEntitlement(
   idSegment: string | undefined,
   body: unknown,
 ): Promise<ModifyEntitlementResult> {
-  if (!idSegment || !ObjectId.isValid(idSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const identityId = sanitizeIdentityIdSegment(idSegment);
+  if (!identityId) return { ok: false, reason: 'validation_failed' };
 
   const parsed = AddEntitlementSchema.safeParse(body);
   if (!parsed.success) return { ok: false, reason: 'validation_failed' };
 
+  const sanitizedEntitlement = sanitizeString(parsed.data.entitlement, 'idenhanced').value;
+  if (!sanitizedEntitlement) return { ok: false, reason: 'validation_failed' };
+
   const identityRepo = getIdentityRepository();
-  const doc = await identityRepo.findByIdentityId(new ObjectId(idSegment));
+  const doc = await identityRepo.findByIdentityId(new ObjectId(identityId));
   if (!doc || isDeletedIdent(doc.ident)) return { ok: false, reason: 'not_found' };
 
-  await identityRepo.addEntitlementOverride(doc._id, parsed.data.entitlement);
+  await identityRepo.addEntitlementOverride(doc._id, sanitizedEntitlement);
 
   const auditRepo = getAuditLogRepository();
   await auditRepo.create({
@@ -299,7 +306,7 @@ export async function addIdentityEntitlement(
     ipHash: 'admin',
     metadata: {
       identityId: doc._id.toHexString(),
-      entitlement: parsed.data.entitlement,
+      entitlement: sanitizedEntitlement,
       adminIdentityId,
     },
   });
@@ -312,18 +319,20 @@ export async function removeIdentityEntitlement(
   idSegment: string | undefined,
   entitlementName: string | undefined,
 ): Promise<ModifyEntitlementResult> {
-  if (!idSegment || !ObjectId.isValid(idSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const identityId = sanitizeIdentityIdSegment(idSegment);
+  if (!identityId) return { ok: false, reason: 'validation_failed' };
+
   if (!entitlementName || entitlementName.length > 64) {
     return { ok: false, reason: 'validation_failed' };
   }
+  const sanitizedEntitlementName = sanitizeString(entitlementName, 'idenhanced').value;
+  if (!sanitizedEntitlementName) return { ok: false, reason: 'validation_failed' };
 
   const identityRepo = getIdentityRepository();
-  const doc = await identityRepo.findByIdentityId(new ObjectId(idSegment));
+  const doc = await identityRepo.findByIdentityId(new ObjectId(identityId));
   if (!doc || isDeletedIdent(doc.ident)) return { ok: false, reason: 'not_found' };
 
-  await identityRepo.removeEntitlementOverride(doc._id, entitlementName);
+  await identityRepo.removeEntitlementOverride(doc._id, sanitizedEntitlementName);
 
   const auditRepo = getAuditLogRepository();
   await auditRepo.create({
@@ -331,7 +340,7 @@ export async function removeIdentityEntitlement(
     ipHash: 'admin',
     metadata: {
       identityId: doc._id.toHexString(),
-      entitlement: entitlementName,
+      entitlement: sanitizedEntitlementName,
       adminIdentityId,
     },
   });
@@ -348,18 +357,20 @@ export async function suspendIdentity(
   idSegment: string | undefined,
   body: unknown,
 ): Promise<SuspendResult> {
-  if (!idSegment || !ObjectId.isValid(idSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const identityId = sanitizeIdentityIdSegment(idSegment);
+  if (!identityId) return { ok: false, reason: 'validation_failed' };
 
   const parsed = SuspendIdentitySchema.safeParse(body);
   if (!parsed.success) return { ok: false, reason: 'validation_failed' };
 
+  const sanitizedReason = sanitizeString(parsed.data.reason, 'general').value;
+  if (!sanitizedReason) return { ok: false, reason: 'validation_failed' };
+
   const identityRepo = getIdentityRepository();
-  const doc = await identityRepo.findByIdentityId(new ObjectId(idSegment));
+  const doc = await identityRepo.findByIdentityId(new ObjectId(identityId));
   if (!doc || isDeletedIdent(doc.ident)) return { ok: false, reason: 'not_found' };
 
-  if (isSelfIdentityTarget(adminIdentityId, idSegment)) {
+  if (isSelfIdentityTarget(adminIdentityId, identityId)) {
     return { ok: false, reason: 'self_action' };
   }
   if (identityHasPlatformAdminRole(doc)) {
@@ -372,7 +383,7 @@ export async function suspendIdentity(
 
   await identityRepo.suspendIdentity(doc._id, {
     suspendedUntil,
-    reason: parsed.data.reason,
+    reason: sanitizedReason,
     moderatedBy: adminIdentityId,
     category: parsed.data.category,
   });
@@ -386,7 +397,7 @@ export async function suspendIdentity(
     ipHash: 'admin',
     metadata: {
       identityId: doc._id.toHexString(),
-      reason: parsed.data.reason,
+      reason: sanitizedReason,
       category: parsed.data.category,
       durationMs: parsed.data.durationMs ?? 'indefinite',
       suspendedUntil: suspendedUntil.toISOString(),
@@ -405,12 +416,11 @@ export async function unsuspendIdentity(
   adminIdentityId: string,
   idSegment: string | undefined,
 ): Promise<UnsuspendResult> {
-  if (!idSegment || !ObjectId.isValid(idSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const identityId = sanitizeIdentityIdSegment(idSegment);
+  if (!identityId) return { ok: false, reason: 'validation_failed' };
 
   const identityRepo = getIdentityRepository();
-  const doc = await identityRepo.findByIdentityId(new ObjectId(idSegment));
+  const doc = await identityRepo.findByIdentityId(new ObjectId(identityId));
   if (!doc || isDeletedIdent(doc.ident)) return { ok: false, reason: 'not_found' };
 
   if (identityHasPlatformAdminRole(doc)) {
@@ -438,18 +448,20 @@ export async function banIdentity(
   idSegment: string | undefined,
   body: unknown,
 ): Promise<BanResult> {
-  if (!idSegment || !ObjectId.isValid(idSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const identityId = sanitizeIdentityIdSegment(idSegment);
+  if (!identityId) return { ok: false, reason: 'validation_failed' };
 
   const parsed = BanIdentitySchema.safeParse(body);
   if (!parsed.success) return { ok: false, reason: 'validation_failed' };
 
+  const sanitizedReason = sanitizeString(parsed.data.reason, 'general').value;
+  if (!sanitizedReason) return { ok: false, reason: 'validation_failed' };
+
   const identityRepo = getIdentityRepository();
-  const doc = await identityRepo.findByIdentityId(new ObjectId(idSegment));
+  const doc = await identityRepo.findByIdentityId(new ObjectId(identityId));
   if (!doc || isDeletedIdent(doc.ident)) return { ok: false, reason: 'not_found' };
 
-  if (isSelfIdentityTarget(adminIdentityId, idSegment)) {
+  if (isSelfIdentityTarget(adminIdentityId, identityId)) {
     return { ok: false, reason: 'self_action' };
   }
   if (identityHasPlatformAdminRole(doc)) {
@@ -457,7 +469,7 @@ export async function banIdentity(
   }
 
   await identityRepo.banIdentity(doc._id, {
-    reason: parsed.data.reason,
+    reason: sanitizedReason,
     moderatedBy: adminIdentityId,
     category: parsed.data.category,
   });
@@ -471,7 +483,7 @@ export async function banIdentity(
     ipHash: 'admin',
     metadata: {
       identityId: doc._id.toHexString(),
-      reason: parsed.data.reason,
+      reason: sanitizedReason,
       category: parsed.data.category,
       adminIdentityId,
     },
@@ -488,12 +500,11 @@ export async function unbanIdentity(
   adminIdentityId: string,
   idSegment: string | undefined,
 ): Promise<UnbanResult> {
-  if (!idSegment || !ObjectId.isValid(idSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const identityId = sanitizeIdentityIdSegment(idSegment);
+  if (!identityId) return { ok: false, reason: 'validation_failed' };
 
   const identityRepo = getIdentityRepository();
-  const doc = await identityRepo.findByIdentityId(new ObjectId(idSegment));
+  const doc = await identityRepo.findByIdentityId(new ObjectId(identityId));
   if (!doc || isDeletedIdent(doc.ident)) return { ok: false, reason: 'not_found' };
 
   if (identityHasPlatformAdminRole(doc)) {

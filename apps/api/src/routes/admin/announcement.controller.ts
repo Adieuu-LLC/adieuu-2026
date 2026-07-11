@@ -1,6 +1,7 @@
 import { z } from '@adieuu/shared/schemas';
 import { getSiteAnnouncementRepository } from '../../repositories/site-announcement.repository';
 import type { SiteAnnouncementDocument } from '../../models/site-announcement';
+import { sanitizeString, sanitizeObjectId } from '../../utils/sanitize';
 
 const AnnouncementBodySchema = z.object({
   message: z.string().min(1).max(2000),
@@ -63,11 +64,21 @@ export async function createAnnouncementResult(
   const parsed = AnnouncementBodySchema.safeParse(body);
   if (!parsed.success) return { ok: false, reason: 'validation_failed' };
 
+  const sanitizedMessage = sanitizeString(parsed.data.message, 'general').value;
+  if (!sanitizedMessage) return { ok: false, reason: 'validation_failed' };
+
+  const sanitizedTitle = parsed.data.title
+    ? sanitizeString(parsed.data.title, 'general').value || undefined
+    : undefined;
+  const sanitizedCtaLabel = parsed.data.ctaLabel
+    ? sanitizeString(parsed.data.ctaLabel, 'general').value || undefined
+    : undefined;
+
   const repo = getSiteAnnouncementRepository();
   const doc = await repo.create({
-    message: parsed.data.message,
-    title: parsed.data.title,
-    ctaLabel: parsed.data.ctaLabel,
+    message: sanitizedMessage,
+    title: sanitizedTitle,
+    ctaLabel: sanitizedCtaLabel,
     ctaUrl: parsed.data.ctaUrl,
     highPriority: parsed.data.highPriority,
     dismissable: parsed.data.dismissable,
@@ -83,14 +94,27 @@ export async function updateAnnouncementResult(
   id: string,
   body: unknown,
 ): Promise<AnnouncementOk<{ announcement: SiteAnnouncementDocument }> | AnnouncementErr> {
+  const sanitizedId = sanitizeObjectId(id);
+  if (!sanitizedId.ok) return { ok: false, reason: 'validation_failed' };
+
   const parsed = AnnouncementBodySchema.safeParse(body);
   if (!parsed.success) return { ok: false, reason: 'validation_failed' };
 
+  const sanitizedMessage = sanitizeString(parsed.data.message, 'general').value;
+  if (!sanitizedMessage) return { ok: false, reason: 'validation_failed' };
+
+  const sanitizedTitle = parsed.data.title
+    ? sanitizeString(parsed.data.title, 'general').value || undefined
+    : undefined;
+  const sanitizedCtaLabel = parsed.data.ctaLabel
+    ? sanitizeString(parsed.data.ctaLabel, 'general').value || undefined
+    : undefined;
+
   const repo = getSiteAnnouncementRepository();
-  const doc = await repo.update(id, {
-    message: parsed.data.message,
-    title: parsed.data.title,
-    ctaLabel: parsed.data.ctaLabel,
+  const doc = await repo.update(sanitizedId.id, {
+    message: sanitizedMessage,
+    title: sanitizedTitle,
+    ctaLabel: sanitizedCtaLabel,
     ctaUrl: parsed.data.ctaUrl,
     highPriority: parsed.data.highPriority,
     dismissable: parsed.data.dismissable,
@@ -106,11 +130,14 @@ export async function toggleAnnouncementActiveResult(
   id: string,
   body: unknown,
 ): Promise<AnnouncementOk<{ announcement: SiteAnnouncementDocument }> | AnnouncementErr> {
+  const sanitizedId = sanitizeObjectId(id);
+  if (!sanitizedId.ok) return { ok: false, reason: 'validation_failed' };
+
   const parsed = ToggleActiveSchema.safeParse(body);
   if (!parsed.success) return { ok: false, reason: 'validation_failed' };
 
   const repo = getSiteAnnouncementRepository();
-  const doc = await repo.setActive(id, parsed.data.active);
+  const doc = await repo.setActive(sanitizedId.id, parsed.data.active);
   if (!doc) return { ok: false, reason: 'not_found' };
   return { ok: true, announcement: doc };
 }
@@ -118,8 +145,11 @@ export async function toggleAnnouncementActiveResult(
 export async function deleteAnnouncementResult(
   id: string,
 ): Promise<{ ok: true } | AnnouncementErr> {
+  const sanitizedId = sanitizeObjectId(id);
+  if (!sanitizedId.ok) return { ok: false, reason: 'validation_failed' };
+
   const repo = getSiteAnnouncementRepository();
-  const deleted = await repo.deleteById(id);
+  const deleted = await repo.deleteById(sanitizedId.id);
   if (!deleted) return { ok: false, reason: 'not_found' };
   return { ok: true };
 }

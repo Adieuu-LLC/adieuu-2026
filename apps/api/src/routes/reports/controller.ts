@@ -15,6 +15,7 @@ import {
   type ReportSubmissionResult,
 } from '../../services/report-submission.service';
 import { checkRateLimit, type RateLimitConfig } from '../../services/rate-limit.service';
+import { sanitizeString } from '../../utils/sanitize';
 
 const REPORT_RATE_LIMIT: RateLimitConfig = { limit: 5, windowSeconds: 3600 };
 
@@ -107,12 +108,25 @@ export async function submitReportResult(
   const data = parseResult.data;
 
   if (data.type === 'message') {
+    const sanitizedTargetMessageId = sanitizeString(data.targetMessageId, 'id').value;
+    if (!sanitizedTargetMessageId) return { ok: false, kind: 'validation_failed' };
+
+    const sanitizedReason = data.reason
+      ? sanitizeString(data.reason, 'general').value || undefined
+      : undefined;
+
+    const sanitizedSessionKeys: Record<string, string> = {};
+    for (const [key, value] of Object.entries(data.sessionKeys)) {
+      const sKey = sanitizeString(key, 'id').value;
+      if (sKey) sanitizedSessionKeys[sKey] = value;
+    }
+
     const result = await submitMessageReport(identityId, {
-      targetMessageId: data.targetMessageId,
+      targetMessageId: sanitizedTargetMessageId,
       category: data.category as (typeof REPORT_CATEGORIES)[number],
-      reason: data.reason,
+      reason: sanitizedReason,
       contextMessageCount: data.contextMessageCount,
-      sessionKeys: data.sessionKeys,
+      sessionKeys: sanitizedSessionKeys,
     });
 
     if (!result.success) {
@@ -126,14 +140,21 @@ export async function submitReportResult(
     return { ok: true, data: { reportId: result.reportId } };
   }
 
-  if (data.targetIdentityId === identityId) {
+  const sanitizedTargetIdentityId = sanitizeString(data.targetIdentityId, 'id').value;
+  if (!sanitizedTargetIdentityId) return { ok: false, kind: 'validation_failed' };
+
+  if (sanitizedTargetIdentityId === identityId) {
     return { ok: false, kind: 'self_report' };
   }
 
+  const sanitizedProfileReason = data.reason
+    ? sanitizeString(data.reason, 'general').value || undefined
+    : undefined;
+
   const result = await submitProfileReport(identityId, {
-    targetIdentityId: data.targetIdentityId,
+    targetIdentityId: sanitizedTargetIdentityId,
     category: data.category as (typeof REPORT_CATEGORIES)[number],
-    reason: data.reason,
+    reason: sanitizedProfileReason,
   });
 
   if (!result.success) {
