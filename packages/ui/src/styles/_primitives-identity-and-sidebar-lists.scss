@@ -5,7 +5,7 @@
 // ============================================================================
 
 .identity-card {
-  background: var(--color-bg-elevated);
+  background: var(--identity-card-bg, var(--color-bg-elevated));
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -20,6 +20,8 @@
     height: 56px;
     background-size: cover;
     background-position: center;
+    background-color: var(--identity-card-accent, var(--color-bg-tertiary));
+    background-image: var(--identity-card-banner-img, none);
   }
 
   &-header {
@@ -66,7 +68,7 @@
   &-name {
     font-size: var(--font-size-md);
     font-weight: var(--font-weight-semibold);
-    color: var(--color-text-primary);
+    color: var(--identity-card-accent, var(--color-text-primary));
     margin: 0;
     white-space: nowrap;
     overflow: hidden;
@@ -76,6 +78,11 @@
   &-username {
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
+  }
+
+  &-meta {
+    padding: 0 var(--spacing-lg);
+    margin-bottom: var(--spacing-sm);
   }
 
   &-friendship {

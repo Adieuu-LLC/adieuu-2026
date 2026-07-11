@@ -55,6 +55,7 @@ import {
 import {
   updateProfileCtrl,
   getProfileCtrl,
+  getIdentityFriendsCtrl,
 } from './profile.controller';
 import {
   getIdentityPreferencesCtrl,
@@ -682,6 +683,22 @@ router.put('/identity/me/preferences', async (ctx) => {
  */
 router.get('/identity/:id/profile', async (ctx) => {
   return await getProfileCtrl(ctx);
+});
+
+/**
+ * GET /identity/:id/friends - Get privacy-filtered friends list for a profile
+ *
+ * Returns the identity's friends list, filtered by the `friends` privacy setting.
+ *
+ * @route GET /api/identity/:id/friends
+ *
+ * @param id (string, required): Identity ID
+ *
+ * @returns 200 OK with { friends: FriendInfo[], hidden: boolean }
+ * @returns 404 Not Found if identity doesn't exist
+ */
+router.get('/identity/:id/friends', async (ctx) => {
+  return await getIdentityFriendsCtrl(ctx);
 });
 
 // ============================================================================

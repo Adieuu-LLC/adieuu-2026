@@ -11,8 +11,9 @@ import { useState, useEffect, useMemo, type ReactElement, type ReactNode } from 
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Menu, Portal } from '@ark-ui/react';
-import type { PublicIdentity } from '@adieuu/shared';
+import type { BadgeId, PublicIdentity } from '@adieuu/shared';
 import { formatFriendsForLine } from '../utils/friendshipDuration';
+import { BadgeDisplay } from './BadgeDisplay';
 import { HoverCard } from './HoverCard';
 import { Button } from './Button';
 import { ReportModal } from './ReportModal';
@@ -125,6 +126,9 @@ export function IdentityHoverCardContent({
             {identity.displayName}
           </span>
           <span className="identity-hover-card-username">@{identity.username}</span>
+          {identity.badges && identity.badges.length > 0 && (
+            <BadgeDisplay badges={identity.badges as BadgeId[]} size="sm" className="identity-hover-card-badges" />
+          )}
           {!isSelf && friendsSinceResolved && (
             <span
               className="identity-hover-card-friendship"

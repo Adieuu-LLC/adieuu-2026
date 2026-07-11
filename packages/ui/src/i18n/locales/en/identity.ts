@@ -441,7 +441,7 @@ export const identity = {
     // Profile page
     profile: {
       title: 'Profile',
-      subtitle: 'View and manage your alias profile.',
+      subtitle: 'View and manage your alias profile. Hover over elements to edit them.',
       displayName: 'Display Name',
       displayNamePlaceholder: 'Enter a display name',
       bio: 'Bio',
@@ -451,6 +451,7 @@ export const identity = {
       banner: 'Banner',
       profileColors: 'Profile Colours',
       achievements: 'Achievements',
+      friends: 'Friends',
       colorAccent: 'Accent',
       colorCardBackground: 'Card BG',
       colorBackground: 'Background',
@@ -475,12 +476,15 @@ export const identity = {
       previewAs: 'Preview as',
       previewPublic: 'Public',
       previewFriend: 'Friend',
-      previewSelf: 'You',
+      previewSelf: 'You (Editing)',
       noChanges: 'No changes to save.',
       unsavedChanges: 'You have unsaved profile changes.',
       discardChanges: 'Discard changes',
       achievementsHiddenPreview:
         'Achievements are hidden from this audience based on your privacy settings.',
+      badges: 'Badges',
+      badgesSelector: 'Select Badges',
+      badgesMaxReached: 'You can display up to 3 badges.',
     },
     // Public profile view (read-only)
     profileView: {
@@ -494,10 +498,16 @@ export const identity = {
       tabSpaces: 'Spaces',
       tabAchievements: 'Achievements',
       tabReports: 'Reports',
+      tabFriends: 'Friends',
       postsPlaceholder: 'Available in the future when we add feeds and posts!',
       spacesPlaceholder:
         'Public & Mutual Spaces this user is a member of will be visible here when we add Spaces in the near future!',
       reportsPlaceholder: 'Not yet available, coming soon.',
+      friendsHidden: 'This user\'s friends list is private.',
+      friendsEmpty: 'No friends to display.',
+      friendsLoading: 'Loading friends...',
+      friendsSearch: 'Search friends...',
+      friendsNoResults: 'No friends match your search.',
     },
     // Privacy page (identity-scoped)
     privacy: {
@@ -638,4 +648,12 @@ export const identity = {
       embedToggleDisabled: 'Embed available but hidden (embeds disabled)',
       embedToggleNotAllowlisted: 'Embed available but hidden (domain not in allowlist)',
     },
+} as const;
+
+export const badges = {
+  vanguard: 'Vanguard',
+  founder: 'Founder',
+  vanguardCriteria: 'Earned by Vanguard supporters.',
+  founderCriteria: 'Earned by Founder supporters.',
+  notEarned: 'You haven\'t earned this badge yet.',
 } as const;

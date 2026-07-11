@@ -1,4 +1,4 @@
-import type { ProfilePrivacySettings } from './identity-types';
+import type { ProfilePrivacySettings, BadgeId } from './identity-types';
 
 /**
  * Parameters for updating an identity profile.
@@ -17,4 +17,6 @@ export interface UpdateProfileParams {
   };
   privacySettings?: Partial<ProfilePrivacySettings>;
   requireGroupApproval?: boolean;
+  /** Ordered badge selection (up to 3). Each must be an earned badge. */
+  selectedBadges?: BadgeId[];
 }

@@ -13,17 +13,21 @@ import { useParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   createApiClient,
+  type BadgeId,
   type PublicIdentity,
   type PublicAchievement,
   type PublicAchievementDefinition,
   type FriendshipStatus,
+  type FriendInfo,
 } from '@adieuu/shared';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Icon } from '../../icons/Icon';
+import { BadgeDisplay } from '../../components/BadgeDisplay';
 import { ReportModal } from '../../components/ReportModal';
 import { AchievementGrid } from '../../components/AchievementGrid';
 import { ProfileContentTabs } from '../../components/ProfileContentTabs';
+import { ProfileFriendsList } from '../../components/ProfileFriendsList';
 import { BlockActionButton } from '../../components/BlockActionButton';
 import { useAuth } from '../../hooks/useAuth';
 import { useIdentity } from '../../hooks/useIdentity';
@@ -59,6 +63,10 @@ export function IdentityProfileView() {
   const [achievements, setAchievements] = useState<PublicAchievement[]>([]);
   const [achievementDefinitions, setAchievementDefinitions] = useState<PublicAchievementDefinition[]>([]);
   const [achievementsLoaded, setAchievementsLoaded] = useState(false);
+  const [profileFriends, setProfileFriends] = useState<FriendInfo[]>([]);
+  const [profileFriendsHidden, setProfileFriendsHidden] = useState(false);
+  const [profileFriendsCount, setProfileFriendsCount] = useState<number | undefined>(undefined);
+  const [profileFriendsLoaded, setProfileFriendsLoaded] = useState(false);
   const [myAchievementIds, setMyAchievementIds] = useState<Set<string>>(new Set());
 
   const { session } = useAuth();
@@ -160,6 +168,25 @@ export function IdentityProfileView() {
 
     return () => { cancelled = true; };
   }, [id, loadState, api, isSelf, isIdentityLoggedIn]);
+
+  useEffect(() => {
+    if (!id || loadState !== 'loaded') return;
+
+    let cancelled = false;
+    setProfileFriendsLoaded(false);
+
+    api.identity.getIdentityFriends(id).then((res) => {
+      if (cancelled) return;
+      if (res.success && res.data) {
+        setProfileFriends(res.data.friends);
+        setProfileFriendsHidden(res.data.hidden);
+        setProfileFriendsCount(res.data.hidden ? undefined : res.data.count);
+      }
+      setProfileFriendsLoaded(true);
+    });
+
+    return () => { cancelled = true; };
+  }, [id, loadState, api]);
 
   const handleAddFriend = useCallback(async () => {
     if (!id || friendActionLoading) return;
@@ -289,6 +316,9 @@ export function IdentityProfileView() {
                     {profile.displayName}
                   </h1>
                   <p className="profile-view-username">@{profile.username}</p>
+                  {profile.badges && profile.badges.length > 0 && (
+                    <BadgeDisplay badges={profile.badges as BadgeId[]} size="sm" className="profile-view-badges" />
+                  )}
                   {friendStatus === 'friends' && friendsSinceIso && (
                     <p
                       className="profile-view-friendship"
@@ -365,6 +395,7 @@ export function IdentityProfileView() {
 
           <ProfileContentTabs
             tabsChrome
+            friendsCount={profileFriendsLoaded ? profileFriendsCount : undefined}
             achievements={
               <AchievementGrid
                 title={t('identity.profileView.tabAchievements')}
@@ -376,6 +407,13 @@ export function IdentityProfileView() {
                 loading={!achievementsLoaded}
                 accentColor={accent}
                 cardBackgroundColor={cardBg}
+              />
+            }
+            friends={
+              <ProfileFriendsList
+                friends={profileFriends}
+                hidden={profileFriendsHidden}
+                loading={!profileFriendsLoaded}
               />
             }
           />

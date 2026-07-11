@@ -15,6 +15,11 @@ export type CryptoProfile = 'default' | 'cnsa2';
 export type ProfileVisibility = 'public' | 'friends' | 'private';
 
 /**
+ * Known badge identifiers tied to entitlements.
+ */
+export type BadgeId = 'vanguard' | 'founder';
+
+/**
  * Per-field privacy settings for identity profiles.
  */
 export interface ProfilePrivacySettings {
@@ -24,6 +29,8 @@ export interface ProfilePrivacySettings {
   lastActiveAt: ProfileVisibility;
   profileColors: ProfileVisibility;
   achievements: ProfileVisibility;
+  badges: ProfileVisibility;
+  friends: ProfileVisibility;
 }
 
 /**
@@ -73,6 +80,10 @@ export interface PublicIdentity {
    * locally-stored keys need re-wrapping after a remote passphrase change.
    */
   passphraseChangedAt?: string | null;
+  /** Ordered list of selected badges visible to the viewer (privacy-filtered). */
+  badges?: BadgeId[];
+  /** All badges the user has earned (only returned to the profile owner). */
+  earnedBadges?: BadgeId[];
 }
 
 /**

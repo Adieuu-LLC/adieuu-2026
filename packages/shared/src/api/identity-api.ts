@@ -22,6 +22,7 @@ import type {
   UploadPreKeysParams,
 } from './pre-keys-types';
 import type { UpdateProfileParams } from './profile-update-types';
+import type { FriendInfo } from './friends-api';
 
 export class IdentityApi {
   constructor(private client: HttpClient) {}
@@ -415,6 +416,18 @@ export class IdentityApi {
   async getProfile(identityId: string): Promise<ApiResponse<PublicIdentity>> {
     return this.client.get(
       `/api/identity/${encodeURIComponent(identityId)}/profile`
+    );
+  }
+
+  /**
+   * Get the privacy-filtered friends list for an identity's profile.
+   *
+   * Returns `{ friends, hidden }` where `hidden` is true when the
+   * viewer does not have permission to see this identity's friends.
+   */
+  async getIdentityFriends(identityId: string): Promise<ApiResponse<{ friends: FriendInfo[]; hidden: boolean; count: number }>> {
+    return this.client.get(
+      `/api/identity/${encodeURIComponent(identityId)}/friends`
     );
   }
 

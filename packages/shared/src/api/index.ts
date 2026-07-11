@@ -65,6 +65,7 @@ export {
 
 export { IdentityApi } from './identity-api';
 export {
+  type BadgeId,
   type CryptoProfile,
   type ProfileVisibility,
   type ProfilePrivacySettings,

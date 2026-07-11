@@ -13,6 +13,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   createApiClient,
+  type BadgeId,
   type ProfileVisibility,
   type ProfilePrivacySettings,
   type ProfileColors,
@@ -27,10 +28,14 @@ import { AvatarUpload } from '../../components/AvatarUpload';
 import { BannerUpload } from '../../components/BannerUpload';
 import { ProfileColorPicker } from '../../components/ProfileColorPicker';
 import { PrivacySelect } from '../../components/PrivacySelect';
+import { BadgeSelector } from '../../components/BadgeSelector';
+import { BadgeDisplay } from '../../components/BadgeDisplay';
 import { AchievementGrid } from '../../components/AchievementGrid';
 import { ProfileContentTabs } from '../../components/ProfileContentTabs';
+import { ProfileFriendsList } from '../../components/ProfileFriendsList';
 import { Icon } from '../../icons/Icon';
 import { useIdentity } from '../../hooks/useIdentity';
+import { useFriends } from '../../hooks/useFriends';
 import { useAppConfig } from '../../config';
 import { SessionLockedPage } from '../../components/SessionLockedPage';
 
@@ -43,14 +48,17 @@ const DEFAULT_PRIVACY: ProfilePrivacySettings = {
   lastActiveAt: 'friends',
   profileColors: 'public',
   achievements: 'friends',
+  badges: 'friends',
+  friends: 'friends',
 };
 
 type PreviewMode = 'self' | 'friend' | 'stranger';
-type EditingField = 'displayName' | null;
+type EditingField = 'displayName' | 'bio' | null;
 
 export function IdentityProfile() {
   const { t } = useTranslation();
   const { identity, refreshIdentitySession, status: identityStatus } = useIdentity();
+  const { friends: myFriends, isLoading: friendsLoading } = useFriends();
   const { apiBaseUrl } = useAppConfig();
 
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
@@ -66,6 +74,7 @@ export function IdentityProfile() {
   const [removeBanner, setRemoveBanner] = useState(false);
   const [colors, setColors] = useState<ProfileColors>({});
   const [privacy, setPrivacy] = useState<ProfilePrivacySettings>({ ...DEFAULT_PRIVACY });
+  const [selectedBadges, setSelectedBadges] = useState<BadgeId[]>([]);
 
   // UI state
   const [saving, setSaving] = useState(false);
@@ -79,6 +88,11 @@ export function IdentityProfile() {
 
   const isEditable = previewMode === 'self';
 
+  const earnedBadges = useMemo<BadgeId[]>(
+    () => (identity?.earnedBadges as BadgeId[] | undefined) ?? [],
+    [identity?.earnedBadges],
+  );
+
   // Initialise form from identity
   useEffect(() => {
     if (identity) {
@@ -88,6 +102,7 @@ export function IdentityProfile() {
       setBannerUrl(identity.bannerUrl ?? null);
       setColors(identity.profileColors ?? {});
       setPrivacy(identity.privacySettings ?? { ...DEFAULT_PRIVACY });
+      setSelectedBadges((identity.badges as BadgeId[] | undefined) ?? []);
       setAvatarMediaId(null);
       setBannerMediaId(null);
       setRemoveAvatar(false);
@@ -105,6 +120,8 @@ export function IdentityProfile() {
     if (editingField === 'displayName') {
       displayNameInputRef.current?.focus();
       displayNameInputRef.current?.select();
+    } else if (editingField === 'bio') {
+      bioInputRef.current?.focus();
     }
   }, [editingField]);
 
@@ -198,8 +215,14 @@ export function IdentityProfile() {
       if (privacy[key] !== origPrivacy[key]) return true;
     }
 
+    const origBadges = (identity.badges as BadgeId[] | undefined) ?? [];
+    if (
+      selectedBadges.length !== origBadges.length ||
+      selectedBadges.some((b, i) => b !== origBadges[i])
+    ) return true;
+
     return false;
-  }, [identity, displayName, bio, avatarMediaId, removeAvatar, bannerMediaId, removeBanner, colors, privacy]);
+  }, [identity, displayName, bio, avatarMediaId, removeAvatar, bannerMediaId, removeBanner, colors, privacy, selectedBadges]);
 
   const handleDiscard = useCallback(() => {
     if (!identity) return;
@@ -209,6 +232,7 @@ export function IdentityProfile() {
     setBannerUrl(identity.bannerUrl ?? null);
     setColors(identity.profileColors ?? {});
     setPrivacy(identity.privacySettings ?? { ...DEFAULT_PRIVACY });
+    setSelectedBadges((identity.badges as BadgeId[] | undefined) ?? []);
     setAvatarMediaId(null);
     setBannerMediaId(null);
     setRemoveAvatar(false);
@@ -269,6 +293,14 @@ export function IdentityProfile() {
       params.privacySettings = privacyDiff;
     }
 
+    const origBadges = (identity.badges as BadgeId[] | undefined) ?? [];
+    if (
+      selectedBadges.length !== origBadges.length ||
+      selectedBadges.some((b, i) => b !== origBadges[i])
+    ) {
+      params.selectedBadges = selectedBadges;
+    }
+
     try {
       const res = await api.identity.updateProfile(params);
 
@@ -288,7 +320,7 @@ export function IdentityProfile() {
     } finally {
       setSaving(false);
     }
-  }, [identity, hasChanges, displayName, bio, avatarMediaId, removeAvatar, bannerMediaId, removeBanner, colors, privacy, api, t, refreshIdentitySession]);
+  }, [identity, hasChanges, displayName, bio, avatarMediaId, removeAvatar, bannerMediaId, removeBanner, colors, privacy, selectedBadges, api, t, refreshIdentitySession]);
 
   const previewProfile = useMemo(() => {
     const base = {
@@ -325,6 +357,14 @@ export function IdentityProfile() {
     if (setting === 'friends' && previewMode === 'friend') return true;
     return false;
   }, [previewMode, privacy.achievements]);
+
+  const canPreviewFriends = useMemo(() => {
+    if (previewMode === 'self') return true;
+    const setting = privacy.friends ?? DEFAULT_PRIVACY.friends;
+    if (setting === 'public') return true;
+    if (setting === 'friends' && previewMode === 'friend') return true;
+    return false;
+  }, [previewMode, privacy.friends]);
 
   if (identityStatus === 'locked') {
     return <SessionLockedPage titleI18nKey="identity.profile.title" />;
@@ -439,7 +479,7 @@ export function IdentityProfile() {
                 {t('identity.profile.tabs.edit', 'Edit')}
               </TabTrigger>
               <TabTrigger value="privacy">
-                {t('identity.profile.tabs.privacy', 'Privacy')}
+                {t('identity.profile.tabs.privacy', 'Privacy Settings')}
               </TabTrigger>
             </TabList>
 
@@ -540,13 +580,15 @@ export function IdentityProfile() {
                   <p className="profile-preview-username">@{identity.username}</p>
 
                   {/* Bio */}
-                  {isEditable ? (
+                  {isEditable && editingField === 'bio' ? (
                     <div className="profile-edit-field profile-edit-field--editing">
                       <textarea
                         ref={bioInputRef}
                         className="profile-edit-inline-input profile-edit-inline-input--bio"
                         value={bio}
                         onChange={(e) => setBio(e.target.value.slice(0, BIO_MAX_LENGTH))}
+                        onBlur={() => setEditingField(null)}
+                        onKeyDown={handleFieldKeyDown('bio')}
                         maxLength={BIO_MAX_LENGTH}
                         rows={3}
                         placeholder={t('identity.profile.bioPlaceholder')}
@@ -555,15 +597,49 @@ export function IdentityProfile() {
                         {t('identity.profile.bioCharCount', { count: bio.length, max: BIO_MAX_LENGTH })}
                       </span>
                     </div>
-                  ) : previewProfile.bio ? (
-                    <p className="profile-preview-bio">{previewProfile.bio}</p>
-                  ) : null}
-
-                  {previewProfile.lastActiveAt && (
-                    <p className="profile-preview-meta">
-                      Last active: {new Date(previewProfile.lastActiveAt).toLocaleDateString()}
-                    </p>
+                  ) : (
+                    // biome-ignore lint/a11y/noStaticElementInteractions: conditionally interactive edit-in-place field
+                    <div
+                      className={`profile-edit-field ${isEditable ? 'profile-edit-field--clickable' : ''}`}
+                      onClick={isEditable ? () => setEditingField('bio') : undefined}
+                      role={isEditable ? 'button' : undefined}
+                      tabIndex={isEditable ? 0 : undefined}
+                      onKeyDown={isEditable ? (e) => { if (e.key === 'Enter') setEditingField('bio'); } : undefined}
+                    >
+                      <p className={`profile-preview-bio${!previewProfile.bio && isEditable ? ' profile-preview-bio--placeholder' : ''}`}>
+                        {previewProfile.bio || (isEditable ? t('identity.profile.bioPlaceholder') : '')}
+                      </p>
+                      {isEditable && (
+                        <span className="profile-edit-field-icon">
+                          <Icon name="pen" size="xs" />
+                        </span>
+                      )}
+                    </div>
                   )}
+
+                  <div className="profile-edit-badges-row">
+                    {isEditable ? (
+                      <>
+                        {selectedBadges.length > 0 && (
+                          <BadgeDisplay badges={selectedBadges} size="sm" />
+                        )}
+                        <BadgeSelector
+                          earnedBadges={earnedBadges}
+                          selectedBadges={selectedBadges}
+                          onChange={setSelectedBadges}
+                          disabled={saving}
+                        />
+                      </>
+                    ) : selectedBadges.length > 0 ? (
+                      <BadgeDisplay badges={selectedBadges} size="sm" />
+                    ) : null}
+
+                    {previewProfile.lastActiveAt && (
+                      <p className="profile-preview-meta">
+                        Last active: {new Date(previewProfile.lastActiveAt).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -616,6 +692,19 @@ export function IdentityProfile() {
                     </p>
                   )
                 }
+                friends={
+                  canPreviewFriends ? (
+                    <ProfileFriendsList
+                      friends={myFriends}
+                      hidden={false}
+                      loading={friendsLoading}
+                    />
+                  ) : (
+                    <p className="profile-view-tab-placeholder">
+                      {t('identity.profileView.friendsHidden')}
+                    </p>
+                  )
+                }
               />
             </TabContent>
 
@@ -632,6 +721,8 @@ export function IdentityProfile() {
                       { field: 'lastActiveAt' as const, label: 'Last active' },
                       { field: 'profileColors' as const, label: t('identity.profile.profileColors') },
                       { field: 'achievements' as const, label: t('identity.profile.achievements') },
+                      { field: 'badges' as const, label: t('identity.profile.badges') },
+                      { field: 'friends' as const, label: t('identity.profile.friends') },
                     ] as const
                   ).map(({ field, label }) => (
                     <div key={field} className="profile-privacy-row">
