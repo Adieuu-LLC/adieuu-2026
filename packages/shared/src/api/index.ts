@@ -163,7 +163,13 @@ export {
   type AdminIdentityReportsResult,
   type SuspendIdentityInput,
   type BanIdentityInput,
+  type SiteAnnouncement,
+  type AdminSiteAnnouncement,
+  type CreateSiteAnnouncementBody,
+  type UpdateSiteAnnouncementBody,
 } from './admin-api';
+
+export { AnnouncementsApi } from './announcements-api';
 
 export {
   getReportSourceI18nKey,

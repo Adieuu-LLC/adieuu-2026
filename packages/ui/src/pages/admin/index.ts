@@ -9,3 +9,4 @@ export { AdminUserProfile } from './UserProfile';
 export { AdminIdentitySearch } from './IdentitySearch';
 export { AdminIdentityProfile } from './IdentityProfile';
 export { AdminPromoCodes } from './PromoCodes';
+export { AdminAnnouncements } from './Announcements';

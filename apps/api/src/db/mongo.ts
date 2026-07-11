@@ -421,6 +421,8 @@ export const Collections = {
   CLIENT_ERRORS: 'client_errors',
   /** SHA-256 hashes of emails from deleted accounts (re-signup prevention) */
   DELETED_EMAILS: 'deleted_emails',
+  /** Sitewide admin-managed announcements */
+  SITE_ANNOUNCEMENTS: 'site_announcements',
 } as const;
 
 /**
@@ -830,6 +832,11 @@ export async function createIndexes(): Promise<void> {
   // Deleted emails (re-signup prevention)
   const deletedEmails = database.collection(Collections.DELETED_EMAILS);
   await deletedEmails.createIndex({ emailHash: 1 }, { unique: true });
+
+  // Site announcements — active-announcement queries + admin listing
+  const siteAnnouncements = database.collection(Collections.SITE_ANNOUNCEMENTS);
+  await siteAnnouncements.createIndex({ active: 1, showAfter: 1, showUntil: 1 });
+  await siteAnnouncements.createIndex({ createdAt: -1 });
 
   elog.debug('MongoDB indexes created/verified');
 }
