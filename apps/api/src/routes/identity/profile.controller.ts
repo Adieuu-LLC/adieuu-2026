@@ -382,6 +382,9 @@ export async function getProfileCtrl(ctx: RouteContext): Promise<Response> {
  * Returns the identity's friends list, subject to the `friends` privacy setting.
  * Self always sees their own friends. Friends see if privacy is `friends` or `public`.
  * Strangers see only if privacy is `public`.
+ *
+ * Supports cursor-based pagination and server-side search:
+ *   ?limit=24&cursor=<objectIdHex>&q=<searchQuery>
  */
 export async function getIdentityFriendsCtrl(ctx: RouteContext): Promise<Response> {
   const parsed = sanitizeObjectId(ctx.params.id);
@@ -418,16 +421,37 @@ export async function getIdentityFriendsCtrl(ctx: RouteContext): Promise<Respons
     (friendsVisibility === 'friends' && viewerRelation === 'friend');
 
   if (!isVisible) {
-    return success({ friends: [], hidden: true, count: 0 });
+    return success({ friends: [], hidden: true, count: 0, cursor: null });
   }
 
-  const { getFriends } = await import('../../services/friend.service');
-  const result = await getFriends(doc._id, 100, undefined);
+  const limit = clampProfileFriendsLimit(ctx.query.get('limit'));
+  const cursor = parseOptionalCursor(ctx.query.get('cursor'));
+  const rawQ = ctx.query.get('q')?.trim();
+  const searchQuery = rawQ && rawQ.length >= 2
+    ? sanitizeString(rawQ, 'general').value ?? null
+    : null;
+
+  const { getFriends, searchFriends } = await import('../../services/friend.service');
+  const friendshipRepo = getFriendshipRepository();
+
+  const totalCount = await friendshipRepo.countFriends(doc._id);
+
+  let friendInfos: import('../../services/friend.service').FriendInfo[];
+  let nextCursor: string | null;
+
+  if (searchQuery) {
+    friendInfos = await searchFriends(doc._id, searchQuery, limit);
+    nextCursor = null;
+  } else {
+    const result = await getFriends(doc._id, limit, cursor);
+    friendInfos = result.friends;
+    nextCursor = result.cursor;
+  }
 
   const viewerObjId = ctx.identitySession?.identity._id ?? null;
 
   const filteredFriends = [];
-  for (const friendInfo of result.friends) {
+  for (const friendInfo of friendInfos) {
     const friendDoc = await repo.findByIdentityId(new ObjectId(friendInfo.identity.id));
     if (!friendDoc) continue;
 
@@ -446,5 +470,24 @@ export async function getIdentityFriendsCtrl(ctx: RouteContext): Promise<Respons
     });
   }
 
-  return success({ friends: filteredFriends, hidden: false, count: filteredFriends.length });
+  return success({
+    friends: filteredFriends,
+    hidden: false,
+    count: totalCount,
+    cursor: nextCursor,
+  });
+}
+
+function clampProfileFriendsLimit(limitParam: string | null, defaultLimit = 24, max = 50): number {
+  let limit = limitParam ? parseInt(limitParam, 10) : defaultLimit;
+  if (isNaN(limit) || limit < 1) limit = defaultLimit;
+  if (limit > max) limit = max;
+  return limit;
+}
+
+function parseOptionalCursor(cursorParam: string | null): string | undefined {
+  if (!cursorParam) return undefined;
+  const s = sanitizeString(cursorParam, 'general');
+  if (s.value && /^[0-9a-fA-F]{24}$/.test(s.value)) return s.value;
+  return undefined;
 }

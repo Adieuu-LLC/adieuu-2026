@@ -18,7 +18,6 @@ import {
   type PublicAchievement,
   type PublicAchievementDefinition,
   type FriendshipStatus,
-  type FriendInfo,
 } from '@adieuu/shared';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
@@ -63,10 +62,8 @@ export function IdentityProfileView() {
   const [achievements, setAchievements] = useState<PublicAchievement[]>([]);
   const [achievementDefinitions, setAchievementDefinitions] = useState<PublicAchievementDefinition[]>([]);
   const [achievementsLoaded, setAchievementsLoaded] = useState(false);
-  const [profileFriends, setProfileFriends] = useState<FriendInfo[]>([]);
-  const [profileFriendsHidden, setProfileFriendsHidden] = useState(false);
   const [profileFriendsCount, setProfileFriendsCount] = useState<number | undefined>(undefined);
-  const [profileFriendsLoaded, setProfileFriendsLoaded] = useState(false);
+  const [profileFriendsHidden, setProfileFriendsHidden] = useState(false);
   const [myAchievementIds, setMyAchievementIds] = useState<Set<string>>(new Set());
 
   const { session } = useAuth();
@@ -169,24 +166,23 @@ export function IdentityProfileView() {
     return () => { cancelled = true; };
   }, [id, loadState, api, isSelf, isIdentityLoggedIn]);
 
-  useEffect(() => {
-    if (!id || loadState !== 'loaded') return;
+  const fetchProfileFriends = useCallback(
+    async (params: { limit?: number; cursor?: string; q?: string }) => {
+      if (!id) return null;
+      const res = await api.identity.getIdentityFriends(id, params);
+      if (res.success && res.data) return res.data;
+      return null;
+    },
+    [id, api],
+  );
 
-    let cancelled = false;
-    setProfileFriendsLoaded(false);
-
-    api.identity.getIdentityFriends(id).then((res) => {
-      if (cancelled) return;
-      if (res.success && res.data) {
-        setProfileFriends(res.data.friends);
-        setProfileFriendsHidden(res.data.hidden);
-        setProfileFriendsCount(res.data.hidden ? undefined : res.data.count);
-      }
-      setProfileFriendsLoaded(true);
-    });
-
-    return () => { cancelled = true; };
-  }, [id, loadState, api]);
+  const handleFriendsMeta = useCallback(
+    (meta: { count: number; hidden: boolean }) => {
+      setProfileFriendsCount(meta.hidden ? undefined : meta.count);
+      setProfileFriendsHidden(meta.hidden);
+    },
+    [],
+  );
 
   const handleAddFriend = useCallback(async () => {
     if (!id || friendActionLoading) return;
@@ -395,7 +391,7 @@ export function IdentityProfileView() {
 
           <ProfileContentTabs
             tabsChrome
-            friendsCount={profileFriendsLoaded ? profileFriendsCount : undefined}
+            friendsCount={profileFriendsCount}
             achievements={
               <AchievementGrid
                 title={t('identity.profileView.tabAchievements')}
@@ -411,9 +407,8 @@ export function IdentityProfileView() {
             }
             friends={
               <ProfileFriendsList
-                friends={profileFriends}
-                hidden={profileFriendsHidden}
-                loading={!profileFriendsLoaded}
+                fetchFriends={fetchProfileFriends}
+                onMetaLoaded={handleFriendsMeta}
                 selfIdentityId={selfIdentity?.id}
                 onSendFriendRequest={isIdentityLoggedIn ? sendRequest : undefined}
                 onGetFriendshipStatus={isIdentityLoggedIn ? getFriendStatus : undefined}
