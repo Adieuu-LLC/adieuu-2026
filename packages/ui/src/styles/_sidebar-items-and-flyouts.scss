@@ -692,6 +692,12 @@ body.tour-account-flyout-open .sidebar-account-flyout-wrapper .sidebar-account-c
   }
 }
 
+.sidebar-announcement-notice-popout--open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+}
+
 .sidebar-announcement-notice-popout-collapsed {
   left: calc(var(--sidebar-collapsed-width, 56px));
 }

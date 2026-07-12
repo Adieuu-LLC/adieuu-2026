@@ -180,13 +180,20 @@ export function IdentityProfileView() {
     if (!id || loadState !== 'loaded') return;
     let cancelled = false;
 
+    setProfileFriendsCount(undefined);
+    setProfileFriendsHidden(false);
+
     fetchProfileFriends({ limit: 1 })
       .then((result) => {
         if (cancelled || !result) return;
         setProfileFriendsCount(result.hidden ? undefined : result.count);
         setProfileFriendsHidden(result.hidden);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (cancelled) return;
+        setProfileFriendsCount(undefined);
+        setProfileFriendsHidden(false);
+      });
 
     return () => { cancelled = true; };
   }, [id, loadState, fetchProfileFriends]);

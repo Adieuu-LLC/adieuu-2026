@@ -150,6 +150,8 @@ function StaticFriendsList({
       <div className="profile-friends-list-search">
         <Input
           inputSize="sm"
+          label={t('identity.profileView.friendsSearchLabel')}
+          hideLabel
           leftIcon={<Icon name="search" />}
           placeholder={t('identity.profileView.friendsSearch')}
           value={searchQuery}
@@ -384,6 +386,8 @@ function FetchedFriendsList({
       <div className="profile-friends-list-search">
         <Input
           inputSize="sm"
+          label={t('identity.profileView.friendsSearchLabel')}
+          hideLabel
           leftIcon={<Icon name="search" />}
           placeholder={t('identity.profileView.friendsSearch')}
           value={searchQuery}

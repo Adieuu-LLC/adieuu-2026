@@ -508,6 +508,7 @@ export const identity = {
       friendsEmpty: 'No friends to display.',
       friendsLoading: 'Loading friends...',
       friendsSearch: 'Search friends...',
+      friendsSearchLabel: 'Search friends',
       friendsNoResults: 'No friends match your search.',
     },
     // Privacy page (identity-scoped)

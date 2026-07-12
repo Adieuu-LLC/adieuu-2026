@@ -1,13 +1,45 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSiteAnnouncements } from '../hooks/useSiteAnnouncements';
 import { useSidebar } from './Sidebar';
 import { Button } from './Button';
 import { Icon } from '../icons/Icon';
 
+const POPOUT_ID = 'sidebar-announcement-popout';
+
 export function SidebarAnnouncementNotice() {
   const { t } = useTranslation();
   const { announcements, dismissedIds } = useSiteAnnouncements();
   const { isExpanded } = useSidebar();
+
+  const [expanded, setExpanded] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  const close = useCallback(() => setExpanded(false), []);
+
+  useEffect(() => {
+    if (!expanded) return;
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        close();
+      }
+    }
+
+    function handleClickOutside(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        close();
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [expanded, close]);
 
   const highPriority = announcements.filter(
     (a) => a.highPriority && !dismissedIds.has(a.id),
@@ -17,13 +49,24 @@ export function SidebarAnnouncementNotice() {
 
   const label = t('siteAnnouncement.noticeButton');
 
+  const popoutClasses = [
+    'sidebar-announcement-notice-popout',
+    !isExpanded ? 'sidebar-announcement-notice-popout-collapsed' : '',
+    expanded ? 'sidebar-announcement-notice-popout--open' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
-    <div className="sidebar-announcement-notice-wrapper">
+    <div className="sidebar-announcement-notice-wrapper" ref={wrapperRef}>
       <Button
         variant="ghost"
         size="sm"
         className="sidebar-announcement-notice-btn"
         aria-label={label}
+        aria-expanded={expanded}
+        aria-controls={POPOUT_ID}
+        onClick={() => setExpanded((prev) => !prev)}
       >
         <Icon name="info" />
         <span className="sidebar-announcement-notice-label">{label}</span>
@@ -54,7 +97,7 @@ export function SidebarAnnouncementNotice() {
           />
         </svg>
       </Button>
-      <div className={`sidebar-announcement-notice-popout ${!isExpanded ? 'sidebar-announcement-notice-popout-collapsed' : ''}`}>
+      <div id={POPOUT_ID} className={popoutClasses}>
         <div className="sidebar-announcement-notice-popout-content">
           {highPriority.map((a) => (
             <div key={a.id} className="sidebar-announcement-notice-item">
