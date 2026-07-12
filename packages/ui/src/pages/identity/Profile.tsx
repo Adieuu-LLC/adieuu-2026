@@ -366,6 +366,14 @@ export function IdentityProfile() {
     return false;
   }, [previewMode, privacy.friends]);
 
+  const canPreviewBadges = useMemo(() => {
+    if (previewMode === 'self') return true;
+    const setting = privacy.badges ?? DEFAULT_PRIVACY.badges;
+    if (setting === 'public') return true;
+    if (setting === 'friends' && previewMode === 'friend') return true;
+    return false;
+  }, [previewMode, privacy.badges]);
+
   if (identityStatus === 'locked') {
     return <SessionLockedPage titleI18nKey="identity.profile.title" />;
   }
@@ -561,7 +569,7 @@ export function IdentityProfile() {
                       onClick={isEditable ? () => setEditingField('displayName') : undefined}
                       role={isEditable ? 'button' : undefined}
                       tabIndex={isEditable ? 0 : undefined}
-                      onKeyDown={isEditable ? (e) => { if (e.key === 'Enter') setEditingField('displayName'); } : undefined}
+                      onKeyDown={isEditable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditingField('displayName'); } } : undefined}
                     >
                       <h4
                         className="profile-preview-name"
@@ -604,7 +612,7 @@ export function IdentityProfile() {
                       onClick={isEditable ? () => setEditingField('bio') : undefined}
                       role={isEditable ? 'button' : undefined}
                       tabIndex={isEditable ? 0 : undefined}
-                      onKeyDown={isEditable ? (e) => { if (e.key === 'Enter') setEditingField('bio'); } : undefined}
+                      onKeyDown={isEditable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditingField('bio'); } } : undefined}
                     >
                       <p className={`profile-preview-bio${!previewProfile.bio && isEditable ? ' profile-preview-bio--placeholder' : ''}`}>
                         {previewProfile.bio || (isEditable ? t('identity.profile.bioPlaceholder') : '')}
@@ -630,7 +638,7 @@ export function IdentityProfile() {
                           disabled={saving}
                         />
                       </>
-                    ) : selectedBadges.length > 0 ? (
+                    ) : canPreviewBadges && selectedBadges.length > 0 ? (
                       <BadgeDisplay badges={selectedBadges} size="sm" />
                     ) : null}
 

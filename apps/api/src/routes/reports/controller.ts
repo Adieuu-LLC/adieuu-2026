@@ -15,7 +15,7 @@ import {
   type ReportSubmissionResult,
 } from '../../services/report-submission.service';
 import { checkRateLimit, type RateLimitConfig } from '../../services/rate-limit.service';
-import { sanitizeString } from '../../utils/sanitize';
+import { sanitizeString, sanitizeObjectId } from '../../utils/sanitize';
 
 const REPORT_RATE_LIMIT: RateLimitConfig = { limit: 5, windowSeconds: 3600 };
 
@@ -108,17 +108,22 @@ export async function submitReportResult(
   const data = parseResult.data;
 
   if (data.type === 'message') {
-    const sanitizedTargetMessageId = sanitizeString(data.targetMessageId, 'id').value;
-    if (!sanitizedTargetMessageId) return { ok: false, kind: 'validation_failed' };
+    const targetMsgId = sanitizeObjectId(data.targetMessageId);
+    if (!targetMsgId.ok) return { ok: false, kind: 'validation_failed' };
+    const sanitizedTargetMessageId = targetMsgId.id;
 
     const sanitizedReason = data.reason
       ? sanitizeString(data.reason, 'general').value || undefined
       : undefined;
 
     const sanitizedSessionKeys: Record<string, string> = {};
+    const seenKeys = new Set<string>();
     for (const [key, value] of Object.entries(data.sessionKeys)) {
-      const sKey = sanitizeString(key, 'id').value;
-      if (sKey) sanitizedSessionKeys[sKey] = value;
+      const sKey = sanitizeObjectId(key);
+      if (!sKey.ok) return { ok: false, kind: 'validation_failed' };
+      if (seenKeys.has(sKey.id)) return { ok: false, kind: 'validation_failed' };
+      seenKeys.add(sKey.id);
+      sanitizedSessionKeys[sKey.id] = value;
     }
 
     const result = await submitMessageReport(identityId, {
@@ -140,8 +145,9 @@ export async function submitReportResult(
     return { ok: true, data: { reportId: result.reportId } };
   }
 
-  const sanitizedTargetIdentityId = sanitizeString(data.targetIdentityId, 'id').value;
-  if (!sanitizedTargetIdentityId) return { ok: false, kind: 'validation_failed' };
+  const targetIdResult = sanitizeObjectId(data.targetIdentityId);
+  if (!targetIdResult.ok) return { ok: false, kind: 'validation_failed' };
+  const sanitizedTargetIdentityId = targetIdResult.id;
 
   if (sanitizedTargetIdentityId === identityId) {
     return { ok: false, kind: 'self_report' };

@@ -306,6 +306,7 @@ function FetchedFriendsList({
 
       debounceRef.current = setTimeout(() => {
         const q = value.trim();
+        fetchIdRef.current += 1;
         cursorRef.current = null;
         fetchPage({ q: q.length >= 2 ? q : undefined });
       }, SEARCH_DEBOUNCE_MS);
@@ -345,7 +346,9 @@ function FetchedFriendsList({
     return () => io.disconnect();
   }, [loadMore, friends.length]);
 
-  if (loading) {
+  const isInitialLoad = loading && friends.length === 0 && !searchQuery.trim();
+
+  if (isInitialLoad) {
     return (
       <div className="profile-friends-list profile-friends-list--loading">
         <div className="spinner spinner-sm" />
@@ -356,7 +359,7 @@ function FetchedFriendsList({
     );
   }
 
-  if (error && friends.length === 0) {
+  if (error && friends.length === 0 && !searchQuery.trim()) {
     return (
       <p className="profile-view-tab-placeholder">
         {error}
@@ -401,7 +404,11 @@ function FetchedFriendsList({
         </p>
       )}
 
-      {friends.length === 0 ? (
+      {loading ? (
+        <div className="profile-friends-list profile-friends-list--loading">
+          <div className="spinner spinner-sm" />
+        </div>
+      ) : friends.length === 0 ? (
         <p className="profile-view-tab-placeholder">
           {t('identity.profileView.friendsNoResults')}
         </p>

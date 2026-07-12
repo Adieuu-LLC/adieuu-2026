@@ -65,6 +65,7 @@ export interface IIdentityRepository {
   incrementAchievementsEarnedCount(identityId: string | ObjectId, options?: { session?: ClientSession }): Promise<void>;
   decrementAchievementsEarnedCount(identityId: string | ObjectId, options?: { session?: ClientSession }): Promise<void>;
   addEarnedBadge(identityId: string | ObjectId, badgeId: string): Promise<boolean>;
+  addEarnedBadges(identityId: string | ObjectId, badgeIds: string[]): Promise<boolean>;
   hasEarnedBadge(identityId: string | ObjectId, badgeId: string): Promise<boolean>;
   recordDisplayNameChange(identityId: string | ObjectId): Promise<number>;
   incrementEmptyBioSaveCount(identityId: string | ObjectId): Promise<number>;
@@ -574,6 +575,14 @@ export class IdentityRepository
     const result = await this.collection.updateOne(
       { _id: this.toObjectId(identityId) },
       { $addToSet: { earnedBadges: badgeId } },
+    );
+    return result.modifiedCount > 0;
+  }
+
+  async addEarnedBadges(identityId: string | ObjectId, badgeIds: string[]): Promise<boolean> {
+    const result = await this.collection.updateOne(
+      { _id: this.toObjectId(identityId) },
+      { $addToSet: { earnedBadges: { $each: badgeIds } } },
     );
     return result.modifiedCount > 0;
   }

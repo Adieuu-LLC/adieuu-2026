@@ -74,6 +74,12 @@ export async function createAnnouncementResult(
     ? sanitizeString(parsed.data.ctaLabel, 'general').value || undefined
     : undefined;
 
+  if (parsed.data.showAfter && parsed.data.showUntil) {
+    if (new Date(parsed.data.showAfter) >= new Date(parsed.data.showUntil)) {
+      return { ok: false, reason: 'validation_failed' };
+    }
+  }
+
   const repo = getSiteAnnouncementRepository();
   const doc = await repo.create({
     message: sanitizedMessage,
@@ -109,6 +115,12 @@ export async function updateAnnouncementResult(
   const sanitizedCtaLabel = parsed.data.ctaLabel
     ? sanitizeString(parsed.data.ctaLabel, 'general').value || undefined
     : undefined;
+
+  if (parsed.data.showAfter && parsed.data.showUntil) {
+    if (new Date(parsed.data.showAfter) >= new Date(parsed.data.showUntil)) {
+      return { ok: false, reason: 'validation_failed' };
+    }
+  }
 
   const repo = getSiteAnnouncementRepository();
   const doc = await repo.update(sanitizedId.id, {

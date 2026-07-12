@@ -40,17 +40,13 @@ export async function awardOrderBadges(
 
   try {
     const repo = getIdentityRepository();
+    const idHex = identityId instanceof ObjectId ? identityId.toHexString() : identityId;
 
-    await repo.addEarnedBadge(identityId, 'top1000');
-    elog.info('Badge awarded: top1000', {
-      identityId: identityId instanceof ObjectId ? identityId.toHexString() : identityId,
-    });
+    const badges = creationOrder <= 100 ? ['top1000', 'top100'] : ['top1000'];
+    await repo.addEarnedBadges(identityId, badges);
 
-    if (creationOrder <= 100) {
-      await repo.addEarnedBadge(identityId, 'top100');
-      elog.info('Badge awarded: top100', {
-        identityId: identityId instanceof ObjectId ? identityId.toHexString() : identityId,
-      });
+    for (const badge of badges) {
+      elog.info(`Badge awarded: ${badge}`, { identityId: idHex });
     }
   } catch (err) {
     elog.warn('Failed to award order badges', {

@@ -44,9 +44,12 @@ export async function createFolderCtrl(
   const { conversationIds, iconType, iconName } = parseResult.data;
   const sanitizedName = sanitizeString(parseResult.data.name, 'general').value;
   if (!sanitizedName) return { kind: 'validation_failed' };
-  const sanitizedIconColor = parseResult.data.iconColor
-    ? (sanitizeString(parseResult.data.iconColor, 'hexColor').value || undefined)
-    : undefined;
+  let sanitizedIconColor: string | undefined;
+  if (parseResult.data.iconColor) {
+    const colorValue = sanitizeString(parseResult.data.iconColor, 'hexColor').value;
+    if (!colorValue) return { kind: 'validation_failed' };
+    sanitizedIconColor = colorValue;
+  }
 
   const repo = getConversationFoldersRepository();
   const doc = await repo.create(identity._id, {
@@ -90,11 +93,20 @@ export async function updateFolderCtrl(
     patch = { ...patch, name: sanitizedName };
   }
 
+  let sanitizedIconColor: string | null | undefined;
+  if (patch.iconColor === undefined) {
+    sanitizedIconColor = undefined;
+  } else if (patch.iconColor === null) {
+    sanitizedIconColor = null;
+  } else {
+    const colorValue = sanitizeString(patch.iconColor, 'hexColor').value;
+    if (!colorValue) return { kind: 'validation_failed' };
+    sanitizedIconColor = colorValue;
+  }
+
   const sanitizedPatch = {
     ...patch,
-    iconColor: patch.iconColor !== undefined
-      ? (patch.iconColor === null ? null : (sanitizeString(patch.iconColor!, 'hexColor').value || undefined))
-      : undefined,
+    iconColor: sanitizedIconColor,
   };
 
   const repo = getConversationFoldersRepository();

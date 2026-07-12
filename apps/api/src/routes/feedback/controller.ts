@@ -387,7 +387,8 @@ export async function listPostsResult(
 
 function sanitizePostId(raw: string): string | null {
   const sanitized = sanitizeString(raw, 'idenhanced').value;
-  return sanitized || null;
+  if (!sanitized || sanitized !== raw) return null;
+  return sanitized;
 }
 
 export async function getPostResult(
