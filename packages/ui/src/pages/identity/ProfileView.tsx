@@ -171,7 +171,7 @@ export function IdentityProfileView() {
       if (!id) return null;
       const res = await api.identity.getIdentityFriends(id, params);
       if (res.success && res.data) return res.data;
-      return null;
+      throw new Error('Failed to load friends');
     },
     [id, api],
   );

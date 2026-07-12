@@ -636,7 +636,9 @@ export function IdentityProfile() {
 
                     {previewProfile.lastActiveAt && (
                       <p className="profile-preview-meta">
-                        Last active: {new Date(previewProfile.lastActiveAt).toLocaleDateString()}
+                        {t('identity.profileView.lastActive', {
+                          date: new Date(previewProfile.lastActiveAt).toLocaleDateString(),
+                        })}
                       </p>
                     )}
                   </div>

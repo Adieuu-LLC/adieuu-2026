@@ -30,6 +30,7 @@ import { contrastRatio } from '../../utils/color';
 import { getIdentityRepository } from '../../repositories/identity.repository';
 import { getMediaUploadRepository } from '../../repositories/media-upload.repository';
 import { getFriendshipRepository } from '../../repositories/friendship.repository';
+import { isBlockedByEither } from '../../services/block.service';
 import {
   toPublicIdentity,
   DEFAULT_PRIVACY_SETTINGS,
@@ -263,6 +264,10 @@ export async function updateProfileCtrl(ctx: RouteContext): Promise<Response> {
   }
 
   if (data.selectedBadges !== undefined) {
+    const uniqueBadges = new Set(data.selectedBadges);
+    if (uniqueBadges.size !== data.selectedBadges.length) {
+      return errors.badRequest('Duplicate badge IDs are not allowed');
+    }
     const earned = deriveEarnedBadges(ctx.identitySession!.entitlements);
     const invalid = data.selectedBadges.filter((b) => !earned.includes(b));
     if (invalid.length > 0) {
@@ -405,6 +410,10 @@ export async function getIdentityFriendsCtrl(ctx: RouteContext): Promise<Respons
     if (viewerIdentity._id.equals(doc._id)) {
       viewerRelation = 'self';
     } else {
+      const blocked = await isBlockedByEither(viewerIdentity._id, doc._id);
+      if (blocked) {
+        return success({ friends: [], hidden: true, count: 0, cursor: null });
+      }
       const friends = await areFriends(viewerIdentity._id, doc._id);
       if (friends) {
         viewerRelation = 'friend';
@@ -450,16 +459,30 @@ export async function getIdentityFriendsCtrl(ctx: RouteContext): Promise<Respons
 
   const viewerObjId = ctx.identitySession?.identity._id ?? null;
 
+  const friendObjIds = friendInfos.map((fi) => new ObjectId(fi.identity.id));
+  const friendDocs = friendObjIds.length > 0
+    ? await repo.findMany({ _id: { $in: friendObjIds } } as Parameters<typeof repo.findMany>[0], friendObjIds.length)
+    : [];
+  const friendDocMap = new Map(friendDocs.map((d) => [d._id.toHexString(), d]));
+
+  const viewerFriendIdSet = new Set<string>();
+  if (viewerObjId && friendObjIds.length > 0) {
+    const viewerFriendships = await friendshipRepo.searchFriends(viewerObjId, friendObjIds);
+    for (const f of viewerFriendships) {
+      viewerFriendIdSet.add(f.friendIdentityId.toHexString());
+    }
+  }
+
   const filteredFriends = [];
   for (const friendInfo of friendInfos) {
-    const friendDoc = await repo.findByIdentityId(new ObjectId(friendInfo.identity.id));
+    const friendDoc = friendDocMap.get(friendInfo.identity.id);
     if (!friendDoc) continue;
 
     let friendViewerRelation: 'self' | 'friend' | 'stranger' = 'stranger';
     if (viewerObjId) {
       if (viewerObjId.equals(friendDoc._id)) {
         friendViewerRelation = 'self';
-      } else if (await areFriends(viewerObjId, friendDoc._id)) {
+      } else if (viewerFriendIdSet.has(friendDoc._id.toHexString())) {
         friendViewerRelation = 'friend';
       }
     }

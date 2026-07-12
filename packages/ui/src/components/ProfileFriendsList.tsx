@@ -207,19 +207,25 @@ function FetchedFriendsList({
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   const cursorRef = useRef<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const fetchInFlightRef = useRef(false);
+  const fetchIdRef = useRef(0);
   const onMetaLoadedRef = useRef(onMetaLoaded);
   onMetaLoadedRef.current = onMetaLoaded;
 
   const fetchPage = useCallback(
     async (params: { cursor?: string; q?: string; append?: boolean }) => {
       const isAppend = params.append ?? false;
+      const capturedFetchId = fetchIdRef.current;
+
       if (!isAppend) setLoading(true);
       else setLoadingMore(true);
+      fetchInFlightRef.current = true;
 
       try {
         const result = await fetchFriends({
@@ -228,7 +234,9 @@ function FetchedFriendsList({
           q: params.q || undefined,
         });
 
-        if (!result) return;
+        if (capturedFetchId !== fetchIdRef.current || !result) return;
+
+        setError(null);
 
         if (isAppend) {
           setFriends((prev) => {
@@ -243,27 +251,42 @@ function FetchedFriendsList({
         }
 
         cursorRef.current = result.cursor;
+      } catch {
+        if (capturedFetchId === fetchIdRef.current) {
+          setError(t('identity.profileView.error'));
+        }
       } finally {
+        fetchInFlightRef.current = false;
         if (!isAppend) setLoading(false);
         else setLoadingMore(false);
       }
     },
-    [fetchFriends],
+    [fetchFriends, t],
   );
 
   useEffect(() => {
     let cancelled = false;
+    fetchIdRef.current += 1;
+    const capturedFetchId = fetchIdRef.current;
+
+    setSearchQuery('');
+    cursorRef.current = null;
+    setError(null);
 
     const run = async () => {
       setLoading(true);
       try {
         const result = await fetchFriends({ limit: PAGE_SIZE });
-        if (cancelled || !result) return;
+        if (cancelled || capturedFetchId !== fetchIdRef.current || !result) return;
 
         setFriends(result.friends);
         setHidden(result.hidden);
         cursorRef.current = result.cursor;
         onMetaLoadedRef.current?.({ count: result.count, hidden: result.hidden });
+      } catch {
+        if (!cancelled && capturedFetchId === fetchIdRef.current) {
+          setError(t('identity.profileView.error'));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -271,7 +294,7 @@ function FetchedFriendsList({
 
     run();
     return () => { cancelled = true; };
-  }, [fetchFriends]);
+  }, [fetchFriends, t]);
 
   const handleSearchChange = useCallback(
     (value: string) => {
@@ -295,7 +318,7 @@ function FetchedFriendsList({
   }, []);
 
   const loadMore = useCallback(() => {
-    if (!cursorRef.current || loadingMore || loading) return;
+    if (!cursorRef.current || loadingMore || loading || fetchInFlightRef.current) return;
     const q = searchQuery.trim();
     fetchPage({
       cursor: cursorRef.current,
@@ -331,6 +354,14 @@ function FetchedFriendsList({
     );
   }
 
+  if (error && friends.length === 0) {
+    return (
+      <p className="profile-view-tab-placeholder">
+        {error}
+      </p>
+    );
+  }
+
   if (hidden) {
     return (
       <p className="profile-view-tab-placeholder">
@@ -359,6 +390,12 @@ function FetchedFriendsList({
           onChange={(e) => handleSearchChange(e.target.value)}
         />
       </div>
+
+      {error && (
+        <p className="profile-view-tab-placeholder">
+          {error}
+        </p>
+      )}
 
       {friends.length === 0 ? (
         <p className="profile-view-tab-placeholder">

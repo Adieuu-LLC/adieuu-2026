@@ -26,7 +26,7 @@ export function ProfileContentTabs({
   const { t } = useTranslation();
 
   const friendsLabel = friendsCount != null
-    ? `${t('identity.profileView.tabFriends')} (${friendsCount})`
+    ? t('identity.profileView.tabFriendsCount', { count: friendsCount })
     : t('identity.profileView.tabFriends');
 
   const profileTabItems = useMemo<TabItem[]>(

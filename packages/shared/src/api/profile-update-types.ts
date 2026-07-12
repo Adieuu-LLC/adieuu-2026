@@ -17,6 +17,6 @@ export interface UpdateProfileParams {
   };
   privacySettings?: Partial<ProfilePrivacySettings>;
   requireGroupApproval?: boolean;
-  /** Ordered badge selection (up to 3). Each must be an earned badge. */
+  /** Ordered badge selection (up to 3). Each must be an earned badge; duplicates are rejected. */
   selectedBadges?: BadgeId[];
 }

@@ -499,6 +499,7 @@ export const identity = {
       tabAchievements: 'Achievements',
       tabReports: 'Reports',
       tabFriends: 'Friends',
+      tabFriendsCount: 'Friends ({{count}})',
       postsPlaceholder: 'Available in the future when we add feeds and posts!',
       spacesPlaceholder:
         'Public & Mutual Spaces this user is a member of will be visible here when we add Spaces in the near future!',

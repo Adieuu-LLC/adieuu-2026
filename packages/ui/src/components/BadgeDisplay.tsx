@@ -22,7 +22,7 @@ export interface BadgeDisplayProps {
 export function BadgeDisplay({ badges, max, size = 'sm', className = '' }: BadgeDisplayProps) {
   const { t } = useTranslation();
 
-  const visible = max != null ? badges.slice(0, max) : badges;
+  const visible = max != null ? badges.slice(0, Math.max(0, max)) : badges;
   if (visible.length === 0) return null;
 
   return (
@@ -33,6 +33,7 @@ export function BadgeDisplay({ badges, max, size = 'sm', className = '' }: Badge
         return (
           <Tooltip key={id} content={t(def.criteriaKey)} position="top">
             <span
+              tabIndex={0}
               className={`badge-display-item badge-display-item--${id}`}
             >
               {t(def.labelKey)}
