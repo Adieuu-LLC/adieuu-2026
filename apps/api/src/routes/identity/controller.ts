@@ -386,9 +386,13 @@ export async function getIdentitySessionCtrl(ctx: RouteContext): Promise<Respons
   const publicIdentity = toPublicIdentity(ctx.identitySession.identity);
 
   const ents = ctx.identitySession.entitlements;
+  const storedBadges = ctx.identitySession.identity.earnedBadges ?? [];
   const earned: string[] = [];
   if (ents.includes('vanguard') || ents.includes('founder')) earned.push('vanguard');
   if (ents.includes('founder')) earned.push('founder');
+  for (const b of storedBadges) {
+    if (!earned.includes(b)) earned.push(b);
+  }
   if (earned.length > 0) {
     publicIdentity.earnedBadges = earned;
   }

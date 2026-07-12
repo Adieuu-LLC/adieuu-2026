@@ -467,6 +467,21 @@
     color: #e8a838;
     background: color-mix(in srgb, #e8a838 14%, transparent);
   }
+
+  &--top100 {
+    color: #c0392b;
+    background: color-mix(in srgb, #c0392b 14%, transparent);
+  }
+
+  &--top1000 {
+    color: #8e44ad;
+    background: color-mix(in srgb, #8e44ad 14%, transparent);
+  }
+
+  &--overachiever {
+    color: #27ae60;
+    background: color-mix(in srgb, #27ae60 14%, transparent);
+  }
 }
 
 // ============================================================================

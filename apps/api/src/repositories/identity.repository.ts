@@ -64,6 +64,8 @@ export interface IIdentityRepository {
   decrementFriendCounts(identityA: ObjectId, identityB: ObjectId, options?: { session?: ClientSession }): Promise<void>;
   incrementAchievementsEarnedCount(identityId: string | ObjectId, options?: { session?: ClientSession }): Promise<void>;
   decrementAchievementsEarnedCount(identityId: string | ObjectId, options?: { session?: ClientSession }): Promise<void>;
+  addEarnedBadge(identityId: string | ObjectId, badgeId: string): Promise<boolean>;
+  hasEarnedBadge(identityId: string | ObjectId, badgeId: string): Promise<boolean>;
   recordDisplayNameChange(identityId: string | ObjectId): Promise<number>;
   incrementEmptyBioSaveCount(identityId: string | ObjectId): Promise<number>;
   findActivityStatsProjection(
@@ -566,6 +568,22 @@ export class IdentityRepository
       { $inc: { achievementsEarnedCount: -1 } },
       { session: options?.session },
     );
+  }
+
+  async addEarnedBadge(identityId: string | ObjectId, badgeId: string): Promise<boolean> {
+    const result = await this.collection.updateOne(
+      { _id: this.toObjectId(identityId) },
+      { $addToSet: { earnedBadges: badgeId } },
+    );
+    return result.modifiedCount > 0;
+  }
+
+  async hasEarnedBadge(identityId: string | ObjectId, badgeId: string): Promise<boolean> {
+    const doc = await this.collection.findOne(
+      { _id: this.toObjectId(identityId), earnedBadges: badgeId },
+      { projection: { _id: 1 } },
+    );
+    return doc !== null;
   }
 
   async recordDisplayNameChange(identityId: string | ObjectId): Promise<number> {

@@ -160,6 +160,9 @@ export interface IdentityDocument extends BaseDocument {
   /** Ordered list of selected badge IDs to display on the profile (max 3). */
   selectedBadges?: string[];
 
+  /** Persisted earned badges not derivable from entitlements (e.g. top100, top1000, overachiever). */
+  earnedBadges?: string[];
+
   /** Platform-level roles assigned directly on this identity */
   platformRoles?: string[];
   /** Platform-level permission attributes granted directly */

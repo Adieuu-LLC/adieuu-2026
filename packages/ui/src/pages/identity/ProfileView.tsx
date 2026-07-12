@@ -176,6 +176,21 @@ export function IdentityProfileView() {
     [id, api],
   );
 
+  useEffect(() => {
+    if (!id || loadState !== 'loaded') return;
+    let cancelled = false;
+
+    fetchProfileFriends({ limit: 1 })
+      .then((result) => {
+        if (cancelled || !result) return;
+        setProfileFriendsCount(result.hidden ? undefined : result.count);
+        setProfileFriendsHidden(result.hidden);
+      })
+      .catch(() => {});
+
+    return () => { cancelled = true; };
+  }, [id, loadState, fetchProfileFriends]);
+
   const handleFriendsMeta = useCallback(
     (meta: { count: number; hidden: boolean }) => {
       setProfileFriendsCount(meta.hidden ? undefined : meta.count);

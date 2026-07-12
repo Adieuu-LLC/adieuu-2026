@@ -31,10 +31,10 @@ export function ProfileContentTabs({
 
   const profileTabItems = useMemo<TabItem[]>(
     () => [
+      { value: 'friends', label: friendsLabel },
       { value: 'posts', label: t('identity.profileView.tabPosts') },
       { value: 'spaces', label: t('identity.profileView.tabSpaces') },
       { value: 'achievements', label: t('identity.profileView.tabAchievements') },
-      { value: 'friends', label: friendsLabel },
       { value: 'reports', label: t('identity.profileView.tabReports') },
     ],
     [t, friendsLabel],
@@ -52,12 +52,16 @@ export function ProfileContentTabs({
 
   return (
     <div className={['profile-view-content', className].filter(Boolean).join(' ')}>
-      <Tabs defaultTab="achievements" className="profile-view-tabs">
+      <Tabs defaultTab="friends" className="profile-view-tabs">
         {tabsChrome ? (
           <div className="profile-view-tabs-chrome">{tabList}</div>
         ) : (
           tabList
         )}
+
+        <TabContent value="friends" className="profile-view-tab-panel">
+          {friends}
+        </TabContent>
 
         <TabContent value="posts" className="profile-view-tab-panel">
           <p className="profile-view-tab-placeholder">
@@ -73,10 +77,6 @@ export function ProfileContentTabs({
 
         <TabContent value="achievements" className="profile-view-tab-panel">
           {achievements}
-        </TabContent>
-
-        <TabContent value="friends" className="profile-view-tab-panel">
-          {friends}
         </TabContent>
 
         <TabContent value="reports" className="profile-view-tab-panel">

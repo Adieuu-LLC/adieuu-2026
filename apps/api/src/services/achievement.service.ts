@@ -26,6 +26,7 @@ import {
 import { DEFAULT_PRIVACY_SETTINGS, type IdentityDocument } from '../models/identity';
 import { toPublicAchievement, type PublicAchievement } from '../models/achievement';
 import { contrastRatio } from '../utils/color';
+import { checkOverachieverBadge } from './badge.service';
 import elog from '../utils/adieuuLogger';
 
 // ---------------------------------------------------------------------------
@@ -107,6 +108,8 @@ export async function checkAndAward(
         identityId: idObjId.toHexString(),
         achievementId: def.id,
       });
+
+      checkOverachieverBadge(idObjId).catch(() => {});
     } catch (err) {
       elog.warn('Failed to check/award achievement', {
         error: err,
@@ -298,4 +301,6 @@ export async function reconcileAchievements(
       });
     }
   }
+
+  checkOverachieverBadge(identityId).catch(() => {});
 }

@@ -654,7 +654,13 @@ export const identity = {
 export const badges = {
   vanguard: 'Vanguard',
   founder: 'Founder',
-  vanguardCriteria: 'Earned by Vanguard supporters.',
-  founderCriteria: 'Earned by Founder supporters.',
+  top100: '100',
+  top1000: '1000',
+  overachiever: 'Overachiever',
+  vanguardCriteria: 'Adieuu Vanguard supporter!',
+  founderCriteria: 'Adieuu Founder supporter!',
+  top100Criteria: 'One of the first 100 users on Adieuu',
+  top1000Criteria: 'One of the first 1000 users on Adieuu!',
+  overachieverCriteria: 'Awarded for earning every achievement.',
   notEarned: 'You haven\'t earned this badge yet.',
 } as const;

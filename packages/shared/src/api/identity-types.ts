@@ -15,9 +15,13 @@ export type CryptoProfile = 'default' | 'cnsa2';
 export type ProfileVisibility = 'public' | 'friends' | 'private';
 
 /**
- * Known badge identifiers tied to entitlements.
+ * Known badge identifiers.
+ *
+ * 'vanguard' / 'founder' are entitlement-derived (subscription tiers).
+ * 'top100' / 'top1000' are awarded based on global alias creation order.
+ * 'overachiever' is awarded for earning all achievements at a point in time.
  */
-export type BadgeId = 'vanguard' | 'founder';
+export type BadgeId = 'vanguard' | 'founder' | 'top100' | 'top1000' | 'overachiever';
 
 /**
  * Per-field privacy settings for identity profiles.

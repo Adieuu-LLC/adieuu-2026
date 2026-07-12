@@ -42,7 +42,7 @@ import {
 
 const HEX_COLOR_REGEX = /^#[0-9a-fA-F]{6}$/;
 
-const VALID_BADGE_IDS = ['vanguard', 'founder'] as const;
+const VALID_BADGE_IDS = ['vanguard', 'founder', 'top100', 'top1000', 'overachiever'] as const;
 const BADGE_ENTITLEMENT_MAP: Record<string, string> = {
   vanguard: 'vanguard',
   founder: 'founder',
@@ -50,7 +50,7 @@ const BADGE_ENTITLEMENT_MAP: Record<string, string> = {
 const MAX_SELECTED_BADGES = 3;
 
 const ProfileVisibilityEnum = z.enum(['public', 'friends', 'private']);
-const BadgeIdEnum = z.enum(['vanguard', 'founder']);
+const BadgeIdEnum = z.enum(['vanguard', 'founder', 'top100', 'top1000', 'overachiever']);
 
 const UpdateProfileSchema = z.object({
   displayName: z.string().min(1).max(50).optional(),
@@ -82,13 +82,24 @@ const UpdateProfileSchema = z.object({
   selectedBadges: z.array(BadgeIdEnum).max(MAX_SELECTED_BADGES).optional(),
 });
 
-function deriveEarnedBadges(entitlements: readonly string[]): string[] {
+function deriveEarnedBadges(
+  entitlements: readonly string[],
+  storedBadges?: readonly string[],
+): string[] {
   const hasFounder = entitlements.includes('founder');
-  return VALID_BADGE_IDS.filter(
-    (badge) =>
-      entitlements.includes(BADGE_ENTITLEMENT_MAP[badge]) ||
-      (badge === 'vanguard' && hasFounder),
-  );
+  const entitlementBadges = VALID_BADGE_IDS.filter((badge) => {
+    const entitlement = BADGE_ENTITLEMENT_MAP[badge];
+    return (entitlement != null && entitlements.includes(entitlement)) ||
+      (badge === 'vanguard' && hasFounder);
+  });
+
+  if (!storedBadges?.length) return entitlementBadges;
+
+  const merged = new Set<string>(entitlementBadges);
+  for (const b of storedBadges) {
+    if ((VALID_BADGE_IDS as readonly string[]).includes(b)) merged.add(b);
+  }
+  return [...merged];
 }
 
 /**
@@ -268,7 +279,10 @@ export async function updateProfileCtrl(ctx: RouteContext): Promise<Response> {
     if (uniqueBadges.size !== data.selectedBadges.length) {
       return errors.badRequest('Duplicate badge IDs are not allowed');
     }
-    const earned = deriveEarnedBadges(ctx.identitySession!.entitlements);
+    const earned = deriveEarnedBadges(
+      ctx.identitySession!.entitlements,
+      identity.earnedBadges,
+    );
     const invalid = data.selectedBadges.filter((b) => !earned.includes(b));
     if (invalid.length > 0) {
       return errors.badRequest(`You have not earned these badges: ${invalid.join(', ')}`);
@@ -373,7 +387,10 @@ export async function getProfileCtrl(ctx: RouteContext): Promise<Response> {
   }
 
   if (viewerRelation === 'self' && ctx.identitySession) {
-    publicProfile.earnedBadges = deriveEarnedBadges(ctx.identitySession.entitlements);
+    publicProfile.earnedBadges = deriveEarnedBadges(
+      ctx.identitySession.entitlements,
+      doc.earnedBadges,
+    );
   }
 
   const filtered = applyPrivacyFilter(publicProfile, doc, viewerRelation);

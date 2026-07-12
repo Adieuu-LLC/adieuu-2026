@@ -261,4 +261,111 @@ describe('profile.controller', () => {
       expect(result).toBe(false);
     });
   });
+
+  describe('earnedBadges merge (self-view)', () => {
+    test('self-view includes entitlement + stored badges in earnedBadges', async () => {
+      const docWithBadges = {
+        ...mockIdentityDoc,
+        earnedBadges: ['top100', 'top1000'],
+      };
+      mockFindByIdentityIdProfile.mockImplementation(() =>
+        Promise.resolve(docWithBadges),
+      );
+
+      const req = new Request('http://x/');
+      const ctx: RouteContext = {
+        request: req,
+        url: new URL(req.url),
+        params: { id: identityHex },
+        query: new URLSearchParams(),
+        requestId: 't',
+        locale: 'en' as Locale,
+        errors: makeErrors(),
+        identitySession: {
+          identity: docWithBadges as never,
+          sessionId: 's',
+          maxVideoDurationSeconds: 300,
+          subscriptions: [],
+          entitlements: ['vanguard'],
+          isLifetime: false,
+        },
+      };
+
+      const res = await getProfileCtrl(ctx);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { data: { earnedBadges?: string[] } };
+      const earned = body.data.earnedBadges!;
+      expect(earned).toContain('vanguard');
+      expect(earned).toContain('top100');
+      expect(earned).toContain('top1000');
+    });
+
+    test('self-view with no stored badges returns only entitlement badges', async () => {
+      mockFindByIdentityIdProfile.mockImplementation(() =>
+        Promise.resolve(mockIdentityDoc),
+      );
+
+      const req = new Request('http://x/');
+      const ctx: RouteContext = {
+        request: req,
+        url: new URL(req.url),
+        params: { id: identityHex },
+        query: new URLSearchParams(),
+        requestId: 't',
+        locale: 'en' as Locale,
+        errors: makeErrors(),
+        identitySession: {
+          identity: mockIdentityDoc as never,
+          sessionId: 's',
+          maxVideoDurationSeconds: 300,
+          subscriptions: [],
+          entitlements: ['founder'],
+          isLifetime: true,
+        },
+      };
+
+      const res = await getProfileCtrl(ctx);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { data: { earnedBadges?: string[] } };
+      const earned = body.data.earnedBadges!;
+      expect(earned).toContain('vanguard');
+      expect(earned).toContain('founder');
+      expect(earned).not.toContain('top100');
+    });
+
+    test('stranger does not see earnedBadges', async () => {
+      const docWithBadges = {
+        ...mockIdentityDoc,
+        earnedBadges: ['top100'],
+      };
+      mockFindByIdentityIdProfile.mockImplementation(() =>
+        Promise.resolve(docWithBadges),
+      );
+
+      const otherOid = new ObjectId();
+      const req = new Request('http://x/');
+      const ctx: RouteContext = {
+        request: req,
+        url: new URL(req.url),
+        params: { id: identityHex },
+        query: new URLSearchParams(),
+        requestId: 't',
+        locale: 'en' as Locale,
+        errors: makeErrors(),
+        identitySession: {
+          identity: { _id: otherOid } as never,
+          sessionId: 's',
+          maxVideoDurationSeconds: 300,
+          subscriptions: [],
+          entitlements: [],
+          isLifetime: false,
+        },
+      };
+
+      const res = await getProfileCtrl(ctx);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { data: { earnedBadges?: string[] } };
+      expect(body.data.earnedBadges).toBeUndefined();
+    });
+  });
 });
