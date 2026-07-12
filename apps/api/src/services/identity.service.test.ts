@@ -138,6 +138,14 @@ mock.module('../db', () => ({
   },
 }));
 
+// --- Mock badge service ---
+
+const mockAwardOrderBadges = mock(() => Promise.resolve()) as AnyMock;
+
+mock.module('./badge.service', () => ({
+  awardOrderBadges: mockAwardOrderBadges,
+}));
+
 // Import after mocking
 import {
   createIdentity,
@@ -247,6 +255,9 @@ describe('identity.service', () => {
     mockRedis.ttl.mockReset();
     mockRedis.ttl.mockImplementation(() => Promise.resolve(-1));
     mockRedis.rpush.mockReset();
+
+    mockAwardOrderBadges.mockReset();
+    mockAwardOrderBadges.mockImplementation(() => Promise.resolve());
   });
 
   describe('createIdentity', () => {
@@ -285,6 +296,7 @@ describe('identity.service', () => {
         identity._id,
         undefined,
       );
+      expect(mockAwardOrderBadges).toHaveBeenCalledWith(identity._id, 1);
     });
 
     test('returns VALIDATION_ERROR for short passphrase', async () => {
