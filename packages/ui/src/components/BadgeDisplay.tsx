@@ -32,12 +32,12 @@ export function BadgeDisplay({ badges, max, size = 'sm', className = '' }: Badge
         if (!def) return null;
         return (
           <Tooltip key={id} content={t(def.criteriaKey)} position="top">
-            <span
-              tabIndex={0}
+            <button
+              type="button"
               className={`badge-display-item badge-display-item--${id}`}
             >
               {t(def.labelKey)}
-            </span>
+            </button>
           </Tooltip>
         );
       })}

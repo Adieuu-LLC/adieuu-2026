@@ -45,7 +45,7 @@ export async function createFolderCtrl(
   const sanitizedName = sanitizeString(parseResult.data.name, 'general').value;
   if (!sanitizedName) return { kind: 'validation_failed' };
   const sanitizedIconColor = parseResult.data.iconColor
-    ? (/^#[0-9a-fA-F]{6}$/.test(parseResult.data.iconColor) ? parseResult.data.iconColor : undefined)
+    ? (sanitizeString(parseResult.data.iconColor, 'hexColor').value || undefined)
     : undefined;
 
   const repo = getConversationFoldersRepository();
@@ -93,7 +93,7 @@ export async function updateFolderCtrl(
   const sanitizedPatch = {
     ...patch,
     iconColor: patch.iconColor !== undefined
-      ? (patch.iconColor === null ? null : (/^#[0-9a-fA-F]{6}$/.test(patch.iconColor!) ? patch.iconColor : undefined))
+      ? (patch.iconColor === null ? null : (sanitizeString(patch.iconColor!, 'hexColor').value || undefined))
       : undefined,
   };
 

@@ -344,7 +344,9 @@ export async function createIdentity(
   checkDisplayNameAchievements(identity._id, displayName).catch(() => {});
   awardPopCultureTextAchievements(identity._id, displayName);
   awardTvReferenceDisplayNameAchievements(identity._id, displayName);
-  awardOrderBadges(identity._id).catch(() => {});
+  identityCountRepo.incrementGlobalSequence()
+    .then((seq) => awardOrderBadges(identity._id, seq))
+    .catch(() => {});
 
   // Session creation is best-effort: it touches Redis as well as MongoDB,
   // and a failure here is recoverable (user can simply log in).

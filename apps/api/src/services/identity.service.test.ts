@@ -63,6 +63,7 @@ mock.module('../repositories/key-bundle.repository', () => ({
 const mockIdentityCountRepo = {
   getCount: mock(() => Promise.resolve(0)) as AnyMock,
   increment: mock(() => Promise.resolve(1)) as AnyMock,
+  incrementGlobalSequence: mock(() => Promise.resolve(1)) as AnyMock,
 };
 
 mock.module('../repositories/identity-count.repository', () => ({
@@ -208,6 +209,10 @@ describe('identity.service', () => {
     mockIdentityCountRepo.getCount.mockImplementation(() => Promise.resolve(0));
     mockIdentityCountRepo.increment.mockReset();
     mockIdentityCountRepo.increment.mockImplementation(() =>
+      Promise.resolve(1),
+    );
+    mockIdentityCountRepo.incrementGlobalSequence.mockReset();
+    mockIdentityCountRepo.incrementGlobalSequence.mockImplementation(() =>
       Promise.resolve(1),
     );
 

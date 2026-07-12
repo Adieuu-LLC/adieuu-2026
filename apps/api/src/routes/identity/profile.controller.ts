@@ -40,8 +40,6 @@ import {
   type IdentityDocument,
 } from '../../models/identity';
 
-const HEX_COLOR_REGEX = /^#[0-9a-fA-F]{6}$/;
-
 const VALID_BADGE_IDS = ['vanguard', 'founder', 'top100', 'top1000', 'overachiever'] as const;
 const BADGE_ENTITLEMENT_MAP: Record<string, string> = {
   vanguard: 'vanguard',
@@ -50,7 +48,7 @@ const BADGE_ENTITLEMENT_MAP: Record<string, string> = {
 const MAX_SELECTED_BADGES = 3;
 
 const ProfileVisibilityEnum = z.enum(['public', 'friends', 'private']);
-const BadgeIdEnum = z.enum(['vanguard', 'founder', 'top100', 'top1000', 'overachiever']);
+const BadgeIdEnum = z.enum(VALID_BADGE_IDS);
 
 const UpdateProfileSchema = z.object({
   displayName: z.string().min(1).max(50).optional(),
@@ -61,9 +59,9 @@ const UpdateProfileSchema = z.object({
   removeBanner: z.boolean().optional(),
   profileColors: z
     .object({
-      accent: z.string().regex(HEX_COLOR_REGEX).optional().nullable(),
-      cardBackground: z.string().regex(HEX_COLOR_REGEX).optional().nullable(),
-      background: z.string().regex(HEX_COLOR_REGEX).optional().nullable(),
+      accent: z.string().optional().nullable(),
+      cardBackground: z.string().optional().nullable(),
+      background: z.string().optional().nullable(),
     })
     .optional(),
   privacySettings: z
@@ -243,13 +241,19 @@ export async function updateProfileCtrl(ctx: RouteContext): Promise<Response> {
     }
     const colors: Record<string, string | undefined> = {};
     if (data.profileColors.accent !== undefined) {
-      colors.accent = data.profileColors.accent ?? undefined;
+      colors.accent = data.profileColors.accent
+        ? (sanitizeString(data.profileColors.accent, 'hexColor').value || undefined)
+        : undefined;
     }
     if (data.profileColors.cardBackground !== undefined) {
-      colors.cardBackground = data.profileColors.cardBackground ?? undefined;
+      colors.cardBackground = data.profileColors.cardBackground
+        ? (sanitizeString(data.profileColors.cardBackground, 'hexColor').value || undefined)
+        : undefined;
     }
     if (data.profileColors.background !== undefined) {
-      colors.background = data.profileColors.background ?? undefined;
+      colors.background = data.profileColors.background
+        ? (sanitizeString(data.profileColors.background, 'hexColor').value || undefined)
+        : undefined;
     }
     update.profileColors = colors;
   }

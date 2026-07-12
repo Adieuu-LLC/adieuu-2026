@@ -14,39 +14,39 @@ import { ObjectId } from 'mongodb';
 import { getIdentityRepository } from '../repositories/identity.repository';
 import { getAchievementRepository } from '../repositories/achievement.repository';
 import { ACHIEVEMENT_DEFINITIONS } from '../models/achievement-definitions';
-import { DELETED_IDENT_PREFIX } from '../models/identity';
-import { getCollection, Collections } from '../db';
 import elog from '../utils/adieuuLogger';
 
 const NON_ENTITLEMENT_ACHIEVEMENT_COUNT = ACHIEVEMENT_DEFINITIONS.filter(
   (d) => d.trigger.type !== 'entitlement',
 ).length;
 
+const HIGHEST_BADGE_THRESHOLD = 1000;
+
 /**
  * Award order-based badges (top100 / top1000) to a newly created identity.
  *
- * Counts non-deleted identities in the collection. If the count (including
- * the new one) is <= 100 or <= 1000, the corresponding badge is persisted.
+ * Uses the monotonic global identity creation counter (incremented during
+ * identity creation) so deleted identities never deflate the count and
+ * late registrants cannot incorrectly qualify.
+ *
+ * @param creationOrder - The global sequence number for this identity,
+ *   obtained from {@link IdentityCountRepository.incrementGlobalSequence}.
  */
 export async function awardOrderBadges(
   identityId: string | ObjectId,
+  creationOrder: number,
 ): Promise<void> {
-  try {
-    const identities = getCollection(Collections.IDENTITIES);
-    const totalCount = await identities.countDocuments({
-      ident: { $not: { $regex: `^${DELETED_IDENT_PREFIX}` } },
-    });
+  if (creationOrder > HIGHEST_BADGE_THRESHOLD) return;
 
+  try {
     const repo = getIdentityRepository();
 
-    if (totalCount <= 1000) {
-      await repo.addEarnedBadge(identityId, 'top1000');
-      elog.info('Badge awarded: top1000', {
-        identityId: identityId instanceof ObjectId ? identityId.toHexString() : identityId,
-      });
-    }
+    await repo.addEarnedBadge(identityId, 'top1000');
+    elog.info('Badge awarded: top1000', {
+      identityId: identityId instanceof ObjectId ? identityId.toHexString() : identityId,
+    });
 
-    if (totalCount <= 100) {
+    if (creationOrder <= 100) {
       await repo.addEarnedBadge(identityId, 'top100');
       elog.info('Badge awarded: top100', {
         identityId: identityId instanceof ObjectId ? identityId.toHexString() : identityId,

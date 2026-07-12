@@ -862,6 +862,29 @@ export async function ensureCriticalCollections(): Promise<void> {
   const identityCounts = database.collection(Collections.IDENTITY_COUNTS);
   await identityCounts.createIndex({ accountHash: 1 }, { unique: true });
 
+  // Seed global identity sequence counter from the current identities
+  // collection size so existing deployments start with an accurate baseline.
+  const hasGlobalSeq = await identityCounts.findOne({ accountHash: '__global_identity_seq__' });
+  if (!hasGlobalSeq) {
+    const identityTotal = await database
+      .collection(Collections.IDENTITIES)
+      .countDocuments({});
+    if (identityTotal > 0) {
+      await identityCounts.updateOne(
+        { accountHash: '__global_identity_seq__' },
+        {
+          $setOnInsert: {
+            count: identityTotal,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        },
+        { upsert: true },
+      );
+      elog.info('Seeded global identity sequence counter', { count: identityTotal });
+    }
+  }
+
   if (!names.has(Collections.COMMUNITY_THEMES)) {
     await database.createCollection(Collections.COMMUNITY_THEMES);
     elog.info('Created critical collection', { collection: Collections.COMMUNITY_THEMES });

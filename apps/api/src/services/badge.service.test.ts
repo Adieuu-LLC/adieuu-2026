@@ -27,12 +27,7 @@ mock.module('../repositories/achievement.repository', () => ({
   }),
 }));
 
-const mockCountDocuments = mock(() => Promise.resolve(50)) as AnyMock;
-
 mock.module('../db', () => ({
-  getCollection: () => ({
-    countDocuments: mockCountDocuments,
-  }),
   Collections: {
     IDENTITIES: 'identities',
     IDENTITY_ACHIEVEMENTS: 'identity_achievements',
@@ -59,72 +54,64 @@ describe('badge.service', () => {
     mockAddEarnedBadge.mockReset();
     mockHasEarnedBadge.mockReset();
     mockGetByIdentity.mockReset();
-    mockCountDocuments.mockReset();
 
     mockAddEarnedBadge.mockImplementation(() => Promise.resolve(true));
     mockHasEarnedBadge.mockImplementation(() => Promise.resolve(false));
     mockGetByIdentity.mockImplementation(() => Promise.resolve([]));
-    mockCountDocuments.mockImplementation(() => Promise.resolve(50));
   });
 
   describe('awardOrderBadges', () => {
-    test('awards both top100 and top1000 when count <= 100', async () => {
-      mockCountDocuments.mockImplementation(() => Promise.resolve(42));
+    test('awards both top100 and top1000 when creationOrder <= 100', async () => {
       const id = new ObjectId();
-      await awardOrderBadges(id);
+      await awardOrderBadges(id, 42);
 
       expect(mockAddEarnedBadge).toHaveBeenCalledTimes(2);
       expect(mockAddEarnedBadge).toHaveBeenCalledWith(id, 'top1000');
       expect(mockAddEarnedBadge).toHaveBeenCalledWith(id, 'top100');
     });
 
-    test('awards only top1000 when 100 < count <= 1000', async () => {
-      mockCountDocuments.mockImplementation(() => Promise.resolve(500));
+    test('awards only top1000 when 100 < creationOrder <= 1000', async () => {
       const id = new ObjectId();
-      await awardOrderBadges(id);
+      await awardOrderBadges(id, 500);
 
       expect(mockAddEarnedBadge).toHaveBeenCalledTimes(1);
       expect(mockAddEarnedBadge).toHaveBeenCalledWith(id, 'top1000');
     });
 
-    test('awards nothing when count > 1000', async () => {
-      mockCountDocuments.mockImplementation(() => Promise.resolve(5000));
+    test('short-circuits when creationOrder > 1000', async () => {
       const id = new ObjectId();
-      await awardOrderBadges(id);
+      await awardOrderBadges(id, 5000);
 
       expect(mockAddEarnedBadge).not.toHaveBeenCalled();
     });
 
-    test('handles boundary count = 100 exactly', async () => {
-      mockCountDocuments.mockImplementation(() => Promise.resolve(100));
+    test('handles boundary creationOrder = 100 exactly', async () => {
       const id = new ObjectId();
-      await awardOrderBadges(id);
+      await awardOrderBadges(id, 100);
 
       expect(mockAddEarnedBadge).toHaveBeenCalledWith(id, 'top100');
       expect(mockAddEarnedBadge).toHaveBeenCalledWith(id, 'top1000');
     });
 
-    test('handles boundary count = 1000 exactly', async () => {
-      mockCountDocuments.mockImplementation(() => Promise.resolve(1000));
+    test('handles boundary creationOrder = 1000 exactly', async () => {
       const id = new ObjectId();
-      await awardOrderBadges(id);
+      await awardOrderBadges(id, 1000);
 
       expect(mockAddEarnedBadge).toHaveBeenCalledTimes(1);
       expect(mockAddEarnedBadge).toHaveBeenCalledWith(id, 'top1000');
     });
 
     test('accepts string identity id', async () => {
-      mockCountDocuments.mockImplementation(() => Promise.resolve(1));
       const id = new ObjectId();
-      await awardOrderBadges(id.toHexString());
+      await awardOrderBadges(id.toHexString(), 1);
 
       expect(mockAddEarnedBadge).toHaveBeenCalledTimes(2);
     });
 
     test('swallows errors gracefully', async () => {
-      mockCountDocuments.mockImplementation(() => Promise.reject(new Error('db down')));
-      await awardOrderBadges(new ObjectId());
-      expect(mockAddEarnedBadge).not.toHaveBeenCalled();
+      mockAddEarnedBadge.mockImplementation(() => Promise.reject(new Error('db down')));
+      await awardOrderBadges(new ObjectId(), 50);
+      expect(mockAddEarnedBadge).toHaveBeenCalled();
     });
   });
 

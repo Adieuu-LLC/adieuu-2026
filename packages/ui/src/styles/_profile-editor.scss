@@ -443,6 +443,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border: none;
+  cursor: default;
+  font-family: inherit;
   border-radius: var(--radius-full);
   font-weight: var(--font-weight-semibold);
   line-height: 1;

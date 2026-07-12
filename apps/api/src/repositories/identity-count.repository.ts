@@ -19,9 +19,12 @@ interface IdentityCountDocument {
   updatedAt: Date;
 }
 
+const GLOBAL_SEQUENCE_KEY = '__global_identity_seq__';
+
 export interface IIdentityCountRepository {
   getCount(accountHash: string): Promise<number>;
   increment(accountHash: string, options?: { session?: ClientSession }): Promise<number>;
+  incrementGlobalSequence(): Promise<number>;
 }
 
 export class IdentityCountRepository
@@ -57,6 +60,44 @@ export class IdentityCountRepository
     );
 
     return result?.count ?? 1;
+  }
+
+  /**
+   * Atomically increments the global identity creation sequence.
+   * Returns the new sequence number (monotonic, never decremented).
+   */
+  async incrementGlobalSequence(): Promise<number> {
+    const result = await this.collection.findOneAndUpdate(
+      { accountHash: GLOBAL_SEQUENCE_KEY },
+      {
+        $inc: { count: 1 },
+        $set: { updatedAt: new Date() },
+        $setOnInsert: { createdAt: new Date() },
+      },
+      { upsert: true, returnDocument: 'after' },
+    );
+
+    return result?.count ?? 1;
+  }
+
+  /**
+   * Seeds the global sequence counter from an external count if the
+   * counter document does not yet exist. Called once at startup so
+   * existing deployments start with an accurate baseline.
+   */
+  async seedGlobalSequenceIfNeeded(currentTotal: number): Promise<void> {
+    if (currentTotal <= 0) return;
+    await this.collection.updateOne(
+      { accountHash: GLOBAL_SEQUENCE_KEY },
+      {
+        $setOnInsert: {
+          count: currentTotal,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      },
+      { upsert: true },
+    );
   }
 }
 
