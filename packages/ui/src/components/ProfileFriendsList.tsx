@@ -249,7 +249,6 @@ function FetchedFriendsList({
         } else {
           setFriends(result.friends);
           setHidden(result.hidden);
-          onMetaLoadedRef.current?.({ count: result.count, hidden: result.hidden });
         }
 
         cursorRef.current = result.cursor;
