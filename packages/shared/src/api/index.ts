@@ -65,6 +65,7 @@ export {
 
 export { IdentityApi } from './identity-api';
 export {
+  type BadgeId,
   type CryptoProfile,
   type ProfileVisibility,
   type ProfilePrivacySettings,
@@ -163,7 +164,13 @@ export {
   type AdminIdentityReportsResult,
   type SuspendIdentityInput,
   type BanIdentityInput,
+  type SiteAnnouncement,
+  type AdminSiteAnnouncement,
+  type CreateSiteAnnouncementBody,
+  type UpdateSiteAnnouncementBody,
 } from './admin-api';
+
+export { AnnouncementsApi } from './announcements-api';
 
 export {
   getReportSourceI18nKey,

@@ -9,6 +9,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { createApiClient } from '@adieuu/shared';
 import { AccountFlyout, IdentityFlyout, isAccountSidebarHidden } from './identity';
 import { SidebarUpdateNav } from './SidebarUpdateNav';
+import { SidebarAnnouncementNotice } from '../../components/SidebarAnnouncementNotice';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useSupportUnreadCount } from '../../hooks/useSupportUnreadCount';
 import { SidebarCallWidget } from '../../components/call/SidebarCallWidget';
@@ -158,6 +159,7 @@ export function SidebarFooterContent({ variant = 'full' }: { variant?: SidebarVa
             </Link>
           </div>
         )}
+        <SidebarAnnouncementNotice />
         <SidebarLoginPrompt />
       </div>
     );
@@ -201,6 +203,7 @@ function AuthenticatedSidebarFooter() {
         </div>
       )}
       <SidebarUpdateNav />
+      <SidebarAnnouncementNotice />
       <div className="sidebar-identity-section">
         <div className="sidebar-identity-row">
           <IdentityFlyout supportUnreadCount={identitySupportEnabled ? supportUnreadCount : 0} />

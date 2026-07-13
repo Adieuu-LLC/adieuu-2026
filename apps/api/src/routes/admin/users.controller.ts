@@ -18,6 +18,7 @@ import type { AuditAction, AuditLogDocument } from '../../models/audit';
 import type { SessionDocument } from '../../models/session';
 import { isSelfIdentityTarget } from './moderation-guards';
 import elog from '../../utils/adieuuLogger';
+import { sanitizeString, sanitizeObjectId } from '../../utils/sanitize';
 
 // ---------------------------------------------------------------------------
 // Schemas
@@ -279,12 +280,21 @@ export type SearchResult =
   | { ok: true; users: AdminUserSearchItem[] }
   | { ok: false; reason: 'validation_failed' };
 
+function sanitizeUserIdSegment(segment: string | undefined): string | null {
+  if (!segment) return null;
+  const sanitized = sanitizeObjectId(segment);
+  return sanitized.ok ? sanitized.id : null;
+}
+
 export async function searchUsers(query: unknown): Promise<SearchResult> {
   const parsed = SearchQuerySchema.safeParse(queryToRecord(query));
   if (!parsed.success) return { ok: false, reason: 'validation_failed' };
 
+  const sanitizedQ = sanitizeString(parsed.data.q.trim(), 'general').value;
+  if (!sanitizedQ) return { ok: false, reason: 'validation_failed' };
+
   const userRepo = getUserRepository();
-  const docs = await userRepo.searchByIdentifier(parsed.data.q.trim());
+  const docs = await userRepo.searchByIdentifier(sanitizedQ);
   return { ok: true, users: docs.map(toSearchItem) };
 }
 
@@ -293,12 +303,11 @@ export type GetProfileResult =
   | { ok: false; reason: 'not_found' | 'validation_failed' };
 
 export async function getUserProfile(userIdSegment: string | undefined): Promise<GetProfileResult> {
-  if (!userIdSegment || !ObjectId.isValid(userIdSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const userId = sanitizeUserIdSegment(userIdSegment);
+  if (!userId) return { ok: false, reason: 'validation_failed' };
 
   const userRepo = getUserRepository();
-  const user = await userRepo.findById(new ObjectId(userIdSegment));
+  const user = await userRepo.findById(new ObjectId(userId));
   if (!user) return { ok: false, reason: 'not_found' };
 
   return { ok: true, profile: toAdminProfile(user) };
@@ -309,12 +318,11 @@ export type GetSessionsResult =
   | { ok: false; reason: 'not_found' | 'validation_failed' };
 
 export async function getUserSessions(userIdSegment: string | undefined): Promise<GetSessionsResult> {
-  if (!userIdSegment || !ObjectId.isValid(userIdSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const userId = sanitizeUserIdSegment(userIdSegment);
+  if (!userId) return { ok: false, reason: 'validation_failed' };
 
   const sessionRepo = getSessionRepository();
-  const sessions = await sessionRepo.findActiveByUserId(new ObjectId(userIdSegment));
+  const sessions = await sessionRepo.findActiveByUserId(new ObjectId(userId));
   return { ok: true, sessions: sessions.map(toAdminSession) };
 }
 
@@ -326,9 +334,8 @@ export async function getUserAuditLog(
   userIdSegment: string | undefined,
   query: unknown,
 ): Promise<GetAuditLogResult> {
-  if (!userIdSegment || !ObjectId.isValid(userIdSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const userId = sanitizeUserIdSegment(userIdSegment);
+  if (!userId) return { ok: false, reason: 'validation_failed' };
 
   const parsed = AuditLogQuerySchema.safeParse(queryToRecord(query));
   if (!parsed.success) return { ok: false, reason: 'validation_failed' };
@@ -337,7 +344,7 @@ export async function getUserAuditLog(
   const offset = parsed.data.offset ?? 0;
   const auditRepo = getAuditLogRepository();
 
-  const docs = await auditRepo.findByUserId(new ObjectId(userIdSegment), limit + offset);
+  const docs = await auditRepo.findByUserId(new ObjectId(userId), limit + offset);
   const sliced = docs.slice(offset, offset + limit);
 
   return { ok: true, entries: sliced.map(toAuditEntry), total: docs.length };
@@ -352,15 +359,14 @@ export async function giftSubscription(
   userIdSegment: string | undefined,
   body: unknown,
 ): Promise<GiftSubscriptionResult> {
-  if (!userIdSegment || !ObjectId.isValid(userIdSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const userId = sanitizeUserIdSegment(userIdSegment);
+  if (!userId) return { ok: false, reason: 'validation_failed' };
 
   const parsed = GiftSubscriptionSchema.safeParse(body);
   if (!parsed.success) return { ok: false, reason: 'validation_failed' };
 
   const userRepo = getUserRepository();
-  const user = await userRepo.findById(new ObjectId(userIdSegment));
+  const user = await userRepo.findById(new ObjectId(userId));
   if (!user) return { ok: false, reason: 'not_found' };
 
   const override = subscriptionOverrideFromInput(parsed.data);
@@ -399,12 +405,11 @@ export type GetSubscriptionOverridesResult =
 export async function getSubscriptionOverrides(
   userIdSegment: string | undefined,
 ): Promise<GetSubscriptionOverridesResult> {
-  if (!userIdSegment || !ObjectId.isValid(userIdSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const userId = sanitizeUserIdSegment(userIdSegment);
+  if (!userId) return { ok: false, reason: 'validation_failed' };
 
   const userRepo = getUserRepository();
-  const user = await userRepo.findById(new ObjectId(userIdSegment));
+  const user = await userRepo.findById(new ObjectId(userId));
   if (!user) return { ok: false, reason: 'not_found' };
 
   const access = resolveEffectiveAccess(user);
@@ -424,15 +429,14 @@ export async function addSubscriptionOverride(
   userIdSegment: string | undefined,
   body: unknown,
 ): Promise<ModifySubscriptionOverrideResult> {
-  if (!userIdSegment || !ObjectId.isValid(userIdSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const userId = sanitizeUserIdSegment(userIdSegment);
+  if (!userId) return { ok: false, reason: 'validation_failed' };
 
   const parsed = SubscriptionOverrideInputSchema.safeParse(body);
   if (!parsed.success) return { ok: false, reason: 'validation_failed' };
 
   const userRepo = getUserRepository();
-  const user = await userRepo.findById(new ObjectId(userIdSegment));
+  const user = await userRepo.findById(new ObjectId(userId));
   if (!user) return { ok: false, reason: 'not_found' };
 
   const override = subscriptionOverrideFromInput(parsed.data);
@@ -459,9 +463,8 @@ export async function updateSubscriptionOverride(
   indexSegment: string | undefined,
   body: unknown,
 ): Promise<ModifySubscriptionOverrideResult> {
-  if (!userIdSegment || !ObjectId.isValid(userIdSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const userId = sanitizeUserIdSegment(userIdSegment);
+  if (!userId) return { ok: false, reason: 'validation_failed' };
 
   const index = parseSubscriptionOverrideIndex(indexSegment);
   if (index === null) return { ok: false, reason: 'validation_failed' };
@@ -470,7 +473,7 @@ export async function updateSubscriptionOverride(
   if (!parsed.success) return { ok: false, reason: 'validation_failed' };
 
   const userRepo = getUserRepository();
-  const user = await userRepo.findById(new ObjectId(userIdSegment));
+  const user = await userRepo.findById(new ObjectId(userId));
   if (!user) return { ok: false, reason: 'not_found' };
 
   const override = subscriptionOverrideFromInput(parsed.data);
@@ -498,15 +501,14 @@ export async function removeSubscriptionOverride(
   userIdSegment: string | undefined,
   indexSegment: string | undefined,
 ): Promise<ModifySubscriptionOverrideResult> {
-  if (!userIdSegment || !ObjectId.isValid(userIdSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const userId = sanitizeUserIdSegment(userIdSegment);
+  if (!userId) return { ok: false, reason: 'validation_failed' };
 
   const index = parseSubscriptionOverrideIndex(indexSegment);
   if (index === null) return { ok: false, reason: 'validation_failed' };
 
   const userRepo = getUserRepository();
-  const user = await userRepo.findById(new ObjectId(userIdSegment));
+  const user = await userRepo.findById(new ObjectId(userId));
   if (!user) return { ok: false, reason: 'not_found' };
 
   const existing = user.subscriptionOverrides?.[index];
@@ -539,12 +541,11 @@ export async function approveAge(
   adminIdentityId: string,
   userIdSegment: string | undefined,
 ): Promise<ApproveAgeResult> {
-  if (!userIdSegment || !ObjectId.isValid(userIdSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const userId = sanitizeUserIdSegment(userIdSegment);
+  if (!userId) return { ok: false, reason: 'validation_failed' };
 
   const userRepo = getUserRepository();
-  const user = await userRepo.findById(new ObjectId(userIdSegment));
+  const user = await userRepo.findById(new ObjectId(userId));
   if (!user) return { ok: false, reason: 'not_found' };
 
   await userRepo.approveAge(user._id);
@@ -567,12 +568,11 @@ export type GetEntitlementsResult =
 export async function getEntitlements(
   userIdSegment: string | undefined,
 ): Promise<GetEntitlementsResult> {
-  if (!userIdSegment || !ObjectId.isValid(userIdSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const userId = sanitizeUserIdSegment(userIdSegment);
+  if (!userId) return { ok: false, reason: 'validation_failed' };
 
   const userRepo = getUserRepository();
-  const user = await userRepo.findById(new ObjectId(userIdSegment));
+  const user = await userRepo.findById(new ObjectId(userId));
   if (!user) return { ok: false, reason: 'not_found' };
 
   const access = resolveEffectiveAccess(user);
@@ -592,25 +592,27 @@ export async function addEntitlement(
   userIdSegment: string | undefined,
   body: unknown,
 ): Promise<ModifyEntitlementResult> {
-  if (!userIdSegment || !ObjectId.isValid(userIdSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const userId = sanitizeUserIdSegment(userIdSegment);
+  if (!userId) return { ok: false, reason: 'validation_failed' };
 
   const parsed = AddEntitlementSchema.safeParse(body);
   if (!parsed.success) return { ok: false, reason: 'validation_failed' };
 
+  const sanitizedEntitlement = sanitizeString(parsed.data.entitlement, 'idenhanced').value;
+  if (!sanitizedEntitlement) return { ok: false, reason: 'validation_failed' };
+
   const userRepo = getUserRepository();
-  const user = await userRepo.findById(new ObjectId(userIdSegment));
+  const user = await userRepo.findById(new ObjectId(userId));
   if (!user) return { ok: false, reason: 'not_found' };
 
-  await userRepo.addEntitlementOverride(user._id, parsed.data.entitlement);
+  await userRepo.addEntitlementOverride(user._id, sanitizedEntitlement);
 
   const auditRepo = getAuditLogRepository();
   await auditRepo.create({
     userId: user._id,
     action: 'admin_add_entitlement',
     ipHash: 'admin',
-    metadata: { entitlement: parsed.data.entitlement, adminIdentityId },
+    metadata: { entitlement: sanitizedEntitlement, adminIdentityId },
   });
 
   return { ok: true };
@@ -621,25 +623,27 @@ export async function removeEntitlement(
   userIdSegment: string | undefined,
   entitlementName: string | undefined,
 ): Promise<ModifyEntitlementResult> {
-  if (!userIdSegment || !ObjectId.isValid(userIdSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const userId = sanitizeUserIdSegment(userIdSegment);
+  if (!userId) return { ok: false, reason: 'validation_failed' };
+
   if (!entitlementName || entitlementName.length > 64) {
     return { ok: false, reason: 'validation_failed' };
   }
+  const sanitizedEntitlementName = sanitizeString(entitlementName, 'idenhanced').value;
+  if (!sanitizedEntitlementName) return { ok: false, reason: 'validation_failed' };
 
   const userRepo = getUserRepository();
-  const user = await userRepo.findById(new ObjectId(userIdSegment));
+  const user = await userRepo.findById(new ObjectId(userId));
   if (!user) return { ok: false, reason: 'not_found' };
 
-  await userRepo.removeEntitlementOverride(user._id, entitlementName);
+  await userRepo.removeEntitlementOverride(user._id, sanitizedEntitlementName);
 
   const auditRepo = getAuditLogRepository();
   await auditRepo.create({
     userId: user._id,
     action: 'admin_remove_entitlement',
     ipHash: 'admin',
-    metadata: { entitlement: entitlementName, adminIdentityId },
+    metadata: { entitlement: sanitizedEntitlementName, adminIdentityId },
   });
 
   return { ok: true };
@@ -654,18 +658,20 @@ export async function suspendAccount(
   userIdSegment: string | undefined,
   body: unknown,
 ): Promise<SuspendResult> {
-  if (!userIdSegment || !ObjectId.isValid(userIdSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const userId = sanitizeUserIdSegment(userIdSegment);
+  if (!userId) return { ok: false, reason: 'validation_failed' };
 
   const parsed = SuspendAccountSchema.safeParse(body);
   if (!parsed.success) return { ok: false, reason: 'validation_failed' };
 
+  const sanitizedReason = sanitizeString(parsed.data.reason, 'general').value;
+  if (!sanitizedReason) return { ok: false, reason: 'validation_failed' };
+
   const userRepo = getUserRepository();
-  const user = await userRepo.findById(new ObjectId(userIdSegment));
+  const user = await userRepo.findById(new ObjectId(userId));
   if (!user) return { ok: false, reason: 'not_found' };
 
-  if (isSelfIdentityTarget(adminIdentityId, userIdSegment)) {
+  if (isSelfIdentityTarget(adminIdentityId, userId)) {
     return { ok: false, reason: 'self_action' };
   }
 
@@ -675,7 +681,7 @@ export async function suspendAccount(
 
   await userRepo.suspendAccount(user._id, {
     suspendedUntil,
-    reason: parsed.data.reason,
+    reason: sanitizedReason,
     moderatedBy: adminIdentityId,
     category: parsed.data.category,
   });
@@ -689,7 +695,7 @@ export async function suspendAccount(
     action: 'admin_suspend_account',
     ipHash: 'admin',
     metadata: {
-      reason: parsed.data.reason,
+      reason: sanitizedReason,
       category: parsed.data.category,
       durationMs: parsed.data.durationMs ?? 'indefinite',
       suspendedUntil: suspendedUntil.toISOString(),
@@ -708,12 +714,11 @@ export async function unsuspendAccount(
   adminIdentityId: string,
   userIdSegment: string | undefined,
 ): Promise<UnsuspendResult> {
-  if (!userIdSegment || !ObjectId.isValid(userIdSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const userId = sanitizeUserIdSegment(userIdSegment);
+  if (!userId) return { ok: false, reason: 'validation_failed' };
 
   const userRepo = getUserRepository();
-  const user = await userRepo.findById(new ObjectId(userIdSegment));
+  const user = await userRepo.findById(new ObjectId(userId));
   if (!user) return { ok: false, reason: 'not_found' };
 
   await userRepo.unsuspendAccount(user._id);
@@ -738,23 +743,25 @@ export async function banAccount(
   userIdSegment: string | undefined,
   body: unknown,
 ): Promise<BanResult> {
-  if (!userIdSegment || !ObjectId.isValid(userIdSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const userId = sanitizeUserIdSegment(userIdSegment);
+  if (!userId) return { ok: false, reason: 'validation_failed' };
 
   const parsed = BanAccountSchema.safeParse(body);
   if (!parsed.success) return { ok: false, reason: 'validation_failed' };
 
+  const sanitizedReason = sanitizeString(parsed.data.reason, 'general').value;
+  if (!sanitizedReason) return { ok: false, reason: 'validation_failed' };
+
   const userRepo = getUserRepository();
-  const user = await userRepo.findById(new ObjectId(userIdSegment));
+  const user = await userRepo.findById(new ObjectId(userId));
   if (!user) return { ok: false, reason: 'not_found' };
 
-  if (isSelfIdentityTarget(adminIdentityId, userIdSegment)) {
+  if (isSelfIdentityTarget(adminIdentityId, userId)) {
     return { ok: false, reason: 'self_action' };
   }
 
   await userRepo.banAccount(user._id, {
-    reason: parsed.data.reason,
+    reason: sanitizedReason,
     moderatedBy: adminIdentityId,
     category: parsed.data.category,
   });
@@ -767,7 +774,7 @@ export async function banAccount(
     userId: user._id,
     action: 'admin_ban_account',
     ipHash: 'admin',
-    metadata: { reason: parsed.data.reason, category: parsed.data.category, adminIdentityId },
+    metadata: { reason: sanitizedReason, category: parsed.data.category, adminIdentityId },
   });
 
   return { ok: true };
@@ -781,12 +788,11 @@ export async function unbanAccount(
   adminIdentityId: string,
   userIdSegment: string | undefined,
 ): Promise<UnbanResult> {
-  if (!userIdSegment || !ObjectId.isValid(userIdSegment)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
+  const userId = sanitizeUserIdSegment(userIdSegment);
+  if (!userId) return { ok: false, reason: 'validation_failed' };
 
   const userRepo = getUserRepository();
-  const user = await userRepo.findById(new ObjectId(userIdSegment));
+  const user = await userRepo.findById(new ObjectId(userId));
   if (!user) return { ok: false, reason: 'not_found' };
 
   await userRepo.unbanAccount(user._id);

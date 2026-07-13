@@ -184,4 +184,9 @@ export const core = {
     subtitle: 'Discover and join public communities.',
     comingSoon: 'Spaces are on the way. Check back soon.',
   },
+
+  siteAnnouncement: {
+    dismiss: 'Dismiss',
+    noticeButton: 'Notice',
+  },
 } as const;

@@ -11,7 +11,7 @@ import { ciphers } from './ciphers';
 import { conversations } from './conversations';
 import { core } from './core';
 import { gif } from './gif';
-import { identity } from './identity';
+import { identity, badges } from './identity';
 import { moderation } from './moderation';
 import { report } from './report';
 import { staticPages } from './staticPages';
@@ -40,6 +40,7 @@ export const en = {
   feedback,
   gif,
   achievements,
+  badges,
   compliance,
   captcha,
   ...sponsorship,

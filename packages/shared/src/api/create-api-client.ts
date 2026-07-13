@@ -29,6 +29,7 @@ import { AccountEventsApi } from './account-events-api';
 import { ConversationFoldersApi } from './conversation-folders-api';
 import { AccountDataApi } from './account-data-api';
 import { FeedbackApi } from './feedback-api';
+import { AnnouncementsApi } from './announcements-api';
 
 /**
  * Creates an API client instance with all API modules.
@@ -38,6 +39,7 @@ export function createApiClient(config: ApiClientConfig) {
 
   return {
     client,
+    announcements: new AnnouncementsApi(client),
     ageVerification: new AgeVerificationApi(client),
     auth: new AuthApi(client),
     users: new UsersApi(client),

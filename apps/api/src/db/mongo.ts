@@ -421,6 +421,8 @@ export const Collections = {
   CLIENT_ERRORS: 'client_errors',
   /** SHA-256 hashes of emails from deleted accounts (re-signup prevention) */
   DELETED_EMAILS: 'deleted_emails',
+  /** Sitewide admin-managed announcements */
+  SITE_ANNOUNCEMENTS: 'site_announcements',
 } as const;
 
 /**
@@ -831,6 +833,11 @@ export async function createIndexes(): Promise<void> {
   const deletedEmails = database.collection(Collections.DELETED_EMAILS);
   await deletedEmails.createIndex({ emailHash: 1 }, { unique: true });
 
+  // Site announcements — active-announcement queries + admin listing
+  const siteAnnouncements = database.collection(Collections.SITE_ANNOUNCEMENTS);
+  await siteAnnouncements.createIndex({ active: 1, showAfter: 1, showUntil: 1 });
+  await siteAnnouncements.createIndex({ createdAt: -1 });
+
   elog.debug('MongoDB indexes created/verified');
 }
 
@@ -854,6 +861,29 @@ export async function ensureCriticalCollections(): Promise<void> {
 
   const identityCounts = database.collection(Collections.IDENTITY_COUNTS);
   await identityCounts.createIndex({ accountHash: 1 }, { unique: true });
+
+  // Seed global identity sequence counter from the current identities
+  // collection size so existing deployments start with an accurate baseline.
+  const hasGlobalSeq = await identityCounts.findOne({ accountHash: '__global_identity_seq__' });
+  if (!hasGlobalSeq) {
+    const identityTotal = await database
+      .collection(Collections.IDENTITIES)
+      .countDocuments({});
+    if (identityTotal > 0) {
+      await identityCounts.updateOne(
+        { accountHash: '__global_identity_seq__' },
+        {
+          $setOnInsert: {
+            count: identityTotal,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        },
+        { upsert: true },
+      );
+      elog.info('Seeded global identity sequence counter', { count: identityTotal });
+    }
+  }
 
   if (!names.has(Collections.COMMUNITY_THEMES)) {
     await database.createCollection(Collections.COMMUNITY_THEMES);

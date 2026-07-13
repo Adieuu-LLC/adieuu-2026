@@ -22,6 +22,7 @@ import type {
   UploadPreKeysParams,
 } from './pre-keys-types';
 import type { UpdateProfileParams } from './profile-update-types';
+import type { FriendInfo } from './friends-api';
 
 export class IdentityApi {
   constructor(private client: HttpClient) {}
@@ -416,6 +417,26 @@ export class IdentityApi {
     return this.client.get(
       `/api/identity/${encodeURIComponent(identityId)}/profile`
     );
+  }
+
+  /**
+   * Get the privacy-filtered friends list for an identity's profile.
+   *
+   * Returns `{ friends, hidden, count, cursor }` where `hidden` is true when
+   * the viewer does not have permission to see this identity's friends.
+   * Supports cursor-based pagination and server-side search.
+   */
+  async getIdentityFriends(
+    identityId: string,
+    params?: { limit?: number; cursor?: string; q?: string },
+  ): Promise<ApiResponse<{ friends: FriendInfo[]; hidden: boolean; count: number; cursor: string | null }>> {
+    const qs = new URLSearchParams();
+    if (params?.limit != null) qs.set('limit', String(params.limit));
+    if (params?.cursor) qs.set('cursor', params.cursor);
+    if (params?.q) qs.set('q', params.q);
+    const query = qs.toString();
+    const url = `/api/identity/${encodeURIComponent(identityId)}/friends${query ? `?${query}` : ''}`;
+    return this.client.get(url);
   }
 
   /**

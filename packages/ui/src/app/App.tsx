@@ -17,6 +17,8 @@ import { ConversationPreferencesProvider } from '../hooks/useConversationPrefere
 import { ConversationFoldersProvider } from '../hooks/useConversationFolders';
 import { usePreKeys } from '../hooks/usePreKeys';
 import { KeyStorageBanner } from '../components/KeyStorageBanner';
+import { SiteAnnouncementBanner } from '../components/SiteAnnouncementBanner';
+import { SiteAnnouncementsProvider } from '../hooks/useSiteAnnouncements';
 import { UpdateOverlay } from '../components/UpdateOverlay';
 import { AchievementListener } from '../components/AchievementListener';
 import { SubscriptionChangeListener } from '../components/SubscriptionChangeListener';
@@ -89,6 +91,7 @@ const AdminUserProfile = lazyRoute(() => import('../pages/admin'), 'AdminUserPro
 const AdminIdentitySearch = lazyRoute(() => import('../pages/admin'), 'AdminIdentitySearch');
 const AdminIdentityProfile = lazyRoute(() => import('../pages/admin'), 'AdminIdentityProfile');
 const AdminPromoCodes = lazyRoute(() => import('../pages/admin'), 'AdminPromoCodes');
+const AdminAnnouncements = lazyRoute(() => import('../pages/admin'), 'AdminAnnouncements');
 const ModeratorGate = lazyRoute(() => import('../pages/moderation'), 'ModeratorGate');
 const ModeratorLayout = lazyRoute(() => import('../pages/moderation'), 'ModeratorLayout');
 const ReportList = lazyRoute(() => import('../pages/moderation'), 'ReportList');
@@ -133,40 +136,45 @@ function AuthenticatedShell() {
 
   if (status === 'authenticated' || status === 'identity_mode') {
     return (
-      <TourProvider>
-        <CipherStoreProvider>
-          <ChatSocketProvider>
-            <CaptchaGateProvider>
-              <FriendsProvider>
-                <BlockProvider>
-                  <ConversationPreferencesProvider>
-                    <ConversationFoldersProvider>
-                      <ConversationsProvider>
-                        <MediaOutboxProvider>
-                        <CallSessionProvider>
-                          <GlobalCallEventsProvider>
-                            <AuthenticatedShellContent />
-                          </GlobalCallEventsProvider>
-                        </CallSessionProvider>
-                        </MediaOutboxProvider>
-                      </ConversationsProvider>
-                    </ConversationFoldersProvider>
-                  </ConversationPreferencesProvider>
-                </BlockProvider>
-              </FriendsProvider>
-            </CaptchaGateProvider>
-          </ChatSocketProvider>
-        </CipherStoreProvider>
-      </TourProvider>
+      <SiteAnnouncementsProvider>
+        <TourProvider>
+          <CipherStoreProvider>
+            <ChatSocketProvider>
+              <CaptchaGateProvider>
+                <FriendsProvider>
+                  <BlockProvider>
+                    <ConversationPreferencesProvider>
+                      <ConversationFoldersProvider>
+                        <ConversationsProvider>
+                          <MediaOutboxProvider>
+                          <CallSessionProvider>
+                            <GlobalCallEventsProvider>
+                              <AuthenticatedShellContent />
+                            </GlobalCallEventsProvider>
+                          </CallSessionProvider>
+                          </MediaOutboxProvider>
+                        </ConversationsProvider>
+                      </ConversationFoldersProvider>
+                    </ConversationPreferencesProvider>
+                  </BlockProvider>
+                </FriendsProvider>
+              </CaptchaGateProvider>
+            </ChatSocketProvider>
+          </CipherStoreProvider>
+        </TourProvider>
+      </SiteAnnouncementsProvider>
     );
   }
 
   return (
-    <AppLayout sidebar={<AppSidebar variant="public" />}>
-      <Suspense fallback={<RouteFallback />}>
-        <Outlet />
-      </Suspense>
-    </AppLayout>
+    <SiteAnnouncementsProvider>
+      <AppLayout sidebar={<AppSidebar variant="public" />}>
+        <SiteAnnouncementBanner />
+        <Suspense fallback={<RouteFallback />}>
+          <Outlet />
+        </Suspense>
+      </AppLayout>
+    </SiteAnnouncementsProvider>
   );
 }
 
@@ -188,6 +196,7 @@ function AuthenticatedShellContent() {
       <IdentityModalProvider>
         <AppLayout sidebar={<AppSidebar />}>
           <KeyStorageBanner />
+          <SiteAnnouncementBanner />
           <Suspense fallback={<RouteFallback />}>
             <Outlet />
           </Suspense>
@@ -355,6 +364,8 @@ export function App() {
         <Route path="/legal-policies/:slug" element={<LegalPolicyPage />} />
         <Route path="/feedback" element={<FeedbackList />} />
         <Route path="/feedback/:postId" element={<FeedbackDetail />} />
+        <Route path="/refer/:code" element={<ReferralLanding />} />
+        <Route path="/service-status" element={<ServiceStatus />} />
 
         {/* Protected Routes (auth required — ProtectedGuard redirects guests to login) */}
         <Route element={<ProtectedGuard />}>
@@ -415,6 +426,7 @@ export function App() {
               <Route path="identities" element={<AdminIdentitySearch />} />
               <Route path="identities/:id" element={<AdminIdentityProfile />} />
               <Route path="promo-codes" element={<AdminPromoCodes />} />
+              <Route path="announcements" element={<AdminAnnouncements />} />
             </Route>
           </Route>
 
@@ -431,9 +443,7 @@ export function App() {
         </Route>
       </Route>
 
-      {/* Utility Routes (no auth required) */}
-      <Route path="/refer/:code" element={<ReferralLanding />} />
-      <Route path="/service-status" element={<ServiceStatus />} />
+      {/* Utility Routes (no auth required, no shell layout) */}
       <Route path="/checkout/complete" element={<CheckoutComplete />} />
 
       {/* Dev-only crash test routes */}

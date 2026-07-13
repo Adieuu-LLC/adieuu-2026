@@ -63,6 +63,7 @@ mock.module('../repositories/key-bundle.repository', () => ({
 const mockIdentityCountRepo = {
   getCount: mock(() => Promise.resolve(0)) as AnyMock,
   increment: mock(() => Promise.resolve(1)) as AnyMock,
+  incrementGlobalSequence: mock(() => Promise.resolve(1)) as AnyMock,
 };
 
 mock.module('../repositories/identity-count.repository', () => ({
@@ -135,6 +136,14 @@ mock.module('../db', () => ({
     lockoutPending: (hash: string) => `lockout_pending:${hash}`,
     session: (id: string) => `session:${id}`,
   },
+}));
+
+// --- Mock badge service ---
+
+const mockAwardOrderBadges = mock(() => Promise.resolve()) as AnyMock;
+
+mock.module('./badge.service', () => ({
+  awardOrderBadges: mockAwardOrderBadges,
 }));
 
 // Import after mocking
@@ -210,6 +219,10 @@ describe('identity.service', () => {
     mockIdentityCountRepo.increment.mockImplementation(() =>
       Promise.resolve(1),
     );
+    mockIdentityCountRepo.incrementGlobalSequence.mockReset();
+    mockIdentityCountRepo.incrementGlobalSequence.mockImplementation(() =>
+      Promise.resolve(1),
+    );
 
     mockSessionRepo.findBySessionId.mockReset();
     mockSessionRepo.getSession.mockReset();
@@ -242,6 +255,9 @@ describe('identity.service', () => {
     mockRedis.ttl.mockReset();
     mockRedis.ttl.mockImplementation(() => Promise.resolve(-1));
     mockRedis.rpush.mockReset();
+
+    mockAwardOrderBadges.mockReset();
+    mockAwardOrderBadges.mockImplementation(() => Promise.resolve());
   });
 
   describe('createIdentity', () => {
@@ -280,6 +296,7 @@ describe('identity.service', () => {
         identity._id,
         undefined,
       );
+      expect(mockAwardOrderBadges).toHaveBeenCalledWith(identity._id, 1);
     });
 
     test('returns VALIDATION_ERROR for short passphrase', async () => {

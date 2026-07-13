@@ -12,6 +12,8 @@ describe('DEFAULT_PRIVACY_SETTINGS', () => {
       lastActiveAt: 'friends',
       profileColors: 'public',
       achievements: 'friends',
+      badges: 'friends',
+      friends: 'friends',
     });
   });
 });

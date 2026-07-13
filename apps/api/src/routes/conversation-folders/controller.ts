@@ -18,6 +18,7 @@ import {
   UpdateFolderSchema,
   AddConversationToFolderSchema,
 } from './folder-schemas';
+import { sanitizeString } from '../../utils/sanitize';
 
 export async function listFoldersCtrl(
   ctx: RouteContext,
@@ -40,15 +41,23 @@ export async function createFolderCtrl(
   const parseResult = CreateFolderSchema.safeParse(ctx.body);
   if (!parseResult.success) return { kind: 'validation_failed' };
 
-  const { name, conversationIds, iconType, iconName, iconColor } = parseResult.data;
+  const { conversationIds, iconType, iconName } = parseResult.data;
+  const sanitizedName = sanitizeString(parseResult.data.name, 'general').value;
+  if (!sanitizedName) return { kind: 'validation_failed' };
+  let sanitizedIconColor: string | undefined;
+  if (parseResult.data.iconColor) {
+    const colorValue = sanitizeString(parseResult.data.iconColor, 'hexColor').value;
+    if (!colorValue) return { kind: 'validation_failed' };
+    sanitizedIconColor = colorValue;
+  }
 
   const repo = getConversationFoldersRepository();
   const doc = await repo.create(identity._id, {
-    name,
+    name: sanitizedName,
     conversationIds: conversationIds.map((id) => new ObjectId(id)),
     iconType,
     iconName,
-    iconColor,
+    iconColor: sanitizedIconColor,
   });
 
   return { kind: 'ok', data: toPublicConversationFolder(doc) };
@@ -66,7 +75,7 @@ export async function updateFolderCtrl(
   const parseResult = UpdateFolderSchema.safeParse(ctx.body);
   if (!parseResult.success) return { kind: 'validation_failed' };
 
-  const patch = parseResult.data;
+  let patch = parseResult.data;
   if (
     patch.name === undefined &&
     patch.iconType === undefined &&
@@ -78,8 +87,30 @@ export async function updateFolderCtrl(
     return { kind: 'bad_request', message: 'At least one field is required.' };
   }
 
+  if (patch.name !== undefined) {
+    const sanitizedName = sanitizeString(patch.name, 'general').value;
+    if (!sanitizedName) return { kind: 'validation_failed' };
+    patch = { ...patch, name: sanitizedName };
+  }
+
+  let sanitizedIconColor: string | null | undefined;
+  if (patch.iconColor === undefined) {
+    sanitizedIconColor = undefined;
+  } else if (patch.iconColor === null) {
+    sanitizedIconColor = null;
+  } else {
+    const colorValue = sanitizeString(patch.iconColor, 'hexColor').value;
+    if (!colorValue) return { kind: 'validation_failed' };
+    sanitizedIconColor = colorValue;
+  }
+
+  const sanitizedPatch = {
+    ...patch,
+    iconColor: sanitizedIconColor,
+  };
+
   const repo = getConversationFoldersRepository();
-  const doc = await repo.update(identity._id, new ObjectId(folder.id), patch);
+  const doc = await repo.update(identity._id, new ObjectId(folder.id), sanitizedPatch);
   if (!doc) return { kind: 'not_found', message: 'Folder not found.' };
 
   return { kind: 'ok', data: toPublicConversationFolder(doc) };

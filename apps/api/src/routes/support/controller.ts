@@ -32,6 +32,7 @@ import {
   type AccountSessionData,
   type IdentitySessionData,
 } from '../../services/session.service';
+import { sanitizeString } from '../../utils/sanitize';
 
 export type SupportFailureKind =
   | 'validation_failed'
@@ -144,7 +145,27 @@ export async function createTicketResult(
     return { ok: false, kind: 'validation_failed' };
   }
 
-  const result = await createSupportTicket(submitter, parsed.data);
+  const sanitizedData = {
+    ...parsed.data,
+    title: sanitizeString(parsed.data.title, 'general').value,
+    body: sanitizeString(parsed.data.body, 'general').value,
+    subcategory: parsed.data.subcategory
+      ? sanitizeString(parsed.data.subcategory, 'general').value || undefined
+      : undefined,
+    attachmentMediaIds: parsed.data.attachmentMediaIds?.map(
+      (id) => sanitizeString(id, 'idenhanced').value,
+    ),
+  };
+
+  if (!sanitizedData.title || !sanitizedData.body) {
+    return { ok: false, kind: 'validation_failed' };
+  }
+
+  if (sanitizedData.attachmentMediaIds?.some((id) => !id)) {
+    return { ok: false, kind: 'validation_failed' };
+  }
+
+  const result = await createSupportTicket(submitter, sanitizedData);
   if (!result.success) {
     switch (result.errorCode) {
       case 'RATE_LIMITED':
@@ -210,8 +231,11 @@ export async function getOwnTicketResult(
   submitter: SubmitterContext,
   ticketId: string,
 ): Promise<SupportResult<TicketDetailData>> {
+  const sanitizedTicketId = sanitizeString(ticketId, 'idenhanced').value;
+  if (!sanitizedTicketId) return { ok: false, kind: 'bad_request' };
+
   const repo = getSupportTicketRepository();
-  const ticket = await repo.findByTicketId(ticketId);
+  const ticket = await repo.findByTicketId(sanitizedTicketId);
   if (!ticket) {
     return { ok: false, kind: 'not_found' };
   }
@@ -279,7 +303,13 @@ export async function addOwnCommentResult(
     return { ok: false, kind: 'validation_failed' };
   }
 
-  const result = await addSubmitterComment(submitter, ticketId, parsed.data.body);
+  const sanitizedTicketId = sanitizeString(ticketId, 'idenhanced').value;
+  if (!sanitizedTicketId) return { ok: false, kind: 'bad_request' };
+
+  const sanitizedBody = sanitizeString(parsed.data.body, 'general').value;
+  if (!sanitizedBody) return { ok: false, kind: 'validation_failed' };
+
+  const result = await addSubmitterComment(submitter, sanitizedTicketId, sanitizedBody);
   if (!result.success) {
     switch (result.errorCode) {
       case 'NOT_FOUND':
@@ -314,7 +344,14 @@ export async function resolveOwnTicketResult(
     return { ok: false, kind: 'validation_failed' };
   }
 
-  const result = await resolveTicketBySubmitter(submitter, ticketId, parsed.data.note);
+  const sanitizedTicketId = sanitizeString(ticketId, 'idenhanced').value;
+  if (!sanitizedTicketId) return { ok: false, kind: 'bad_request' };
+
+  const sanitizedNote = parsed.data.note
+    ? sanitizeString(parsed.data.note, 'general').value || undefined
+    : undefined;
+
+  const result = await resolveTicketBySubmitter(submitter, sanitizedTicketId, sanitizedNote);
   if (!result.success) {
     switch (result.errorCode) {
       case 'NOT_FOUND':

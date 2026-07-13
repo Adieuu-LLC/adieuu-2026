@@ -344,6 +344,45 @@ export interface BanIdentityInput {
 }
 
 // ---------------------------------------------------------------------------
+// Site announcement types
+// ---------------------------------------------------------------------------
+
+/** Public-safe announcement shape (returned by unauthenticated endpoints). */
+export interface SiteAnnouncement {
+  id: string;
+  message: string;
+  title?: string;
+  ctaLabel?: string;
+  ctaUrl?: string;
+  highPriority: boolean;
+  dismissable: boolean;
+  showAfter: string | null;
+  showUntil: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Admin announcement shape (includes the identity that created it). */
+export interface AdminSiteAnnouncement extends SiteAnnouncement {
+  createdBy: string;
+}
+
+export interface CreateSiteAnnouncementBody {
+  message: string;
+  title?: string;
+  ctaLabel?: string;
+  ctaUrl?: string;
+  highPriority: boolean;
+  dismissable: boolean;
+  showAfter?: string;
+  showUntil?: string;
+  active?: boolean;
+}
+
+export type UpdateSiteAnnouncementBody = CreateSiteAnnouncementBody;
+
+// ---------------------------------------------------------------------------
 // AdminApi class
 // ---------------------------------------------------------------------------
 
@@ -641,5 +680,37 @@ export class AdminApi {
 
   async unbanIdentity(identityId: string): Promise<ApiResponse<{ message: string }>> {
     return this.client.delete(`/api/admin/identities/${encodeURIComponent(identityId)}/ban`);
+  }
+
+  // -------------------------------------------------------------------------
+  // Site announcements
+  // -------------------------------------------------------------------------
+
+  async listAnnouncements(): Promise<ApiResponse<{ announcements: AdminSiteAnnouncement[] }>> {
+    return this.client.get('/api/admin/announcements');
+  }
+
+  async createAnnouncement(
+    body: CreateSiteAnnouncementBody,
+  ): Promise<ApiResponse<{ announcement: AdminSiteAnnouncement }>> {
+    return this.client.post('/api/admin/announcements', body);
+  }
+
+  async updateAnnouncement(
+    id: string,
+    body: UpdateSiteAnnouncementBody,
+  ): Promise<ApiResponse<{ announcement: AdminSiteAnnouncement }>> {
+    return this.client.put(`/api/admin/announcements/${encodeURIComponent(id)}`, body);
+  }
+
+  async toggleAnnouncementActive(
+    id: string,
+    active: boolean,
+  ): Promise<ApiResponse<{ announcement: AdminSiteAnnouncement }>> {
+    return this.client.patch(`/api/admin/announcements/${encodeURIComponent(id)}/active`, { active });
+  }
+
+  async deleteAnnouncement(id: string): Promise<ApiResponse<{ deleted: boolean }>> {
+    return this.client.delete(`/api/admin/announcements/${encodeURIComponent(id)}`);
   }
 }

@@ -35,6 +35,9 @@ export function AdminLayout() {
           <NavLink to="/admin/promo-codes" className={navClass}>
             {t('admin.nav.promoCodes')}
           </NavLink>
+          <NavLink to="/admin/announcements" className={navClass}>
+            {t('admin.nav.announcements')}
+          </NavLink>
         </nav>
       </aside>
       <div className="admin-outlet">

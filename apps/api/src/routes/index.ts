@@ -41,6 +41,8 @@ import { referralRoutes } from './account/referral';
 import { publicReferRoutes } from './refer';
 import { accountEventsRoutes } from './account/events';
 import { adminPromoCodesRoutes } from './admin/promo-codes';
+import { adminAnnouncementRoutes } from './admin/announcement';
+import { publicAnnouncementRoutes } from './announcement';
 import { supportRoutes } from './support';
 import { unfurlRoutes } from './unfurl';
 import { complianceRoutes } from './compliance';
@@ -103,6 +105,12 @@ export function registerRoutes(app: Router): void {
 
   // Admin identity management (search, profile, moderation actions)
   app.merge(adminIdentitiesRoutes, '/api');
+
+  // Admin site announcements (CRUD + toggle)
+  app.merge(adminAnnouncementRoutes, '/api');
+
+  // Public site announcements (active list, no auth)
+  app.merge(publicAnnouncementRoutes, '/api');
 
   // Community themes (public browse + identity-auth upload)
   app.merge(themeRoutes, '/api');

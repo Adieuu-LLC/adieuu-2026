@@ -5,6 +5,7 @@
  */
 
 import { z } from '@adieuu/shared/schemas';
+import { sanitizeString } from '../../utils/sanitize';
 import {
   FEEDBACK_CATEGORIES,
   FEEDBACK_LINK_TYPES,
@@ -175,8 +176,8 @@ export function parseFeedbackListQuery(searchParams: URLSearchParams): FeedbackL
   const rawSearch = searchParams.get('search');
   let search: string | undefined;
   if (rawSearch && rawSearch.length <= 200) {
-    const trimmed = rawSearch.trim();
-    search = trimmed.length > 0 ? trimmed : undefined;
+    const sanitized = sanitizeString(rawSearch.trim(), 'general').value;
+    search = sanitized.length > 0 ? sanitized : undefined;
   }
 
   return { page, limit, sort, category, statuses, hasStaffResponse, search };
@@ -384,6 +385,12 @@ export async function listPostsResult(
   };
 }
 
+function sanitizePostId(raw: string): string | null {
+  const sanitized = sanitizeString(raw, 'idenhanced').value;
+  if (!sanitized || sanitized !== raw) return null;
+  return sanitized;
+}
+
 export async function getPostResult(
   ctx: IdentityContext | null,
   postId: string,
@@ -405,9 +412,12 @@ export async function getPostResult(
     canManageStatus: boolean;
   }>
 > {
+  const sanitizedPostId = sanitizePostId(postId);
+  if (!sanitizedPostId) return { ok: false, kind: 'bad_request' };
+
   const viewerIdentityId = ctx?.identity._id.toHexString();
   const result = await getFeedbackPostDetail(
-    postId,
+    sanitizedPostId,
     viewerIdentityId,
     ctx?.entitlements ?? [],
   );
@@ -466,7 +476,10 @@ export async function upvotePostResult(
   ctx: IdentityContext,
   postId: string,
 ): Promise<FeedbackResult<{ upvoteCount: number; hasUpvoted: boolean }>> {
-  const result = await upvoteFeedbackPost(postId, ctx.identity._id.toHexString());
+  const sanitizedId = sanitizePostId(postId);
+  if (!sanitizedId) return { ok: false, kind: 'bad_request' };
+
+  const result = await upvoteFeedbackPost(sanitizedId, ctx.identity._id.toHexString());
   if (!result.success) {
     return mapServiceError(result.errorCode, result.error);
   }
@@ -477,7 +490,10 @@ export async function removeUpvoteResult(
   ctx: IdentityContext,
   postId: string,
 ): Promise<FeedbackResult<{ upvoteCount: number; hasUpvoted: boolean }>> {
-  const result = await removeFeedbackUpvote(postId, ctx.identity._id.toHexString());
+  const sanitizedId = sanitizePostId(postId);
+  if (!sanitizedId) return { ok: false, kind: 'bad_request' };
+
+  const result = await removeFeedbackUpvote(sanitizedId, ctx.identity._id.toHexString());
   if (!result.success) {
     return mapServiceError(result.errorCode, result.error);
   }
@@ -494,8 +510,11 @@ export async function addCommentResult(
     return { ok: false, kind: 'validation_failed' };
   }
 
+  const sanitizedId = sanitizePostId(postId);
+  if (!sanitizedId) return { ok: false, kind: 'bad_request' };
+
   const result = await addFeedbackComment(
-    postId,
+    sanitizedId,
     ctx.identity,
     parsed.data.body ?? '',
     ctx.entitlements,
@@ -538,8 +557,11 @@ export async function updateStatusResult(
     return { ok: false, kind: 'validation_failed' };
   }
 
+  const sanitizedId = sanitizePostId(postId);
+  if (!sanitizedId) return { ok: false, kind: 'bad_request' };
+
   const result = await updateFeedbackStatus(
-    postId,
+    sanitizedId,
     ctx.identity,
     parsed.data.status,
     ctx.entitlements,
@@ -561,8 +583,11 @@ export async function updateRoadmapResult(
     return { ok: false, kind: 'validation_failed' };
   }
 
+  const sanitizedId = sanitizePostId(postId);
+  if (!sanitizedId) return { ok: false, kind: 'bad_request' };
+
   const result = await updateFeedbackRoadmap(
-    postId,
+    sanitizedId,
     ctx.identity,
     parsed.data,
     ctx.entitlements,

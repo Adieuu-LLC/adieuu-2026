@@ -338,12 +338,13 @@
 // Tooltip Component (Ark UI)
 // ============================================================================
 
-// Zag / Floating UI sets inline `min-width: max-content` on the positioner, which
-// prevents the content box from narrowing and causes long text to overflow.
+// Zag / Floating UI sets inline `min-width: max-content` (and sometimes
+// `max-width`) on the positioner, which prevents the content box from
+// narrowing and causes long text to overflow.
 .tooltip-positioner {
   box-sizing: border-box;
   min-width: 0 !important;
-  max-width: min(20rem, calc(100vw - 1.5rem));
+  max-width: min(20rem, calc(100vw - 1.5rem)) !important;
 }
 
 .tooltip-positioner .tooltip {
