@@ -7,7 +7,10 @@
 import type {
   CipherCheck,
   PublicSpace,
+  PublicSpaceChannel,
+  PublicSpaceInvite,
   PublicSpaceMember,
+  PublicSpaceMessage,
   PublicSpaceRole,
   SpaceVisibility,
   SubscriptionTierId,
@@ -33,7 +36,16 @@ export type SpaceErrorCode =
   | 'FORBIDDEN'
   | 'OWNER_CANNOT_LEAVE'
   | 'CANNOT_REMOVE_OWNER'
-  | 'MEMBER_NOT_FOUND';
+  | 'MEMBER_NOT_FOUND'
+  | 'NOT_AUTHORIZED'
+  | 'INVITE_NOT_FOUND'
+  | 'INVITE_EXISTS'
+  | 'INVITE_NOT_PENDING'
+  | 'IDENTITY_NOT_FOUND'
+  | 'CANNOT_INVITE_SELF'
+  | 'CHANNEL_NOT_FOUND'
+  | 'ENCRYPTION_NOT_SUPPORTED'
+  | 'INVALID_CONTENT';
 
 export interface SpaceResult {
   success: boolean;
@@ -70,6 +82,48 @@ export interface SpaceMembersListResult {
 export interface SpaceRolesResult {
   success: boolean;
   roles?: PublicSpaceRole[];
+  error?: string;
+  errorCode?: SpaceErrorCode;
+}
+
+/** Result of a single-invite operation (create, accept, decline, revoke). */
+export interface SpaceInviteResult {
+  success: boolean;
+  invite?: PublicSpaceInvite;
+  error?: string;
+  errorCode?: SpaceErrorCode;
+}
+
+/** Result of listing Space invites (identity inbox or a Space's pending set). */
+export interface SpaceInvitesListResult {
+  success: boolean;
+  invites?: PublicSpaceInvite[];
+  cursor?: string | null;
+  error?: string;
+  errorCode?: SpaceErrorCode;
+}
+
+/** Result of listing a Space's channels. */
+export interface SpaceChannelsResult {
+  success: boolean;
+  channels?: PublicSpaceChannel[];
+  error?: string;
+  errorCode?: SpaceErrorCode;
+}
+
+/** Result of sending a single channel message. */
+export interface SpaceMessageResult {
+  success: boolean;
+  message?: PublicSpaceMessage;
+  error?: string;
+  errorCode?: SpaceErrorCode;
+}
+
+/** Result of listing channel messages (newest first, cursor-paginated). */
+export interface SpaceMessagesListResult {
+  success: boolean;
+  messages?: PublicSpaceMessage[];
+  cursor?: string | null;
   error?: string;
   errorCode?: SpaceErrorCode;
 }

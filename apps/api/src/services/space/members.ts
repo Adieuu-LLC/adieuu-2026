@@ -23,9 +23,10 @@ import { getSpaceRoleRepository } from '../../repositories/space-role.repository
 import { hasPaidAccess } from '../billing/resolve-access';
 import { isValidObjectId } from '../../utils';
 import { toPublicSpaceMember } from '../../models/space-member';
+import type { SpaceMemberDocument } from '../../models/space-member';
 import { toPublicSpaceRole } from '../../models/space-role';
-import type { SpaceDocument } from '../../models/space';
 import { resolveMemberPermissions, memberHasPermission } from './permissions';
+import { canReadSpace } from './access';
 import type {
   SpaceActionResult,
   SpaceBillingContext,
@@ -58,25 +59,36 @@ export function resolveEffectiveTier(billing: SpaceBillingContext): Subscription
   return tier;
 }
 
-/** Whether the requester may read a Space's structure (members/roles). */
-async function resolveReadAccess(
-  space: SpaceDocument,
-  requesterId: ObjectId,
-): Promise<{ ok: true } | { ok: false; result: SpaceMembersListResult }> {
-  if (space.visibility === 'public') return { ok: true };
+/**
+ * Adds a membership (default Member role) idempotently and bumps `memberCount`.
+ * Returns the existing membership unchanged when already a member. Shared by
+ * open-join and invite-accept; callers own any tier/visibility gating.
+ */
+export async function addSpaceMembership(
+  spaceId: ObjectId,
+  identityId: ObjectId,
+): Promise<SpaceMemberDocument> {
+  const memberRepo = getSpaceMemberRepository();
 
-  const member = await getSpaceMemberRepository().findMember(space._id, requesterId);
-  if (member) return { ok: true };
+  const existing = await memberRepo.findMember(spaceId, identityId);
+  if (existing) return existing;
 
-  if (space.visibility === 'hidden') {
-    // Never reveal a hidden Space to non-members.
-    return { ok: false, result: { success: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' } };
+  const defaultRole = await getSpaceRoleRepository().findDefaultMember(spaceId);
+  const roleIds = defaultRole ? [defaultRole._id] : [];
+
+  let member: SpaceMemberDocument;
+  try {
+    member = await memberRepo.createMember({ spaceId, identityId, roleIds });
+  } catch (err) {
+    if (isDuplicateKeyError(err)) {
+      const now = await memberRepo.findMember(spaceId, identityId);
+      if (now) return now;
+    }
+    throw err;
   }
-  // `listed`: discoverable, but must join to read.
-  return {
-    ok: false,
-    result: { success: false, error: 'Join this Space to view its members.', errorCode: 'NOT_MEMBER' },
-  };
+
+  await getSpaceRepository().incrementMemberCount(spaceId, 1);
+  return member;
 }
 
 /**
@@ -123,22 +135,7 @@ export async function joinSpace(
     };
   }
 
-  const defaultRole = await getSpaceRoleRepository().findDefaultMember(spaceId);
-  const roleIds = defaultRole ? [defaultRole._id] : [];
-
-  let member;
-  try {
-    member = await memberRepo.createMember({ spaceId, identityId, roleIds });
-  } catch (err) {
-    if (isDuplicateKeyError(err)) {
-      // Lost a race with a concurrent join; return the winning membership.
-      const now = await memberRepo.findMember(spaceId, identityId);
-      if (now) return { success: true, member: toPublicSpaceMember(now) };
-    }
-    throw err;
-  }
-
-  await getSpaceRepository().incrementMemberCount(spaceId, 1);
+  const member = await addSpaceMembership(spaceId, identityId);
   return { success: true, member: toPublicSpaceMember(member) };
 }
 
@@ -249,8 +246,8 @@ export async function listSpaceMembers(
     return { success: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' };
   }
 
-  const access = await resolveReadAccess(space, requesterId);
-  if (!access.ok) return access.result;
+  const access = await canReadSpace(space, requesterId);
+  if (!access.ok) return { success: false, error: access.error, errorCode: access.errorCode };
 
   const cursorObjId = cursor && isValidObjectId(cursor) ? new ObjectId(cursor) : undefined;
   const members = await getSpaceMemberRepository().listBySpace(spaceId, limit + 1, cursorObjId);
@@ -283,8 +280,8 @@ export async function listSpaceRoles(
     return { success: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' };
   }
 
-  const access = await resolveReadAccess(space, requesterId);
-  if (!access.ok) return access.result;
+  const access = await canReadSpace(space, requesterId);
+  if (!access.ok) return { success: false, error: access.error, errorCode: access.errorCode };
 
   const roles = await getSpaceRoleRepository().findBySpace(spaceId);
   return { success: true, roles: roles.map(toPublicSpaceRole) };

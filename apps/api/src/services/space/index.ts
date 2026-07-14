@@ -23,5 +23,20 @@ export {
   removeSpaceMember,
   listSpaceMembers,
   listSpaceRoles,
+  addSpaceMembership,
   resolveEffectiveTier,
 } from './members';
+export {
+  createSpaceInvite,
+  acceptSpaceInvite,
+  declineSpaceInvite,
+  revokeSpaceInvite,
+  listSpaceInvitesForIdentity,
+  listPendingInvitesForSpace,
+} from './invites';
+export { canReadSpace, type SpaceReadAccess } from './access';
+export {
+  listSpaceChannels,
+  sendSpaceMessage,
+  getSpaceMessages,
+} from './channels';
