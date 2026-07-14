@@ -423,6 +423,18 @@ export const Collections = {
   DELETED_EMAILS: 'deleted_emails',
   /** Sitewide admin-managed announcements */
   SITE_ANNOUNCEMENTS: 'site_announcements',
+  /** Spaces (Discord-like servers) */
+  SPACES: 'spaces',
+  /** Channels within a Space */
+  SPACE_CHANNELS: 'space_channels',
+  /** Space membership (one document per space + identity) */
+  SPACE_MEMBERS: 'space_members',
+  /** Space roles (permission flags) */
+  SPACE_ROLES: 'space_roles',
+  /** Space invites (accept/decline/revoke flow) */
+  SPACE_INVITES: 'space_invites',
+  /** Messages posted in Space channels */
+  SPACE_MESSAGES: 'space_messages',
 } as const;
 
 /**
@@ -837,6 +849,45 @@ export async function createIndexes(): Promise<void> {
   const siteAnnouncements = database.collection(Collections.SITE_ANNOUNCEMENTS);
   await siteAnnouncements.createIndex({ active: 1, showAfter: 1, showUntil: 1 });
   await siteAnnouncements.createIndex({ createdAt: -1 });
+
+  // Spaces — unique slug + directory discovery
+  const spaces = database.collection(Collections.SPACES);
+  await spaces.createIndex({ slug: 1 }, { unique: true });
+  await spaces.createIndex({ visibility: 1, memberCount: -1 });
+  await spaces.createIndex(
+    { name: 'text', description: 'text' },
+    { default_language: 'english' },
+  );
+  await spaces.createIndex({ ownerIdentityId: 1 });
+
+  // Space channels — ordered listing per space
+  const spaceChannels = database.collection(Collections.SPACE_CHANNELS);
+  await spaceChannels.createIndex({ spaceId: 1, position: 1 });
+
+  // Space members — one membership per (space, identity); reverse lookup by identity
+  const spaceMembers = database.collection(Collections.SPACE_MEMBERS);
+  await spaceMembers.createIndex({ spaceId: 1, identityId: 1 }, { unique: true });
+  await spaceMembers.createIndex({ identityId: 1 });
+  await spaceMembers.createIndex({ spaceId: 1, joinedAt: 1 });
+
+  // Space roles — roles per space
+  const spaceRoles = database.collection(Collections.SPACE_ROLES);
+  await spaceRoles.createIndex({ spaceId: 1 });
+
+  // Space invites — inbox lookup + per-space listing
+  const spaceInvites = database.collection(Collections.SPACE_INVITES);
+  await spaceInvites.createIndex({ invitedIdentityId: 1, status: 1 });
+  await spaceInvites.createIndex({ spaceId: 1 });
+  await spaceInvites.createIndex(
+    { spaceId: 1, invitedIdentityId: 1 },
+    { unique: true, partialFilterExpression: { status: 'pending' } },
+  );
+
+  // Space messages — channel pagination + client dedup
+  const spaceMessages = database.collection(Collections.SPACE_MESSAGES);
+  await spaceMessages.createIndex({ channelId: 1, createdAt: -1 });
+  await spaceMessages.createIndex({ channelId: 1, _id: -1 });
+  await spaceMessages.createIndex({ channelId: 1, clientMessageId: 1 }, { unique: true });
 
   elog.debug('MongoDB indexes created/verified');
 }

@@ -316,6 +316,40 @@ export {
   type UpdateConversationFolderParams,
 } from './conversation-folder-types';
 
+export { SpacesApi } from './spaces-api';
+export {
+  SPACE_VISIBILITY_VALUES,
+  SPACE_CHANNEL_TYPES,
+  SPACE_MEMBER_STATUSES,
+  SPACE_INVITE_STATUSES,
+  SPACE_PERMISSIONS,
+  SPACE_SLUG_MIN_LENGTH,
+  SPACE_SLUG_MAX_LENGTH,
+  SPACE_SLUG_PATTERN,
+  SPACE_NAME_MIN_LENGTH,
+  SPACE_NAME_MAX_LENGTH,
+  SPACE_DESCRIPTION_MAX_LENGTH,
+  SPACE_CHANNEL_NAME_MIN_LENGTH,
+  SPACE_CHANNEL_NAME_MAX_LENGTH,
+  DEFAULT_SPACE_CHANNEL_NAME,
+  SPACE_MESSAGE_MAX_LENGTH,
+  type SpaceVisibility,
+  type SpaceChannelType,
+  type SpaceMemberStatus,
+  type SpaceInviteStatus,
+  type SpacePermission,
+  type CipherCheck,
+  type PublicSpace,
+  type PublicSpaceChannel,
+  type PublicSpaceRole,
+  type PublicSpaceMember,
+  type PublicSpaceInvite,
+  type PublicSpaceMessage,
+  type CreateSpaceParams,
+  type UpdateSpaceParams,
+  type SendSpaceMessageParams,
+} from './spaces-types';
+
 export { CustomEmojiApi } from './custom-emoji-api';
 export {
   type PublicCustomEmoji,

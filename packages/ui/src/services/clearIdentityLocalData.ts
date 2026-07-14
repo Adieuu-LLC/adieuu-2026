@@ -27,6 +27,7 @@ import {
 } from './preKeyStorage';
 import { getStoredCiphers, deleteStoredCipher } from './cipherStoreDb';
 import { messageSearchCacheDeleteAll } from './messageSearch/messageSearchCacheDb';
+import { clearSpaceCipherState } from './spaceCipherService';
 
 /**
  * IndexedDB databases that are not identity-scoped internally and are wiped
@@ -107,5 +108,6 @@ export async function clearIdentityLocalData(identityId: string): Promise<void> 
     ...NON_SCOPED_DATABASES_TO_DELETE.map((n) => deleteIndexedDb(n).catch(() => {})),
   ]);
 
+  clearSpaceCipherState();
   clearLocalStorageKeys(identityId);
 }

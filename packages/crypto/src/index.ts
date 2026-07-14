@@ -312,6 +312,16 @@ export {
   getRequiredCipherIds,
   canDecrypt,
   getLayerCount,
+  // Per-Space cipher verification (blind-relay challenge)
+  type SpaceCipherCheck,
+  deriveSpaceCipherKey,
+  createCipherCheck,
+  verifyCipherCheck,
+  detectSpaceCipher,
+  generateKnownValue,
+  SPACE_CIPHER_CHECK_INFO,
+  SPACE_CIPHER_CHECK_ARGON2,
+  CIPHER_CHECK_KNOWN_VALUE_BYTES,
   // Entropy wrapping (encryption at rest)
   deriveEntropyWrappingKey,
   generateWrappingSalt,

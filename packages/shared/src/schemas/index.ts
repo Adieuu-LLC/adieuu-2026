@@ -45,5 +45,22 @@ export {
   CommunityThemeUploadSchema,
 } from './theme';
 
+// Space schemas
+export {
+  SpaceVisibilitySchema,
+  SpaceSlugSchema,
+  CipherCheckSchema,
+  CreateSpaceSchema,
+  UpdateSpaceSchema,
+  CreateSpaceInviteSchema,
+  SendSpaceMessageSchema,
+  CreateSpaceChannelSchema,
+  type CreateSpaceBody,
+  type UpdateSpaceBody,
+  type CreateSpaceInviteBody,
+  type SendSpaceMessageBody,
+  type CreateSpaceChannelBody,
+} from './spaces';
+
 // Re-export zod for convenience
 export { z };

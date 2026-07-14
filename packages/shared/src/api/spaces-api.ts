@@ -1,0 +1,174 @@
+import type { ApiResponse } from '../types';
+import type { HttpClient, RequestOptions } from './http-client';
+import type {
+  CreateSpaceParams,
+  PublicSpace,
+  PublicSpaceChannel,
+  PublicSpaceInvite,
+  PublicSpaceMember,
+  PublicSpaceMessage,
+  PublicSpaceRole,
+  SendSpaceMessageParams,
+  UpdateSpaceParams,
+} from './spaces-types';
+
+/**
+ * Client for the Spaces API. Routes are implemented in a later phase; this
+ * surface is stable for the create flow, directory, membership, invites, and
+ * (non-E2EE) channel messaging.
+ */
+export class SpacesApi {
+  constructor(private client: HttpClient) {}
+
+  // --- Space lifecycle ---
+
+  async create(params: CreateSpaceParams): Promise<ApiResponse<PublicSpace>> {
+    return this.client.post('/api/spaces', params);
+  }
+
+  /** Spaces the current identity is a member of. */
+  async listMine(): Promise<ApiResponse<{ spaces: PublicSpace[] }>> {
+    return this.client.get('/api/spaces');
+  }
+
+  /** Discover public/listed spaces (never hidden). */
+  async discover(options?: {
+    q?: string;
+    limit?: number;
+    cursor?: string;
+  }): Promise<ApiResponse<{ spaces: PublicSpace[]; cursor: string | null }>> {
+    const params = new URLSearchParams();
+    if (options?.q) params.set('q', options.q);
+    if (options?.limit != null) params.set('limit', String(options.limit));
+    if (options?.cursor) params.set('cursor', options.cursor);
+    const query = params.toString();
+    return this.client.get(`/api/spaces/discover${query ? `?${query}` : ''}`);
+  }
+
+  async getBySlug(slug: string): Promise<ApiResponse<PublicSpace>> {
+    return this.client.get(`/api/spaces/slug/${encodeURIComponent(slug)}`);
+  }
+
+  async checkSlugAvailability(slug: string): Promise<ApiResponse<{ available: boolean }>> {
+    return this.client.get(`/api/spaces/slug/${encodeURIComponent(slug)}/available`);
+  }
+
+  async get(spaceId: string): Promise<ApiResponse<PublicSpace>> {
+    return this.client.get(`/api/spaces/${encodeURIComponent(spaceId)}`);
+  }
+
+  async update(spaceId: string, params: UpdateSpaceParams): Promise<ApiResponse<PublicSpace>> {
+    return this.client.patch(`/api/spaces/${encodeURIComponent(spaceId)}`, params);
+  }
+
+  // --- Membership ---
+
+  async join(spaceId: string): Promise<ApiResponse<PublicSpaceMember>> {
+    return this.client.post(`/api/spaces/${encodeURIComponent(spaceId)}/join`, {});
+  }
+
+  async leave(spaceId: string): Promise<ApiResponse<void>> {
+    return this.client.post(`/api/spaces/${encodeURIComponent(spaceId)}/leave`, {});
+  }
+
+  async listMembers(
+    spaceId: string,
+    options?: { limit?: number; cursor?: string }
+  ): Promise<ApiResponse<{ members: PublicSpaceMember[]; cursor: string | null }>> {
+    const params = new URLSearchParams();
+    if (options?.limit != null) params.set('limit', String(options.limit));
+    if (options?.cursor) params.set('cursor', options.cursor);
+    const query = params.toString();
+    return this.client.get(
+      `/api/spaces/${encodeURIComponent(spaceId)}/members${query ? `?${query}` : ''}`
+    );
+  }
+
+  async removeMember(spaceId: string, identityId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(
+      `/api/spaces/${encodeURIComponent(spaceId)}/members/${encodeURIComponent(identityId)}`
+    );
+  }
+
+  // --- Roles ---
+
+  async listRoles(spaceId: string): Promise<ApiResponse<{ roles: PublicSpaceRole[] }>> {
+    return this.client.get(`/api/spaces/${encodeURIComponent(spaceId)}/roles`);
+  }
+
+  // --- Channels & messages ---
+
+  async listChannels(spaceId: string): Promise<ApiResponse<{ channels: PublicSpaceChannel[] }>> {
+    return this.client.get(`/api/spaces/${encodeURIComponent(spaceId)}/channels`);
+  }
+
+  async getMessages(
+    spaceId: string,
+    channelId: string,
+    options?: { limit?: number; cursor?: string }
+  ): Promise<ApiResponse<{ messages: PublicSpaceMessage[]; cursor: string | null }>> {
+    const params = new URLSearchParams();
+    if (options?.limit != null) params.set('limit', String(options.limit));
+    if (options?.cursor) params.set('cursor', options.cursor);
+    const query = params.toString();
+    return this.client.get(
+      `/api/spaces/${encodeURIComponent(spaceId)}/channels/${encodeURIComponent(channelId)}/messages${query ? `?${query}` : ''}`
+    );
+  }
+
+  async sendMessage(
+    spaceId: string,
+    channelId: string,
+    params: SendSpaceMessageParams,
+    requestOptions?: RequestOptions
+  ): Promise<ApiResponse<PublicSpaceMessage>> {
+    return this.client.post(
+      `/api/spaces/${encodeURIComponent(spaceId)}/channels/${encodeURIComponent(channelId)}/messages`,
+      params,
+      requestOptions
+    );
+  }
+
+  // --- Invites (mirrors group invites) ---
+
+  async listInvites(
+    limit?: number,
+    cursor?: string
+  ): Promise<ApiResponse<{ invites: PublicSpaceInvite[]; cursor: string | null }>> {
+    const params = new URLSearchParams();
+    if (limit) params.set('limit', String(limit));
+    if (cursor) params.set('cursor', cursor);
+    const query = params.toString();
+    return this.client.get(`/api/spaces/invites${query ? `?${query}` : ''}`);
+  }
+
+  async acceptInvite(inviteId: string): Promise<ApiResponse<PublicSpaceInvite>> {
+    return this.client.post(`/api/spaces/invites/${encodeURIComponent(inviteId)}/accept`, {});
+  }
+
+  async declineInvite(inviteId: string): Promise<ApiResponse<PublicSpaceInvite>> {
+    return this.client.post(`/api/spaces/invites/${encodeURIComponent(inviteId)}/decline`, {});
+  }
+
+  async createInvite(
+    spaceId: string,
+    identityId: string
+  ): Promise<ApiResponse<PublicSpaceInvite>> {
+    return this.client.post(`/api/spaces/${encodeURIComponent(spaceId)}/invites`, { identityId });
+  }
+
+  async listPendingInvites(
+    spaceId: string
+  ): Promise<ApiResponse<{ invites: PublicSpaceInvite[] }>> {
+    return this.client.get(`/api/spaces/${encodeURIComponent(spaceId)}/pending-invites`);
+  }
+
+  async revokeInvite(
+    spaceId: string,
+    inviteId: string
+  ): Promise<ApiResponse<PublicSpaceInvite>> {
+    return this.client.delete(
+      `/api/spaces/${encodeURIComponent(spaceId)}/invites/${encodeURIComponent(inviteId)}`
+    );
+  }
+}
