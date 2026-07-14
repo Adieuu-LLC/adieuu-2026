@@ -7,32 +7,10 @@
 import { SPACE_PERMISSIONS, type SpacePermission } from '@adieuu/shared';
 
 /**
- * Slugs that cannot be claimed by a Space. Prevents collisions with existing
- * or future top-level app routes and confusing/impersonating names. Compared
- * case-insensitively against the already-lowercased slug.
+ * Reserved slugs and their guard live in `@adieuu/shared` so the create flow
+ * (client) and the API validate against a single source of truth.
  */
-export const SPACE_RESERVED_SLUGS: ReadonlySet<string> = new Set([
-  // App/route collisions
-  's', 'space', 'spaces', 'api', 'app', 'www', 'admin', 'administrator',
-  'settings', 'account', 'accounts', 'auth', 'login', 'logout', 'signup',
-  'register', 'new', 'create', 'edit', 'delete', 'discover', 'explore',
-  'directory', 'search', 'home', 'dashboard', 'help', 'support', 'about',
-  'terms', 'privacy', 'legal', 'contact', 'billing', 'subscribe', 'upgrade',
-  'pricing', 'invite', 'invites', 'join', 'me', 'you', 'user', 'users',
-  'identity', 'identities', 'profile', 'profiles', 'notifications', 'messages',
-  'conversations', 'friends', 'blocks', 'report', 'reports', 'moderation',
-  'feedback', 'themes', 'emojis', 'uploads', 'media', 'cdn', 'assets',
-  'static', 'public', 'private', 'null', 'undefined', 'true', 'false',
-  // Brand / impersonation guards
-  'adieuu', 'official', 'staff', 'system', 'root', 'mod', 'mods',
-]);
-
-/**
- * Whether a (lowercased) slug is reserved and cannot be used for a Space.
- */
-export function isReservedSpaceSlug(slug: string): boolean {
-  return SPACE_RESERVED_SLUGS.has(slug.toLowerCase());
-}
+export { SPACE_RESERVED_SLUGS, isReservedSpaceSlug } from '@adieuu/shared';
 
 /** Name of the seeded system Admin role (all permissions). */
 export const DEFAULT_ADMIN_ROLE_NAME = 'Admin';

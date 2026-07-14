@@ -24,6 +24,8 @@ import {
   createCipherCheck,
   verifyCipherCheck,
   deriveSpaceCipherKey,
+  randomBytes,
+  toHex,
   type CommunityCipher,
   type SpaceCipherCheck,
 } from '@adieuu/crypto';
@@ -36,6 +38,17 @@ const spaceCipherLinks = new Map<string, string>();
 
 function keyCacheKey(spaceId: string, cipherId: string): string {
   return `${spaceId}:${cipherId}`;
+}
+
+/**
+ * Generates a client-side Space id (24-hex, ObjectId-compatible).
+ *
+ * A Space's cipher challenge is bound to its `_id`, so an E2EE create must know
+ * the id before the atomic server create. The server accepts this id verbatim
+ * (validated as an ObjectId) so the challenge computed here stays valid.
+ */
+export function generateSpaceId(): string {
+  return toHex(randomBytes(12));
 }
 
 /**

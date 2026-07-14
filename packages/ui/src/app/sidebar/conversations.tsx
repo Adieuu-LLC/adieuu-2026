@@ -35,6 +35,7 @@ import { useCallSession } from '../../hooks/useCallSession';
 import { useTheme } from '../../hooks/useTheme';
 import { usePlatformCapabilities } from '../../config';
 import { ChatInvitationsSidebarButton } from './invitations';
+import { SpacesSidebarSection } from './spaces';
 import type { FolderIconName, FolderIconType } from '@adieuu/shared';
 
 // ============================================================================
@@ -1190,11 +1191,7 @@ export function ConversationsSidebarSection({
           </>
         )}
 
-        {activeTab === 'spaces' && (
-          <div className="sidebar-conversations-empty">
-            {t('sidebar.spacesComingSoon', 'Spaces coming soon')}
-          </div>
-        )}
+        {activeTab === 'spaces' && <SpacesSidebarSection />}
       </div>
     </div>
   );

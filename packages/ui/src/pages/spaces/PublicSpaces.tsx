@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { createApiClient, type PublicSpace } from '@adieuu/shared';
 import { useAppConfig } from '../../config';
 import { useIdentity } from '../../hooks/useIdentity';
+import { emitSpacesChanged } from '../../services/spacesMembershipEvents';
 import { useToast } from '../../components/Toast';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
@@ -40,6 +41,9 @@ export function PublicSpaces() {
   const [joiningId, setJoiningId] = useState<string | null>(null);
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Sequences discovery requests so a slower earlier search can't overwrite the
+  // results/state of a newer one.
+  const fetchSeq = useRef(0);
 
   const handleSearchInput = useCallback((value: string) => {
     setSearch(value);
@@ -56,6 +60,7 @@ export function PublicSpaces() {
   }, []);
 
   const fetchSpaces = useCallback(async () => {
+    const seq = ++fetchSeq.current;
     setLoading(true);
     setError(false);
     try {
@@ -63,6 +68,7 @@ export function PublicSpaces() {
         limit: PAGE_SIZE,
         ...(debouncedSearch ? { q: debouncedSearch } : {}),
       });
+      if (seq !== fetchSeq.current) return;
       if (res.success && res.data) {
         setSpaces(res.data.spaces);
         setCursor(res.data.cursor);
@@ -70,9 +76,9 @@ export function PublicSpaces() {
         setError(true);
       }
     } catch {
-      setError(true);
+      if (seq === fetchSeq.current) setError(true);
     } finally {
-      setLoading(false);
+      if (seq === fetchSeq.current) setLoading(false);
     }
   }, [api, debouncedSearch]);
 
@@ -97,11 +103,15 @@ export function PublicSpaces() {
         const { spaces: nextSpaces, cursor: nextCursor } = res.data;
         setSpaces((prev) => [...prev, ...nextSpaces]);
         setCursor(nextCursor);
+      } else {
+        toast.error(t('spaces.loadMoreError'));
       }
+    } catch {
+      toast.error(t('spaces.loadMoreError'));
     } finally {
       setLoadingMore(false);
     }
-  }, [api, cursor, debouncedSearch, loadingMore]);
+  }, [api, cursor, debouncedSearch, loadingMore, toast, t]);
 
   const handleJoin = useCallback(
     async (space: PublicSpace) => {
@@ -110,7 +120,10 @@ export function PublicSpaces() {
       try {
         const res = await api.spaces.join(space.id);
         if (res.success || res.error?.code === 'ALREADY_MEMBER') {
-          if (res.success) toast.success(t('spaces.joinSuccess', { name: space.name }));
+          if (res.success) {
+            toast.success(t('spaces.joinSuccess', { name: space.name }));
+            emitSpacesChanged();
+          }
           navigate(`/s/${space.slug}`);
           return;
         }
@@ -162,6 +175,9 @@ export function PublicSpaces() {
             value={search}
             onChange={(e) => handleSearchInput(e.target.value)}
           />
+          <Link to="/spaces/new" className="btn btn-primary btn-md spaces-create-cta">
+            {t('spaces.create.cta')}
+          </Link>
         </div>
 
         {loading ? (
@@ -215,7 +231,7 @@ export function PublicSpaces() {
                       variant="primary"
                       size="sm"
                       onClick={() => void handleJoin(space)}
-                      disabled={joiningId === space.id}
+                      disabled={joiningId !== null}
                     >
                       {joiningId === space.id ? t('spaces.joining') : t('spaces.join')}
                     </Button>

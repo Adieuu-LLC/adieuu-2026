@@ -49,6 +49,34 @@ export const SPACE_SLUG_MIN_LENGTH = 3;
 export const SPACE_SLUG_MAX_LENGTH = 32;
 export const SPACE_SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 
+/**
+ * Slugs that cannot be claimed by a Space. Prevents collisions with existing
+ * or future top-level app routes and confusing/impersonating names. Shared so
+ * the create flow can surface a "reserved" state client-side and the API can
+ * reject reserved slugs from a single source of truth. Compared
+ * case-insensitively against the already-lowercased slug.
+ */
+export const SPACE_RESERVED_SLUGS: ReadonlySet<string> = new Set([
+  // App/route collisions
+  's', 'space', 'spaces', 'api', 'app', 'www', 'admin', 'administrator',
+  'settings', 'account', 'accounts', 'auth', 'login', 'logout', 'signup',
+  'register', 'new', 'create', 'edit', 'delete', 'discover', 'explore',
+  'directory', 'search', 'home', 'dashboard', 'help', 'support', 'about',
+  'terms', 'privacy', 'legal', 'contact', 'billing', 'subscribe', 'upgrade',
+  'pricing', 'invite', 'invites', 'join', 'me', 'you', 'user', 'users',
+  'identity', 'identities', 'profile', 'profiles', 'notifications', 'messages',
+  'conversations', 'friends', 'blocks', 'report', 'reports', 'moderation',
+  'feedback', 'themes', 'emojis', 'uploads', 'media', 'cdn', 'assets',
+  'static', 'public', 'private', 'null', 'undefined', 'true', 'false',
+  // Brand / impersonation guards
+  'adieuu', 'official', 'staff', 'system', 'root', 'mod', 'mods',
+]);
+
+/** Whether a slug is reserved and cannot be used for a Space (case-insensitive). */
+export function isReservedSpaceSlug(slug: string): boolean {
+  return SPACE_RESERVED_SLUGS.has(slug.toLowerCase());
+}
+
 export const SPACE_NAME_MIN_LENGTH = 1;
 export const SPACE_NAME_MAX_LENGTH = 100;
 export const SPACE_DESCRIPTION_MAX_LENGTH = 500;

@@ -3,6 +3,7 @@ import { createElement } from 'react';
 import { act } from 'react';
 import { GlobalWindow } from 'happy-dom';
 import { createRoot } from 'react-dom/client';
+import * as sharedActual from '@adieuu/shared';
 import { mockNavigate, resetReactRouterDomMock } from '../../test/react-router-dom-mock';
 import { resetReactI18nextMock, setMockTranslate } from '../../test/react-i18next-mock';
 
@@ -34,6 +35,7 @@ const mockJoin = mock(
 );
 
 mock.module('@adieuu/shared', () => ({
+  ...sharedActual,
   createApiClient: () => ({
     spaces: {
       discover: mockDiscover,

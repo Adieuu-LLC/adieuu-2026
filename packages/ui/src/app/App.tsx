@@ -57,6 +57,7 @@ const AboutRoadmap = lazyRoute(() => import('../pages/about'), 'AboutRoadmap');
 const Download = lazyRoute(() => import('../pages/Download'), 'Download');
 const Search = lazyRoute(() => import('../pages/Search'), 'Search');
 const PublicSpaces = lazyRoute(() => import('../pages/spaces'), 'PublicSpaces');
+const CreateSpace = lazyRoute(() => import('../pages/spaces'), 'CreateSpace');
 const SpaceView = lazyRoute(() => import('../pages/spaces'), 'SpaceView');
 const Login = lazyRoute(() => import('../pages/auth'), 'Login');
 const Verify = lazyRoute(() => import('../pages/auth'), 'Verify');
@@ -360,6 +361,7 @@ export function App() {
         <Route path="/download" element={<Download />} />
         <Route path="/search" element={<Search />} />
         <Route path="/spaces" element={<PublicSpaces />} />
+        <Route path="/spaces/new" element={<CreateSpace />} />
         <Route path="/s/:slug" element={<SpaceView />} />
         <Route path="/identity/:id" element={<IdentityProfileView />} />
         <Route path="/legal-policies" element={<LegalPoliciesPage />} />

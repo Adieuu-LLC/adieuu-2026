@@ -21,6 +21,10 @@ import {
   saveStoredCipher,
 } from '../services/cipherStoreDb';
 import { decryptStoredEntropy } from '../services/cipherStoreOperations';
+import {
+  registerSpaceCipherLink,
+  removeSpaceCipherLink,
+} from '../services/spaceCipherService';
 
 // ============================================================================
 // Cipher Store Types
@@ -232,6 +236,12 @@ function useCipherStoreState(): CipherStoreContextValue {
             lastUsedAt: stored.lastUsedAt,
           };
           decryptedCiphers.push(decrypted);
+
+          // Hydrate the in-memory spaceId -> local cipher link from the durable
+          // `StoredCipher.spaceId` so per-Space crypto can find its Cipher.
+          if (stored.spaceId) {
+            registerSpaceCipherLink(stored.spaceId, stored.id);
+          }
         } catch (err) {
           console.warn(`Failed to load cipher ${stored.id}:`, err);
         }
@@ -309,6 +319,11 @@ function useCipherStoreState(): CipherStoreContextValue {
 
         // Cache the derived key
         cipherKeysRef.set(id, derived);
+
+        // Keep the in-memory Space link in sync with the persisted spaceId.
+        if (input.spaceId) {
+          registerSpaceCipherLink(input.spaceId, id);
+        }
 
         // Create decrypted cipher for state
         const decryptedCipher: DecryptedCipher = {
@@ -456,6 +471,14 @@ function useCipherStoreState(): CipherStoreContextValue {
         };
 
         await saveStoredCipher(updatedStored);
+
+        // Keep the in-memory Space link in sync: clearing spaceId (null) removes
+        // it, setting a spaceId (re)registers it against this local cipher.
+        if (input.spaceId === null) {
+          removeSpaceCipherLink(storedCipher.spaceId ?? '');
+        } else if (updatedStored.spaceId) {
+          registerSpaceCipherLink(updatedStored.spaceId, id);
+        }
 
         // Update state
         setState((prev) => ({
