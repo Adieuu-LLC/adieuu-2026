@@ -12,6 +12,13 @@ export interface WsUserData {
   sessionId: string;
   deviceId?: string;
   connectedAt: number;
+  /**
+   * Space ids the identity was an active member of at WS upgrade. The
+   * connection subscribes to each `space:{spaceId}` channel so Space broadcasts
+   * are delivered. Resolved once at upgrade (membership changes take effect on
+   * the next reconnect).
+   */
+  spaceIds?: string[];
 }
 
 /**
@@ -87,6 +94,11 @@ export type WsOutgoingMessage =
  */
 export const RedisChannels = {
   identity: (identityId: string) => `identity:${identityId}`,
+  /**
+   * Space broadcast channel. MUST stay in sync with `RedisKeys.spaceChannel`
+   * in `apps/api/src/db/redis.ts` (the API publishes here).
+   */
+  space: (spaceId: string) => `space:${spaceId}`,
 } as const;
 
 /**

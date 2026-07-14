@@ -13,7 +13,7 @@
 
 import uWS from 'uWebSockets.js';
 import { config, validateProductionConfig } from './config';
-import { initializeDatabases, closeDatabases, checkRedisHealth, checkMongoHealth, getSubscriber } from './db';
+import { initializeDatabases, closeDatabases, checkRedisHealth, checkMongoHealth, getSubscriber, findActiveSpaceIdsForIdentity } from './db';
 import { extractSessionId, validateSession } from './auth';
 import {
   registerConnection,
@@ -127,15 +127,27 @@ function createApp(): uWS.TemplatedApp {
         return;
       }
 
+      // Resolve the identity's active Space memberships so the connection can
+      // subscribe to their Space broadcast channels. Best-effort: failures
+      // degrade to no Space realtime rather than blocking the upgrade.
+      const spaceIds = await findActiveSpaceIdsForIdentity(session.identityId);
+
+      if (aborted.value) {
+        logger.warn('WebSocket upgrade aborted during space resolution', { validateMs });
+        return;
+      }
+
       logger.info('WebSocket upgrade accepted', {
         identityId: session.identityId.substring(0, 8) + '...',
         validateMs,
+        spaceCount: spaceIds.length,
       });
 
       const userData: WsUserData = {
         identityId: session.identityId,
         sessionId,
         connectedAt: Date.now(),
+        spaceIds,
       };
 
       res.cork(() => {
@@ -154,7 +166,7 @@ function createApp(): uWS.TemplatedApp {
       logger.info('WebSocket connection opened', {
         identityId: userData.identityId.substring(0, 8) + '...',
       });
-      await registerConnection(userData.identityId, ws);
+      await registerConnection(userData.identityId, ws, userData.spaceIds ?? []);
     },
 
     message: async (ws, data, isBinary) => {
@@ -223,7 +235,7 @@ function createApp(): uWS.TemplatedApp {
         reason: reason || undefined,
         connectedForMs: Date.now() - userData.connectedAt,
       });
-      await unregisterConnection(userData.identityId, ws);
+      await unregisterConnection(userData.identityId, ws, userData.spaceIds ?? []);
     },
   });
 

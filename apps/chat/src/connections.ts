@@ -18,6 +18,13 @@ import { ChatRedisKeys, RedisChannels, type TypedWebSocket } from './types';
 const connections = new Map<string, Set<TypedWebSocket>>();
 
 /**
+ * Map of space ID -> set of active WebSocket connections whose identity is an
+ * active member of that Space. Space broadcast events (`space:{spaceId}`) are
+ * fanned out to every socket in the matching set.
+ */
+const spaceConnections = new Map<string, Set<TypedWebSocket>>();
+
+/**
  * Set of subscribed Redis channels (without prefix, for re-subscription tracking)
  */
 const subscriptions = new Set<string>();
@@ -60,12 +67,62 @@ async function resubscribeAllChannels(): Promise<void> {
 /**
  * Initializes the Redis message handler
  */
+/**
+ * Fans a raw Redis message out to a set of local sockets.
+ */
+function deliverToSockets(
+  sockets: Set<TypedWebSocket> | undefined,
+  message: string,
+  meta: { channel: string; scope: string; key: string; eventType?: string },
+): void {
+  if (!sockets || sockets.size === 0) {
+    logger.info('Redis message received but no local connection', {
+      scope: meta.scope,
+      key: meta.key.substring(0, 8) + '...',
+      eventType: meta.eventType,
+      channel: meta.channel,
+    });
+    return;
+  }
+
+  for (const ws of sockets) {
+    try {
+      const sendResult = ws.send(message);
+      if (sendResult === 1) {
+        logger.info('Message delivered to WebSocket', {
+          scope: meta.scope,
+          key: meta.key.substring(0, 8) + '...',
+          eventType: meta.eventType,
+          byteLength: message.length,
+          socketCount: sockets.size,
+        });
+      } else {
+        logger.warn('Message dropped by uWS', {
+          scope: meta.scope,
+          key: meta.key.substring(0, 8) + '...',
+          eventType: meta.eventType,
+          sendResult,
+          byteLength: message.length,
+        });
+      }
+    } catch (error) {
+      logger.error('Failed to send message to WebSocket', {
+        error,
+        scope: meta.scope,
+        key: meta.key.substring(0, 8) + '...',
+        eventType: meta.eventType,
+      });
+    }
+  }
+}
+
 export function initializeMessageHandler(): void {
   if (messageHandler) return;
 
   messageHandler = (channel: string, message: string) => {
-    const identityId = channel.replace(`${config.redis.keyPrefix}identity:`, '');
-    const sockets = connections.get(identityId);
+    const unprefixed = channel.startsWith(config.redis.keyPrefix)
+      ? channel.slice(config.redis.keyPrefix.length)
+      : channel;
 
     let eventType: string | undefined;
     try {
@@ -75,41 +132,26 @@ export function initializeMessageHandler(): void {
       // Best-effort parse for logging; forward the raw message regardless
     }
 
-    if (!sockets || sockets.size === 0) {
-      logger.info('Redis message received but no local connection', {
-        identityId: identityId.substring(0, 8) + '...',
-        eventType,
+    // Space broadcast channel: fan out to every member socket for the space.
+    if (unprefixed.startsWith('space:')) {
+      const spaceId = unprefixed.slice('space:'.length);
+      deliverToSockets(spaceConnections.get(spaceId), message, {
         channel,
+        scope: 'space',
+        key: spaceId,
+        eventType,
       });
       return;
     }
 
-    for (const ws of sockets) {
-      try {
-        const sendResult = ws.send(message);
-        if (sendResult === 1) {
-          logger.info('Message delivered to WebSocket', {
-            identityId: identityId.substring(0, 8) + '...',
-            eventType,
-            byteLength: message.length,
-            socketCount: sockets.size,
-          });
-        } else {
-          logger.warn('Message dropped by uWS', {
-            identityId: identityId.substring(0, 8) + '...',
-            eventType,
-            sendResult,
-            byteLength: message.length,
-          });
-        }
-      } catch (error) {
-        logger.error('Failed to send message to WebSocket', {
-          error,
-          identityId: identityId.substring(0, 8) + '...',
-          eventType,
-        });
-      }
-    }
+    // Identity channel: fan out to that identity's sockets.
+    const identityId = unprefixed.replace('identity:', '');
+    deliverToSockets(connections.get(identityId), message, {
+      channel,
+      scope: 'identity',
+      key: identityId,
+      eventType,
+    });
   };
 
   const subscriber = getSubscriber();
@@ -180,15 +222,69 @@ async function unsubscribeFromIdentity(identityId: string): Promise<void> {
 }
 
 /**
+ * Subscribes to a Space broadcast channel. Idempotent at the Redis protocol
+ * level; the local `spaceConnections` set is the source of truth for fan-out.
+ */
+async function subscribeToSpace(spaceId: string): Promise<void> {
+  const channel = RedisChannels.space(spaceId);
+
+  if (subscriptions.has(channel)) {
+    return;
+  }
+
+  if (!isRedisConnected()) {
+    logger.warn('Cannot subscribe to space - Redis not connected', { spaceId });
+    return;
+  }
+
+  try {
+    const subscriber = getSubscriber();
+    await subscriber.subscribe(`${config.redis.keyPrefix}${channel}`);
+    subscriptions.add(channel);
+    logger.info('Subscribed to space channel', { channel });
+  } catch (error) {
+    logger.error('Failed to subscribe to space channel', { error, channel });
+  }
+}
+
+/**
+ * Unsubscribes from a Space channel once no local sockets remain for it.
+ */
+async function unsubscribeFromSpace(spaceId: string): Promise<void> {
+  const channel = RedisChannels.space(spaceId);
+
+  if (!subscriptions.has(channel)) {
+    return;
+  }
+
+  if (!isRedisConnected()) {
+    subscriptions.delete(channel);
+    return;
+  }
+
+  try {
+    const subscriber = getSubscriber();
+    await subscriber.unsubscribe(`${config.redis.keyPrefix}${channel}`);
+    subscriptions.delete(channel);
+    logger.info('Unsubscribed from space channel', { channel });
+  } catch (error) {
+    logger.error('Failed to unsubscribe from space channel', { error, channel });
+  }
+}
+
+/**
  * Registers a new WebSocket connection.
  *
  * Multiple sockets per identity are supported (multi-device / multi-tab).
  * Redis subscription is idempotent, so adding a second socket for an
- * already-subscribed identity is safe.
+ * already-subscribed identity is safe. When `spaceIds` are provided (the
+ * identity's active Space memberships resolved at upgrade), the socket is also
+ * registered for each Space's broadcast channel.
  */
 export async function registerConnection(
   identityId: string,
-  ws: TypedWebSocket
+  ws: TypedWebSocket,
+  spaceIds: string[] = []
 ): Promise<void> {
   let sockets = connections.get(identityId);
   if (!sockets) {
@@ -198,6 +294,16 @@ export async function registerConnection(
 
   sockets.add(ws);
   await subscribeToIdentity(identityId);
+
+  for (const spaceId of spaceIds) {
+    let spaceSockets = spaceConnections.get(spaceId);
+    if (!spaceSockets) {
+      spaceSockets = new Set();
+      spaceConnections.set(spaceId, spaceSockets);
+    }
+    spaceSockets.add(ws);
+    await subscribeToSpace(spaceId);
+  }
 
   // Set online presence
   if (isRedisConnected()) {
@@ -229,7 +335,8 @@ export async function registerConnection(
  */
 export async function unregisterConnection(
   identityId: string,
-  ws: TypedWebSocket
+  ws: TypedWebSocket,
+  spaceIds: string[] = []
 ): Promise<void> {
   const sockets = connections.get(identityId);
   if (!sockets || !sockets.has(ws)) {
@@ -240,6 +347,18 @@ export async function unregisterConnection(
   }
 
   sockets.delete(ws);
+
+  // Tear down Space channel membership for this socket; unsubscribe from any
+  // Space whose last local socket just disconnected.
+  for (const spaceId of spaceIds) {
+    const spaceSockets = spaceConnections.get(spaceId);
+    if (!spaceSockets) continue;
+    spaceSockets.delete(ws);
+    if (spaceSockets.size === 0) {
+      spaceConnections.delete(spaceId);
+      await unsubscribeFromSpace(spaceId);
+    }
+  }
 
   if (sockets.size === 0) {
     connections.delete(identityId);
@@ -312,6 +431,13 @@ export function getSubscriptionCount(): number {
  */
 export function getConnectionsForIdentity(identityId: string): Set<TypedWebSocket> | undefined {
   return connections.get(identityId);
+}
+
+/**
+ * Gets all sockets registered for a Space's broadcast channel.
+ */
+export function getConnectionsForSpace(spaceId: string): Set<TypedWebSocket> | undefined {
+  return spaceConnections.get(spaceId);
 }
 
 /**

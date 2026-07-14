@@ -40,6 +40,12 @@ mock.module('../../repositories/space.repository', () => ({ getSpaceRepository: 
 mock.module('../../repositories/space-member.repository', () => ({ getSpaceMemberRepository: () => memberRepo }));
 mock.module('../../repositories/space-role.repository', () => ({ getSpaceRoleRepository: () => roleRepo }));
 
+const publishSpaceEvent = mock(async () => {}) as AnyMock;
+mock.module('./redis-events', () => ({
+  publishSpaceEvent,
+  publishSpaceEventToIdentity: mock(async () => {}),
+}));
+
 import {
   joinSpace,
   leaveSpace,
@@ -94,6 +100,7 @@ describe('space/members', () => {
     memberRepo.listBySpace.mockResolvedValue([]);
     roleRepo.findDefaultMember.mockResolvedValue({ _id: DEFAULT_ROLE });
     roleRepo.findBySpace.mockResolvedValue([]);
+    publishSpaceEvent.mockClear();
   });
 
   describe('resolveEffectiveTier', () => {
@@ -135,6 +142,8 @@ describe('space/members', () => {
       expect(r.success).toBe(true);
       expect(memberRepo.createMember).not.toHaveBeenCalled();
       expect(spaceRepo.incrementMemberCount).not.toHaveBeenCalled();
+      // No fan-out when membership already existed.
+      expect(publishSpaceEvent).not.toHaveBeenCalled();
     });
 
     test('blocks free-tier open-join of a public space', async () => {
@@ -153,6 +162,11 @@ describe('space/members', () => {
       const [input] = memberRepo.createMember.mock.calls[0]!;
       expect(input.roleIds).toEqual([DEFAULT_ROLE]);
       expect(spaceRepo.incrementMemberCount).toHaveBeenCalledWith(space._id, 1);
+      // Fans a member-joined event out on the Space channel.
+      expect(publishSpaceEvent).toHaveBeenCalledTimes(1);
+      const [joinSpaceId, event] = publishSpaceEvent.mock.calls[0]!;
+      expect(joinSpaceId).toBe(space._id.toHexString());
+      expect(event.type).toBe('space_member_joined');
     });
 
     test('allows paid open-join of a listed space', async () => {
@@ -209,9 +223,16 @@ describe('space/members', () => {
       const space = makeSpaceDoc();
       spaceRepo.findById.mockResolvedValue(space);
       memberRepo.removeMember.mockResolvedValue(true);
-      const r = await leaveSpace(space._id, new ObjectId());
+      const leaver = new ObjectId();
+      const r = await leaveSpace(space._id, leaver);
       expect(r.success).toBe(true);
       expect(spaceRepo.incrementMemberCount).toHaveBeenCalledWith(space._id, -1);
+      // Fans a member-left event out on the Space channel.
+      expect(publishSpaceEvent).toHaveBeenCalledTimes(1);
+      const [leaveSpaceId, event] = publishSpaceEvent.mock.calls[0]!;
+      expect(leaveSpaceId).toBe(space._id.toHexString());
+      expect(event.type).toBe('space_member_left');
+      expect(event.data).toMatchObject({ identityId: leaver.toHexString() });
     });
   });
 
@@ -258,9 +279,15 @@ describe('space/members', () => {
       const acting = new ObjectId();
       stubActingPermissions(space._id, acting, ['admin']);
       memberRepo.removeMember.mockResolvedValue(true);
-      const r = await removeSpaceMember(space._id, acting, new ObjectId());
+      const target = new ObjectId();
+      const r = await removeSpaceMember(space._id, acting, target);
       expect(r.success).toBe(true);
       expect(spaceRepo.incrementMemberCount).toHaveBeenCalledWith(space._id, -1);
+      expect(publishSpaceEvent).toHaveBeenCalledTimes(1);
+      expect(publishSpaceEvent.mock.calls[0]![1]).toMatchObject({
+        type: 'space_member_left',
+        data: { identityId: target.toHexString() },
+      });
     });
   });
 

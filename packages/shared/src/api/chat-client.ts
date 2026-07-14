@@ -9,6 +9,13 @@
 // Types
 // ============================================================================
 
+import type {
+  PublicSpace,
+  PublicSpaceInvite,
+  PublicSpaceMember,
+  PublicSpaceMessage,
+} from './spaces-types';
+
 export type ChatMessageType =
   | 'ping'
   | 'pong'
@@ -35,7 +42,15 @@ export type ChatMessageType =
   | 'call_participant_joined'
   | 'call_participant_left'
   | 'call_ended'
-  | 'call_media_state_changed';
+  | 'call_media_state_changed'
+  | 'space_created'
+  | 'space_updated'
+  | 'space_message'
+  | 'space_member_joined'
+  | 'space_member_left'
+  | 'space_invite_received'
+  | 'space_invite_accepted'
+  | 'space_invite_revoked';
 
 export interface ChatMessageBase {
   type: ChatMessageType;
@@ -359,6 +374,70 @@ export interface ChatCallMediaStateChangedMessage extends ChatMessageBase {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Spaces
+// ---------------------------------------------------------------------------
+
+/**
+ * A Space the current identity now belongs to (e.g. after creating one or
+ * accepting an invite). Delivered on the member's `identity:{id}` channel.
+ */
+export interface ChatSpaceCreatedMessage extends ChatMessageBase {
+  type: 'space_created';
+  data: { space: PublicSpace };
+}
+
+/** A Space's settings changed. Fanned out on the `space:{spaceId}` channel. */
+export interface ChatSpaceUpdatedMessage extends ChatMessageBase {
+  type: 'space_updated';
+  data: { space: PublicSpace };
+}
+
+/**
+ * A new (non-E2EE) channel message. Fanned out on the `space:{spaceId}`
+ * channel to active members.
+ */
+export interface ChatSpaceMessageMessage extends ChatMessageBase {
+  type: 'space_message';
+  data: { message: PublicSpaceMessage };
+}
+
+/** A member joined a Space. Fanned out on the `space:{spaceId}` channel. */
+export interface ChatSpaceMemberJoinedMessage extends ChatMessageBase {
+  type: 'space_member_joined';
+  data: { spaceId: string; member: PublicSpaceMember };
+}
+
+/** A member left or was removed. Fanned out on the `space:{spaceId}` channel. */
+export interface ChatSpaceMemberLeftMessage extends ChatMessageBase {
+  type: 'space_member_left';
+  data: { spaceId: string; identityId: string };
+}
+
+/**
+ * A pending Space invite addressed to the current identity. Delivered on the
+ * invitee's `identity:{id}` channel.
+ */
+export interface ChatSpaceInviteReceivedMessage extends ChatMessageBase {
+  type: 'space_invite_received';
+  data: { invite: PublicSpaceInvite };
+}
+
+/** An invitee accepted an invite. Fanned out on the `space:{spaceId}` channel. */
+export interface ChatSpaceInviteAcceptedMessage extends ChatMessageBase {
+  type: 'space_invite_accepted';
+  data: { spaceId: string; identityId: string };
+}
+
+/**
+ * A pending invite was revoked. Delivered on the invitee's `identity:{id}`
+ * channel so their inbox updates.
+ */
+export interface ChatSpaceInviteRevokedMessage extends ChatMessageBase {
+  type: 'space_invite_revoked';
+  data: { inviteId: string; spaceId: string };
+}
+
 export type ChatIncomingMessage =
   | ChatPongMessage
   | ChatErrorMessage
@@ -383,7 +462,15 @@ export type ChatIncomingMessage =
   | ChatCallParticipantJoinedMessage
   | ChatCallParticipantLeftMessage
   | ChatCallEndedMessage
-  | ChatCallMediaStateChangedMessage;
+  | ChatCallMediaStateChangedMessage
+  | ChatSpaceCreatedMessage
+  | ChatSpaceUpdatedMessage
+  | ChatSpaceMessageMessage
+  | ChatSpaceMemberJoinedMessage
+  | ChatSpaceMemberLeftMessage
+  | ChatSpaceInviteReceivedMessage
+  | ChatSpaceInviteAcceptedMessage
+  | ChatSpaceInviteRevokedMessage;
 
 export type ChatOutgoingMessage =
   | ChatPingMessage;

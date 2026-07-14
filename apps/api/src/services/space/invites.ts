@@ -22,8 +22,10 @@ import { getSpaceInviteRepository } from '../../repositories/space-invite.reposi
 import { getIdentityRepository } from '../../repositories/identity.repository';
 import { isValidObjectId } from '../../utils';
 import { toPublicSpaceInvite } from '../../models/space-invite';
+import { toPublicSpace } from '../../models/space';
 import { resolveMemberPermissions, memberHasPermission } from './permissions';
 import { addSpaceMembership, resolveEffectiveTier } from './members';
+import { publishSpaceEvent, publishSpaceEventToIdentity } from './redis-events';
 import type {
   SpaceBillingContext,
   SpaceInviteResult,
@@ -95,7 +97,14 @@ export async function createSpaceInvite(
     memberCount: space.memberCount,
   });
 
-  return { success: true, invite: toPublicSpaceInvite(invite) };
+  const publicInvite = toPublicSpaceInvite(invite);
+  // Deliver to the invitee's personal channel (they may not be a member yet).
+  await publishSpaceEventToIdentity(invitedId.toHexString(), {
+    type: 'space_invite_received',
+    data: { invite: publicInvite },
+  });
+
+  return { success: true, invite: publicInvite };
 }
 
 /**
@@ -141,6 +150,17 @@ export async function acceptSpaceInvite(
 
   await addSpaceMembership(invite.spaceId, identityId);
   const updated = await inviteRepo.updateStatus(inviteId, 'accepted');
+
+  // The accepter isn't yet subscribed to the Space channel, so send them the
+  // Space directly for their sidebar; also notify the Space that they joined.
+  await publishSpaceEventToIdentity(identityId.toHexString(), {
+    type: 'space_created',
+    data: { space: toPublicSpace(space) },
+  });
+  await publishSpaceEvent(invite.spaceId.toHexString(), {
+    type: 'space_invite_accepted',
+    data: { spaceId: invite.spaceId.toHexString(), identityId: identityId.toHexString() },
+  });
 
   return { success: true, invite: updated ? toPublicSpaceInvite(updated) : toPublicSpaceInvite(invite) };
 }
@@ -210,6 +230,11 @@ export async function revokeSpaceInvite(
   }
 
   const updated = await inviteRepo.updateStatus(inviteId, 'revoked');
+  // Tell the invitee so their invite inbox clears in real time.
+  await publishSpaceEventToIdentity(invite.invitedIdentityId.toHexString(), {
+    type: 'space_invite_revoked',
+    data: { inviteId: inviteId.toHexString(), spaceId: spaceId.toHexString() },
+  });
   return { success: true, invite: updated ? toPublicSpaceInvite(updated) : toPublicSpaceInvite(invite) };
 }
 

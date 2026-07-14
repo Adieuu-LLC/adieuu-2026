@@ -40,6 +40,12 @@ mock.module('../../repositories/space-role.repository', () => ({ getSpaceRoleRep
 mock.module('../../repositories/space-channel.repository', () => ({ getSpaceChannelRepository: () => channelRepo }));
 mock.module('../../repositories/space-message.repository', () => ({ getSpaceMessageRepository: () => messageRepo }));
 
+const publishSpaceEvent = mock(async () => {}) as AnyMock;
+mock.module('./redis-events', () => ({
+  publishSpaceEvent,
+  publishSpaceEventToIdentity: mock(async () => {}),
+}));
+
 import { listSpaceChannels, sendSpaceMessage, getSpaceMessages } from './channels';
 
 const OWNER = new ObjectId();
@@ -88,6 +94,7 @@ describe('space/channels', () => {
     channelRepo.findByIdInSpace.mockResolvedValue(null);
     messageRepo.findByClientMessageId.mockResolvedValue(null);
     messageRepo.findByChannel.mockResolvedValue([]);
+    publishSpaceEvent.mockClear();
   });
 
   describe('listSpaceChannels', () => {
@@ -187,6 +194,11 @@ describe('space/channels', () => {
       expect(r.message?.content).toBe('hi there'); // trimmed
       const [input] = messageRepo.createMessage.mock.calls[0]!;
       expect(input).toMatchObject({ content: 'hi there', clientMessageId: 'c1' });
+      // Fans the new message out on the Space channel.
+      expect(publishSpaceEvent).toHaveBeenCalledTimes(1);
+      const [chanSpaceId, event] = publishSpaceEvent.mock.calls[0]!;
+      expect(chanSpaceId).toBe(space._id.toHexString());
+      expect(event.type).toBe('space_message');
     });
 
     test('is idempotent on clientMessageId', async () => {
@@ -203,6 +215,8 @@ describe('space/channels', () => {
       const r = await sendSpaceMessage(space._id, channel._id, sender, { content: 'hi', clientMessageId: 'c1' });
       expect(r.success).toBe(true);
       expect(messageRepo.createMessage).not.toHaveBeenCalled();
+      // No fan-out for an idempotent replay.
+      expect(publishSpaceEvent).not.toHaveBeenCalled();
     });
   });
 

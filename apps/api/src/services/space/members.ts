@@ -27,6 +27,7 @@ import type { SpaceMemberDocument } from '../../models/space-member';
 import { toPublicSpaceRole } from '../../models/space-role';
 import { resolveMemberPermissions, memberHasPermission } from './permissions';
 import { canReadSpace } from './access';
+import { publishSpaceEvent } from './redis-events';
 import type {
   SpaceActionResult,
   SpaceBillingContext,
@@ -88,6 +89,13 @@ export async function addSpaceMembership(
   }
 
   await getSpaceRepository().incrementMemberCount(spaceId, 1);
+
+  // Fan out to active members (covers both open-join and invite-accept).
+  await publishSpaceEvent(spaceId.toHexString(), {
+    type: 'space_member_joined',
+    data: { spaceId: spaceId.toHexString(), member: toPublicSpaceMember(member) },
+  });
+
   return member;
 }
 
@@ -172,6 +180,10 @@ export async function leaveSpace(
   }
 
   await getSpaceRepository().incrementMemberCount(spaceId, -1);
+  await publishSpaceEvent(spaceId.toHexString(), {
+    type: 'space_member_left',
+    data: { spaceId: spaceId.toHexString(), identityId: identityId.toHexString() },
+  });
   return { success: true };
 }
 
@@ -222,6 +234,10 @@ export async function removeSpaceMember(
   }
 
   await getSpaceRepository().incrementMemberCount(spaceId, -1);
+  await publishSpaceEvent(spaceId.toHexString(), {
+    type: 'space_member_left',
+    data: { spaceId: spaceId.toHexString(), identityId: targetId.toHexString() },
+  });
   return { success: true };
 }
 

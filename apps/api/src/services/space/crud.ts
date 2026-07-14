@@ -18,7 +18,9 @@ import { hasPaidAccess } from '../billing/resolve-access';
 import { isValidObjectId } from '../../utils';
 import elog from '../../utils/adieuuLogger';
 import { toPublicSpace } from '../../models/space';
-import type { PublicSpace } from '@adieuu/shared';
+import { resolveMemberPermissions, memberHasPermission } from './permissions';
+import { publishSpaceEvent, publishSpaceEventToIdentity } from './redis-events';
+import type { PublicSpace, SpaceVisibility } from '@adieuu/shared';
 import {
   DEFAULT_ADMIN_ROLE_NAME,
   DEFAULT_MEMBER_ROLE_NAME,
@@ -150,7 +152,14 @@ export async function createSpace(
     throw err;
   }
 
-  return { success: true, space: toPublicSpace(space) };
+  const publicSpace = toPublicSpace(space);
+  // Notify the creator so their Spaces sidebar updates in real time.
+  await publishSpaceEventToIdentity(creatorObjId.toHexString(), {
+    type: 'space_created',
+    data: { space: publicSpace },
+  });
+
+  return { success: true, space: publicSpace };
 }
 
 /** Best-effort cleanup of a partially-seeded Space. */
@@ -196,6 +205,126 @@ export async function getSpaceBySlug(
   }
 
   return { success: true, space: toPublicSpace(space) };
+}
+
+/**
+ * Fetch a Space by id. Hidden Spaces are only visible to members; their
+ * existence is not revealed to non-members.
+ */
+export async function getSpaceById(
+  spaceIdRaw: string | ObjectId,
+  requesterIdentityId?: string | ObjectId,
+): Promise<SpaceResult> {
+  const spaceId =
+    spaceIdRaw instanceof ObjectId
+      ? spaceIdRaw
+      : isValidObjectId(spaceIdRaw)
+        ? new ObjectId(spaceIdRaw)
+        : null;
+  if (!spaceId) {
+    return { success: false, error: 'Invalid Space id.', errorCode: 'INVALID_ID' };
+  }
+
+  const space = await getSpaceRepository().findById(spaceId);
+  if (!space) {
+    return { success: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' };
+  }
+
+  if (space.visibility === 'hidden') {
+    if (!requesterIdentityId) {
+      return { success: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' };
+    }
+    const requesterObjId =
+      requesterIdentityId instanceof ObjectId
+        ? requesterIdentityId
+        : new ObjectId(requesterIdentityId);
+    const member = await getSpaceMemberRepository().findMember(space._id, requesterObjId);
+    if (!member) {
+      // Do not reveal that a hidden Space exists.
+      return { success: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' };
+    }
+  }
+
+  return { success: true, space: toPublicSpace(space) };
+}
+
+/**
+ * Update a Space's settings (name/description/visibility/allowFreeMembers).
+ * Requires the acting identity to hold the `admin` permission. A Space carrying
+ * a cipher challenge (Space-wide E2EE) can never be switched to `public`.
+ */
+export async function updateSpace(
+  spaceIdRaw: string | ObjectId,
+  actingIdentityIdRaw: string | ObjectId,
+  updates: {
+    name?: string;
+    description?: string;
+    visibility?: SpaceVisibility;
+    allowFreeMembers?: boolean;
+  },
+): Promise<SpaceResult> {
+  const spaceId =
+    spaceIdRaw instanceof ObjectId
+      ? spaceIdRaw
+      : isValidObjectId(spaceIdRaw)
+        ? new ObjectId(spaceIdRaw)
+        : null;
+  const actingId =
+    actingIdentityIdRaw instanceof ObjectId
+      ? actingIdentityIdRaw
+      : isValidObjectId(actingIdentityIdRaw)
+        ? new ObjectId(actingIdentityIdRaw)
+        : null;
+  if (!spaceId || !actingId) {
+    return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
+  }
+
+  const spaceRepo = getSpaceRepository();
+  const space = await spaceRepo.findById(spaceId);
+  if (!space) {
+    return { success: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' };
+  }
+
+  const perms = await resolveMemberPermissions(spaceId, actingId);
+  if (!perms.isMember) {
+    return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
+  }
+  if (!memberHasPermission(perms, 'admin')) {
+    return {
+      success: false,
+      error: 'You do not have permission to manage this Space.',
+      errorCode: 'FORBIDDEN',
+    };
+  }
+
+  // Defense-in-depth: an E2EE Space cannot become public (public Spaces never
+  // carry a Space-wide cipher challenge).
+  if (updates.visibility === 'public' && space.cipherCheck) {
+    return {
+      success: false,
+      error: 'An encrypted Space cannot be made public.',
+      errorCode: 'INVALID_ENCRYPTION',
+    };
+  }
+
+  const patch: Record<string, unknown> = {};
+  if (updates.name !== undefined) patch.name = updates.name;
+  if (updates.description !== undefined) patch.description = updates.description;
+  if (updates.visibility !== undefined) patch.visibility = updates.visibility;
+  if (updates.allowFreeMembers !== undefined) patch.allowFreeMembers = updates.allowFreeMembers;
+
+  const updated = await spaceRepo.updateById(spaceId, patch as never);
+  if (!updated) {
+    return { success: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' };
+  }
+
+  const publicSpace = toPublicSpace(updated);
+  await publishSpaceEvent(spaceId.toHexString(), {
+    type: 'space_updated',
+    data: { space: publicSpace },
+  });
+
+  return { success: true, space: publicSpace };
 }
 
 /**

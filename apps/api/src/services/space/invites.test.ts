@@ -55,6 +55,11 @@ mock.module('../../repositories/space-role.repository', () => ({ getSpaceRoleRep
 mock.module('../../repositories/space-invite.repository', () => ({ getSpaceInviteRepository: () => inviteRepo }));
 mock.module('../../repositories/identity.repository', () => ({ getIdentityRepository: () => identityRepo }));
 
+// Shared by invites.ts and its dependency members.ts (same directory).
+const publishSpaceEvent = mock(async () => {}) as AnyMock;
+const publishSpaceEventToIdentity = mock(async () => {}) as AnyMock;
+mock.module('./redis-events', () => ({ publishSpaceEvent, publishSpaceEventToIdentity }));
+
 import {
   createSpaceInvite,
   acceptSpaceInvite,
@@ -114,6 +119,8 @@ describe('space/invites', () => {
     inviteRepo.findPendingForIdentity.mockResolvedValue([]);
     inviteRepo.findAllPendingForSpace.mockResolvedValue([]);
     identityRepo.findByIdentityId.mockResolvedValue({ _id: new ObjectId() });
+    publishSpaceEvent.mockClear();
+    publishSpaceEventToIdentity.mockClear();
   });
 
   describe('createSpaceInvite', () => {
@@ -196,6 +203,11 @@ describe('space/invites', () => {
       const [input] = inviteRepo.createInvite.mock.calls[0]!;
       expect(input).toMatchObject({ spaceName: 'Cool Space', spaceSlug: 'cool', memberCount: 9 });
       expect(input.invitedIdentityId.equals(invited)).toBe(true);
+      // The invitee is notified on their personal identity channel.
+      expect(publishSpaceEventToIdentity).toHaveBeenCalledTimes(1);
+      const [target, event] = publishSpaceEventToIdentity.mock.calls[0]!;
+      expect(target).toBe(invited.toHexString());
+      expect(event.type).toBe('space_invite_received');
     });
   });
 
@@ -228,6 +240,15 @@ describe('space/invites', () => {
       expect(input.roleIds).toEqual([DEFAULT_ROLE]);
       expect(spaceRepo.incrementMemberCount).toHaveBeenCalledWith(space._id, 1);
       expect(inviteRepo.updateStatus).toHaveBeenCalledWith(invite._id, 'accepted');
+
+      // The accepter gets the Space on their identity channel (they aren't yet
+      // subscribed to the Space channel), and a member-joined + invite-accepted
+      // event fans out on the Space channel.
+      const identityEventTypes = publishSpaceEventToIdentity.mock.calls.map((c) => c[1].type);
+      expect(identityEventTypes).toContain('space_created');
+      const spaceEventTypes = publishSpaceEvent.mock.calls.map((c) => c[1].type);
+      expect(spaceEventTypes).toContain('space_member_joined');
+      expect(spaceEventTypes).toContain('space_invite_accepted');
     });
 
     test('is idempotent when already a member (no double increment)', async () => {
@@ -300,11 +321,17 @@ describe('space/invites', () => {
       spaceRepo.findById.mockResolvedValue(space);
       const requester = new ObjectId();
       grantPermissions(space._id, requester, ['invite']);
-      const invite = makeInviteDoc({ spaceId: space._id });
+      const invitee = new ObjectId();
+      const invite = makeInviteDoc({ spaceId: space._id, invitedIdentityId: invitee });
       inviteRepo.findById.mockResolvedValue(invite);
       const r = await revokeSpaceInvite(space._id, invite._id, requester);
       expect(r.success).toBe(true);
       expect(inviteRepo.updateStatus).toHaveBeenCalledWith(invite._id, 'revoked');
+      // The invitee's inbox is updated on their identity channel.
+      expect(publishSpaceEventToIdentity).toHaveBeenCalledTimes(1);
+      const [target, event] = publishSpaceEventToIdentity.mock.calls[0]!;
+      expect(target).toBe(invitee.toHexString());
+      expect(event.type).toBe('space_invite_revoked');
     });
   });
 

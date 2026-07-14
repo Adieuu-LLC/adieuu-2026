@@ -7,6 +7,7 @@
 import type { ObjectId } from 'mongodb';
 import type { BaseDocument } from './base';
 import type { CipherCheck, PublicSpaceChannel, SpaceChannelType } from '@adieuu/shared';
+import { toPublicCipherCheck } from './cipher-check';
 
 export interface SpaceChannelDocument extends BaseDocument {
   spaceId: ObjectId;
@@ -36,7 +37,7 @@ export function toPublicSpaceChannel(doc: SpaceChannelDocument): PublicSpaceChan
     type: doc.type,
     name: doc.name,
     position: doc.position,
-    ...(doc.cipherCheck ? { cipherCheck: doc.cipherCheck } : {}),
+    ...(doc.cipherCheck ? { cipherCheck: toPublicCipherCheck(doc.cipherCheck) } : {}),
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString(),
   };

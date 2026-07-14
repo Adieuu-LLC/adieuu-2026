@@ -14,11 +14,16 @@ const mockHasPaidAccess = mock((_ctx: any) => true) as AnyMock;
 
 const spaceRepo = {
   findBySlug: mock(async (_slug: string) => null) as AnyMock,
+  findById: mock(async (_id: ObjectId) => null) as AnyMock,
   createSpace: mock(async (input: any) => ({
     ...input,
     _id: input._id ?? new ObjectId(),
     createdAt: new Date(),
     updatedAt: new Date(),
+  })) as AnyMock,
+  updateById: mock(async (_id: ObjectId, patch: any) => ({
+    ...makeSpaceDoc(),
+    ...patch,
   })) as AnyMock,
   findByIds: mock(async (_ids: ObjectId[]) => [] as any[]) as AnyMock,
   discover: mock(async (_opts: any) => [] as any[]) as AnyMock,
@@ -34,6 +39,7 @@ const roleRepo = {
     createdAt: new Date(),
     updatedAt: new Date(),
   })) as AnyMock,
+  findBySpace: mock(async (_id: ObjectId) => [] as any[]) as AnyMock,
   deleteBySpace: mock(async (_id: ObjectId) => 0) as AnyMock,
 };
 
@@ -68,9 +74,15 @@ mock.module('../../repositories/space-role.repository', () => ({ getSpaceRoleRep
 mock.module('../../repositories/space-member.repository', () => ({ getSpaceMemberRepository: () => memberRepo }));
 mock.module('../../repositories/space-channel.repository', () => ({ getSpaceChannelRepository: () => channelRepo }));
 
+const publishSpaceEvent = mock(async () => {}) as AnyMock;
+const publishSpaceEventToIdentity = mock(async () => {}) as AnyMock;
+mock.module('./redis-events', () => ({ publishSpaceEvent, publishSpaceEventToIdentity }));
+
 import {
   createSpace,
   getSpaceBySlug,
+  getSpaceById,
+  updateSpace,
   listMySpaces,
   discoverSpaces,
   isSlugAvailable,
@@ -106,11 +118,30 @@ describe('space/crud', () => {
       for (const fn of Object.values(repo)) (fn as AnyMock).mockClear();
     }
     spaceRepo.findBySlug.mockResolvedValue(null);
+    spaceRepo.findById.mockResolvedValue(null);
     spaceRepo.findByIds.mockResolvedValue([]);
     spaceRepo.discover.mockResolvedValue([]);
+    roleRepo.findBySpace.mockResolvedValue([]);
     memberRepo.findMember.mockResolvedValue(null);
     memberRepo.findForIdentity.mockResolvedValue([]);
+    publishSpaceEvent.mockClear();
+    publishSpaceEventToIdentity.mockClear();
   });
+
+  /** Makes `resolveMemberPermissions` treat CREATOR as an admin member. */
+  function seedAdminMembership(spaceId: ObjectId) {
+    const adminRoleId = new ObjectId();
+    memberRepo.findMember.mockResolvedValue({
+      _id: new ObjectId(),
+      spaceId,
+      identityId: CREATOR,
+      status: 'active',
+      roleIds: [adminRoleId],
+    });
+    roleRepo.findBySpace.mockResolvedValue([
+      { _id: adminRoleId, spaceId, name: 'Admin', permissions: ['admin'] },
+    ]);
+  }
 
   describe('createSpace', () => {
     test('rejects free-tier users with TIER_REQUIRED', async () => {
@@ -191,6 +222,12 @@ describe('space/crud', () => {
       expect(channelRepo.createChannel).toHaveBeenCalledTimes(1);
       const channelInput = channelRepo.createChannel.mock.calls[0]![0];
       expect(channelInput).toMatchObject({ type: 'text', name: 'general', position: 0 });
+
+      // Creator is notified of their new Space on their identity channel.
+      expect(publishSpaceEventToIdentity).toHaveBeenCalledTimes(1);
+      const [target, event] = publishSpaceEventToIdentity.mock.calls[0]!;
+      expect(target).toBe(CREATOR.toHexString());
+      expect(event.type).toBe('space_created');
     });
 
     test('persists the cipher challenge for E2EE Spaces and binds a client id', async () => {
@@ -245,6 +282,93 @@ describe('space/crud', () => {
     test('returns SPACE_NOT_FOUND when missing', async () => {
       spaceRepo.findBySlug.mockResolvedValue(null);
       const r = await getSpaceBySlug('ghost');
+      expect(r).toMatchObject({ success: false, errorCode: 'SPACE_NOT_FOUND' });
+    });
+  });
+
+  describe('getSpaceById', () => {
+    test('rejects an invalid id', async () => {
+      const r = await getSpaceById('not-hex');
+      expect(r).toMatchObject({ success: false, errorCode: 'INVALID_ID' });
+    });
+
+    test('returns a public Space to anyone', async () => {
+      spaceRepo.findById.mockResolvedValue(makeSpaceDoc({ visibility: 'public' }));
+      const r = await getSpaceById(new ObjectId());
+      expect(r).toMatchObject({ success: true });
+    });
+
+    test('hides hidden Spaces from non-members', async () => {
+      spaceRepo.findById.mockResolvedValue(makeSpaceDoc({ visibility: 'hidden' }));
+      memberRepo.findMember.mockResolvedValue(null);
+      const r = await getSpaceById(new ObjectId(), CREATOR);
+      expect(r).toMatchObject({ success: false, errorCode: 'SPACE_NOT_FOUND' });
+    });
+
+    test('returns SPACE_NOT_FOUND when missing', async () => {
+      spaceRepo.findById.mockResolvedValue(null);
+      const r = await getSpaceById(new ObjectId());
+      expect(r).toMatchObject({ success: false, errorCode: 'SPACE_NOT_FOUND' });
+    });
+  });
+
+  describe('updateSpace', () => {
+    test('rejects a non-member', async () => {
+      const spaceId = new ObjectId();
+      spaceRepo.findById.mockResolvedValue(makeSpaceDoc({ _id: spaceId }));
+      memberRepo.findMember.mockResolvedValue(null);
+      const r = await updateSpace(spaceId, CREATOR, { name: 'New' });
+      expect(r).toMatchObject({ success: false, errorCode: 'NOT_MEMBER' });
+      expect(spaceRepo.updateById).not.toHaveBeenCalled();
+    });
+
+    test('rejects a member without the admin permission', async () => {
+      const spaceId = new ObjectId();
+      spaceRepo.findById.mockResolvedValue(makeSpaceDoc({ _id: spaceId }));
+      const memberRoleId = new ObjectId();
+      memberRepo.findMember.mockResolvedValue({
+        _id: new ObjectId(), spaceId, identityId: CREATOR, status: 'active', roleIds: [memberRoleId],
+      });
+      roleRepo.findBySpace.mockResolvedValue([
+        { _id: memberRoleId, spaceId, name: 'Member', permissions: ['read', 'post'] },
+      ]);
+      const r = await updateSpace(spaceId, CREATOR, { name: 'New' });
+      expect(r).toMatchObject({ success: false, errorCode: 'FORBIDDEN' });
+    });
+
+    test('applies the patch for an admin member', async () => {
+      const spaceId = new ObjectId();
+      spaceRepo.findById.mockResolvedValue(makeSpaceDoc({ _id: spaceId }));
+      seedAdminMembership(spaceId);
+      const r = await updateSpace(spaceId, CREATOR, {
+        name: 'Renamed', allowFreeMembers: true,
+      });
+      expect(r.success).toBe(true);
+      const [, patch] = spaceRepo.updateById.mock.calls[0]!;
+      expect(patch).toEqual({ name: 'Renamed', allowFreeMembers: true });
+      // Broadcasts the update to the Space channel.
+      expect(publishSpaceEvent).toHaveBeenCalledTimes(1);
+      expect(publishSpaceEvent.mock.calls[0]![1].type).toBe('space_updated');
+    });
+
+    test('refuses to make an encrypted Space public', async () => {
+      const spaceId = new ObjectId();
+      spaceRepo.findById.mockResolvedValue(
+        makeSpaceDoc({
+          _id: spaceId,
+          visibility: 'hidden',
+          cipherCheck: { knownValue: 'k', encryptedKnownValue: 'e', nonce: 'n' },
+        }),
+      );
+      seedAdminMembership(spaceId);
+      const r = await updateSpace(spaceId, CREATOR, { visibility: 'public' });
+      expect(r).toMatchObject({ success: false, errorCode: 'INVALID_ENCRYPTION' });
+      expect(spaceRepo.updateById).not.toHaveBeenCalled();
+    });
+
+    test('returns SPACE_NOT_FOUND when missing', async () => {
+      spaceRepo.findById.mockResolvedValue(null);
+      const r = await updateSpace(new ObjectId(), CREATOR, { name: 'x' });
       expect(r).toMatchObject({ success: false, errorCode: 'SPACE_NOT_FOUND' });
     });
   });

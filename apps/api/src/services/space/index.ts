@@ -8,6 +8,8 @@ export * from './types';
 export {
   createSpace,
   getSpaceBySlug,
+  getSpaceById,
+  updateSpace,
   listMySpaces,
   discoverSpaces,
   isSlugAvailable,

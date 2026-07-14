@@ -13,6 +13,7 @@
 import type { ObjectId } from 'mongodb';
 import type { BaseDocument } from './base';
 import type { CipherCheck, PublicSpace, SpaceVisibility } from '@adieuu/shared';
+import { toPublicCipherCheck } from './cipher-check';
 
 /**
  * Space document stored in MongoDB.
@@ -76,7 +77,7 @@ export function toPublicSpace(doc: SpaceDocument): PublicSpace {
     name: doc.name,
     ...(doc.description ? { description: doc.description } : {}),
     visibility: doc.visibility,
-    ...(doc.cipherCheck ? { cipherCheck: doc.cipherCheck } : {}),
+    ...(doc.cipherCheck ? { cipherCheck: toPublicCipherCheck(doc.cipherCheck) } : {}),
     createdBy: doc.createdBy.toHexString(),
     ownerIdentityId: doc.ownerIdentityId.toHexString(),
     allowFreeMembers: doc.allowFreeMembers,

@@ -28,6 +28,7 @@ import { toPublicSpaceChannel } from '../../models/space-channel';
 import { toPublicSpaceMessage } from '../../models/space-message';
 import { resolveMemberPermissions, memberHasPermission } from './permissions';
 import { canReadSpace } from './access';
+import { publishSpaceEvent } from './redis-events';
 import type {
   SpaceChannelsResult,
   SpaceMessageResult,
@@ -143,7 +144,14 @@ export async function sendSpaceMessage(
     throw err;
   }
 
-  return { success: true, message: toPublicSpaceMessage(message) };
+  const publicMessage = toPublicSpaceMessage(message);
+  // Fan out to active members subscribed to the Space channel (best-effort).
+  await publishSpaceEvent(spaceId.toHexString(), {
+    type: 'space_message',
+    data: { message: publicMessage },
+  });
+
+  return { success: true, message: publicMessage };
 }
 
 /**
