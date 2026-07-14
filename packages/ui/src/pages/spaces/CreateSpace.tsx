@@ -117,6 +117,12 @@ export function CreateSpace() {
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const slugCheckSeq = useRef(0);
+  // Tracks the latest slug so an async create response can tell whether the slug
+  // it was submitted with is still the one shown before flagging it taken.
+  const slugRef = useRef(slug);
+  useEffect(() => {
+    slugRef.current = slug;
+  }, [slug]);
 
   // Public Spaces can never be encrypted; drop the encryption step when public.
   const canEncrypt = visibility !== 'public';
@@ -239,13 +245,14 @@ export function CreateSpace() {
   ]);
 
   const mapCreateError = useCallback(
-    (code: string | undefined, message: string | undefined): string => {
+    (code: string | undefined, message: string | undefined, submittedSlug: string): string => {
       switch (code) {
         case 'TIER_REQUIRED':
           return t('spaces.create.errors.tierRequired');
         case 'SLUG_TAKEN':
         case 'SLUG_RESERVED':
-          setSlugState('taken');
+          // Only mark the field taken if the user hasn't since edited the slug.
+          if (submittedSlug === slugRef.current) setSlugState('taken');
           return t('spaces.create.errors.slugUnavailable');
         default:
           return message ?? t('spaces.create.errors.createFailed');
@@ -268,6 +275,10 @@ export function CreateSpace() {
         setFormError(t('spaces.create.errors.slugUnavailable'));
         return;
       }
+
+      // Snapshot the slug this request is for; the E2EE flow awaits, during which
+      // the user could edit the slug.
+      const submittedSlug = slug;
 
       let cipherCheck: CipherCheck | undefined;
       let spaceId: string | undefined;
@@ -300,7 +311,7 @@ export function CreateSpace() {
 
       try {
         const res = await api.spaces.create({
-          slug,
+          slug: submittedSlug,
           name: name.trim(),
           ...(description.trim() ? { description: description.trim() } : {}),
           visibility,
@@ -323,7 +334,7 @@ export function CreateSpace() {
           return;
         }
 
-        setFormError(mapCreateError(res.error?.code, res.error?.message));
+        setFormError(mapCreateError(res.error?.code, res.error?.message, submittedSlug));
       } catch {
         setFormError(t('spaces.create.errors.createFailed'));
       } finally {
