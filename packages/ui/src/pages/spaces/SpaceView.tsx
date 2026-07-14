@@ -13,9 +13,13 @@ import { useTranslation } from 'react-i18next';
 import { createApiClient, type PublicSpace } from '@adieuu/shared';
 import { useAppConfig } from '../../config';
 import { useIdentity } from '../../hooks/useIdentity';
+import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { Spinner } from '../../components/Spinner';
 import '../../styles/_spaces.scss';
+
+/** Error codes that mean the Space is genuinely missing/inaccessible (not a transient failure). */
+const NOT_FOUND_CODES = new Set(['NOT_FOUND', 'FORBIDDEN']);
 
 export function SpaceView() {
   const { t } = useTranslation();
@@ -27,6 +31,8 @@ export function SpaceView() {
 
   const [space, setSpace] = useState<PublicSpace | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!isLoggedIn || !slug) {
@@ -35,14 +41,23 @@ export function SpaceView() {
     }
     let cancelled = false;
     setLoading(true);
+    setError(false);
     api.spaces
       .getBySlug(slug)
       .then((res) => {
         if (cancelled) return;
-        setSpace(res.success && res.data ? res.data : null);
+        if (res.success && res.data) {
+          setSpace(res.data);
+        } else if (res.error && NOT_FOUND_CODES.has(res.error.code)) {
+          // Genuine 404 / inaccessible: render the "not found" state.
+          setSpace(null);
+        } else {
+          // Network/server failure: render a retryable error state.
+          setError(true);
+        }
       })
       .catch(() => {
-        if (!cancelled) setSpace(null);
+        if (!cancelled) setError(true);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -50,7 +65,7 @@ export function SpaceView() {
     return () => {
       cancelled = true;
     };
-  }, [api, isLoggedIn, slug]);
+  }, [api, isLoggedIn, slug, reloadKey]);
 
   if (!isLoggedIn) {
     return (
@@ -75,6 +90,22 @@ export function SpaceView() {
           <div className="spaces-loading">
             <Spinner size="lg" />
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="page-content">
+        <div className="container">
+          <Card variant="elevated" className="spaces-state">
+            <p className="spaces-state-heading">{t('spaces.view.errorHeading')}</p>
+            <p className="spaces-state-body">{t('spaces.view.errorBody')}</p>
+            <Button variant="secondary" onClick={() => setReloadKey((k) => k + 1)}>
+              {t('spaces.view.retry')}
+            </Button>
+          </Card>
         </div>
       </div>
     );

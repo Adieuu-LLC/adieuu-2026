@@ -216,6 +216,9 @@ export const core = {
       notFoundHeading: 'Space not found',
       notFoundBody: "This Space doesn't exist or isn't available to you.",
       back: 'Back to Spaces',
+      errorHeading: "Couldn't load this Space",
+      errorBody: 'Something went wrong while loading this Space. Please try again.',
+      retry: 'Try again',
     },
   },
 
