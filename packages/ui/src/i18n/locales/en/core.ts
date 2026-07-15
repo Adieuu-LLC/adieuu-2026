@@ -276,6 +276,17 @@ export const core = {
       errorBody: 'Something went wrong while loading this Space. Please try again.',
       retry: 'Try again',
     },
+    sidebar: {
+      home: 'Home',
+      manage: 'Manage',
+      manageTooltip: 'Space management is coming soon.',
+      textChannels: 'Text Channels',
+    },
+    channel: {
+      noMessages: 'No messages yet. Start the conversation!',
+      loadOlder: 'Load older messages',
+      e2eeComingSoon: 'Encrypted messaging for Spaces is coming soon.',
+    },
   },
 
   siteAnnouncement: {

@@ -130,11 +130,307 @@
   margin-top: var(--spacing-lg);
 }
 
-// Space view (placeholder — expanded in a later phase)
+// Space view (placeholder landing card)
 .space-view-placeholder {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
+}
+
+// ============================================================================
+// Space layout — Discord-like secondary sidebar + outlet
+// ============================================================================
+
+.space-page {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--color-bg-primary);
+}
+
+.space-secondary-sidebar {
+  flex: 0 0 220px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  padding: 0;
+}
+
+.space-sidebar-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+  min-height: 48px;
+}
+
+.space-sidebar-banner-name {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.space-sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  margin: 2px var(--spacing-xs);
+  cursor: pointer;
+  border: none;
+  background: none;
+  width: calc(100% - 2 * var(--spacing-xs));
+  text-align: left;
+
+  &:hover:not(:disabled) {
+    background: var(--color-surface-hover);
+    color: var(--color-text-primary);
+  }
+
+  &.space-sidebar-link-active {
+    background: var(--color-surface-elevated);
+    color: var(--color-text-primary);
+    font-weight: var(--font-weight-medium);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.space-sidebar-manage {
+  margin-top: var(--spacing-xs);
+}
+
+.space-sidebar-group {
+  margin-top: var(--spacing-sm);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.space-sidebar-group-header {
+  padding: var(--spacing-xs) var(--spacing-md);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.space-sidebar-channels {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.space-sidebar-channel-hash {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-md);
+}
+
+.space-sidebar-channel-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.space-outlet {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+// ============================================================================
+// Space landing (index route inside SpaceLayout)
+// ============================================================================
+
+.space-landing {
+  padding: var(--spacing-lg) var(--spacing-xl);
+  overflow-y: auto;
+  flex: 1;
+}
+
+// ============================================================================
+// Space channel view
+// ============================================================================
+
+.space-channel-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+.space-channel-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+  min-height: 48px;
+  flex-shrink: 0;
+}
+
+.space-channel-toolbar-hash {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-lg);
+}
+
+.space-channel-toolbar-name {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+}
+
+.space-channel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.space-channel-composer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.space-channel-e2ee-placeholder {
+  margin: var(--spacing-md);
+  text-align: center;
+}
+
+.space-channel-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+// ============================================================================
+// Space message list
+// ============================================================================
+
+.space-messages {
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-sm) 0;
+  flex: 1;
+}
+
+.space-messages-loading,
+.space-messages-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: var(--spacing-xl);
+}
+
+.space-messages-load-older {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-sm);
+}
+
+.space-message-row {
+  display: flex;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-md);
+
+  &:hover {
+    background: var(--color-surface-hover);
+  }
+}
+
+.space-message-avatar {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.space-message-avatar-placeholder {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.space-message-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.space-message-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-sm);
+}
+
+.space-message-author {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.space-message-time {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.space-message-text {
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+// ============================================================================
+// Responsive — collapse secondary sidebar on small screens
+// ============================================================================
+
+@media (max-width: 720px) {
+  .space-page {
+    flex-direction: column;
+  }
+
+  .space-secondary-sidebar {
+    flex: none;
+    height: auto;
+    max-height: 200px;
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
+  }
 }
 
 // Create-a-Space flow

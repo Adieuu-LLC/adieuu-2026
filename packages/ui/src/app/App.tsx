@@ -12,6 +12,7 @@ import { FriendsProvider } from '../hooks/useFriends';
 import { CaptchaGateProvider } from '../components/CaptchaGateProvider';
 import { BlockProvider } from '../hooks/useBlockContext';
 import { ConversationsProvider } from '../hooks/useConversations';
+import { SpacesProvider } from '../hooks/useSpaces';
 import { MediaOutboxProvider } from '../services/mediaOutbox';
 import { ConversationPreferencesProvider } from '../hooks/useConversationPreferences';
 import { ConversationFoldersProvider } from '../hooks/useConversationFolders';
@@ -58,7 +59,9 @@ const Download = lazyRoute(() => import('../pages/Download'), 'Download');
 const Search = lazyRoute(() => import('../pages/Search'), 'Search');
 const PublicSpaces = lazyRoute(() => import('../pages/spaces'), 'PublicSpaces');
 const CreateSpace = lazyRoute(() => import('../pages/spaces'), 'CreateSpace');
-const SpaceView = lazyRoute(() => import('../pages/spaces'), 'SpaceView');
+const SpaceLayout = lazyRoute(() => import('../pages/spaces'), 'SpaceLayout');
+const SpaceLanding = lazyRoute(() => import('../pages/spaces'), 'SpaceLanding');
+const SpaceChannelView = lazyRoute(() => import('../pages/spaces'), 'SpaceChannelView');
 const Login = lazyRoute(() => import('../pages/auth'), 'Login');
 const Verify = lazyRoute(() => import('../pages/auth'), 'Verify');
 const MfaVerify = lazyRoute(() => import('../pages/auth'), 'MfaVerify');
@@ -148,6 +151,7 @@ function AuthenticatedShell() {
                     <ConversationPreferencesProvider>
                       <ConversationFoldersProvider>
                         <ConversationsProvider>
+                          <SpacesProvider>
                           <MediaOutboxProvider>
                           <CallSessionProvider>
                             <GlobalCallEventsProvider>
@@ -155,6 +159,7 @@ function AuthenticatedShell() {
                             </GlobalCallEventsProvider>
                           </CallSessionProvider>
                           </MediaOutboxProvider>
+                          </SpacesProvider>
                         </ConversationsProvider>
                       </ConversationFoldersProvider>
                     </ConversationPreferencesProvider>
@@ -362,7 +367,10 @@ export function App() {
         <Route path="/search" element={<Search />} />
         <Route path="/spaces" element={<PublicSpaces />} />
         <Route path="/spaces/new" element={<CreateSpace />} />
-        <Route path="/s/:slug" element={<SpaceView />} />
+        <Route path="/s/:slug" element={<SpaceLayout />}>
+          <Route index element={<SpaceLanding />} />
+          <Route path="c/:channelId" element={<SpaceChannelView />} />
+        </Route>
         <Route path="/identity/:id" element={<IdentityProfileView />} />
         <Route path="/legal-policies" element={<LegalPoliciesPage />} />
         <Route path="/legal-policies/:slug" element={<LegalPolicyPage />} />

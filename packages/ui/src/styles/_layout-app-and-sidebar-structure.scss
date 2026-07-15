@@ -35,7 +35,8 @@
   min-height: 100%;
 
   &:has(> .conversation-page),
-  &:has(> .new-conversation) {
+  &:has(> .new-conversation),
+  &:has(> .space-page) {
     height: 100%;
   }
 }

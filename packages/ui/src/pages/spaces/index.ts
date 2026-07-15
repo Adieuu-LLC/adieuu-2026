@@ -1,3 +1,5 @@
 export { PublicSpaces } from './PublicSpaces';
 export { CreateSpace } from './CreateSpace';
-export { SpaceView } from './SpaceView';
+export { SpaceLayout } from './SpaceLayout';
+export { SpaceLanding } from './SpaceLanding';
+export { SpaceChannelView } from './SpaceChannelView';

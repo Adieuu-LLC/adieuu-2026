@@ -1,0 +1,157 @@
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { createElement } from 'react';
+import { act } from 'react';
+import { GlobalWindow } from 'happy-dom';
+import { createRoot } from 'react-dom/client';
+import { resetReactRouterDomMock, setMockParams } from '../../test/react-router-dom-mock';
+import { resetReactI18nextMock, setMockTranslate } from '../../test/react-i18next-mock';
+
+setMockTranslate((key) => key);
+
+let mockIdentityStatus = 'logged_in';
+let mockSpacesContext: Record<string, unknown> = {};
+
+mock.module('../../hooks/useIdentity', () => ({
+  useIdentity: () => ({ status: mockIdentityStatus }),
+}));
+
+mock.module('../../hooks/useSpaces', () => ({
+  useSpaces: () => mockSpacesContext,
+}));
+
+mock.module('../../icons/Icon', () => ({
+  Icon: ({ name }: { name: string }) => createElement('span', { 'data-icon': name }),
+}));
+
+const { SpaceLayout } = await import('./SpaceLayout');
+
+type G = typeof globalThis & {
+  window?: GlobalWindow & typeof globalThis;
+  document?: Document;
+  IS_REACT_ACT_ENVIRONMENT?: boolean;
+};
+
+let happy: GlobalWindow;
+let prevWindow: typeof globalThis.window;
+let prevDocument: typeof globalThis.document;
+
+function makeDefaultCtx(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    activeSpace: null,
+    activeSpaceLoading: false,
+    activeSpaceError: null,
+    channels: [],
+    setActiveSpace: mock(() => {}),
+    ...overrides,
+  };
+}
+
+beforeEach(() => {
+  resetReactI18nextMock();
+  setMockTranslate((key) => key);
+  resetReactRouterDomMock();
+  setMockParams({ slug: 'test-space' });
+  mockIdentityStatus = 'logged_in';
+  mockSpacesContext = makeDefaultCtx();
+
+  const g = globalThis as G;
+  prevWindow = g.window;
+  prevDocument = g.document;
+  happy = new GlobalWindow({ url: 'https://example.test/' });
+  g.IS_REACT_ACT_ENVIRONMENT = true;
+  g.window = happy as unknown as GlobalWindow & typeof globalThis;
+  g.document = happy.document;
+});
+
+afterEach(async () => {
+  await new Promise((r) => setTimeout(r, 0));
+  happy?.close();
+  const g = globalThis as G;
+  delete g.IS_REACT_ACT_ENVIRONMENT;
+  g.window = prevWindow;
+  g.document = prevDocument;
+});
+
+async function render() {
+  const container = happy.document.createElement('div');
+  happy.document.body.appendChild(container);
+  const root = createRoot(container as unknown as Element);
+  await act(async () => {
+    root.render(createElement(SpaceLayout));
+    await new Promise((r) => setTimeout(r, 0));
+  });
+  return { root, container };
+}
+
+describe('SpaceLayout', () => {
+  it('calls setActiveSpace with the route slug', async () => {
+    const setActiveSpace = mock(() => {});
+    mockSpacesContext = makeDefaultCtx({ setActiveSpace });
+
+    const { root, container } = await render();
+    expect(setActiveSpace).toHaveBeenCalledWith('test-space');
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  it('shows sign-in prompt when not logged in', async () => {
+    mockIdentityStatus = 'not_logged_in';
+
+    const { root, container } = await render();
+    expect(happy.document.body.textContent).toContain('spaces.signInHeading');
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  it('shows loading state while resolving space', async () => {
+    mockSpacesContext = makeDefaultCtx({ activeSpaceLoading: true });
+
+    const { root, container } = await render();
+    const spinner = happy.document.querySelector('.spinner-lg, .spaces-loading');
+    expect(spinner).not.toBeNull();
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  it('shows error state on server failure', async () => {
+    mockSpacesContext = makeDefaultCtx({ activeSpaceError: 'error' });
+
+    const { root, container } = await render();
+    expect(happy.document.body.textContent).toContain('spaces.view.errorHeading');
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  it('shows not-found state for missing space', async () => {
+    mockSpacesContext = makeDefaultCtx({ activeSpaceError: 'not_found' });
+
+    const { root, container } = await render();
+    expect(happy.document.body.textContent).toContain('spaces.view.notFoundHeading');
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  it('renders space-page shell when space resolves', async () => {
+    mockSpacesContext = makeDefaultCtx({
+      activeSpace: {
+        id: 'space-1',
+        slug: 'test-space',
+        name: 'Test Space',
+        memberCount: 5,
+      },
+    });
+
+    const { root, container } = await render();
+    const shell = happy.document.querySelector('.space-page');
+    expect(shell).not.toBeNull();
+    expect(happy.document.body.textContent).toContain('Test Space');
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+});
