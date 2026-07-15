@@ -26,6 +26,16 @@ mock.module('../../config', () => ({
   useAppConfig: () => ({ apiBaseUrl: 'http://localhost:3000' }),
 }));
 
+let mockCipherStoreCtx: Record<string, unknown> = {};
+
+mock.module('../../hooks/useCipherStore', () => ({
+  useCipherStore: () => mockCipherStoreCtx,
+}));
+
+mock.module('../../services/spaceCipherService', () => ({
+  getSpaceCipherLink: () => null,
+}));
+
 mock.module('../../components/composer/MessageComposer', () => ({
   MessageComposer: ({ channelId }: { channelId: string }) =>
     createElement('div', { 'data-testid': 'composer', 'data-channel': channelId }, 'Composer'),
@@ -65,6 +75,7 @@ beforeEach(() => {
   resetReactRouterDomMock();
   setMockParams({ channelId: 'ch-1' });
   mockSpacesContext = makeDefaultCtx();
+  mockCipherStoreCtx = { getCipherKey: () => null };
 
   const g = globalThis as G;
   prevWindow = g.window;
@@ -115,7 +126,7 @@ describe('SpaceChannelView', () => {
     container.remove();
   });
 
-  it('shows E2EE coming-soon instead of composer when space has cipherCheck', async () => {
+  it('shows no-cipher message when E2EE space has no matching cipher', async () => {
     mockSpacesContext = makeDefaultCtx({
       activeSpace: {
         id: 'space-1',
@@ -127,7 +138,7 @@ describe('SpaceChannelView', () => {
     });
 
     const { root, container } = await render();
-    expect(happy.document.body.textContent).toContain('spaces.channel.e2eeComingSoon');
+    expect(happy.document.body.textContent).toContain('spaces.channel.noCipher');
     const composer = happy.document.querySelector('[data-testid="composer"]');
     expect(composer).toBeNull();
 
@@ -135,7 +146,7 @@ describe('SpaceChannelView', () => {
     container.remove();
   });
 
-  it('shows E2EE coming-soon when channel has cipherCheck', async () => {
+  it('shows no-cipher message when E2EE channel has no matching cipher', async () => {
     mockSpacesContext = makeDefaultCtx({
       channels: [
         {
@@ -150,9 +161,28 @@ describe('SpaceChannelView', () => {
     });
 
     const { root, container } = await render();
-    expect(happy.document.body.textContent).toContain('spaces.channel.e2eeComingSoon');
+    expect(happy.document.body.textContent).toContain('spaces.channel.noCipher');
     const composer = happy.document.querySelector('[data-testid="composer"]');
     expect(composer).toBeNull();
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  it('shows encrypted badge in toolbar for E2EE channels', async () => {
+    mockSpacesContext = makeDefaultCtx({
+      activeSpace: {
+        id: 'space-1',
+        slug: 'test',
+        name: 'Encrypted Space',
+        memberCount: 1,
+        cipherCheck: { knownValue: 'x', encryptedKnownValue: 'y', nonce: 'z' },
+      },
+    });
+
+    const { root, container } = await render();
+    const badge = happy.document.querySelector('.spaces-badge--encrypted');
+    expect(badge).not.toBeNull();
 
     await act(async () => root.unmount());
     container.remove();

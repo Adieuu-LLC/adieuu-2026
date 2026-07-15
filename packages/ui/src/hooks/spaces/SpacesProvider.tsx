@@ -82,12 +82,29 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   const setActiveChannel = useCallback(
     (channelId: string | null) => {
       setActiveChannelIdState(channelId);
-      if (channelId && activeSpaceInternal) {
-        void fetchChannelMessages(activeSpaceInternal.id, channelId);
+      const spaceId = activeSpaceIdRef.current;
+      if (channelId && spaceId) {
+        void fetchChannelMessages(spaceId, channelId);
       }
     },
-    [activeSpaceInternal, fetchChannelMessages],
+    [fetchChannelMessages],
   );
+
+  // When the space resolves after a channel was already selected (direct
+  // navigation to /s/:slug/c/:channelId), fetch the channel's messages.
+  const prevSpaceIdForChannelFetch = useRef<string | null>(null);
+  useEffect(() => {
+    const spaceId = activeSpaceInternal?.id ?? null;
+    if (
+      spaceId &&
+      spaceId !== prevSpaceIdForChannelFetch.current &&
+      activeChannelId &&
+      !messagesByChannel[activeChannelId]?.messages.length
+    ) {
+      void fetchChannelMessages(spaceId, activeChannelId);
+    }
+    prevSpaceIdForChannelFetch.current = spaceId;
+  }, [activeSpaceInternal?.id, activeChannelId, messagesByChannel, fetchChannelMessages]);
 
   const { sendMessage } = useSpaceSend({
     api,

@@ -286,6 +286,7 @@ export const core = {
       noMessages: 'No messages yet. Start the conversation!',
       loadOlder: 'Load older messages',
       e2eeComingSoon: 'Encrypted messaging for Spaces is coming soon.',
+      noCipher: 'You need the matching Community Cipher to read and send messages in this channel.',
     },
   },
 

@@ -6,7 +6,7 @@
  * or channel views.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { Link, Outlet, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useIdentity } from '../../hooks/useIdentity';
@@ -29,21 +29,14 @@ export function SpaceLayout() {
     setActiveSpace,
   } = useSpaces();
 
-  const prevSlugRef = useRef<string | null>(null);
-
   useEffect(() => {
-    if (!isLoggedIn || !slug) return;
-    if (slug !== prevSlugRef.current) {
-      prevSlugRef.current = slug;
+    if (isLoggedIn && slug) {
       setActiveSpace(slug);
     }
-  }, [isLoggedIn, slug, setActiveSpace]);
-
-  useEffect(() => {
     return () => {
       setActiveSpace(null);
     };
-  }, [setActiveSpace]);
+  }, [isLoggedIn, slug, setActiveSpace]);
 
   if (!isLoggedIn) {
     return (
