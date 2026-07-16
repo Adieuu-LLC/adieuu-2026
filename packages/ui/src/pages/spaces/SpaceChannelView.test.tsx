@@ -26,6 +26,14 @@ mock.module('../../config', () => ({
   useAppConfig: () => ({ apiBaseUrl: 'http://localhost:3000' }),
 }));
 
+mock.module('../../components/IdentityHoverCard', () => ({
+  IdentityHoverCard: ({ children }: { children: import('react').ReactElement }) => children,
+}));
+
+mock.module('../../components/Tooltip', () => ({
+  Tooltip: ({ children }: { children: import('react').ReactElement }) => children,
+}));
+
 let mockCipherStoreCtx: Record<string, unknown> = {};
 
 mock.module('../../hooks/useCipherStore', () => ({
@@ -62,6 +70,7 @@ function makeDefaultCtx(overrides: Record<string, unknown> = {}): Record<string,
     activeMessagesLoading: false,
     activeMessagesOlderCursor: null,
     sending: false,
+    participantProfiles: {},
     setActiveChannel: mock(() => {}),
     sendMessage: mock(async () => null),
     loadOlderMessages: mock(async () => {}),

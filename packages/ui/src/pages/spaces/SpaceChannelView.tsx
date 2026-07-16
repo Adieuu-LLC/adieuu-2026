@@ -17,6 +17,7 @@ import {
   type CommunityCipher,
 } from '@adieuu/crypto';
 import { useSpaces } from '../../hooks/useSpaces';
+import { useIdentity } from '../../hooks/useIdentity';
 import { useCipherStore } from '../../hooks/useCipherStore';
 import { getSpaceCipherLink } from '../../services/spaceCipherService';
 import { parsePayload } from '../../services/messagePayload';
@@ -36,11 +37,13 @@ export function SpaceChannelView() {
     activeMessagesLoading,
     activeMessagesOlderCursor,
     sending,
+    participantProfiles,
     setActiveChannel,
     sendMessage,
     loadOlderMessages,
   } = useSpaces();
 
+  const { identity } = useIdentity();
   const { getCipherKey } = useCipherStore();
 
   useEffect(() => {
@@ -116,6 +119,8 @@ export function SpaceChannelView() {
           hasOlderMessages={!!activeMessagesOlderCursor}
           onLoadOlder={handleLoadOlder}
           cipher={spaceCipher}
+          participantProfiles={participantProfiles}
+          selfId={identity?.id}
         />
       </div>
 

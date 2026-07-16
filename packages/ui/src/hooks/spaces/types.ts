@@ -1,4 +1,4 @@
-import type { PublicSpace, PublicSpaceChannel, PublicSpaceMessage } from '@adieuu/shared';
+import type { PublicIdentity, PublicSpace, PublicSpaceChannel, PublicSpaceMessage } from '@adieuu/shared';
 
 export interface SpaceChannelMessagesState {
   messages: PublicSpaceMessage[];
@@ -32,6 +32,9 @@ export interface SpacesContextValue {
   activeMessagesOlderCursor: string | null;
 
   sending: boolean;
+
+  /** Resolved profiles for message authors, keyed by identity ID. */
+  participantProfiles: Record<string, PublicIdentity>;
 
   setActiveSpace: (slug: string | null) => void;
   setActiveChannel: (channelId: string | null) => void;

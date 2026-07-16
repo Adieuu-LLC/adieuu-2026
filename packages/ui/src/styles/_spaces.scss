@@ -379,7 +379,8 @@
   }
 }
 
-.space-message-avatar {
+.space-message-avatar,
+.space-message-avatar-btn {
   flex-shrink: 0;
   width: 32px;
   height: 32px;
@@ -389,6 +390,21 @@
   align-items: center;
   justify-content: center;
   margin-top: 2px;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.space-message-avatar-btn:hover {
+  opacity: 0.85;
+}
+
+.space-message-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
 }
 
 .space-message-avatar-placeholder {
@@ -408,10 +424,20 @@
   gap: var(--spacing-sm);
 }
 
-.space-message-author {
+span.space-message-author,
+button.space-message-author {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+button.space-message-author:hover {
+  text-decoration: underline;
 }
 
 .space-message-time {

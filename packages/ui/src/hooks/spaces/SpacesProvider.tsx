@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { createApiClient, type PublicSpace, type PublicSpaceChannel, type PublicSpaceMessage } from '@adieuu/shared';
+import { createApiClient, type PublicIdentity, type PublicSpace, type PublicSpaceChannel, type PublicSpaceMessage } from '@adieuu/shared';
 import { useAppConfig } from '../../config';
 import { useIdentity } from '../useIdentity';
 import { useChatSocket } from '../useChatSocket';
@@ -28,6 +28,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   const [activeChannelId, setActiveChannelIdState] = useState<string | null>(null);
   const [messagesByChannel, setMessagesByChannel] = useState<Record<string, SpaceChannelMessagesState>>({});
   const [sending, setSending] = useState(false);
+  const [participantProfiles, setParticipantProfiles] = useState<Record<string, PublicIdentity>>({});
 
   const activeSpaceIdRef = useRef<string | null>(null);
   const activeChannelIdRef = useRef<string | null>(null);
@@ -54,6 +55,36 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     setChannels,
     setMessagesByChannel,
   });
+
+  const resolvedProfileIds = useRef<Set<string>>(new Set());
+
+  const resolveProfiles = useCallback(
+    async (ids: string[]) => {
+      const missing = ids.filter((id) => !resolvedProfileIds.current.has(id));
+      if (missing.length === 0) return;
+
+      for (const id of missing) resolvedProfileIds.current.add(id);
+
+      const fetched: Record<string, PublicIdentity> = {};
+      await Promise.all(
+        missing.map(async (id) => {
+          try {
+            const resp = await api.identity.getProfile(id);
+            if (resp.data) {
+              fetched[id] = resp.data;
+            }
+          } catch {
+            resolvedProfileIds.current.delete(id);
+          }
+        }),
+      );
+
+      if (Object.keys(fetched).length > 0) {
+        setParticipantProfiles((prev) => ({ ...prev, ...fetched }));
+      }
+    },
+    [api],
+  );
 
   const refreshSpacesRef = useRef(fetchSpaces);
   refreshSpacesRef.current = fetchSpaces;
@@ -106,6 +137,19 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     prevSpaceIdForChannelFetch.current = spaceId;
   }, [activeSpaceInternal?.id, activeChannelId, messagesByChannel, fetchChannelMessages]);
 
+  // Auto-resolve profiles for message senders whenever channel messages change.
+  useEffect(() => {
+    const ids = new Set<string>();
+    for (const state of Object.values(messagesByChannel)) {
+      for (const msg of state.messages) {
+        ids.add(msg.fromIdentityId);
+      }
+    }
+    if (ids.size > 0) {
+      void resolveProfiles([...ids]);
+    }
+  }, [messagesByChannel, resolveProfiles]);
+
   const { sendMessage } = useSpaceSend({
     api,
     activeSpaceIdRef,
@@ -151,6 +195,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       activeMessagesLoading: activeChannelState?.loading ?? false,
       activeMessagesOlderCursor: activeChannelState?.olderCursor ?? null,
       sending,
+      participantProfiles,
       setActiveSpace,
       setActiveChannel,
       sendMessage,
@@ -167,6 +212,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       activeChannelId,
       activeChannelState,
       sending,
+      participantProfiles,
       setActiveSpace,
       setActiveChannel,
       sendMessage,
