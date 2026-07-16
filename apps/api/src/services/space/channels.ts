@@ -35,6 +35,8 @@ import type {
   SpaceMessagesListResult,
 } from './types';
 
+const MAX_EDIT_REVISIONS = 3;
+
 function parseObjId(raw: string | ObjectId): ObjectId | null {
   if (raw instanceof ObjectId) return raw;
   return isValidObjectId(raw) ? new ObjectId(raw) : null;
@@ -73,7 +75,12 @@ export async function sendSpaceMessage(
   spaceIdRaw: string | ObjectId,
   channelIdRaw: string | ObjectId,
   senderIdentityIdRaw: string | ObjectId,
-  params: { content: string; clientMessageId: string },
+  params: {
+    content: string;
+    clientMessageId: string;
+    replyToMessageId?: string;
+    mentionedIdentityIds?: string[];
+  },
 ): Promise<SpaceMessageResult> {
   const spaceId = parseObjId(spaceIdRaw);
   const channelId = parseObjId(channelIdRaw);
@@ -108,9 +115,6 @@ export async function sendSpaceMessage(
     return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
   }
 
-  // E2EE path is deferred: the client must encrypt via its Cipher and use the
-  // (future) encrypted send path. Plaintext is only allowed when neither the
-  // Space nor the channel carries a cipher challenge.
   if (space.cipherCheck || channel.cipherCheck) {
     return {
       success: false,
@@ -119,9 +123,30 @@ export async function sendSpaceMessage(
     };
   }
 
+  let replyToMessageObjId: ObjectId | undefined;
+  if (params.replyToMessageId) {
+    const replyId = parseObjId(params.replyToMessageId);
+    if (!replyId) {
+      return { success: false, error: 'Invalid reply target id.', errorCode: 'INVALID_ID' };
+    }
+    const messageRepo = getSpaceMessageRepository();
+    const replyTarget = await messageRepo.findByIdInChannel(channelId, replyId);
+    if (!replyTarget || replyTarget.deleted) {
+      return {
+        success: false,
+        error: 'The message you are replying to was not found in this channel.',
+        errorCode: 'INVALID_REPLY_TARGET',
+      };
+    }
+    replyToMessageObjId = replyId;
+  }
+
+  const mentionedObjIds = params.mentionedIdentityIds
+    ?.map((id) => parseObjId(id))
+    .filter((id): id is ObjectId => id !== null);
+
   const messageRepo = getSpaceMessageRepository();
 
-  // Idempotency: a retried send with the same clientMessageId returns the original.
   const existing = await messageRepo.findByClientMessageId(channelId, params.clientMessageId);
   if (existing) {
     return { success: true, message: toPublicSpaceMessage(existing) };
@@ -135,6 +160,8 @@ export async function sendSpaceMessage(
       fromIdentityId: senderId,
       content,
       clientMessageId: params.clientMessageId,
+      ...(replyToMessageObjId ? { replyToMessageId: replyToMessageObjId } : {}),
+      ...(mentionedObjIds?.length ? { mentionedIdentityIds: mentionedObjIds } : {}),
     });
   } catch (err) {
     if (typeof err === 'object' && err !== null && (err as { code?: number }).code === 11000) {
@@ -145,7 +172,6 @@ export async function sendSpaceMessage(
   }
 
   const publicMessage = toPublicSpaceMessage(message);
-  // Fan out to active members subscribed to the Space channel (best-effort).
   await publishSpaceEvent(spaceId.toHexString(), {
     type: 'space_message',
     data: { message: publicMessage },
@@ -201,5 +227,195 @@ export async function getSpaceMessages(
     success: true,
     messages: page.map(toPublicSpaceMessage),
     cursor: hasMore && page.length > 0 ? page[page.length - 1]!._id.toHexString() : null,
+  };
+}
+
+/**
+ * Edit a message (author only, max revisions).
+ */
+export async function editSpaceMessage(
+  spaceIdRaw: string | ObjectId,
+  channelIdRaw: string | ObjectId,
+  messageIdRaw: string | ObjectId,
+  callerIdRaw: string | ObjectId,
+  content: string,
+): Promise<SpaceMessageResult> {
+  const spaceId = parseObjId(spaceIdRaw);
+  const channelId = parseObjId(channelIdRaw);
+  const messageId = parseObjId(messageIdRaw);
+  const callerId = parseObjId(callerIdRaw);
+  if (!spaceId || !channelId || !messageId || !callerId) {
+    return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
+  }
+
+  const trimmed = content?.trim() ?? '';
+  if (!trimmed || trimmed.length > SPACE_MESSAGE_MAX_LENGTH) {
+    return { success: false, error: 'Invalid message content.', errorCode: 'INVALID_CONTENT' };
+  }
+
+  const messageRepo = getSpaceMessageRepository();
+  const message = await messageRepo.findByIdInChannel(channelId, messageId);
+  if (!message) {
+    return { success: false, error: 'Message not found.', errorCode: 'MESSAGE_NOT_FOUND' };
+  }
+  if (message.deleted) {
+    return { success: false, error: 'This message has been deleted.', errorCode: 'MESSAGE_DELETED' };
+  }
+  if (!message.fromIdentityId.equals(callerId)) {
+    return { success: false, error: 'You can only edit your own messages.', errorCode: 'NOT_AUTHOR' };
+  }
+  if ((message.revisionCount ?? 0) >= MAX_EDIT_REVISIONS) {
+    return { success: false, error: "You can't edit this message anymore.", errorCode: 'MAX_EDITS_REACHED' };
+  }
+
+  const updated = await messageRepo.editMessage(messageId, trimmed);
+  if (!updated) {
+    return { success: false, error: 'Failed to edit message.', errorCode: 'MESSAGE_NOT_FOUND' };
+  }
+
+  const publicMessage = toPublicSpaceMessage(updated);
+  await publishSpaceEvent(spaceId.toHexString(), {
+    type: 'space_message_edited',
+    data: {
+      channelId: channelId.toHexString(),
+      messageId: messageId.toHexString(),
+      fromIdentityId: callerId.toHexString(),
+      lastEditedAt: publicMessage.lastEditedAt,
+      revisionCount: publicMessage.revisionCount,
+    },
+  });
+
+  return { success: true, message: publicMessage };
+}
+
+/**
+ * Delete own message (soft-delete).
+ */
+export async function deleteSpaceMessage(
+  spaceIdRaw: string | ObjectId,
+  channelIdRaw: string | ObjectId,
+  messageIdRaw: string | ObjectId,
+  callerIdRaw: string | ObjectId,
+): Promise<SpaceMessageResult> {
+  const spaceId = parseObjId(spaceIdRaw);
+  const channelId = parseObjId(channelIdRaw);
+  const messageId = parseObjId(messageIdRaw);
+  const callerId = parseObjId(callerIdRaw);
+  if (!spaceId || !channelId || !messageId || !callerId) {
+    return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
+  }
+
+  const messageRepo = getSpaceMessageRepository();
+  const message = await messageRepo.findByIdInChannel(channelId, messageId);
+  if (!message) {
+    return { success: false, error: 'Message not found.', errorCode: 'MESSAGE_NOT_FOUND' };
+  }
+  if (!message.fromIdentityId.equals(callerId)) {
+    return { success: false, error: 'You can only delete your own messages.', errorCode: 'NOT_AUTHOR' };
+  }
+
+  await messageRepo.softDelete(messageId);
+
+  await publishSpaceEvent(spaceId.toHexString(), {
+    type: 'space_message_deleted',
+    data: {
+      channelId: channelId.toHexString(),
+      messageId: messageId.toHexString(),
+      deletedBy: callerId.toHexString(),
+    },
+  });
+
+  return { success: true };
+}
+
+/**
+ * Moderator delete (soft-delete by mod/admin/owner).
+ */
+export async function modDeleteSpaceMessage(
+  spaceIdRaw: string | ObjectId,
+  channelIdRaw: string | ObjectId,
+  messageIdRaw: string | ObjectId,
+  callerIdRaw: string | ObjectId,
+): Promise<SpaceMessageResult> {
+  const spaceId = parseObjId(spaceIdRaw);
+  const channelId = parseObjId(channelIdRaw);
+  const messageId = parseObjId(messageIdRaw);
+  const callerId = parseObjId(callerIdRaw);
+  if (!spaceId || !channelId || !messageId || !callerId) {
+    return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
+  }
+
+  const perms = await resolveMemberPermissions(spaceId, callerId);
+  if (!perms.isMember) {
+    return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
+  }
+  if (!memberHasPermission(perms, 'manageMembers') && !perms.isAdmin) {
+    return { success: false, error: 'Moderator permissions required.', errorCode: 'FORBIDDEN' };
+  }
+
+  const messageRepo = getSpaceMessageRepository();
+  const message = await messageRepo.findByIdInChannel(channelId, messageId);
+  if (!message) {
+    return { success: false, error: 'Message not found.', errorCode: 'MESSAGE_NOT_FOUND' };
+  }
+
+  await messageRepo.softDelete(messageId);
+
+  await publishSpaceEvent(spaceId.toHexString(), {
+    type: 'space_message_deleted',
+    data: {
+      channelId: channelId.toHexString(),
+      messageId: messageId.toHexString(),
+      deletedBy: callerId.toHexString(),
+    },
+  });
+
+  return { success: true };
+}
+
+/**
+ * Fetch messages around a target message (for deep links).
+ */
+export async function getSpaceMessagesAround(
+  spaceIdRaw: string | ObjectId,
+  channelIdRaw: string | ObjectId,
+  requesterIdentityIdRaw: string | ObjectId,
+  targetMessageIdRaw: string | ObjectId,
+  before = 15,
+  after = 15,
+): Promise<SpaceMessagesListResult> {
+  const spaceId = parseObjId(spaceIdRaw);
+  const channelId = parseObjId(channelIdRaw);
+  const requesterId = parseObjId(requesterIdentityIdRaw);
+  const targetId = parseObjId(targetMessageIdRaw);
+  if (!spaceId || !channelId || !requesterId || !targetId) {
+    return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
+  }
+
+  const space = await getSpaceRepository().findById(spaceId);
+  if (!space) {
+    return { success: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' };
+  }
+
+  const access = await canReadSpace(space, requesterId);
+  if (!access.ok) return { success: false, error: access.error, errorCode: access.errorCode };
+
+  const channel = await getSpaceChannelRepository().findByIdInSpace(spaceId, channelId);
+  if (!channel) {
+    return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
+  }
+
+  const messageRepo = getSpaceMessageRepository();
+  const target = await messageRepo.findByIdInChannel(channelId, targetId);
+  if (!target) {
+    return { success: false, error: 'Message not found.', errorCode: 'MESSAGE_NOT_FOUND' };
+  }
+
+  const messages = await messageRepo.findAround(channelId, targetId, before, after);
+
+  return {
+    success: true,
+    messages: messages.map(toPublicSpaceMessage),
+    cursor: null,
   };
 }

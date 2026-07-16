@@ -16,9 +16,11 @@ import {
   applyHistoryScrollAnchor,
   applyDistanceFromBottom,
   readDistanceFromBottom,
+  type HistoryScrollAnchor,
+} from '../../utils/messageScrollUtils';
+import {
   REPLY_JUMP_CONTEXT_AFTER,
   REPLY_JUMP_CONTEXT_BEFORE,
-  type HistoryScrollAnchor,
 } from '../../pages/conversations/conversationScrollUtils';
 import type { ChatItem } from '../../pages/conversations/conversationUtils';
 

@@ -11,6 +11,7 @@ import type {
   PublicSpaceInvite,
   PublicSpaceMember,
   PublicSpaceMessage,
+  PublicSpaceReaction,
   PublicSpaceRole,
   SpaceVisibility,
   SubscriptionTierId,
@@ -45,7 +46,16 @@ export type SpaceErrorCode =
   | 'CANNOT_INVITE_SELF'
   | 'CHANNEL_NOT_FOUND'
   | 'ENCRYPTION_NOT_SUPPORTED'
-  | 'INVALID_CONTENT';
+  | 'INVALID_CONTENT'
+  | 'MESSAGE_NOT_FOUND'
+  | 'NOT_AUTHOR'
+  | 'MAX_EDITS_REACHED'
+  | 'MESSAGE_DELETED'
+  | 'INVALID_REPLY_TARGET'
+  | 'REACTION_EXISTS'
+  | 'REACTION_NOT_FOUND'
+  | 'ALREADY_PINNED'
+  | 'PIN_NOT_FOUND';
 
 export interface SpaceResult {
   success: boolean;
@@ -144,4 +154,36 @@ export interface CreateSpaceServiceParams {
 export interface SpaceListPayload {
   spaces: PublicSpace[];
   cursor: string | null;
+}
+
+/** Result of a reaction operation. */
+export interface SpaceReactionResult {
+  success: boolean;
+  reaction?: PublicSpaceReaction;
+  error?: string;
+  errorCode?: SpaceErrorCode;
+}
+
+/** Result of listing reactions. */
+export interface SpaceReactionsListResult {
+  success: boolean;
+  reactions?: PublicSpaceReaction[];
+  error?: string;
+  errorCode?: SpaceErrorCode;
+}
+
+/** Result of a pin operation. */
+export interface SpacePinResult {
+  success: boolean;
+  error?: string;
+  errorCode?: SpaceErrorCode;
+}
+
+/** Result of listing pinned messages. */
+export interface SpacePinnedMessagesResult {
+  success: boolean;
+  messages?: PublicSpaceMessage[];
+  cursor?: string | null;
+  error?: string;
+  errorCode?: SpaceErrorCode;
 }

@@ -112,6 +112,57 @@ router.post('/spaces/:id/channels/:channelId/messages', async (ctx) => {
   return spaceRespond(ctx, await spaceController.sendMessageCtrl(ctx));
 });
 
+router.get('/spaces/:id/channels/:channelId/messages/around/:msgId', async (ctx) => {
+  return spaceRespond(ctx, await spaceController.messagesAroundCtrl(ctx));
+});
+
+router.patch('/spaces/:id/channels/:channelId/messages/:msgId', async (ctx) => {
+  return spaceRespond(ctx, await spaceController.editMessageCtrl(ctx));
+});
+
+router.delete('/spaces/:id/channels/:channelId/messages/:msgId', async (ctx) => {
+  return spaceRespond(ctx, await spaceController.deleteMessageCtrl(ctx));
+});
+
+router.delete('/spaces/:id/channels/:channelId/messages/:msgId/mod', async (ctx) => {
+  return spaceRespond(ctx, await spaceController.modDeleteMessageCtrl(ctx));
+});
+
+// ---------------------------------------------------------------------------
+// Reactions
+// ---------------------------------------------------------------------------
+
+router.post('/spaces/:id/channels/:channelId/messages/:msgId/reactions', async (ctx) => {
+  return spaceRespond(ctx, await spaceController.addReactionCtrl(ctx));
+});
+
+router.delete(
+  '/spaces/:id/channels/:channelId/messages/:msgId/reactions/:reactionId',
+  async (ctx) => {
+    return spaceRespond(ctx, await spaceController.removeReactionCtrl(ctx));
+  },
+);
+
+router.get('/spaces/:id/channels/:channelId/messages/:msgId/reactions', async (ctx) => {
+  return spaceRespond(ctx, await spaceController.getReactionsCtrl(ctx));
+});
+
+// ---------------------------------------------------------------------------
+// Pins
+// ---------------------------------------------------------------------------
+
+router.post('/spaces/:id/channels/:channelId/pins', async (ctx) => {
+  return spaceRespond(ctx, await spaceController.pinMessageCtrl(ctx));
+});
+
+router.delete('/spaces/:id/channels/:channelId/pins/:msgId', async (ctx) => {
+  return spaceRespond(ctx, await spaceController.unpinMessageCtrl(ctx));
+});
+
+router.get('/spaces/:id/channels/:channelId/pinned-messages', async (ctx) => {
+  return spaceRespond(ctx, await spaceController.getPinnedMessagesCtrl(ctx));
+});
+
 // ---------------------------------------------------------------------------
 // Space-scoped invites
 // ---------------------------------------------------------------------------

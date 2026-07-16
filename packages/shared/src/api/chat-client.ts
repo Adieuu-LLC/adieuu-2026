@@ -14,6 +14,7 @@ import type {
   PublicSpaceInvite,
   PublicSpaceMember,
   PublicSpaceMessage,
+  PublicSpaceReaction,
 } from './spaces-types';
 
 export type ChatMessageType =
@@ -50,7 +51,12 @@ export type ChatMessageType =
   | 'space_member_left'
   | 'space_invite_received'
   | 'space_invite_accepted'
-  | 'space_invite_revoked';
+  | 'space_invite_revoked'
+  | 'space_message_edited'
+  | 'space_message_deleted'
+  | 'space_reaction_added'
+  | 'space_reaction_removed'
+  | 'space_pins_updated';
 
 export interface ChatMessageBase {
   type: ChatMessageType;
@@ -438,6 +444,55 @@ export interface ChatSpaceInviteRevokedMessage extends ChatMessageBase {
   data: { inviteId: string; spaceId: string };
 }
 
+/** A Space channel message was edited. Fanned out on the `space:{spaceId}` channel. */
+export interface ChatSpaceMessageEditedMessage extends ChatMessageBase {
+  type: 'space_message_edited';
+  data: {
+    channelId: string;
+    messageId: string;
+    fromIdentityId: string;
+    lastEditedAt?: string;
+    revisionCount: number;
+  };
+}
+
+/** A Space channel message was deleted. Fanned out on the `space:{spaceId}` channel. */
+export interface ChatSpaceMessageDeletedMessage extends ChatMessageBase {
+  type: 'space_message_deleted';
+  data: {
+    channelId: string;
+    messageId: string;
+    deletedBy: string;
+  };
+}
+
+/** A reaction was added to a Space channel message. */
+export interface ChatSpaceReactionAddedMessage extends ChatMessageBase {
+  type: 'space_reaction_added';
+  data: { reaction: PublicSpaceReaction };
+}
+
+/** A reaction was removed from a Space channel message. */
+export interface ChatSpaceReactionRemovedMessage extends ChatMessageBase {
+  type: 'space_reaction_removed';
+  data: {
+    reactionId: string;
+    messageId: string;
+    channelId: string;
+  };
+}
+
+/** Pins in a Space channel were updated. */
+export interface ChatSpacePinsUpdatedMessage extends ChatMessageBase {
+  type: 'space_pins_updated';
+  data: {
+    channelId: string;
+    messageId: string;
+    action: 'pinned' | 'unpinned';
+    pinnedBy?: string;
+  };
+}
+
 export type ChatIncomingMessage =
   | ChatPongMessage
   | ChatErrorMessage
@@ -470,7 +525,12 @@ export type ChatIncomingMessage =
   | ChatSpaceMemberLeftMessage
   | ChatSpaceInviteReceivedMessage
   | ChatSpaceInviteAcceptedMessage
-  | ChatSpaceInviteRevokedMessage;
+  | ChatSpaceInviteRevokedMessage
+  | ChatSpaceMessageEditedMessage
+  | ChatSpaceMessageDeletedMessage
+  | ChatSpaceReactionAddedMessage
+  | ChatSpaceReactionRemovedMessage
+  | ChatSpacePinsUpdatedMessage;
 
 export type ChatOutgoingMessage =
   | ChatPingMessage;

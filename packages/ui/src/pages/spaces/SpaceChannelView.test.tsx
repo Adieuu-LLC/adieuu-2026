@@ -34,6 +34,10 @@ mock.module('../../components/Tooltip', () => ({
   Tooltip: ({ children }: { children: import('react').ReactElement }) => children,
 }));
 
+mock.module('../../icons/Icon', () => ({
+  Icon: ({ name }: { name: string }) => createElement('span', { 'data-icon': name }),
+}));
+
 let mockCipherStoreCtx: Record<string, unknown> = {};
 
 mock.module('../../hooks/useCipherStore', () => ({
@@ -49,6 +53,11 @@ mock.module('../../components/composer/MessageComposer', () => ({
     createElement('div', { 'data-testid': 'composer', 'data-channel': channelId }, 'Composer'),
 }));
 
+mock.module('../../components/messaging/ChannelMessageBubble', () => ({
+  ChannelMessageBubble: ({ message }: { message: { id: string; body: string } }) =>
+    createElement('div', { 'data-testid': `bubble-${message.id}`, className: 'channel-message-bubble' }, message.body),
+}));
+
 const { SpaceChannelView } = await import('./SpaceChannelView');
 
 type G = typeof globalThis & {
@@ -60,6 +69,7 @@ type G = typeof globalThis & {
 let happy: GlobalWindow;
 let prevWindow: typeof globalThis.window;
 let prevDocument: typeof globalThis.document;
+let prevRaf: typeof globalThis.requestAnimationFrame;
 
 function makeDefaultCtx(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -78,6 +88,18 @@ function makeDefaultCtx(overrides: Record<string, unknown> = {}): Record<string,
   };
 }
 
+class StubIO {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+class StubRO {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
 beforeEach(() => {
   resetReactI18nextMock();
   setMockTranslate((key) => key);
@@ -89,10 +111,14 @@ beforeEach(() => {
   const g = globalThis as G;
   prevWindow = g.window;
   prevDocument = g.document;
+  prevRaf = g.requestAnimationFrame;
   happy = new GlobalWindow({ url: 'https://example.test/' });
   g.IS_REACT_ACT_ENVIRONMENT = true;
   g.window = happy as unknown as GlobalWindow & typeof globalThis;
   g.document = happy.document;
+  g.requestAnimationFrame = happy.requestAnimationFrame.bind(happy);
+  if (!g.IntersectionObserver) (g as any).IntersectionObserver = StubIO;
+  if (!g.ResizeObserver) (g as any).ResizeObserver = StubRO;
 });
 
 afterEach(async () => {
@@ -102,6 +128,7 @@ afterEach(async () => {
   delete g.IS_REACT_ACT_ENVIRONMENT;
   g.window = prevWindow;
   g.document = prevDocument;
+  g.requestAnimationFrame = prevRaf;
 });
 
 async function render() {
@@ -197,7 +224,7 @@ describe('SpaceChannelView', () => {
     container.remove();
   });
 
-  it('renders messages in the list', async () => {
+  it('renders messages via shared ChannelMessageBubble', async () => {
     mockSpacesContext = makeDefaultCtx({
       activeMessages: [
         {
@@ -213,7 +240,32 @@ describe('SpaceChannelView', () => {
     });
 
     const { root, container } = await render();
+    const bubble = happy.document.querySelector('[data-testid="bubble-msg-1"]');
+    expect(bubble).not.toBeNull();
     expect(happy.document.body.textContent).toContain('Hello world');
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  it('shows day separator for messages', async () => {
+    mockSpacesContext = makeDefaultCtx({
+      activeMessages: [
+        {
+          id: 'msg-1',
+          spaceId: 'space-1',
+          channelId: 'ch-1',
+          fromIdentityId: 'id-sender',
+          content: 'Hello',
+          clientMessageId: 'cm-1',
+          createdAt: '2024-01-01T12:00:00.000Z',
+        },
+      ],
+    });
+
+    const { root, container } = await render();
+    const sep = happy.document.querySelector('.dm-day-separator');
+    expect(sep).not.toBeNull();
 
     await act(async () => root.unmount());
     container.remove();
@@ -233,6 +285,29 @@ describe('SpaceChannelView', () => {
 
     const { root, container } = await render();
     expect(setActiveChannel).toHaveBeenCalledWith('ch-1');
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  it('renders the shared ChannelMessageList container', async () => {
+    mockSpacesContext = makeDefaultCtx({
+      activeMessages: [
+        {
+          id: 'msg-1',
+          spaceId: 'space-1',
+          channelId: 'ch-1',
+          fromIdentityId: 'id-sender',
+          content: 'Test',
+          clientMessageId: 'cm-1',
+          createdAt: '2024-01-01T12:00:00.000Z',
+        },
+      ],
+    });
+
+    const { root, container } = await render();
+    const messageContainer = happy.document.querySelector('.conversation-messages');
+    expect(messageContainer).not.toBeNull();
 
     await act(async () => root.unmount());
     container.remove();

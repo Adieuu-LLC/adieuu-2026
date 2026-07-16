@@ -57,12 +57,16 @@ export function mapSpaceError(
     case 'MEMBER_NOT_FOUND':
     case 'INVITE_NOT_FOUND':
     case 'IDENTITY_NOT_FOUND':
+    case 'MESSAGE_NOT_FOUND':
+    case 'REACTION_NOT_FOUND':
+    case 'PIN_NOT_FOUND':
       return { kind: 'not_found', message };
     case 'TIER_REQUIRED':
     case 'INVITE_REQUIRED':
     case 'FORBIDDEN':
     case 'NOT_MEMBER':
     case 'NOT_AUTHORIZED':
+    case 'NOT_AUTHOR':
     case 'OWNER_CANNOT_LEAVE':
     case 'CANNOT_REMOVE_OWNER':
       return { kind: 'forbidden', message };
@@ -78,10 +82,17 @@ export function mapSpaceError(
       return { kind: 'conflict', code: 'INVITE_NOT_PENDING', message };
     case 'ENCRYPTION_NOT_SUPPORTED':
       return { kind: 'conflict', code: 'ENCRYPTION_NOT_SUPPORTED', message };
+    case 'REACTION_EXISTS':
+      return { kind: 'conflict', code: 'REACTION_EXISTS', message };
+    case 'ALREADY_PINNED':
+      return { kind: 'conflict', code: 'ALREADY_PINNED', message };
     case 'INVALID_ENCRYPTION':
     case 'INVALID_ID':
     case 'INVALID_CONTENT':
     case 'CANNOT_INVITE_SELF':
+    case 'INVALID_REPLY_TARGET':
+    case 'MAX_EDITS_REACHED':
+    case 'MESSAGE_DELETED':
       return { kind: 'bad_request', message };
     default:
       return { kind: 'bad_request', message };

@@ -2,6 +2,8 @@ export type { ChannelMessage } from './channelMessage';
 export { displayMessageToChannel, spaceMessageToChannel } from './channelMessage';
 export type { ChannelMessageBubbleProps } from './ChannelMessageBubble';
 export { ChannelMessageBubble } from './ChannelMessageBubble';
+export type { ChannelMessageListProps } from './ChannelMessageList';
+export { ChannelMessageList } from './ChannelMessageList';
 export { ReplyQuoteButton } from './ReplyQuoteButton';
 export { MessageActionBar, MESSAGE_ACTION_BAR_POPOVER_POSITIONING } from './MessageActionBar';
 export { MessageContextMenuFrame } from './MessageContextMenu';

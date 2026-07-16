@@ -69,6 +69,20 @@ export const CreateSpaceInviteSchema = z.object({
 export const SendSpaceMessageSchema = z.object({
   content: z.string().min(1).max(SPACE_MESSAGE_MAX_LENGTH),
   clientMessageId: z.string().uuid(),
+  replyToMessageId: z.string().length(24).optional(),
+  mentionedIdentityIds: z.array(z.string().length(24)).max(50).optional(),
+});
+
+export const EditSpaceMessageSchema = z.object({
+  content: z.string().min(1).max(SPACE_MESSAGE_MAX_LENGTH),
+});
+
+export const AddSpaceReactionSchema = z.object({
+  emoji: z.string().min(1).max(32),
+});
+
+export const PinSpaceMessageSchema = z.object({
+  messageId: z.string().length(24),
 });
 
 export const CreateSpaceChannelSchema = z.object({

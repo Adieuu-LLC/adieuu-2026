@@ -41,4 +41,18 @@ export {
   listSpaceChannels,
   sendSpaceMessage,
   getSpaceMessages,
+  editSpaceMessage,
+  deleteSpaceMessage,
+  modDeleteSpaceMessage,
+  getSpaceMessagesAround,
 } from './channels';
+export {
+  addSpaceReaction,
+  removeSpaceReaction,
+  getSpaceReactions,
+} from './reactions';
+export {
+  pinSpaceMessage,
+  unpinSpaceMessage,
+  getSpacePinnedMessages,
+} from './pins';

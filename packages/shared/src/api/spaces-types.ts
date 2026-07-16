@@ -182,6 +182,22 @@ export interface PublicSpaceMessage {
   /** Plaintext content when the channel/space is non-E2EE. */
   content?: string;
   clientMessageId: string;
+  deleted: boolean;
+  revisionCount: number;
+  lastEditedAt?: string;
+  replyToMessageId?: string;
+  mentionedIdentityIds?: string[];
+  createdAt: string;
+}
+
+/** Public space message reaction representation. */
+export interface PublicSpaceReaction {
+  id: string;
+  spaceId: string;
+  channelId: string;
+  messageId: string;
+  identityId: string;
+  emoji: string;
   createdAt: string;
 }
 
@@ -212,4 +228,18 @@ export interface UpdateSpaceParams {
 export interface SendSpaceMessageParams {
   content: string;
   clientMessageId: string;
+  replyToMessageId?: string;
+  mentionedIdentityIds?: string[];
+}
+
+export interface EditSpaceMessageParams {
+  content: string;
+}
+
+export interface AddSpaceReactionParams {
+  emoji: string;
+}
+
+export interface PinSpaceMessageParams {
+  messageId: string;
 }

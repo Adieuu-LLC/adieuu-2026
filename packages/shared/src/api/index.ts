@@ -347,9 +347,13 @@ export {
   type PublicSpaceMember,
   type PublicSpaceInvite,
   type PublicSpaceMessage,
+  type PublicSpaceReaction,
   type CreateSpaceParams,
   type UpdateSpaceParams,
   type SendSpaceMessageParams,
+  type EditSpaceMessageParams,
+  type AddSpaceReactionParams,
+  type PinSpaceMessageParams,
 } from './spaces-types';
 
 export { CustomEmojiApi } from './custom-emoji-api';
@@ -497,4 +501,9 @@ export {
   type ChatReactionAddedMessage,
   type ChatReactionRemovedMessage,
   type ChatNotificationCreatedMessage,
+  type ChatSpaceMessageEditedMessage,
+  type ChatSpaceMessageDeletedMessage,
+  type ChatSpaceReactionAddedMessage,
+  type ChatSpaceReactionRemovedMessage,
+  type ChatSpacePinsUpdatedMessage,
 } from './chat-client';

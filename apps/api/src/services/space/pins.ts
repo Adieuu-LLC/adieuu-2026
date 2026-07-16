@@ -1,0 +1,170 @@
+/**
+ * Space channel pins service.
+ *
+ * @module services/space/pins
+ */
+
+import { ObjectId } from 'mongodb';
+import { getSpaceMessageRepository } from '../../repositories/space-message.repository';
+import { getSpacePinRepository } from '../../repositories/space-pin.repository';
+import { getSpaceChannelRepository } from '../../repositories/space-channel.repository';
+import { getSpaceRepository } from '../../repositories/space.repository';
+import { isValidObjectId } from '../../utils';
+import { toPublicSpaceMessage } from '../../models/space-message';
+import { resolveMemberPermissions, memberHasPermission } from './permissions';
+import { canReadSpace } from './access';
+import { publishSpaceEvent } from './redis-events';
+import type { SpacePinResult, SpacePinnedMessagesResult } from './types';
+
+function parseObjId(raw: string | ObjectId): ObjectId | null {
+  if (raw instanceof ObjectId) return raw;
+  return isValidObjectId(raw) ? new ObjectId(raw) : null;
+}
+
+export async function pinSpaceMessage(
+  spaceIdRaw: string | ObjectId,
+  channelIdRaw: string | ObjectId,
+  messageIdRaw: string | ObjectId,
+  callerIdRaw: string | ObjectId,
+): Promise<SpacePinResult> {
+  const spaceId = parseObjId(spaceIdRaw);
+  const channelId = parseObjId(channelIdRaw);
+  const messageId = parseObjId(messageIdRaw);
+  const callerId = parseObjId(callerIdRaw);
+  if (!spaceId || !channelId || !messageId || !callerId) {
+    return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
+  }
+
+  const perms = await resolveMemberPermissions(spaceId, callerId);
+  if (!perms.isMember) {
+    return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
+  }
+  if (!memberHasPermission(perms, 'manageChannels') && !perms.isAdmin) {
+    return { success: false, error: 'Moderator permissions required.', errorCode: 'FORBIDDEN' };
+  }
+
+  const message = await getSpaceMessageRepository().findByIdInChannel(channelId, messageId);
+  if (!message || message.deleted) {
+    return { success: false, error: 'Message not found.', errorCode: 'MESSAGE_NOT_FOUND' };
+  }
+
+  const pinRepo = getSpacePinRepository();
+  const existing = await pinRepo.findPin(channelId, messageId);
+  if (existing) {
+    return { success: false, error: 'Message is already pinned.', errorCode: 'ALREADY_PINNED' };
+  }
+
+  try {
+    await pinRepo.createPin({ channelId, messageId, pinnedBy: callerId });
+  } catch (err) {
+    if (typeof err === 'object' && err !== null && (err as { code?: number }).code === 11000) {
+      return { success: false, error: 'Message is already pinned.', errorCode: 'ALREADY_PINNED' };
+    }
+    throw err;
+  }
+
+  await publishSpaceEvent(spaceId.toHexString(), {
+    type: 'space_pins_updated',
+    data: {
+      channelId: channelId.toHexString(),
+      messageId: messageId.toHexString(),
+      action: 'pinned',
+      pinnedBy: callerId.toHexString(),
+    },
+  });
+
+  return { success: true };
+}
+
+export async function unpinSpaceMessage(
+  spaceIdRaw: string | ObjectId,
+  channelIdRaw: string | ObjectId,
+  messageIdRaw: string | ObjectId,
+  callerIdRaw: string | ObjectId,
+): Promise<SpacePinResult> {
+  const spaceId = parseObjId(spaceIdRaw);
+  const channelId = parseObjId(channelIdRaw);
+  const messageId = parseObjId(messageIdRaw);
+  const callerId = parseObjId(callerIdRaw);
+  if (!spaceId || !channelId || !messageId || !callerId) {
+    return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
+  }
+
+  const perms = await resolveMemberPermissions(spaceId, callerId);
+  if (!perms.isMember) {
+    return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
+  }
+  if (!memberHasPermission(perms, 'manageChannels') && !perms.isAdmin) {
+    return { success: false, error: 'Moderator permissions required.', errorCode: 'FORBIDDEN' };
+  }
+
+  const pinRepo = getSpacePinRepository();
+  const removed = await pinRepo.removePin(channelId, messageId);
+  if (!removed) {
+    return { success: false, error: 'Pin not found.', errorCode: 'PIN_NOT_FOUND' };
+  }
+
+  await publishSpaceEvent(spaceId.toHexString(), {
+    type: 'space_pins_updated',
+    data: {
+      channelId: channelId.toHexString(),
+      messageId: messageId.toHexString(),
+      action: 'unpinned',
+    },
+  });
+
+  return { success: true };
+}
+
+export async function getSpacePinnedMessages(
+  spaceIdRaw: string | ObjectId,
+  channelIdRaw: string | ObjectId,
+  callerIdRaw: string | ObjectId,
+  limit = 50,
+  cursor?: string,
+): Promise<SpacePinnedMessagesResult> {
+  const spaceId = parseObjId(spaceIdRaw);
+  const channelId = parseObjId(channelIdRaw);
+  const callerId = parseObjId(callerIdRaw);
+  if (!spaceId || !channelId || !callerId) {
+    return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
+  }
+
+  const space = await getSpaceRepository().findById(spaceId);
+  if (!space) {
+    return { success: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' };
+  }
+
+  const access = await canReadSpace(space, callerId);
+  if (!access.ok) return { success: false, error: access.error, errorCode: access.errorCode };
+
+  const channel = await getSpaceChannelRepository().findByIdInSpace(spaceId, channelId);
+  if (!channel) {
+    return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
+  }
+
+  const cursorObjId = cursor && isValidObjectId(cursor) ? new ObjectId(cursor) : undefined;
+  const pinRepo = getSpacePinRepository();
+  const pins = await pinRepo.findByChannel(channelId, limit + 1, cursorObjId);
+
+  const hasMore = pins.length > limit;
+  const page = hasMore ? pins.slice(0, limit) : pins;
+
+  const messageRepo = getSpaceMessageRepository();
+  const messages = await Promise.all(
+    page.map(async (pin) => {
+      const msg = await messageRepo.findById(pin.messageId);
+      return msg ? toPublicSpaceMessage(msg) : null;
+    }),
+  );
+
+  const filteredMessages = messages.filter(
+    (msg): msg is NonNullable<typeof msg> => msg !== null,
+  );
+
+  return {
+    success: true,
+    messages: filteredMessages,
+    cursor: hasMore && page.length > 0 ? page[page.length - 1]!._id.toHexString() : null,
+  };
+}

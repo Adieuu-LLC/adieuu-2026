@@ -4,7 +4,7 @@
  * plaintext content for non-E2EE channels; the E2EE path is deferred.
  */
 
-import { type Filter, ObjectId } from 'mongodb';
+import { type Filter, type UpdateFilter, ObjectId } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
 import type { SpaceMessageDocument, CreateSpaceMessageInput } from '../models/space-message';
@@ -15,8 +15,13 @@ export class SpaceMessageRepository extends BaseRepository<SpaceMessageDocument>
   }
 
   async createMessage(input: CreateSpaceMessageInput): Promise<SpaceMessageDocument> {
+    const doc = {
+      ...input,
+      deleted: input.deleted ?? false,
+      revisionCount: input.revisionCount ?? 0,
+    };
     return await this.create(
-      input as Omit<SpaceMessageDocument, '_id' | 'createdAt' | 'updatedAt'>
+      doc as Omit<SpaceMessageDocument, '_id' | 'createdAt' | 'updatedAt'>
     );
   }
 
@@ -40,6 +45,80 @@ export class SpaceMessageRepository extends BaseRepository<SpaceMessageDocument>
       .sort({ createdAt: -1, _id: -1 })
       .limit(limit)
       .toArray()) as SpaceMessageDocument[];
+  }
+
+  async findByIdInChannel(
+    channelId: ObjectId,
+    messageId: ObjectId,
+  ): Promise<SpaceMessageDocument | null> {
+    return await this.findOne({ _id: messageId, channelId } as Filter<SpaceMessageDocument>);
+  }
+
+  /**
+   * Fetch a window of messages around a target message in a channel.
+   * Returns `before` messages older than the target, the target itself, and
+   * `after` messages newer than the target.
+   */
+  async findAround(
+    channelId: ObjectId,
+    targetId: ObjectId,
+    before: number,
+    after: number,
+  ): Promise<SpaceMessageDocument[]> {
+    const olderFilter: Filter<SpaceMessageDocument> = {
+      channelId,
+      _id: { $lt: targetId },
+    } as Filter<SpaceMessageDocument>;
+    const older = await this.collection
+      .find(olderFilter)
+      .sort({ _id: -1 })
+      .limit(before)
+      .toArray() as SpaceMessageDocument[];
+
+    const target = await this.findOne({ _id: targetId, channelId } as Filter<SpaceMessageDocument>);
+
+    const newerFilter: Filter<SpaceMessageDocument> = {
+      channelId,
+      _id: { $gt: targetId },
+    } as Filter<SpaceMessageDocument>;
+    const newer = await this.collection
+      .find(newerFilter)
+      .sort({ _id: 1 })
+      .limit(after)
+      .toArray() as SpaceMessageDocument[];
+
+    const result = [...older.reverse()];
+    if (target) result.push(target);
+    result.push(...newer);
+    return result;
+  }
+
+  async editMessage(
+    messageId: ObjectId,
+    content: string,
+  ): Promise<SpaceMessageDocument | null> {
+    const now = new Date();
+    const result = await this.collection.findOneAndUpdate(
+      { _id: messageId } as Filter<SpaceMessageDocument>,
+      {
+        $set: { content, lastEditedAt: now, updatedAt: now },
+        $inc: { revisionCount: 1 },
+      } as UpdateFilter<SpaceMessageDocument>,
+      { returnDocument: 'after' },
+    );
+    return result as SpaceMessageDocument | null;
+  }
+
+  async softDelete(messageId: ObjectId): Promise<SpaceMessageDocument | null> {
+    const now = new Date();
+    const result = await this.collection.findOneAndUpdate(
+      { _id: messageId } as Filter<SpaceMessageDocument>,
+      {
+        $set: { deleted: true, content: '', updatedAt: now },
+      } as UpdateFilter<SpaceMessageDocument>,
+      { returnDocument: 'after' },
+    );
+    return result as SpaceMessageDocument | null;
   }
 
   async findByClientMessageId(

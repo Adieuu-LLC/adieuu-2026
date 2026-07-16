@@ -435,6 +435,10 @@ export const Collections = {
   SPACE_INVITES: 'space_invites',
   /** Messages posted in Space channels */
   SPACE_MESSAGES: 'space_messages',
+  /** Reactions on Space channel messages */
+  SPACE_REACTIONS: 'space_message_reactions',
+  /** Pinned messages in Space channels */
+  SPACE_PINS: 'space_channel_pins',
 } as const;
 
 /**
@@ -888,6 +892,22 @@ export async function createIndexes(): Promise<void> {
   await spaceMessages.createIndex({ channelId: 1, createdAt: -1 });
   await spaceMessages.createIndex({ channelId: 1, _id: -1 });
   await spaceMessages.createIndex({ channelId: 1, clientMessageId: 1 }, { unique: true });
+
+  // Space reactions — one reaction per emoji per user per message
+  const spaceReactions = database.collection(Collections.SPACE_REACTIONS);
+  await spaceReactions.createIndex({ messageId: 1 });
+  await spaceReactions.createIndex(
+    { messageId: 1, identityId: 1, emoji: 1 },
+    { unique: true },
+  );
+
+  // Space channel pins — one pin per message per channel
+  const spacePins = database.collection(Collections.SPACE_PINS);
+  await spacePins.createIndex(
+    { channelId: 1, messageId: 1 },
+    { unique: true },
+  );
+  await spacePins.createIndex({ channelId: 1, pinnedAt: -1 });
 
   elog.debug('MongoDB indexes created/verified');
 }

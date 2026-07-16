@@ -22,6 +22,11 @@ export interface SpaceMessageDocument extends BaseDocument {
   nonce?: string;
   /** Client-generated dedup id (unique per channel). */
   clientMessageId: string;
+  deleted: boolean;
+  revisionCount: number;
+  lastEditedAt?: Date;
+  replyToMessageId?: ObjectId;
+  mentionedIdentityIds?: ObjectId[];
 }
 
 export interface CreateSpaceMessageInput {
@@ -32,6 +37,10 @@ export interface CreateSpaceMessageInput {
   ciphertext?: string;
   nonce?: string;
   clientMessageId: string;
+  deleted?: boolean;
+  revisionCount?: number;
+  replyToMessageId?: ObjectId;
+  mentionedIdentityIds?: ObjectId[];
 }
 
 export function toPublicSpaceMessage(doc: SpaceMessageDocument): PublicSpaceMessage {
@@ -42,6 +51,13 @@ export function toPublicSpaceMessage(doc: SpaceMessageDocument): PublicSpaceMess
     fromIdentityId: doc.fromIdentityId.toHexString(),
     ...(doc.content !== undefined ? { content: doc.content } : {}),
     clientMessageId: doc.clientMessageId,
+    deleted: doc.deleted ?? false,
+    revisionCount: doc.revisionCount ?? 0,
+    ...(doc.lastEditedAt ? { lastEditedAt: doc.lastEditedAt.toISOString() } : {}),
+    ...(doc.replyToMessageId ? { replyToMessageId: doc.replyToMessageId.toHexString() } : {}),
+    ...(doc.mentionedIdentityIds?.length
+      ? { mentionedIdentityIds: doc.mentionedIdentityIds.map((id) => id.toHexString()) }
+      : {}),
     createdAt: doc.createdAt.toISOString(),
   };
 }

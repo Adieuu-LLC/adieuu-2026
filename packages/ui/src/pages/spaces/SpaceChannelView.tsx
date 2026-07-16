@@ -1,20 +1,25 @@
 /**
  * Channel view inside a Space.
  *
- * Displays messages for a single text channel and wires up the shared
- * {@link MessageComposer} for sending. When the Space or channel has a
- * `cipherCheck`, messages are encrypted locally with the matching Community
- * Cipher before sending and decrypted on display.
+ * Displays messages for a single text channel using the shared
+ * {@link ChannelMessageList} and {@link ChannelMessageBubble}.
+ * When the Space or channel has a `cipherCheck`, messages are encrypted
+ * locally with the matching Community Cipher before sending and decrypted
+ * on display.
  */
 
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
+  decryptWithCipher,
+  deserializeCipherPayload,
   encryptWithCipher,
+  fromBytes,
   serializeCipherPayload,
   toBytes,
   type CommunityCipher,
+  type SerializedCipherPayload,
 } from '@adieuu/crypto';
 import { useSpaces } from '../../hooks/useSpaces';
 import { useIdentity } from '../../hooks/useIdentity';
@@ -24,7 +29,34 @@ import { parsePayload } from '../../services/messagePayload';
 import { Spinner } from '../../components/Spinner';
 import { MessageComposer } from '../../components/composer/MessageComposer';
 import type { ComposerSendFn } from '../../components/composer/composerTypes';
-import { SpaceMessageList } from './SpaceMessageList';
+import {
+  spaceMessageToChannel,
+  type ChannelMessage,
+} from '../../components/messaging/channelMessage';
+import { ChannelMessageList } from '../../components/messaging/ChannelMessageList';
+import { buildFlatMessageItems, type ChannelListItem } from '../../utils/buildFlatMessageItems';
+import { useMessageScroll } from '../../hooks/useMessageScroll';
+import { useMessageScrollOrchestration } from '../../hooks/useMessageScrollOrchestration';
+import type { PublicSpaceMessage } from '@adieuu/shared';
+
+function decryptBody(
+  content: string | undefined,
+  cipher: CommunityCipher | null | undefined,
+): string {
+  if (!content) return '';
+  if (cipher) {
+    try {
+      const parsed = JSON.parse(content) as SerializedCipherPayload;
+      if (parsed.ciphertext && parsed.nonce && parsed.cipherId) {
+        const payload = deserializeCipherPayload(parsed);
+        return fromBytes(decryptWithCipher(cipher, payload));
+      }
+    } catch {
+      // fall through
+    }
+  }
+  return content;
+}
 
 export function SpaceChannelView() {
   const { t } = useTranslation();
@@ -71,9 +103,6 @@ export function SpaceChannelView() {
 
   const onSend: ComposerSendFn = useCallback(
     async (composerPayload: string) => {
-      // MessageComposer outputs a serializePayload() result which may be JSON
-      // (e.g. when senderDeviceId is set). Space channels store plain text
-      // content, so we always unwrap to just the text.
       const { text } = parsePayload(composerPayload);
       if (!text) return;
 
@@ -91,6 +120,86 @@ export function SpaceChannelView() {
   const handleLoadOlder = useCallback(() => {
     void loadOlderMessages();
   }, [loadOlderMessages]);
+
+  // Build channel messages from space messages (decrypt + adapt)
+  const channelMessages: ChannelMessage[] = useMemo(() => {
+    const chronological = [...activeMessages].reverse();
+    return chronological.map((msg: PublicSpaceMessage) => {
+      const body = decryptBody(msg.content, spaceCipher);
+      return spaceMessageToChannel(msg, body);
+    });
+  }, [activeMessages, spaceCipher]);
+
+  const messageLayoutKey = useMemo(
+    () => channelMessages.map((m) => m.id).join(','),
+    [channelMessages],
+  );
+
+  const flatItems: ChannelListItem<ChannelMessage>[] = useMemo(
+    () => buildFlatMessageItems(channelMessages, 0, 0),
+    [channelMessages],
+  );
+
+  const [, setIsAtBottom] = useState(true);
+
+  const {
+    scrollViewportRef,
+    messagesContentRef,
+    messagesContainerRef,
+    isAtBottomRef,
+    showScrollButton,
+    scrollToBottom,
+    markJustSent,
+    cachedScrollIndex,
+    onScrollViewportScroll,
+    onUserScrollIntent,
+  } = useMessageScroll({
+    entityId: channelId,
+    setIsAtBottom,
+    messageLayoutKey,
+  });
+
+  const {
+    handleReachOlder,
+    handleReachNewer: _handleReachNewer,
+    handleJumpToLatest,
+  } = useMessageScrollOrchestration({
+    entityId: channelId,
+    activeEntityId: activeChannelId,
+    messageLayoutKey,
+    flatItems,
+    messagesLoading: activeMessagesLoading,
+    hasOlderCursor: !!activeMessagesOlderCursor,
+    hasNewerPages: false,
+    loadOlder: handleLoadOlder,
+    loadNewer: () => {},
+    scrollViewportRef,
+    messagesContentRef,
+    isAtBottomRef,
+    scrollToBottom,
+    setIsAtBottom,
+    cachedScrollIndex,
+  });
+
+  // No-op handlers for actions not yet supported on Space channels
+  const noopDelete = useCallback(() => {}, []);
+  const noopReact = useCallback(() => {}, []);
+  const noopToggleReaction = useCallback(() => {}, []);
+  const noopReport = useCallback(() => {}, []);
+  const noopFav = useCallback(() => {}, []);
+  const emptyReactions = useCallback(() => [], []);
+
+  const handleLinkClick = useCallback((href: string) => {
+    window.open(href, '_blank', 'noopener,noreferrer');
+  }, []);
+
+  const wrappedSend: ComposerSendFn = useCallback(
+    async (payload: string) => {
+      markJustSent();
+      await onSend(payload);
+    },
+    [onSend, markJustSent],
+  );
 
   if (!activeChannel) {
     return (
@@ -113,14 +222,39 @@ export function SpaceChannelView() {
       </div>
 
       <div className="space-channel-body">
-        <SpaceMessageList
-          messages={activeMessages}
-          loading={activeMessagesLoading}
-          hasOlderMessages={!!activeMessagesOlderCursor}
-          onLoadOlder={handleLoadOlder}
-          cipher={spaceCipher}
+        <ChannelMessageList
+          entityId={channelId}
+          activeEntityId={activeChannelId}
+          flatItems={flatItems}
+          messagesLoading={activeMessagesLoading}
+          messageCount={activeMessages.length}
+          identity={identity}
           participantProfiles={participantProfiles}
-          selfId={identity?.id}
+          memberSettings={{}}
+          messageLayout="linear"
+          memberColorDisplay="name-only"
+          favoriteEmojis={[]}
+          getGroupedReactions={emptyReactions}
+          onDeleteMessage={noopDelete}
+          onReact={noopReact}
+          onToggleReaction={noopToggleReaction}
+          onReportMessage={noopReport}
+          onAddFavorite={noopFav}
+          onRemoveFavorite={noopFav}
+          onLinkClick={handleLinkClick}
+          showScrollButton={showScrollButton}
+          onJumpToLatest={handleJumpToLatest}
+          scrollViewportRef={scrollViewportRef}
+          messagesContentRef={messagesContentRef}
+          messagesContainerRef={messagesContainerRef}
+          onScrollViewportScroll={onScrollViewportScroll}
+          onUserScrollIntent={onUserScrollIntent}
+          cachedScrollIndex={cachedScrollIndex}
+          hasMoreOlder={!!activeMessagesOlderCursor}
+          onReachOlder={handleReachOlder}
+          hasNewerPages={false}
+          onReachNewer={() => {}}
+          emptyMessage={t('spaces.channel.noMessages')}
         />
       </div>
 
@@ -135,7 +269,7 @@ export function SpaceChannelView() {
           <MessageComposer
             channelId={activeChannelId ?? channelId!}
             sending={sending}
-            onSend={onSend}
+            onSend={wrappedSend}
           />
         )}
       </div>
