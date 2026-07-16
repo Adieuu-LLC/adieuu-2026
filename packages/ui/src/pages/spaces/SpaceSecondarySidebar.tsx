@@ -41,13 +41,13 @@ export function SpaceSecondarySidebar() {
         disabled
         title={t('spaces.sidebar.manageTooltip')}
       >
-        <Icon name="settings" size={16} />
+        <Icon name="settings" size="sm" />
         <span>{t('spaces.sidebar.manage')}</span>
       </button>
 
       {/* Home */}
       <NavLink to={`/s/${slug}`} end className={navLinkClass}>
-        <Icon name="home" size={16} />
+        <Icon name="home" size="sm" />
         <span>{t('spaces.sidebar.home')}</span>
       </NavLink>
 

@@ -1,3 +1,3 @@
 [test]
-preload = ["./src/test/react-router-dom-mock.ts", "./src/test/react-i18next-mock.ts"]
+preload = ["./src/test.setup.ts", "./src/test/react-router-dom-mock.ts", "./src/test/react-i18next-mock.ts"]
 root = "./src"
