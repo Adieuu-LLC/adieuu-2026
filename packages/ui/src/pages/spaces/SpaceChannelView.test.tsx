@@ -48,6 +48,78 @@ mock.module('../../services/spaceCipherService', () => ({
   getSpaceCipherLink: () => null,
 }));
 
+const mockSpacesApi = {
+  addReaction: mock(async () => ({ success: true, data: null })),
+  removeReaction: mock(async () => ({ success: true })),
+  getReactions: mock(async () => ({ success: true, data: { reactions: [] } })),
+  pinMessage: mock(async () => ({ success: true })),
+  unpinMessage: mock(async () => ({ success: true })),
+  getPinnedMessages: mock(async () => ({ success: true, data: { messages: [], cursor: null } })),
+  getMessagesAround: mock(async () => ({ success: true, data: { messages: [], cursor: null } })),
+  editMessage: mock(async () => ({ success: true, data: null })),
+  deleteMessage: mock(async () => ({ success: true })),
+  modDeleteMessage: mock(async () => ({ success: true })),
+};
+
+mock.module('../../hooks/useChannelReactions', () => ({
+  useChannelReactions: () => ({
+    reactions: {},
+    loading: false,
+    fetchReactions: async () => {},
+    onReact: async () => {},
+    onToggleReaction: () => {},
+    getGroupedReactions: () => [],
+    ingestSocketReaction: () => {},
+    ingestSocketReactionRemoval: () => {},
+  }),
+}));
+
+mock.module('../../hooks/useChannelPins', () => ({
+  useChannelPins: () => ({
+    pinnedMessageIds: [],
+    pinnedMessageIdsKey: '',
+    pinnedCount: 0,
+    canManagePins: true,
+    onPin: async () => {},
+    onUnpin: async () => {},
+    loadPinnedMessagesPage: async () => null,
+    ingestSocketPinsUpdate: () => {},
+    ingestSocketPinChange: () => {},
+  }),
+}));
+
+mock.module('../../hooks/useReplyParentHydration', () => ({
+  useReplyParentHydration: () => ({
+    getParentInfo: () => null,
+    ensureHydrated: async () => {},
+    hydrateAll: () => {},
+    hydratedParents: {},
+  }),
+  buildChannelReplyQuote: () => null,
+}));
+
+mock.module('../../hooks/adapters/spaceReactionsAdapter', () => ({
+  createSpaceReactionsAdapter: () => ({
+    addReaction: async () => null,
+    removeReaction: async () => true,
+    getReactions: async () => [],
+  }),
+}));
+
+mock.module('../../hooks/adapters/spacePinsAdapter', () => ({
+  createSpacePinsAdapter: () => ({
+    pinMessage: async () => true,
+    unpinMessage: async () => true,
+    getPinnedMessages: async () => null,
+  }),
+}));
+
+mock.module('../../hooks/adapters/spaceReplyAdapter', () => ({
+  createSpaceReplyAdapter: () => ({
+    fetchMessage: async () => null,
+  }),
+}));
+
 mock.module('../../components/composer/MessageComposer', () => ({
   MessageComposer: ({ channelId }: { channelId: string }) =>
     createElement('div', { 'data-testid': 'composer', 'data-channel': channelId }, 'Composer'),
@@ -56,6 +128,10 @@ mock.module('../../components/composer/MessageComposer', () => ({
 mock.module('../../components/messaging/ChannelMessageBubble', () => ({
   ChannelMessageBubble: ({ message }: { message: { id: string; body: string } }) =>
     createElement('div', { 'data-testid': `bubble-${message.id}`, className: 'channel-message-bubble' }, message.body),
+}));
+
+mock.module('../../components/messaging/ChannelPinsMenu', () => ({
+  ChannelPinsMenu: () => createElement('div', { 'data-testid': 'pins-menu' }),
 }));
 
 const { SpaceChannelView } = await import('./SpaceChannelView');
@@ -81,9 +157,12 @@ function makeDefaultCtx(overrides: Record<string, unknown> = {}): Record<string,
     activeMessagesOlderCursor: null,
     sending: false,
     participantProfiles: {},
+    unreadByChannel: {},
     setActiveChannel: mock(() => {}),
     sendMessage: mock(async () => null),
     loadOlderMessages: mock(async () => {}),
+    clearChannelUnread: mock(() => {}),
+    registerSocketCallbacks: mock(() => {}),
     ...overrides,
   };
 }

@@ -1,5 +1,15 @@
-import type { ChatIncomingMessage, PublicSpace, PublicSpaceMessage } from '@adieuu/shared';
+import type {
+  ChatIncomingMessage,
+  PublicSpace,
+  PublicSpaceMessage,
+  PublicSpaceReaction,
+} from '@adieuu/shared';
 import { emitSpacesChanged } from './spacesMembershipEvents';
+
+export interface SpaceChannelUnreadState {
+  unread: number;
+  mention: boolean;
+}
 
 export interface SpaceSocketHandlerContext {
   setSpaces: (updater: (prev: PublicSpace[]) => PublicSpace[]) => void;
@@ -13,6 +23,19 @@ export interface SpaceSocketHandlerContext {
   identityId: string | undefined;
   fetchChannelMessages: (spaceId: string, channelId: string) => void;
   refreshSpaces: () => void;
+  onSocketReactionAdded?: (reaction: {
+    id: string;
+    messageId: string;
+    channelId: string;
+    fromIdentityId: string;
+    emoji: string;
+    createdAt: string;
+  }) => void;
+  onSocketReactionRemoved?: (messageId: string, reactionId: string) => void;
+  onSocketPinsUpdated?: (messageId: string, action: 'pinned' | 'unpinned') => void;
+  setUnreadByChannel?: (
+    updater: (prev: Record<string, SpaceChannelUnreadState>) => Record<string, SpaceChannelUnreadState>,
+  ) => void;
 }
 
 /**
@@ -47,9 +70,118 @@ export function handleSpaceSocketMessage(
 
     case 'space_message': {
       const { message: msg } = message.data;
-      if (msg.channelId === ctx.activeChannelId && msg.spaceId === ctx.activeSpaceId) {
-        ctx.fetchChannelMessages(msg.spaceId, msg.channelId);
+      const isActiveChannel =
+        msg.channelId === ctx.activeChannelId &&
+        msg.spaceId === ctx.activeSpaceId;
+
+      if (isActiveChannel) {
+        ctx.setMessagesByChannel((prev) => {
+          const state = prev[msg.channelId];
+          if (!state) return prev;
+          const existing = state.messages.find((m) => m.id === msg.id);
+          if (existing) {
+            return {
+              ...prev,
+              [msg.channelId]: {
+                ...state,
+                messages: state.messages.map((m) =>
+                  m.id === msg.id ? msg : m,
+                ),
+              },
+            };
+          }
+          return {
+            ...prev,
+            [msg.channelId]: {
+              ...state,
+              messages: [msg, ...state.messages],
+            },
+          };
+        });
       }
+
+      if (!isActiveChannel || msg.fromIdentityId !== ctx.identityId) {
+        if (!isActiveChannel) {
+          const isMention =
+            !!ctx.identityId &&
+            !!msg.mentionedIdentityIds?.includes(ctx.identityId);
+          ctx.setUnreadByChannel?.((prev) => {
+            const cur = prev[msg.channelId] ?? { unread: 0, mention: false };
+            return {
+              ...prev,
+              [msg.channelId]: {
+                unread: cur.unread + 1,
+                mention: cur.mention || isMention,
+              },
+            };
+          });
+        }
+      }
+      break;
+    }
+
+    case 'space_message_edited': {
+      const { channelId, messageId, content, lastEditedAt, revisionCount } = message.data;
+      ctx.setMessagesByChannel((prev) => {
+        const state = prev[channelId];
+        if (!state) return prev;
+        const idx = state.messages.findIndex((m) => m.id === messageId);
+        if (idx === -1) return prev;
+        const updated = {
+          ...state.messages[idx]!,
+          ...(content !== undefined ? { content } : {}),
+          lastEditedAt,
+          revisionCount,
+        };
+        const messages = [...state.messages];
+        messages[idx] = updated;
+        return { ...prev, [channelId]: { ...state, messages } };
+      });
+      break;
+    }
+
+    case 'space_message_deleted': {
+      const { channelId, messageId } = message.data;
+      ctx.setMessagesByChannel((prev) => {
+        const state = prev[channelId];
+        if (!state) return prev;
+        return {
+          ...prev,
+          [channelId]: {
+            ...state,
+            messages: state.messages.map((m) =>
+              m.id === messageId
+                ? { ...m, deleted: true, content: undefined }
+                : m,
+            ),
+          },
+        };
+      });
+      break;
+    }
+
+    case 'space_reaction_added': {
+      const { reaction } = message.data;
+      ctx.onSocketReactionAdded?.({
+        id: reaction.id,
+        messageId: reaction.messageId,
+        channelId: reaction.channelId,
+        fromIdentityId: reaction.identityId,
+        emoji: reaction.emoji,
+        createdAt: reaction.createdAt,
+      });
+      break;
+    }
+
+    case 'space_reaction_removed': {
+      const { messageId, reactionId } = message.data;
+      ctx.onSocketReactionRemoved?.(messageId, reactionId);
+      break;
+    }
+
+    case 'space_pins_updated': {
+      const { messageId, action } = message.data;
+      ctx.onSocketPinsUpdated?.(messageId, action);
       break;
     }
 

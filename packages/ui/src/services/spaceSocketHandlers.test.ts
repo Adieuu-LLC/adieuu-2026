@@ -1,249 +1,387 @@
-import { describe, expect, it, mock } from 'bun:test';
-import type { PublicSpace, PublicSpaceMessage, ChatIncomingMessage } from '@adieuu/shared';
-import { handleSpaceSocketMessage, type SpaceSocketHandlerContext } from './spaceSocketHandlers';
+import { describe, expect, test } from 'bun:test';
+import type { ChatIncomingMessage, PublicSpaceMessage } from '@adieuu/shared';
+import {
+  handleSpaceSocketMessage,
+  type SpaceSocketHandlerContext,
+  type SpaceChannelUnreadState,
+} from './spaceSocketHandlers';
 
-function makeSpace(overrides: Partial<PublicSpace> = {}): PublicSpace {
-  return {
-    id: 'space-1',
-    slug: 'test-space',
-    name: 'Test Space',
-    visibility: 'public',
-    createdBy: 'id-owner',
-    ownerIdentityId: 'id-owner',
-    allowFreeMembers: true,
-    memberCount: 5,
-    createdAt: '2024-01-01T00:00:00.000Z',
-    updatedAt: '2024-01-01T00:00:00.000Z',
-    ...overrides,
-  };
-}
-
-function makeMessage(overrides: Partial<PublicSpaceMessage> = {}): PublicSpaceMessage {
+function makeMessage(
+  overrides: Partial<PublicSpaceMessage> = {},
+): PublicSpaceMessage {
   return {
     id: 'msg-1',
     spaceId: 'space-1',
     channelId: 'ch-1',
-    fromIdentityId: 'id-sender',
+    fromIdentityId: 'user-1',
     content: 'hello',
-    clientMessageId: 'client-msg-1',
-    createdAt: '2024-01-01T00:00:01.000Z',
+    clientMessageId: 'client-1',
+    deleted: false,
+    revisionCount: 0,
+    createdAt: new Date().toISOString(),
     ...overrides,
   };
 }
 
-function createContext(overrides: Partial<SpaceSocketHandlerContext> = {}): SpaceSocketHandlerContext {
+function createContext(
+  overrides: Partial<SpaceSocketHandlerContext> = {},
+) {
+  let messagesByChannel: Record<
+    string,
+    { messages: PublicSpaceMessage[]; olderCursor: string | null; loading: boolean }
+  > = {
+    'ch-1': {
+      messages: [makeMessage()],
+      olderCursor: null,
+      loading: false,
+    },
+  };
+
+  let unreadByChannel: Record<string, SpaceChannelUnreadState> = {};
+
+  const reactionAddedCalls: Array<{
+    id: string;
+    messageId: string;
+    channelId: string;
+    fromIdentityId: string;
+    emoji: string;
+    createdAt: string;
+  }> = [];
+  const reactionRemovedCalls: Array<{ messageId: string; reactionId: string }> = [];
+  const pinsUpdatedCalls: Array<{ messageId: string; action: 'pinned' | 'unpinned' }> = [];
+  const fetchCalls: Array<{ spaceId: string; channelId: string }> = [];
+
+  const ctx: SpaceSocketHandlerContext = {
+    setSpaces: () => {},
+    setMessagesByChannel: (updater) => {
+      messagesByChannel = updater(messagesByChannel);
+    },
+    activeSpaceId: 'space-1',
+    activeChannelId: 'ch-1',
+    identityId: 'me-1',
+    fetchChannelMessages: (spaceId, channelId) => {
+      fetchCalls.push({ spaceId, channelId });
+    },
+    refreshSpaces: () => {},
+    onSocketReactionAdded: (r) => reactionAddedCalls.push(r),
+    onSocketReactionRemoved: (messageId, reactionId) =>
+      reactionRemovedCalls.push({ messageId, reactionId }),
+    onSocketPinsUpdated: (messageId, action) =>
+      pinsUpdatedCalls.push({ messageId, action }),
+    setUnreadByChannel: (updater) => {
+      unreadByChannel = updater(unreadByChannel);
+    },
+    ...overrides,
+  };
+
   return {
-    setSpaces: mock(() => {}),
-    setMessagesByChannel: mock(() => {}),
-    activeSpaceId: null,
-    activeChannelId: null,
-    identityId: 'my-identity',
-    fetchChannelMessages: mock(() => {}),
-    refreshSpaces: mock(() => {}),
-    ...overrides,
+    ctx,
+    get messagesByChannel() {
+      return messagesByChannel;
+    },
+    get unreadByChannel() {
+      return unreadByChannel;
+    },
+    reactionAddedCalls,
+    reactionRemovedCalls,
+    pinsUpdatedCalls,
+    fetchCalls,
   };
 }
 
-describe('handleSpaceSocketMessage', () => {
-  describe('space_created', () => {
-    it('prepends the new space to the list', () => {
-      const ctx = createContext();
-      const space = makeSpace({ id: 'space-new', name: 'New Space' });
+describe('spaceSocketHandlers', () => {
+  // -------------------------------------------------------------------------
+  // space_message — merge-prepend dedup
+  // -------------------------------------------------------------------------
 
-      handleSpaceSocketMessage(
-        { type: 'space_created', data: { space } } as ChatIncomingMessage,
-        ctx,
-      );
-
-      expect(ctx.setSpaces).toHaveBeenCalledTimes(1);
-      const updater = (ctx.setSpaces as ReturnType<typeof mock>).mock.calls[0][0];
-      const result = updater([makeSpace()]);
-      expect(result).toHaveLength(2);
-      expect(result[0].id).toBe('space-new');
-    });
-
-    it('does not duplicate an existing space', () => {
-      const ctx = createContext();
-      const space = makeSpace({ id: 'space-1' });
-
-      handleSpaceSocketMessage(
-        { type: 'space_created', data: { space } } as ChatIncomingMessage,
-        ctx,
-      );
-
-      const updater = (ctx.setSpaces as ReturnType<typeof mock>).mock.calls[0][0];
-      const result = updater([makeSpace()]);
-      expect(result).toHaveLength(1);
-    });
+  test('space_message: replaces existing message (dedup)', () => {
+    const h = createContext();
+    const updatedMsg = makeMessage({ content: 'updated hello' });
+    handleSpaceSocketMessage(
+      {
+        type: 'space_message',
+        data: { message: updatedMsg },
+      } as ChatIncomingMessage,
+      h.ctx,
+    );
+    expect(h.messagesByChannel['ch-1']!.messages).toHaveLength(1);
+    expect(h.messagesByChannel['ch-1']!.messages[0]!.content).toBe('updated hello');
   });
 
-  describe('space_updated', () => {
-    it('replaces the matching space', () => {
-      const ctx = createContext();
-      const updated = makeSpace({ id: 'space-1', name: 'Renamed' });
-
-      handleSpaceSocketMessage(
-        { type: 'space_updated', data: { space: updated } } as ChatIncomingMessage,
-        ctx,
-      );
-
-      const updater = (ctx.setSpaces as ReturnType<typeof mock>).mock.calls[0][0];
-      const result = updater([makeSpace()]);
-      expect(result).toHaveLength(1);
-      expect(result[0].name).toBe('Renamed');
-    });
+  test('space_message: prepends genuinely new message', () => {
+    const h = createContext();
+    const newMsg = makeMessage({ id: 'msg-2', content: 'world' });
+    handleSpaceSocketMessage(
+      {
+        type: 'space_message',
+        data: { message: newMsg },
+      } as ChatIncomingMessage,
+      h.ctx,
+    );
+    expect(h.messagesByChannel['ch-1']!.messages).toHaveLength(2);
+    expect(h.messagesByChannel['ch-1']!.messages[0]!.id).toBe('msg-2');
   });
 
-  describe('space_message', () => {
-    it('fetches channel messages when viewing the active channel', () => {
-      const ctx = createContext({ activeSpaceId: 'space-1', activeChannelId: 'ch-1' });
-      const msg = makeMessage();
-
-      handleSpaceSocketMessage(
-        { type: 'space_message', data: { message: msg } } as ChatIncomingMessage,
-        ctx,
-      );
-
-      expect(ctx.fetchChannelMessages).toHaveBeenCalledWith('space-1', 'ch-1');
-    });
-
-    it('does not fetch messages when viewing a different channel', () => {
-      const ctx = createContext({ activeSpaceId: 'space-1', activeChannelId: 'ch-other' });
-      const msg = makeMessage();
-
-      handleSpaceSocketMessage(
-        { type: 'space_message', data: { message: msg } } as ChatIncomingMessage,
-        ctx,
-      );
-
-      expect(ctx.fetchChannelMessages).not.toHaveBeenCalled();
-    });
-
-    it('does not fetch messages when no space is active', () => {
-      const ctx = createContext({ activeSpaceId: null, activeChannelId: null });
-      const msg = makeMessage();
-
-      handleSpaceSocketMessage(
-        { type: 'space_message', data: { message: msg } } as ChatIncomingMessage,
-        ctx,
-      );
-
-      expect(ctx.fetchChannelMessages).not.toHaveBeenCalled();
-    });
+  test('space_message: does not increment unread for active channel from own user', () => {
+    const h = createContext();
+    const msg = makeMessage({ id: 'msg-2', fromIdentityId: 'me-1' });
+    handleSpaceSocketMessage(
+      {
+        type: 'space_message',
+        data: { message: msg },
+      } as ChatIncomingMessage,
+      h.ctx,
+    );
+    expect(h.unreadByChannel['ch-1']).toBeUndefined();
   });
 
-  describe('space_member_joined', () => {
-    it('increments the member count', () => {
-      const ctx = createContext();
+  // -------------------------------------------------------------------------
+  // space_message — different channel → unread
+  // -------------------------------------------------------------------------
 
-      handleSpaceSocketMessage(
-        {
-          type: 'space_member_joined',
-          data: {
+  test('space_message: increments unread for non-active channel', () => {
+    const h = createContext({ activeChannelId: 'ch-other' });
+    const msg = makeMessage({ id: 'msg-2', fromIdentityId: 'user-2' });
+    handleSpaceSocketMessage(
+      {
+        type: 'space_message',
+        data: { message: msg },
+      } as ChatIncomingMessage,
+      h.ctx,
+    );
+    expect(h.unreadByChannel['ch-1']!.unread).toBe(1);
+    expect(h.unreadByChannel['ch-1']!.mention).toBe(false);
+  });
+
+  test('space_message: sets mention badge when user is mentioned', () => {
+    const h = createContext({ activeChannelId: 'ch-other' });
+    const msg = makeMessage({
+      id: 'msg-3',
+      fromIdentityId: 'user-2',
+      mentionedIdentityIds: ['me-1'],
+    });
+    handleSpaceSocketMessage(
+      {
+        type: 'space_message',
+        data: { message: msg },
+      } as ChatIncomingMessage,
+      h.ctx,
+    );
+    expect(h.unreadByChannel['ch-1']!.mention).toBe(true);
+  });
+
+  // -------------------------------------------------------------------------
+  // space_message_edited
+  // -------------------------------------------------------------------------
+
+  test('space_message_edited: updates message fields', () => {
+    const h = createContext();
+    handleSpaceSocketMessage(
+      {
+        type: 'space_message_edited',
+        data: {
+          channelId: 'ch-1',
+          messageId: 'msg-1',
+          fromIdentityId: 'user-1',
+          lastEditedAt: '2026-07-15T00:00:00Z',
+          revisionCount: 1,
+        },
+      } as ChatIncomingMessage,
+      h.ctx,
+    );
+    const msg = h.messagesByChannel['ch-1']!.messages[0]!;
+    expect(msg.revisionCount).toBe(1);
+    expect(msg.lastEditedAt).toBe('2026-07-15T00:00:00Z');
+  });
+
+  test('space_message_edited: ignores unknown message', () => {
+    const h = createContext();
+    handleSpaceSocketMessage(
+      {
+        type: 'space_message_edited',
+        data: {
+          channelId: 'ch-1',
+          messageId: 'unknown-msg',
+          fromIdentityId: 'user-1',
+          lastEditedAt: '2026-07-15T00:00:00Z',
+          revisionCount: 1,
+        },
+      } as ChatIncomingMessage,
+      h.ctx,
+    );
+    expect(h.messagesByChannel['ch-1']!.messages).toHaveLength(1);
+    expect(h.messagesByChannel['ch-1']!.messages[0]!.revisionCount).toBe(0);
+  });
+
+  // -------------------------------------------------------------------------
+  // space_message_deleted
+  // -------------------------------------------------------------------------
+
+  test('space_message_deleted: marks message as deleted', () => {
+    const h = createContext();
+    handleSpaceSocketMessage(
+      {
+        type: 'space_message_deleted',
+        data: {
+          channelId: 'ch-1',
+          messageId: 'msg-1',
+          deletedBy: 'user-1',
+        },
+      } as ChatIncomingMessage,
+      h.ctx,
+    );
+    const msg = h.messagesByChannel['ch-1']!.messages[0]!;
+    expect(msg.deleted).toBe(true);
+    expect(msg.content).toBeUndefined();
+  });
+
+  // -------------------------------------------------------------------------
+  // space_reaction_added
+  // -------------------------------------------------------------------------
+
+  test('space_reaction_added: forwards to callback', () => {
+    const h = createContext();
+    handleSpaceSocketMessage(
+      {
+        type: 'space_reaction_added',
+        data: {
+          reaction: {
+            id: 'r-1',
             spaceId: 'space-1',
-            member: { id: 'm-1', spaceId: 'space-1', identityId: 'id-new', roleIds: [], status: 'active', joinedAt: '' },
+            channelId: 'ch-1',
+            messageId: 'msg-1',
+            identityId: 'user-2',
+            emoji: '👍',
+            createdAt: '2026-07-15T00:00:00Z',
           },
-        } as ChatIncomingMessage,
-        ctx,
-      );
+        },
+      } as ChatIncomingMessage,
+      h.ctx,
+    );
+    expect(h.reactionAddedCalls).toHaveLength(1);
+    expect(h.reactionAddedCalls[0]!.emoji).toBe('👍');
+    expect(h.reactionAddedCalls[0]!.fromIdentityId).toBe('user-2');
+  });
 
-      const updater = (ctx.setSpaces as ReturnType<typeof mock>).mock.calls[0][0];
-      const result = updater([makeSpace({ memberCount: 5 })]);
-      expect(result[0].memberCount).toBe(6);
+  // -------------------------------------------------------------------------
+  // space_reaction_removed
+  // -------------------------------------------------------------------------
+
+  test('space_reaction_removed: forwards to callback', () => {
+    const h = createContext();
+    handleSpaceSocketMessage(
+      {
+        type: 'space_reaction_removed',
+        data: {
+          reactionId: 'r-1',
+          messageId: 'msg-1',
+          channelId: 'ch-1',
+        },
+      } as ChatIncomingMessage,
+      h.ctx,
+    );
+    expect(h.reactionRemovedCalls).toHaveLength(1);
+    expect(h.reactionRemovedCalls[0]).toEqual({
+      messageId: 'msg-1',
+      reactionId: 'r-1',
     });
   });
 
-  describe('space_member_left', () => {
-    it('decrements the member count for another user leaving', () => {
-      const ctx = createContext({ identityId: 'my-identity' });
+  // -------------------------------------------------------------------------
+  // space_pins_updated
+  // -------------------------------------------------------------------------
 
-      handleSpaceSocketMessage(
-        {
-          type: 'space_member_left',
-          data: { spaceId: 'space-1', identityId: 'id-other' },
-        } as ChatIncomingMessage,
-        ctx,
-      );
-
-      const updater = (ctx.setSpaces as ReturnType<typeof mock>).mock.calls[0][0];
-      const result = updater([makeSpace({ memberCount: 5 })]);
-      expect(result[0].memberCount).toBe(4);
-    });
-
-    it('removes the space when the current user leaves', () => {
-      const ctx = createContext({ identityId: 'my-identity' });
-
-      handleSpaceSocketMessage(
-        {
-          type: 'space_member_left',
-          data: { spaceId: 'space-1', identityId: 'my-identity' },
-        } as ChatIncomingMessage,
-        ctx,
-      );
-
-      const updater = (ctx.setSpaces as ReturnType<typeof mock>).mock.calls[0][0];
-      const result = updater([makeSpace({ id: 'space-1' }), makeSpace({ id: 'space-2' })]);
-      expect(result).toHaveLength(1);
-      expect(result[0].id).toBe('space-2');
-    });
-
-    it('does not go below 0 members', () => {
-      const ctx = createContext({ identityId: 'my-identity' });
-
-      handleSpaceSocketMessage(
-        {
-          type: 'space_member_left',
-          data: { spaceId: 'space-1', identityId: 'id-other' },
-        } as ChatIncomingMessage,
-        ctx,
-      );
-
-      const updater = (ctx.setSpaces as ReturnType<typeof mock>).mock.calls[0][0];
-      const result = updater([makeSpace({ memberCount: 0 })]);
-      expect(result[0].memberCount).toBe(0);
+  test('space_pins_updated: forwards pinned event', () => {
+    const h = createContext();
+    handleSpaceSocketMessage(
+      {
+        type: 'space_pins_updated',
+        data: {
+          channelId: 'ch-1',
+          messageId: 'msg-1',
+          action: 'pinned',
+          pinnedBy: 'user-1',
+        },
+      } as ChatIncomingMessage,
+      h.ctx,
+    );
+    expect(h.pinsUpdatedCalls).toHaveLength(1);
+    expect(h.pinsUpdatedCalls[0]).toEqual({
+      messageId: 'msg-1',
+      action: 'pinned',
     });
   });
 
-  describe('invite events', () => {
-    it('acknowledges space_invite_received without error', () => {
-      const ctx = createContext();
+  test('space_pins_updated: forwards unpinned event', () => {
+    const h = createContext();
+    handleSpaceSocketMessage(
+      {
+        type: 'space_pins_updated',
+        data: {
+          channelId: 'ch-1',
+          messageId: 'msg-1',
+          action: 'unpinned',
+        },
+      } as ChatIncomingMessage,
+      h.ctx,
+    );
+    expect(h.pinsUpdatedCalls[0]!.action).toBe('unpinned');
+  });
+
+  // -------------------------------------------------------------------------
+  // Unread accumulation
+  // -------------------------------------------------------------------------
+
+  test('unread count accumulates across multiple messages', () => {
+    const h = createContext({ activeChannelId: 'ch-other' });
+    for (let i = 0; i < 3; i++) {
       handleSpaceSocketMessage(
         {
-          type: 'space_invite_received',
+          type: 'space_message',
           data: {
-            invite: {
-              id: 'inv-1', spaceId: 'space-1', invitedIdentityId: 'my-identity',
-              invitedByIdentityId: 'id-other', status: 'pending', memberCount: 1, createdAt: '',
-            },
+            message: makeMessage({
+              id: `msg-new-${i}`,
+              fromIdentityId: 'user-2',
+            }),
           },
         } as ChatIncomingMessage,
-        ctx,
+        h.ctx,
       );
-      expect(ctx.setSpaces).not.toHaveBeenCalled();
-    });
+    }
+    expect(h.unreadByChannel['ch-1']!.unread).toBe(3);
+  });
 
-    it('acknowledges space_invite_accepted without error', () => {
-      const ctx = createContext();
-      handleSpaceSocketMessage(
-        {
-          type: 'space_invite_accepted',
-          data: { spaceId: 'space-1', identityId: 'id-other' },
-        } as ChatIncomingMessage,
-        ctx,
-      );
-      expect(ctx.setSpaces).not.toHaveBeenCalled();
-    });
+  test('mention flag sticks once set', () => {
+    const h = createContext({ activeChannelId: 'ch-other' });
 
-    it('acknowledges space_invite_revoked without error', () => {
-      const ctx = createContext();
-      handleSpaceSocketMessage(
-        {
-          type: 'space_invite_revoked',
-          data: { inviteId: 'inv-1', spaceId: 'space-1' },
-        } as ChatIncomingMessage,
-        ctx,
-      );
-      expect(ctx.setSpaces).not.toHaveBeenCalled();
-    });
+    handleSpaceSocketMessage(
+      {
+        type: 'space_message',
+        data: {
+          message: makeMessage({
+            id: 'msg-mention',
+            fromIdentityId: 'user-2',
+            mentionedIdentityIds: ['me-1'],
+          }),
+        },
+      } as ChatIncomingMessage,
+      h.ctx,
+    );
+
+    handleSpaceSocketMessage(
+      {
+        type: 'space_message',
+        data: {
+          message: makeMessage({
+            id: 'msg-normal',
+            fromIdentityId: 'user-2',
+          }),
+        },
+      } as ChatIncomingMessage,
+      h.ctx,
+    );
+
+    expect(h.unreadByChannel['ch-1']!.unread).toBe(2);
+    expect(h.unreadByChannel['ch-1']!.mention).toBe(true);
   });
 });

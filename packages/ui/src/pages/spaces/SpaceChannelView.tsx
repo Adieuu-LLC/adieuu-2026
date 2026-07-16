@@ -8,7 +8,7 @@
  * on display.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -21,23 +21,33 @@ import {
   type CommunityCipher,
   type SerializedCipherPayload,
 } from '@adieuu/crypto';
+import { createApiClient } from '@adieuu/shared';
 import { useSpaces } from '../../hooks/useSpaces';
 import { useIdentity } from '../../hooks/useIdentity';
+import { useAppConfig } from '../../config';
 import { useCipherStore } from '../../hooks/useCipherStore';
 import { getSpaceCipherLink } from '../../services/spaceCipherService';
 import { parsePayload } from '../../services/messagePayload';
 import { Spinner } from '../../components/Spinner';
 import { MessageComposer } from '../../components/composer/MessageComposer';
-import type { ComposerSendFn } from '../../components/composer/composerTypes';
+import type { ComposerSendFn, ComposerReplyContext } from '../../components/composer/composerTypes';
 import {
   spaceMessageToChannel,
   type ChannelMessage,
 } from '../../components/messaging/channelMessage';
 import { ChannelMessageList } from '../../components/messaging/ChannelMessageList';
+import { ChannelPinsMenu } from '../../components/messaging/ChannelPinsMenu';
 import { buildFlatMessageItems, type ChannelListItem } from '../../utils/buildFlatMessageItems';
 import { useMessageScroll } from '../../hooks/useMessageScroll';
 import { useMessageScrollOrchestration } from '../../hooks/useMessageScrollOrchestration';
+import { useChannelReactions } from '../../hooks/useChannelReactions';
+import { createSpaceReactionsAdapter } from '../../hooks/adapters/spaceReactionsAdapter';
+import { useChannelPins } from '../../hooks/useChannelPins';
+import { createSpacePinsAdapter } from '../../hooks/adapters/spacePinsAdapter';
+import { useReplyParentHydration, buildChannelReplyQuote } from '../../hooks/useReplyParentHydration';
+import { createSpaceReplyAdapter } from '../../hooks/adapters/spaceReplyAdapter';
 import type { PublicSpaceMessage } from '@adieuu/shared';
+import type { ReplyQuotePayload } from '../conversations/conversationUtils';
 
 function decryptBody(
   content: string | undefined,
@@ -61,6 +71,7 @@ function decryptBody(
 export function SpaceChannelView() {
   const { t } = useTranslation();
   const { channelId } = useParams<{ channelId: string }>();
+  const { apiBaseUrl } = useAppConfig();
   const {
     activeSpace,
     channels,
@@ -73,10 +84,16 @@ export function SpaceChannelView() {
     setActiveChannel,
     sendMessage,
     loadOlderMessages,
+    registerSocketCallbacks,
   } = useSpaces();
 
   const { identity } = useIdentity();
   const { getCipherKey } = useCipherStore();
+
+  const api = useMemo(
+    () => createApiClient({ baseUrl: apiBaseUrl }),
+    [apiBaseUrl],
+  );
 
   useEffect(() => {
     if (channelId) {
@@ -101,34 +118,22 @@ export function SpaceChannelView() {
     return getCipherKey(localCipherId);
   }, [isEncrypted, activeSpace, getCipherKey]);
 
-  const onSend: ComposerSendFn = useCallback(
-    async (composerPayload: string) => {
-      const { text } = parsePayload(composerPayload);
-      if (!text) return;
-
-      if (isEncrypted && spaceCipher) {
-        const encrypted = encryptWithCipher(spaceCipher, toBytes(text));
-        const serialized = serializeCipherPayload(encrypted);
-        await sendMessage(JSON.stringify(serialized));
-      } else {
-        await sendMessage(text);
-      }
-    },
-    [sendMessage, isEncrypted, spaceCipher],
+  const decryptContent = useCallback(
+    (content: string | undefined) => decryptBody(content, spaceCipher),
+    [spaceCipher],
   );
 
-  const handleLoadOlder = useCallback(() => {
-    void loadOlderMessages();
-  }, [loadOlderMessages]);
+  // ---------------------------------------------------------------------------
+  // Channel messages
+  // ---------------------------------------------------------------------------
 
-  // Build channel messages from space messages (decrypt + adapt)
   const channelMessages: ChannelMessage[] = useMemo(() => {
     const chronological = [...activeMessages].reverse();
     return chronological.map((msg: PublicSpaceMessage) => {
-      const body = decryptBody(msg.content, spaceCipher);
+      const body = decryptContent(msg.content);
       return spaceMessageToChannel(msg, body);
     });
-  }, [activeMessages, spaceCipher]);
+  }, [activeMessages, decryptContent]);
 
   const messageLayoutKey = useMemo(
     () => channelMessages.map((m) => m.id).join(','),
@@ -139,6 +144,243 @@ export function SpaceChannelView() {
     () => buildFlatMessageItems(channelMessages, 0, 0),
     [channelMessages],
   );
+
+  // ---------------------------------------------------------------------------
+  // Reactions
+  // ---------------------------------------------------------------------------
+
+  const spaceId = activeSpace?.id ?? '';
+
+  const reactionsAdapter = useMemo(
+    () => createSpaceReactionsAdapter(api, spaceId),
+    [api, spaceId],
+  );
+
+  const {
+    getGroupedReactions,
+    onReact,
+    onToggleReaction,
+    fetchReactions,
+    ingestSocketReaction,
+    ingestSocketReactionRemoval,
+  } = useChannelReactions(channelId, reactionsAdapter, identity?.id);
+
+  const prevMessageIdsRef = useRef<string>('');
+  useEffect(() => {
+    const ids = channelMessages.map((m) => m.id).join(',');
+    if (ids && ids !== prevMessageIdsRef.current) {
+      prevMessageIdsRef.current = ids;
+      void fetchReactions(channelMessages.map((m) => m.id));
+    }
+  }, [channelMessages, fetchReactions]);
+
+  // ---------------------------------------------------------------------------
+  // Pins
+  // ---------------------------------------------------------------------------
+
+  const pinsAdapter = useMemo(
+    () => createSpacePinsAdapter(api, spaceId, decryptContent),
+    [api, spaceId, decryptContent],
+  );
+
+  // TODO: determine canManagePins from member role
+  const canManagePins = true;
+
+  const {
+    pinnedMessageIds,
+    pinnedMessageIdsKey,
+    pinnedCount,
+    onPin,
+    onUnpin,
+    loadPinnedMessagesPage,
+    ingestSocketPinChange,
+  } = useChannelPins(channelId, pinsAdapter, canManagePins);
+
+  // ---------------------------------------------------------------------------
+  // Wire socket callbacks for reactions + pins
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    registerSocketCallbacks({
+      onReactionAdded: ingestSocketReaction,
+      onReactionRemoved: ingestSocketReactionRemoval,
+      onPinsUpdated: ingestSocketPinChange,
+    });
+    return () => {
+      registerSocketCallbacks({});
+    };
+  }, [registerSocketCallbacks, ingestSocketReaction, ingestSocketReactionRemoval, ingestSocketPinChange]);
+
+  // ---------------------------------------------------------------------------
+  // Reply parent hydration
+  // ---------------------------------------------------------------------------
+
+  const replyAdapter = useMemo(
+    () => createSpaceReplyAdapter(api, spaceId, decryptContent),
+    [api, spaceId, decryptContent],
+  );
+
+  const { getParentInfo, hydrateAll } = useReplyParentHydration(
+    channelId,
+    channelMessages,
+    replyAdapter,
+  );
+
+  useEffect(() => {
+    if (channelMessages.length > 0) {
+      hydrateAll(channelMessages);
+    }
+  }, [channelMessages, hydrateAll]);
+
+  const replyQuoteBuilder = useCallback(
+    (msg: ChannelMessage): ReplyQuotePayload | null => {
+      if (!msg.replyToMessageId) return null;
+      const parentInfo = getParentInfo(msg.replyToMessageId);
+      return buildChannelReplyQuote(
+        parentInfo,
+        (id) => {
+          const p = participantProfiles[id];
+          return p?.displayName ?? p?.username ?? id.slice(0, 8);
+        },
+        (id) => participantProfiles[id]?.avatarUrl,
+        () => {
+          /* scroll to parent — TODO: implement scrollToMessageId */
+        },
+        t('conversations.replyDeleted', 'Message deleted'),
+        t('conversations.replyOriginal', 'Original message'),
+      );
+    },
+    [getParentInfo, participantProfiles, t],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Reply context for composer
+  // ---------------------------------------------------------------------------
+
+  const [replyContext, setReplyContext] = useState<ComposerReplyContext | null>(null);
+
+  const handleReply = useCallback(
+    (msg: ChannelMessage) => {
+      const name =
+        participantProfiles[msg.fromIdentityId]?.displayName ??
+        participantProfiles[msg.fromIdentityId]?.username ??
+        msg.fromIdentityId.slice(0, 8);
+      const snippet = msg.body
+        ? msg.body.split(/\s+/).slice(0, 6).join(' ') +
+          (msg.body.split(/\s+/).length > 6 ? '…' : '')
+        : t('conversations.replyOriginal', 'Original message');
+      setReplyContext({
+        messageId: msg.id,
+        authorName: name,
+        snippet,
+        onCancel: () => setReplyContext(null),
+      });
+    },
+    [participantProfiles, t],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Edit / Delete
+  // ---------------------------------------------------------------------------
+
+  const [editingMessage, setEditingMessage] = useState<ChannelMessage | null>(null);
+
+  const handleStartEdit = useCallback((msg: ChannelMessage) => {
+    if (msg.revisionCount >= 3) {
+      // MAX_EDITS_REACHED — matches backend limit
+      return;
+    }
+    setEditingMessage(msg);
+    setReplyContext(null);
+  }, []);
+
+  const handleDeleteMessage = useCallback(
+    (messageId: string, forEveryone: boolean) => {
+      if (!spaceId || !channelId) return;
+      void (async () => {
+        try {
+          if (forEveryone) {
+            await api.spaces.modDeleteMessage(spaceId, channelId, messageId);
+          } else {
+            await api.spaces.deleteMessage(spaceId, channelId, messageId);
+          }
+        } catch {
+          // TODO: show error toast
+        }
+      })();
+    },
+    [api, spaceId, channelId],
+  );
+
+  const editingInitialPlaintext = useMemo(() => {
+    if (!editingMessage?.body) return '';
+    return parsePayload(editingMessage.body).text;
+  }, [editingMessage]);
+
+  const editingInitialAttachments = useMemo(() => {
+    if (!editingMessage) return undefined;
+    return {
+      media: editingMessage.attachments ?? [],
+      gifs: editingMessage.gifAttachments ?? [],
+    };
+  }, [editingMessage]);
+
+  // ---------------------------------------------------------------------------
+  // Send / Edit submission
+  // ---------------------------------------------------------------------------
+
+  const onSend: ComposerSendFn = useCallback(
+    async (composerPayload: string) => {
+      const parsed = parsePayload(composerPayload);
+      const hasContent = !!parsed.text || parsed.gifAttachments.length > 0;
+      if (!hasContent) return;
+
+      if (editingMessage) {
+        if (!spaceId || !channelId) return;
+        let content = parsed.text;
+        if (isEncrypted && spaceCipher) {
+          const encrypted = encryptWithCipher(spaceCipher, toBytes(content));
+          content = JSON.stringify(serializeCipherPayload(encrypted));
+        }
+        await api.spaces.editMessage(spaceId, channelId, editingMessage.id, content);
+        setEditingMessage(null);
+        return;
+      }
+
+      const replyToMessageId = replyContext?.messageId;
+      const mentionedIdentityIds = parsed.mentions
+        .map((m) => m.id)
+        .filter((id): id is string => !!id);
+
+      const content = parsed.isStructured ? composerPayload : parsed.text;
+
+      if (isEncrypted && spaceCipher) {
+        const encrypted = encryptWithCipher(spaceCipher, toBytes(content));
+        const serialized = serializeCipherPayload(encrypted);
+        await sendMessage(
+          JSON.stringify(serialized),
+          replyToMessageId,
+          mentionedIdentityIds.length ? mentionedIdentityIds : undefined,
+        );
+      } else {
+        await sendMessage(
+          content,
+          replyToMessageId,
+          mentionedIdentityIds.length ? mentionedIdentityIds : undefined,
+        );
+      }
+      setReplyContext(null);
+    },
+    [sendMessage, isEncrypted, spaceCipher, editingMessage, api, spaceId, channelId, replyContext],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Scroll
+  // ---------------------------------------------------------------------------
+
+  const handleLoadOlder = useCallback(() => {
+    void loadOlderMessages();
+  }, [loadOlderMessages]);
 
   const [, setIsAtBottom] = useState(true);
 
@@ -181,13 +423,12 @@ export function SpaceChannelView() {
     cachedScrollIndex,
   });
 
-  // No-op handlers for actions not yet supported on Space channels
-  const noopDelete = useCallback(() => {}, []);
-  const noopReact = useCallback(() => {}, []);
-  const noopToggleReaction = useCallback(() => {}, []);
+  // ---------------------------------------------------------------------------
+  // Report (stub)
+  // ---------------------------------------------------------------------------
+
   const noopReport = useCallback(() => {}, []);
   const noopFav = useCallback(() => {}, []);
-  const emptyReactions = useCallback(() => [], []);
 
   const handleLinkClick = useCallback((href: string) => {
     window.open(href, '_blank', 'noopener,noreferrer');
@@ -200,6 +441,10 @@ export function SpaceChannelView() {
     },
     [onSend, markJustSent],
   );
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
 
   if (!activeChannel) {
     return (
@@ -219,6 +464,19 @@ export function SpaceChannelView() {
             {t('spaces.encrypted')}
           </span>
         )}
+        <div className="space-channel-toolbar-actions">
+          <ChannelPinsMenu
+            channelId={channelId!}
+            pinnedCount={pinnedCount}
+            pinnedMessageIdsKey={pinnedMessageIdsKey}
+            loadPinnedMessagesPage={loadPinnedMessagesPage}
+            onUnpin={async (msgId) => { await onUnpin(msgId); }}
+            canUnpin={canManagePins}
+            participantProfiles={participantProfiles}
+            memberSettings={{}}
+            identity={identity}
+          />
+        </div>
       </div>
 
       <div className="space-channel-body">
@@ -234,10 +492,10 @@ export function SpaceChannelView() {
           messageLayout="linear"
           memberColorDisplay="name-only"
           favoriteEmojis={[]}
-          getGroupedReactions={emptyReactions}
-          onDeleteMessage={noopDelete}
-          onReact={noopReact}
-          onToggleReaction={noopToggleReaction}
+          getGroupedReactions={getGroupedReactions}
+          onDeleteMessage={handleDeleteMessage}
+          onReact={onReact}
+          onToggleReaction={onToggleReaction}
           onReportMessage={noopReport}
           onAddFavorite={noopFav}
           onRemoveFavorite={noopFav}
@@ -255,6 +513,13 @@ export function SpaceChannelView() {
           hasNewerPages={false}
           onReachNewer={() => {}}
           emptyMessage={t('spaces.channel.noMessages')}
+          pinnedMessageIds={pinnedMessageIds}
+          canManagePins={canManagePins}
+          onPinMessage={(msgId) => void onPin(msgId)}
+          onUnpinMessage={(msgId) => void onUnpin(msgId)}
+          onReply={handleReply}
+          onStartEdit={handleStartEdit}
+          replyQuoteBuilder={replyQuoteBuilder}
         />
       </div>
 
@@ -270,6 +535,18 @@ export function SpaceChannelView() {
             channelId={activeChannelId ?? channelId!}
             sending={sending}
             onSend={wrappedSend}
+            replyContext={replyContext}
+            editContext={
+              editingMessage
+                ? {
+                    messageId: editingMessage.id,
+                    onCancel: () => setEditingMessage(null),
+                  }
+                : null
+            }
+            editingMessageKey={editingMessage?.id ?? null}
+            editingInitialPlaintext={editingInitialPlaintext}
+            editingInitialAttachments={editingInitialAttachments}
           />
         )}
       </div>

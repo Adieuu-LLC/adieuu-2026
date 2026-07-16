@@ -4,6 +4,7 @@ import { useAppConfig } from '../../config';
 import { useIdentity } from '../useIdentity';
 import { useChatSocket } from '../useChatSocket';
 import { onSpacesChanged } from '../../services/spacesMembershipEvents';
+import type { SpaceChannelUnreadState } from '../../services/spaceSocketHandlers';
 import { SpacesContext } from './context';
 import { useSpaceDataFetching } from './useSpaceDataFetching';
 import { useSpaceSend } from './useSpaceSend';
@@ -29,6 +30,13 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   const [messagesByChannel, setMessagesByChannel] = useState<Record<string, SpaceChannelMessagesState>>({});
   const [sending, setSending] = useState(false);
   const [participantProfiles, setParticipantProfiles] = useState<Record<string, PublicIdentity>>({});
+  const [unreadByChannel, setUnreadByChannel] = useState<Record<string, SpaceChannelUnreadState>>({});
+
+  const socketCallbacksRef = useRef<{
+    onReactionAdded?: SpacesContextValue['onSocketReactionAdded'];
+    onReactionRemoved?: SpacesContextValue['onSocketReactionRemoved'];
+    onPinsUpdated?: SpacesContextValue['onSocketPinsUpdated'];
+  }>({});
 
   const activeSpaceIdRef = useRef<string | null>(null);
   const activeChannelIdRef = useRef<string | null>(null);
@@ -113,12 +121,41 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   const setActiveChannel = useCallback(
     (channelId: string | null) => {
       setActiveChannelIdState(channelId);
+      if (channelId) {
+        setUnreadByChannel((prev) => {
+          if (!prev[channelId]) return prev;
+          const { [channelId]: _, ...rest } = prev;
+          return rest;
+        });
+      }
       const spaceId = activeSpaceIdRef.current;
       if (channelId && spaceId) {
         void fetchChannelMessages(spaceId, channelId);
       }
     },
     [fetchChannelMessages],
+  );
+
+  const clearChannelUnread = useCallback(
+    (channelId: string) => {
+      setUnreadByChannel((prev) => {
+        if (!prev[channelId]) return prev;
+        const { [channelId]: _, ...rest } = prev;
+        return rest;
+      });
+    },
+    [],
+  );
+
+  const registerSocketCallbacks = useCallback(
+    (callbacks: {
+      onReactionAdded?: SpacesContextValue['onSocketReactionAdded'];
+      onReactionRemoved?: SpacesContextValue['onSocketReactionRemoved'];
+      onPinsUpdated?: SpacesContextValue['onSocketPinsUpdated'];
+    }) => {
+      socketCallbacksRef.current = callbacks;
+    },
+    [],
   );
 
   // When the space resolves after a channel was already selected (direct
@@ -178,6 +215,8 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     identityIdRef,
     refreshSpacesRef,
     refreshChannelMessagesRef,
+    socketCallbacksRef,
+    setUnreadByChannel,
   });
 
   const activeChannelState = activeChannelId ? messagesByChannel[activeChannelId] : undefined;
@@ -196,11 +235,14 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       activeMessagesOlderCursor: activeChannelState?.olderCursor ?? null,
       sending,
       participantProfiles,
+      unreadByChannel,
       setActiveSpace,
       setActiveChannel,
       sendMessage,
       loadOlderMessages,
       refresh: fetchSpaces,
+      clearChannelUnread,
+      registerSocketCallbacks,
     }),
     [
       spaces,
@@ -213,11 +255,14 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       activeChannelState,
       sending,
       participantProfiles,
+      unreadByChannel,
       setActiveSpace,
       setActiveChannel,
       sendMessage,
       loadOlderMessages,
       fetchSpaces,
+      clearChannelUnread,
+      registerSocketCallbacks,
     ],
   );
 

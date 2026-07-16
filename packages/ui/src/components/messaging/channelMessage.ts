@@ -150,8 +150,10 @@ export function spaceMessageToChannel(
     pageTags: parsed.pageTags,
     customEmojis: parsed.customEmojis,
     senderDeviceId: parsed.senderDeviceId,
-    deleted: false,
-    revisionCount: 0,
+    deleted: msg.deleted ?? false,
+    replyToMessageId: msg.replyToMessageId,
+    revisionCount: msg.revisionCount ?? 0,
+    lastEditedAt: msg.lastEditedAt,
     _sourceSpace: msg,
   };
 }

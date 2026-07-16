@@ -15,7 +15,7 @@ import { Icon } from '../../icons/Icon';
 export function SpaceSecondarySidebar() {
   const { t } = useTranslation();
   const { slug } = useParams<{ slug: string }>();
-  const { activeSpace, channels } = useSpaces();
+  const { activeSpace, channels, unreadByChannel } = useSpaces();
 
   if (!activeSpace) return null;
 
@@ -57,16 +57,31 @@ export function SpaceSecondarySidebar() {
           {t('spaces.sidebar.textChannels')}
         </div>
         <nav className="space-sidebar-channels" aria-label={t('spaces.sidebar.textChannels')}>
-          {channels.map((ch) => (
-            <NavLink
-              key={ch.id}
-              to={`/s/${slug}/c/${ch.id}`}
-              className={navLinkClass}
-            >
-              <span className="space-sidebar-channel-hash">#</span>
-              <span className="space-sidebar-channel-name">{ch.name}</span>
-            </NavLink>
-          ))}
+          {channels.map((ch) => {
+            const unread = unreadByChannel[ch.id];
+            return (
+              <NavLink
+                key={ch.id}
+                to={`/s/${slug}/c/${ch.id}`}
+                className={navLinkClass}
+              >
+                <span className="space-sidebar-channel-hash">#</span>
+                <span className="space-sidebar-channel-name">{ch.name}</span>
+                {unread && unread.unread > 0 && (
+                  <span
+                    className={`space-sidebar-unread-badge${unread.mention ? ' space-sidebar-unread-badge--mention' : ''}`}
+                    aria-label={
+                      unread.mention
+                        ? t('spaces.sidebar.mentionBadge', { count: unread.unread })
+                        : t('spaces.sidebar.unreadBadge', { count: unread.unread })
+                    }
+                  >
+                    {unread.unread}
+                  </span>
+                )}
+              </NavLink>
+            );
+          })}
         </nav>
       </div>
     </aside>

@@ -1,4 +1,5 @@
 import type { PublicIdentity, PublicSpace, PublicSpaceChannel, PublicSpaceMessage } from '@adieuu/shared';
+import type { SpaceChannelUnreadState } from '../../services/spaceSocketHandlers';
 
 export interface SpaceChannelMessagesState {
   messages: PublicSpaceMessage[];
@@ -36,9 +37,30 @@ export interface SpacesContextValue {
   /** Resolved profiles for message authors, keyed by identity ID. */
   participantProfiles: Record<string, PublicIdentity>;
 
+  /** Per-channel unread/mention state. */
+  unreadByChannel: Record<string, SpaceChannelUnreadState>;
+
+  /** Callbacks for forwarding socket events to feature hooks. */
+  onSocketReactionAdded?: (reaction: {
+    id: string;
+    messageId: string;
+    channelId: string;
+    fromIdentityId: string;
+    emoji: string;
+    createdAt: string;
+  }) => void;
+  onSocketReactionRemoved?: (messageId: string, reactionId: string) => void;
+  onSocketPinsUpdated?: (messageId: string, action: 'pinned' | 'unpinned') => void;
+
   setActiveSpace: (slug: string | null) => void;
   setActiveChannel: (channelId: string | null) => void;
-  sendMessage: (content: string) => Promise<PublicSpaceMessage | null>;
+  sendMessage: (content: string, replyToMessageId?: string, mentionedIdentityIds?: string[]) => Promise<PublicSpaceMessage | null>;
   loadOlderMessages: () => Promise<void>;
   refresh: () => Promise<void>;
+  clearChannelUnread: (channelId: string) => void;
+  registerSocketCallbacks: (callbacks: {
+    onReactionAdded?: SpacesContextValue['onSocketReactionAdded'];
+    onReactionRemoved?: SpacesContextValue['onSocketReactionRemoved'];
+    onPinsUpdated?: SpacesContextValue['onSocketPinsUpdated'];
+  }) => void;
 }

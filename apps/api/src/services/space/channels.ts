@@ -280,6 +280,7 @@ export async function editSpaceMessage(
       channelId: channelId.toHexString(),
       messageId: messageId.toHexString(),
       fromIdentityId: callerId.toHexString(),
+      content: publicMessage.content,
       lastEditedAt: publicMessage.lastEditedAt,
       revisionCount: publicMessage.revisionCount,
     },

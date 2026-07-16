@@ -1,7 +1,7 @@
 import { useEffect, type MutableRefObject } from 'react';
 import type { ChatIncomingMessage, ChatConnectionState, PublicSpace, PublicSpaceMessage } from '@adieuu/shared';
-import { handleSpaceSocketMessage } from '../../services/spaceSocketHandlers';
-import type { SpaceChannelMessagesState } from './types';
+import { handleSpaceSocketMessage, type SpaceChannelUnreadState } from '../../services/spaceSocketHandlers';
+import type { SpaceChannelMessagesState, SpacesContextValue } from './types';
 
 export interface SpacesSocketEffectsParams {
   isLoggedIn: boolean;
@@ -14,6 +14,12 @@ export interface SpacesSocketEffectsParams {
   identityIdRef: MutableRefObject<string | undefined>;
   refreshSpacesRef: MutableRefObject<() => Promise<void>>;
   refreshChannelMessagesRef: MutableRefObject<(spaceId: string, channelId: string) => void>;
+  socketCallbacksRef: MutableRefObject<{
+    onReactionAdded?: SpacesContextValue['onSocketReactionAdded'];
+    onReactionRemoved?: SpacesContextValue['onSocketReactionRemoved'];
+    onPinsUpdated?: SpacesContextValue['onSocketPinsUpdated'];
+  }>;
+  setUnreadByChannel: React.Dispatch<React.SetStateAction<Record<string, SpaceChannelUnreadState>>>;
 }
 
 export function useSpacesSocketEffects(params: SpacesSocketEffectsParams): void {
@@ -28,6 +34,8 @@ export function useSpacesSocketEffects(params: SpacesSocketEffectsParams): void 
     identityIdRef,
     refreshSpacesRef,
     refreshChannelMessagesRef,
+    socketCallbacksRef,
+    setUnreadByChannel,
   } = params;
 
   useEffect(() => {
@@ -43,6 +51,13 @@ export function useSpacesSocketEffects(params: SpacesSocketEffectsParams): void 
         fetchChannelMessages: (spaceId, channelId) =>
           refreshChannelMessagesRef.current(spaceId, channelId),
         refreshSpaces: () => void refreshSpacesRef.current(),
+        onSocketReactionAdded: (reaction) =>
+          socketCallbacksRef.current.onReactionAdded?.(reaction),
+        onSocketReactionRemoved: (messageId, reactionId) =>
+          socketCallbacksRef.current.onReactionRemoved?.(messageId, reactionId),
+        onSocketPinsUpdated: (messageId, action) =>
+          socketCallbacksRef.current.onPinsUpdated?.(messageId, action),
+        setUnreadByChannel: (updater) => setUnreadByChannel((prev) => updater(prev)),
       });
     });
 

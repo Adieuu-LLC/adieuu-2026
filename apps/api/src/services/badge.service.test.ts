@@ -10,11 +10,13 @@ type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const mockAddEarnedBadge = mock(() => Promise.resolve(true)) as AnyMock;
+const mockAddEarnedBadges = mock(() => Promise.resolve(true)) as AnyMock;
 const mockHasEarnedBadge = mock(() => Promise.resolve(false)) as AnyMock;
 
 mock.module('../repositories/identity.repository', () => ({
   getIdentityRepository: () => ({
     addEarnedBadge: mockAddEarnedBadge,
+    addEarnedBadges: mockAddEarnedBadges,
     hasEarnedBadge: mockHasEarnedBadge,
   }),
 }));
@@ -52,10 +54,12 @@ afterAll(() => {
 describe('badge.service', () => {
   beforeEach(() => {
     mockAddEarnedBadge.mockReset();
+    mockAddEarnedBadges.mockReset();
     mockHasEarnedBadge.mockReset();
     mockGetByIdentity.mockReset();
 
     mockAddEarnedBadge.mockImplementation(() => Promise.resolve(true));
+    mockAddEarnedBadges.mockImplementation(() => Promise.resolve(true));
     mockHasEarnedBadge.mockImplementation(() => Promise.resolve(false));
     mockGetByIdentity.mockImplementation(() => Promise.resolve([]));
   });
@@ -65,53 +69,52 @@ describe('badge.service', () => {
       const id = new ObjectId();
       await awardOrderBadges(id, 42);
 
-      expect(mockAddEarnedBadge).toHaveBeenCalledTimes(2);
-      expect(mockAddEarnedBadge).toHaveBeenCalledWith(id, 'top1000');
-      expect(mockAddEarnedBadge).toHaveBeenCalledWith(id, 'top100');
+      expect(mockAddEarnedBadges).toHaveBeenCalledTimes(1);
+      expect(mockAddEarnedBadges).toHaveBeenCalledWith(id, ['top1000', 'top100']);
     });
 
     test('awards only top1000 when 100 < creationOrder <= 1000', async () => {
       const id = new ObjectId();
       await awardOrderBadges(id, 500);
 
-      expect(mockAddEarnedBadge).toHaveBeenCalledTimes(1);
-      expect(mockAddEarnedBadge).toHaveBeenCalledWith(id, 'top1000');
+      expect(mockAddEarnedBadges).toHaveBeenCalledTimes(1);
+      expect(mockAddEarnedBadges).toHaveBeenCalledWith(id, ['top1000']);
     });
 
     test('short-circuits when creationOrder > 1000', async () => {
       const id = new ObjectId();
       await awardOrderBadges(id, 5000);
 
-      expect(mockAddEarnedBadge).not.toHaveBeenCalled();
+      expect(mockAddEarnedBadges).not.toHaveBeenCalled();
     });
 
     test('handles boundary creationOrder = 100 exactly', async () => {
       const id = new ObjectId();
       await awardOrderBadges(id, 100);
 
-      expect(mockAddEarnedBadge).toHaveBeenCalledWith(id, 'top100');
-      expect(mockAddEarnedBadge).toHaveBeenCalledWith(id, 'top1000');
+      expect(mockAddEarnedBadges).toHaveBeenCalledTimes(1);
+      expect(mockAddEarnedBadges).toHaveBeenCalledWith(id, ['top1000', 'top100']);
     });
 
     test('handles boundary creationOrder = 1000 exactly', async () => {
       const id = new ObjectId();
       await awardOrderBadges(id, 1000);
 
-      expect(mockAddEarnedBadge).toHaveBeenCalledTimes(1);
-      expect(mockAddEarnedBadge).toHaveBeenCalledWith(id, 'top1000');
+      expect(mockAddEarnedBadges).toHaveBeenCalledTimes(1);
+      expect(mockAddEarnedBadges).toHaveBeenCalledWith(id, ['top1000']);
     });
 
     test('accepts string identity id', async () => {
       const id = new ObjectId();
       await awardOrderBadges(id.toHexString(), 1);
 
-      expect(mockAddEarnedBadge).toHaveBeenCalledTimes(2);
+      expect(mockAddEarnedBadges).toHaveBeenCalledTimes(1);
     });
 
     test('swallows errors gracefully', async () => {
-      mockAddEarnedBadge.mockImplementation(() => Promise.reject(new Error('db down')));
+      mockAddEarnedBadges.mockImplementation(() => Promise.reject(new Error('db down')));
       await awardOrderBadges(new ObjectId(), 50);
-      expect(mockAddEarnedBadge).toHaveBeenCalled();
+      expect(mockAddEarnedBadges).toHaveBeenCalled();
     });
   });
 

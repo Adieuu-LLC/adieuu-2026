@@ -6,7 +6,12 @@ type SpacesSendApiLike = {
   sendMessage: (
     spaceId: string,
     channelId: string,
-    params: { content: string; clientMessageId: string },
+    params: {
+      content: string;
+      clientMessageId: string;
+      replyToMessageId?: string;
+      mentionedIdentityIds?: string[];
+    },
   ) => Promise<{ success: boolean; data?: PublicSpaceMessage }>;
 };
 
@@ -23,7 +28,11 @@ export function useSpaceSend(params: SpaceSendParams) {
   const sendingRef = useRef(false);
 
   const sendMessage = useCallback(
-    async (content: string): Promise<PublicSpaceMessage | null> => {
+    async (
+      content: string,
+      replyToMessageId?: string,
+      mentionedIdentityIds?: string[],
+    ): Promise<PublicSpaceMessage | null> => {
       const spaceId = activeSpaceIdRef.current;
       const channelId = activeChannelIdRef.current;
       if (!spaceId || !channelId || sendingRef.current) return null;
@@ -35,6 +44,8 @@ export function useSpaceSend(params: SpaceSendParams) {
         const res = await api.spaces.sendMessage(spaceId, channelId, {
           content,
           clientMessageId,
+          ...(replyToMessageId ? { replyToMessageId } : {}),
+          ...(mentionedIdentityIds?.length ? { mentionedIdentityIds } : {}),
         });
         if (res.success && res.data) {
           setMessagesByChannel((prev) => {

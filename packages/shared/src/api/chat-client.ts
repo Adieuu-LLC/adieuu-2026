@@ -451,6 +451,7 @@ export interface ChatSpaceMessageEditedMessage extends ChatMessageBase {
     channelId: string;
     messageId: string;
     fromIdentityId: string;
+    content?: string;
     lastEditedAt?: string;
     revisionCount: number;
   };
