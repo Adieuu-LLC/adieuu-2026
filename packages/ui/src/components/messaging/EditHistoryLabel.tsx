@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Popover, Portal } from '@ark-ui/react';
 import { parsePayload } from '../../services/messagePayload';
@@ -33,20 +33,29 @@ export function EditHistoryLabel({ lastEditedAt, loadHistory, className, variant
   const [loading, setLoading] = useState(false);
   const [entries, setEntries] = useState<EditHistoryEntry[] | null>(null);
   const [fetchFailed, setFetchFailed] = useState(false);
+  const generationRef = useRef(0);
 
   const load = useCallback(async () => {
+    const gen = ++generationRef.current;
     setLoading(true);
     setFetchFailed(false);
     try {
       const data = await loadHistory();
+      if (gen !== generationRef.current) return;
       if (data == null) {
         setFetchFailed(true);
         setEntries([]);
         return;
       }
       setEntries(data);
+    } catch {
+      if (gen !== generationRef.current) return;
+      setFetchFailed(true);
+      setEntries([]);
     } finally {
-      setLoading(false);
+      if (gen === generationRef.current) {
+        setLoading(false);
+      }
     }
   }, [loadHistory]);
 
@@ -56,6 +65,7 @@ export function EditHistoryLabel({ lastEditedAt, loadHistory, className, variant
       onOpenChange={(e) => {
         setOpen(e.open);
         if (!e.open) {
+          generationRef.current++;
           setEntries(null);
           setFetchFailed(false);
           setLoading(false);

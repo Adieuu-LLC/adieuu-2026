@@ -57,7 +57,7 @@ export function toPublicSpaceMessage(doc: SpaceMessageDocument): PublicSpaceMess
     deleted: doc.deleted ?? false,
     revisionCount: doc.revisionCount ?? 0,
     ...(doc.lastEditedAt ? { lastEditedAt: doc.lastEditedAt.toISOString() } : {}),
-    ...(doc.revisionHistory?.length
+    ...(!doc.deleted && doc.revisionHistory?.length
       ? { revisionHistory: doc.revisionHistory.map((r) => ({ content: r.content, replacedAt: r.replacedAt.toISOString() })) }
       : {}),
     ...(doc.replyToMessageId ? { replyToMessageId: doc.replyToMessageId.toHexString() } : {}),

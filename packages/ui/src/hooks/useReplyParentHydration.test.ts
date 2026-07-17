@@ -159,6 +159,20 @@ describe('useReplyParentHydration', () => {
     expect(ref.getParentInfo('missing-parent')).toBeNull();
   });
 
+  it('handles rejected fetchMessage without unhandled rejection', async () => {
+    const adapter: ReplyParentFetchAdapter = {
+      fetchMessage: async () => { throw new Error('network failure'); },
+    };
+    const child = makeMsg('child-1', { replyToMessageId: 'err-parent' });
+    const ref = renderHook('ch-1', [child], adapter);
+
+    await act(async () => {
+      await ref.ensureHydrated('err-parent');
+    });
+
+    expect(ref.getParentInfo('err-parent')).toBeNull();
+  });
+
   it('hydrateAll triggers fetch for messages with replyToMessageId', async () => {
     const fetched = makeMsg('parent-all', { body: 'Batch body' });
     let fetchedIds: string[] = [];

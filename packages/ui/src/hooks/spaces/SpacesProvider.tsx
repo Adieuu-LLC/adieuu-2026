@@ -218,9 +218,14 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     await fetchChannelMessages(spaceId, channelId, state.olderCursor);
   }, [messagesByChannel, fetchChannelMessages]);
 
+  const spacesRef = useRef(spaces);
+  spacesRef.current = spaces;
+
   const fireNotification = useCallback(
-    (title: string, body: string, options: { isMention?: boolean; channelId: string; spaceSlug?: string; onClick?: () => void }) => {
-      const slug = options.spaceSlug ?? activeSpaceInternal?.slug;
+    (title: string, body: string, options: { isMention?: boolean; channelId: string; spaceId?: string; spaceSlug?: string; onClick?: () => void }) => {
+      const slug = options.spaceSlug
+        ?? (options.spaceId ? spacesRef.current.find((s) => s.id === options.spaceId)?.slug : undefined)
+        ?? activeSpaceInternal?.slug;
       const navTo = options.onClick ?? (() => {
         if (slug) navigate(`/s/${slug}/c/${options.channelId}`);
       });

@@ -39,7 +39,7 @@ export interface SpaceSocketHandlerContext {
   fireNotification?: (
     title: string,
     body: string,
-    options: { isMention?: boolean; channelId: string; spaceSlug?: string; onClick?: () => void },
+    options: { isMention?: boolean; channelId: string; spaceId?: string; spaceSlug?: string; onClick?: () => void },
   ) => void;
   /** Resolved channel names keyed by channel ID, used for notification copy. */
   channelNames?: Record<string, string>;
@@ -111,22 +111,20 @@ export function handleSpaceSocketMessage(
 
       const isFromSelf = msg.fromIdentityId === ctx.identityId;
 
-      if (!isActiveChannel || !isFromSelf) {
-        if (!isActiveChannel) {
-          const isMention =
-            !!ctx.identityId &&
-            !!msg.mentionedIdentityIds?.includes(ctx.identityId);
-          ctx.setUnreadByChannel?.((prev) => {
-            const cur = prev[msg.channelId] ?? { unread: 0, mention: false };
-            return {
-              ...prev,
-              [msg.channelId]: {
-                unread: cur.unread + 1,
-                mention: cur.mention || isMention,
-              },
-            };
-          });
-        }
+      if (!isActiveChannel && !isFromSelf) {
+        const isMention =
+          !!ctx.identityId &&
+          !!msg.mentionedIdentityIds?.includes(ctx.identityId);
+        ctx.setUnreadByChannel?.((prev) => {
+          const cur = prev[msg.channelId] ?? { unread: 0, mention: false };
+          return {
+            ...prev,
+            [msg.channelId]: {
+              unread: cur.unread + 1,
+              mention: cur.mention || isMention,
+            },
+          };
+        });
       }
 
       if (!isFromSelf && ctx.fireNotification) {
@@ -143,19 +141,19 @@ export function handleSpaceSocketMessage(
         if (isReplyToMe) {
           ctx.fireNotification('Reply', `Someone replied to your message in #${channelName}`, {
             channelId: msg.channelId,
-            spaceSlug: undefined,
+            spaceId: msg.spaceId,
             isMention,
           });
         } else if (isMention) {
           ctx.fireNotification('Mention', `You were mentioned in #${channelName}`, {
             channelId: msg.channelId,
-            spaceSlug: undefined,
+            spaceId: msg.spaceId,
             isMention: true,
           });
         } else if (!isActiveChannel) {
           ctx.fireNotification('New message', `New message in #${channelName}`, {
             channelId: msg.channelId,
-            spaceSlug: undefined,
+            spaceId: msg.spaceId,
           });
         }
       }
@@ -224,7 +222,7 @@ export function handleSpaceSocketMessage(
           ctx.fireNotification(
             'Reaction',
             `Someone reacted ${reaction.emoji} to your message in #${channelName}`,
-            { channelId: reaction.channelId, spaceSlug: undefined },
+            { channelId: reaction.channelId, spaceId: reaction.spaceId },
           );
         }
       }

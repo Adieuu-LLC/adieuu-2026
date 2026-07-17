@@ -21,7 +21,7 @@ export interface SpacesSocketEffectsParams {
   }>;
   setUnreadByChannel: React.Dispatch<React.SetStateAction<Record<string, SpaceChannelUnreadState>>>;
   fireNotificationRef: MutableRefObject<
-    ((title: string, body: string, options: { isMention?: boolean; channelId: string; spaceSlug?: string; onClick?: () => void }) => void) | undefined
+    ((title: string, body: string, options: { isMention?: boolean; channelId: string; spaceId?: string; spaceSlug?: string; onClick?: () => void }) => void) | undefined
   >;
   channelNamesRef: MutableRefObject<Record<string, string>>;
   activeChannelMessagesRef: MutableRefObject<PublicSpaceMessage[]>;

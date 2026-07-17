@@ -138,6 +138,7 @@ export class SpaceMessageRepository extends BaseRepository<SpaceMessageDocument>
       { _id: messageId } as Filter<SpaceMessageDocument>,
       {
         $set: { deleted: true, content: '', updatedAt: now },
+        $unset: { revisionHistory: '' },
       } as UpdateFilter<SpaceMessageDocument>,
       { returnDocument: 'after' },
     );

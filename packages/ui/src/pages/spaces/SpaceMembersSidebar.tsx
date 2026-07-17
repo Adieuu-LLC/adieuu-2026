@@ -34,21 +34,36 @@ export function SpaceMembersSidebar({
   const [loading, setLoading] = useState(true);
   const [cursor, setCursor] = useState<string | null>(null);
   const loadingRef = useRef(false);
+  const generationRef = useRef(0);
+
+  useEffect(() => {
+    generationRef.current++;
+    setMembers([]);
+    setCursor(null);
+    setLoading(true);
+    loadingRef.current = false;
+  }, [spaceId]);
 
   const loadPage = useCallback(
     async (c?: string | null) => {
       if (loadingRef.current) return;
+      const gen = c ? generationRef.current : ++generationRef.current;
       loadingRef.current = true;
       setLoading(true);
       try {
         const res = await listMembers(spaceId, { limit: PAGE_SIZE, cursor: c ?? undefined });
+        if (gen !== generationRef.current) return;
         if (res.success && res.data) {
           setMembers((prev) => (c ? [...prev, ...res.data!.members] : res.data!.members));
           setCursor(res.data.cursor);
         }
+      } catch {
+        // consumed -- void call sites cannot handle rejections
       } finally {
-        loadingRef.current = false;
-        setLoading(false);
+        if (gen === generationRef.current) {
+          loadingRef.current = false;
+          setLoading(false);
+        }
       }
     },
     [listMembers, spaceId],
@@ -68,7 +83,7 @@ export function SpaceMembersSidebar({
     (member: PublicSpaceMember): string | null => {
       for (const roleId of member.roleIds) {
         const role = roleMap.get(roleId);
-        if (role && role.name !== 'Member') return role.name;
+        if (role && !role.isDefaultMember) return role.name;
       }
       return null;
     },

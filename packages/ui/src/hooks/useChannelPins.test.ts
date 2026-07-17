@@ -71,6 +71,7 @@ interface HookResult {
     cursor?: string | null,
   ) => Promise<{ messages: ChannelMessage[]; nextCursor: string | null } | null>;
   ingestSocketPinsUpdate: (pinIds: string[]) => void;
+  ingestSocketPinChange: (messageId: string, action: 'pinned' | 'unpinned') => void;
 }
 
 function renderHook(
@@ -190,6 +191,36 @@ describe('useChannelPins', () => {
 
     expect(ref.pinnedMessageIds).toEqual(['msg-a', 'msg-b', 'msg-c']);
     expect(ref.pinnedCount).toBe(3);
+  });
+
+  it('duplicate onPin does not inflate pinnedCount', async () => {
+    const adapter = makeAdapter({ pinMessage: async () => true });
+    const ref = renderHook('ch-1', adapter);
+
+    await act(async () => {
+      await ref.onPin('msg-1');
+    });
+    await act(async () => {
+      await ref.onPin('msg-1');
+    });
+
+    expect(ref.pinnedMessageIds).toEqual(['msg-1']);
+    expect(ref.pinnedCount).toBe(1);
+  });
+
+  it('duplicate ingestSocketPinChange does not inflate pinnedCount', () => {
+    const adapter = makeAdapter();
+    const ref = renderHook('ch-1', adapter);
+
+    act(() => {
+      ref.ingestSocketPinsUpdate(['msg-1']);
+    });
+    act(() => {
+      ref.ingestSocketPinChange('msg-1', 'pinned');
+    });
+
+    expect(ref.pinnedMessageIds).toEqual(['msg-1']);
+    expect(ref.pinnedCount).toBe(1);
   });
 
   it('does not allow pin when canManage is false', async () => {

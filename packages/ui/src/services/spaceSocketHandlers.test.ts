@@ -53,7 +53,7 @@ function createContext(
   const notificationCalls: Array<{
     title: string;
     body: string;
-    options: { isMention?: boolean; channelId: string; spaceSlug?: string; onClick?: () => void };
+    options: { isMention?: boolean; channelId: string; spaceId?: string; spaceSlug?: string; onClick?: () => void };
   }> = [];
 
   const ctx: SpaceSocketHandlerContext = {
@@ -133,8 +133,8 @@ describe('spaceSocketHandlers', () => {
     expect(h.messagesByChannel['ch-1']!.messages[0]!.id).toBe('msg-2');
   });
 
-  test('space_message: does not increment unread for active channel from own user', () => {
-    const h = createContext();
+  test('space_message: does not increment unread for own message on inactive channel', () => {
+    const h = createContext({ activeChannelId: 'ch-other' });
     const msg = makeMessage({ id: 'msg-2', fromIdentityId: 'me-1' });
     handleSpaceSocketMessage(
       {
@@ -410,6 +410,7 @@ describe('spaceSocketHandlers', () => {
     expect(h.notificationCalls).toHaveLength(1);
     expect(h.notificationCalls[0]!.title).toBe('New message');
     expect(h.notificationCalls[0]!.body).toContain('#general');
+    expect(h.notificationCalls[0]!.options.spaceId).toBe('space-1');
   });
 
   test('space_message: fires reply notification when replyToMessageAuthorId matches self', () => {
@@ -427,6 +428,7 @@ describe('spaceSocketHandlers', () => {
     expect(h.notificationCalls).toHaveLength(1);
     expect(h.notificationCalls[0]!.title).toBe('Reply');
     expect(h.notificationCalls[0]!.body).toContain('replied to your message');
+    expect(h.notificationCalls[0]!.options.spaceId).toBe('space-1');
   });
 
   test('space_message: fires mention notification when user is mentioned', () => {
@@ -443,6 +445,7 @@ describe('spaceSocketHandlers', () => {
     expect(h.notificationCalls).toHaveLength(1);
     expect(h.notificationCalls[0]!.title).toBe('Mention');
     expect(h.notificationCalls[0]!.options.isMention).toBe(true);
+    expect(h.notificationCalls[0]!.options.spaceId).toBe('space-1');
   });
 
   test('space_message: does NOT fire notification for own message', () => {
@@ -484,6 +487,7 @@ describe('spaceSocketHandlers', () => {
     expect(h.notificationCalls).toHaveLength(1);
     expect(h.notificationCalls[0]!.title).toBe('Reaction');
     expect(h.notificationCalls[0]!.body).toContain('🎉');
+    expect(h.notificationCalls[0]!.options.spaceId).toBe('space-1');
   });
 
   test('space_reaction_added: does NOT fire notification for reaction on others message', () => {

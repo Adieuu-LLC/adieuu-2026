@@ -147,12 +147,16 @@ export async function sendSpaceMessage(
 
   let mentionedObjIds: ObjectId[] | undefined;
   if (params.mentionedIdentityIds?.length) {
+    const seen = new Set<string>();
     mentionedObjIds = [];
     for (const id of params.mentionedIdentityIds) {
       const parsed = parseObjId(id);
       if (!parsed) {
         return { success: false, error: 'Invalid mention id.', errorCode: 'INVALID_ID' };
       }
+      const hex = parsed.toHexString();
+      if (seen.has(hex)) continue;
+      seen.add(hex);
       mentionedObjIds.push(parsed);
     }
   }

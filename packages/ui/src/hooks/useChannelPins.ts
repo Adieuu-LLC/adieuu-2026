@@ -31,7 +31,6 @@ export function useChannelPins(
   canManage: boolean,
 ) {
   const [pinnedMessageIds, setPinnedMessageIds] = useState<string[]>([]);
-  const [pinnedCount, setPinnedCount] = useState(0);
 
   const adapterRef = useRef(adapter);
   adapterRef.current = adapter;
@@ -40,7 +39,6 @@ export function useChannelPins(
 
   useEffect(() => {
     setPinnedMessageIds([]);
-    setPinnedCount(0);
   }, [channelId]);
 
   const pinnedMessageIdsKey = useMemo(
@@ -56,17 +54,14 @@ export function useChannelPins(
       setPinnedMessageIds((prev) =>
         prev.includes(messageId) ? prev : [...prev, messageId],
       );
-      setPinnedCount((c) => c + 1);
 
       try {
         const ok = await adapterRef.current.pinMessage(cId, messageId);
         if (!ok) {
           setPinnedMessageIds((prev) => prev.filter((id) => id !== messageId));
-          setPinnedCount((c) => Math.max(0, c - 1));
         }
       } catch {
         setPinnedMessageIds((prev) => prev.filter((id) => id !== messageId));
-        setPinnedCount((c) => Math.max(0, c - 1));
       }
     },
     [canManage],
@@ -78,7 +73,6 @@ export function useChannelPins(
       if (!cId || !canManage) return;
 
       setPinnedMessageIds((prev) => prev.filter((id) => id !== messageId));
-      setPinnedCount((c) => Math.max(0, c - 1));
 
       try {
         const ok = await adapterRef.current.unpinMessage(cId, messageId);
@@ -86,13 +80,11 @@ export function useChannelPins(
           setPinnedMessageIds((prev) =>
             prev.includes(messageId) ? prev : [...prev, messageId],
           );
-          setPinnedCount((c) => c + 1);
         }
       } catch {
         setPinnedMessageIds((prev) =>
           prev.includes(messageId) ? prev : [...prev, messageId],
         );
-        setPinnedCount((c) => c + 1);
       }
     },
     [canManage],
@@ -108,7 +100,6 @@ export function useChannelPins(
   const ingestSocketPinsUpdate = useCallback(
     (pinIds: string[]) => {
       setPinnedMessageIds(pinIds);
-      setPinnedCount(pinIds.length);
     },
     [],
   );
@@ -119,10 +110,8 @@ export function useChannelPins(
         setPinnedMessageIds((prev) =>
           prev.includes(messageId) ? prev : [...prev, messageId],
         );
-        setPinnedCount((c) => c + 1);
       } else {
         setPinnedMessageIds((prev) => prev.filter((id) => id !== messageId));
-        setPinnedCount((c) => Math.max(0, c - 1));
       }
     },
     [],
@@ -132,7 +121,7 @@ export function useChannelPins(
     () => ({
       pinnedMessageIds,
       pinnedMessageIdsKey,
-      pinnedCount,
+      pinnedCount: pinnedMessageIds.length,
       canManagePins: canManage,
       onPin,
       onUnpin,
@@ -143,7 +132,6 @@ export function useChannelPins(
     [
       pinnedMessageIds,
       pinnedMessageIdsKey,
-      pinnedCount,
       canManage,
       onPin,
       onUnpin,

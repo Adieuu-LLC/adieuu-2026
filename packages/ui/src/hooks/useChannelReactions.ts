@@ -160,8 +160,11 @@ export function useChannelReactions(
             allReactions.push(...reactions);
           }),
         );
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || channelIdRef.current !== cId) return;
         const byMessage: Record<string, ChannelReaction[]> = {};
+        for (const msgId of messageIds) {
+          byMessage[msgId] = [];
+        }
         for (const r of allReactions) {
           (byMessage[r.messageId] ??= []).push(r);
         }
@@ -183,7 +186,7 @@ export function useChannelReactions(
           return { byMessage: merged, loading: false };
         });
       } catch {
-        if (mountedRef.current) {
+        if (mountedRef.current && channelIdRef.current === cId) {
           setState((prev) => ({ ...prev, loading: false }));
         }
       }
@@ -218,7 +221,7 @@ export function useChannelReactions(
 
       try {
         const result = await adapterRef.current.addReaction(cId, messageId, emoji, customEmoji);
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || channelIdRef.current !== cId) return;
         setState((prev) => {
           const existing = prev.byMessage[messageId] ?? [];
           const withoutOptimistic = existing.filter((r) => r.id !== optimisticId);
@@ -243,7 +246,7 @@ export function useChannelReactions(
           };
         });
       } catch {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || channelIdRef.current !== cId) return;
         setState((prev) => ({
           ...prev,
           byMessage: {
@@ -291,6 +294,7 @@ export function useChannelReactions(
 
       try {
         const ok = await adapterRef.current.removeReaction(cId, messageId, reactionId);
+        if (channelIdRef.current !== cId) return;
         if (!ok && previous) {
           setState((prev) => ({
             ...prev,
@@ -301,6 +305,7 @@ export function useChannelReactions(
           }));
         }
       } catch {
+        if (channelIdRef.current !== cId) return;
         if (previous) {
           setState((prev) => {
             const existing = prev.byMessage[messageId] ?? [];

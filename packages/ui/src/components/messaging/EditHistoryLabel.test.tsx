@@ -5,9 +5,14 @@ import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import { EditHistoryLabel, type EditHistoryLabelProps } from './EditHistoryLabel';
 
+let popoverOnOpenChange: ((e: { open: boolean }) => void) | undefined;
+
 mock.module('@ark-ui/react', () => ({
   Popover: {
-    Root: ({ children }: { children: React.ReactNode }) => createElement('div', { 'data-testid': 'popover-root' }, children),
+    Root: ({ children, onOpenChange }: { children: React.ReactNode; open?: boolean; onOpenChange?: (e: { open: boolean }) => void }) => {
+      popoverOnOpenChange = onOpenChange;
+      return createElement('div', { 'data-testid': 'popover-root' }, children);
+    },
     Trigger: ({ children }: { children: React.ReactNode }) => createElement('div', { 'data-testid': 'popover-trigger' }, children),
     Content: ({ children, className }: { children: React.ReactNode; className?: string }) =>
       createElement('div', { 'data-testid': 'popover-content', className }, children),
@@ -90,5 +95,58 @@ describe('EditHistoryLabel', () => {
   it('shows viewEditHistory when lastEditedAt is absent', () => {
     const c = render({ lastEditedAt: undefined });
     expect(c.innerHTML).toContain('conversations.viewEditHistory');
+  });
+
+  it('sets fetchFailed when loadHistory rejects', async () => {
+    const c = render({
+      loadHistory: () => Promise.reject(new Error('network')),
+    });
+
+    await act(async () => {
+      popoverOnOpenChange?.({ open: true });
+      await new Promise((r) => setTimeout(r, 20));
+    });
+
+    expect(c.innerHTML).toContain('conversations.loadEditHistoryFailed');
+  });
+
+  it('stale response after close/reopen does not update state', async () => {
+    let resolveFirst!: (v: null) => void;
+    let callCount = 0;
+    const loadHistory = () => {
+      callCount++;
+      if (callCount === 1) {
+        return new Promise<null>((r) => { resolveFirst = r; });
+      }
+      return Promise.resolve([{ replacedAt: '2026-01-01T00:00:00Z', plaintext: 'second' }]);
+    };
+
+    const c = render({ loadHistory });
+
+    // Open popover — starts first (slow) request
+    await act(async () => {
+      popoverOnOpenChange?.({ open: true });
+    });
+
+    // Close popover — invalidates first request
+    await act(async () => {
+      popoverOnOpenChange?.({ open: false });
+    });
+
+    // Reopen popover — starts second (fast) request
+    await act(async () => {
+      popoverOnOpenChange?.({ open: true });
+      await new Promise((r) => setTimeout(r, 20));
+    });
+
+    // First request resolves after reopen — should be ignored
+    await act(async () => {
+      resolveFirst(null);
+      await new Promise((r) => setTimeout(r, 20));
+    });
+
+    // Should show the second request's result, not a failure from first returning null
+    expect(c.innerHTML).toContain('second');
+    expect(c.innerHTML).not.toContain('conversations.loadEditHistoryFailed');
   });
 });

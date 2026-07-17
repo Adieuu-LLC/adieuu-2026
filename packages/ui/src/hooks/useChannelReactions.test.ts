@@ -271,6 +271,36 @@ describe('useChannelReactions', () => {
     expect(ref.getGroupedReactions('msg-1').length).toBe(0);
   });
 
+  it('fetchReactions clears stale entries for messages with zero reactions', async () => {
+    const staleReaction: ChannelReaction = {
+      id: 'r-stale',
+      messageId: 'msg-1',
+      channelId: 'ch-1',
+      fromIdentityId: 'user-2',
+      emoji: '👻',
+      createdAt: '2024-01-01T00:00:00Z',
+    };
+    let callCount = 0;
+    const adapter = makeAdapter({
+      getReactions: async () => {
+        callCount++;
+        if (callCount === 1) return [staleReaction];
+        return [];
+      },
+    });
+    const ref = renderHook('ch-1', adapter, 'user-1');
+
+    await act(async () => {
+      await ref.fetchReactions(['msg-1']);
+    });
+    expect(ref.getGroupedReactions('msg-1').length).toBe(1);
+
+    await act(async () => {
+      await ref.fetchReactions(['msg-1']);
+    });
+    expect(ref.getGroupedReactions('msg-1').length).toBe(0);
+  });
+
   it('groups reactions correctly', async () => {
     const reactions: ChannelReaction[] = [
       {

@@ -93,6 +93,7 @@ export function ChannelPinsMenu({
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [panelStyle, setPanelStyle] = useState<CSSProperties>({});
+  const generationRef = useRef(0);
 
   const updatePanelPosition = useCallback(() => {
     const el = anchorRef.current;
@@ -160,6 +161,7 @@ export function ChannelPinsMenu({
   }, [open]);
 
   const loadFirst = useCallback(async () => {
+    const gen = ++generationRef.current;
     setItems([]);
     setNextCursor(null);
     if (pinnedCount === 0) {
@@ -169,11 +171,13 @@ export function ChannelPinsMenu({
     setLoading(true);
     try {
       const res = await loadPinnedMessagesPage(channelId, null);
-      if (!res) return;
+      if (gen !== generationRef.current || !res) return;
       setItems(sortPinsNewestFirst(res.messages));
       setNextCursor(res.nextCursor);
+    } catch {
+      // consumed -- the void call site cannot handle rejections
     } finally {
-      setLoading(false);
+      if (gen === generationRef.current) setLoading(false);
     }
   }, [channelId, pinnedCount, loadPinnedMessagesPage]);
 
@@ -184,10 +188,11 @@ export function ChannelPinsMenu({
 
   const loadMore = useCallback(async () => {
     if (!nextCursor || loadingMore || loading) return;
+    const gen = generationRef.current;
     setLoadingMore(true);
     try {
       const res = await loadPinnedMessagesPage(channelId, nextCursor);
-      if (!res) return;
+      if (gen !== generationRef.current || !res) return;
       setItems((prev) => {
         const seen = new Set(prev.map((m) => m.id));
         const merged = [...prev];
@@ -200,8 +205,10 @@ export function ChannelPinsMenu({
         return sortPinsNewestFirst(merged);
       });
       setNextCursor(res.nextCursor);
+    } catch {
+      // consumed -- the void call site cannot handle rejections
     } finally {
-      setLoadingMore(false);
+      if (gen === generationRef.current) setLoadingMore(false);
     }
   }, [channelId, nextCursor, loadingMore, loading, loadPinnedMessagesPage]);
 
@@ -243,7 +250,6 @@ export function ChannelPinsMenu({
       className="conversation-pins-panel"
       style={panelStyle}
       role="dialog"
-      aria-modal="true"
       aria-labelledby="channel-pins-panel-title"
     >
       <div className="conversation-pins-panel-header">

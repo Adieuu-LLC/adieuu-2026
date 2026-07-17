@@ -95,6 +95,8 @@ export function useReplyParentHydration(
             },
           }));
         }
+      } catch {
+        // Swallow — the parent simply remains unhydrated.
       } finally {
         inflight.current.delete(parentMessageId);
       }
