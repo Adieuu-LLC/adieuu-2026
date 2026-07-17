@@ -36,6 +36,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { usePlatformCapabilities } from '../../config';
 import { ChatInvitationsSidebarButton } from './invitations';
 import { SpacesSidebarSection } from './spaces';
+import { useSpaces } from '../../hooks/useSpaces';
 import type { FolderIconName, FolderIconType } from '@adieuu/shared';
 
 // ============================================================================
@@ -790,6 +791,12 @@ export function ConversationsSidebarSection({
     0,
   );
 
+  const { unreadBySpace } = useSpaces();
+  const totalSpacesUnread = useMemo(
+    () => Object.values(unreadBySpace).reduce((sum, n) => sum + n, 0),
+    [unreadBySpace],
+  );
+
   const { appWindow } = usePlatformCapabilities();
   const { activeTheme } = useTheme();
   const accentHex = activeTheme?.colors.accentPrimary;
@@ -810,6 +817,7 @@ export function ConversationsSidebarSection({
       id: 'spaces',
       icon: <Icon name="spaces" />,
       label: t('sidebar.spacesTab', 'Spaces'),
+      badge: totalSpacesUnread > 0 ? totalSpacesUnread : undefined,
     },
   ];
 

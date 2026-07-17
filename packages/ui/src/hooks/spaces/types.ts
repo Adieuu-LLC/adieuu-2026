@@ -40,6 +40,9 @@ export interface SpacesContextValue {
   /** Per-channel unread/mention state. */
   unreadByChannel: Record<string, SpaceChannelUnreadState>;
 
+  /** Aggregate unread count per Space (keyed by spaceId). */
+  unreadBySpace: Record<string, number>;
+
   /** Callbacks for forwarding socket events to feature hooks. */
   onSocketReactionAdded?: (reaction: {
     id: string;

@@ -1,5 +1,6 @@
 import type {
   ChatIncomingMessage,
+  PublicIdentity,
   PublicSpace,
   PublicSpaceMessage,
   PublicSpaceReaction,
@@ -36,6 +37,9 @@ export interface SpaceSocketHandlerContext {
   setUnreadByChannel?: (
     updater: (prev: Record<string, SpaceChannelUnreadState>) => Record<string, SpaceChannelUnreadState>,
   ) => void;
+  setUnreadBySpace?: (
+    updater: (prev: Record<string, number>) => Record<string, number>,
+  ) => void;
   fireNotification?: (
     title: string,
     body: string,
@@ -43,6 +47,8 @@ export interface SpaceSocketHandlerContext {
   ) => void;
   /** Resolved channel names keyed by channel ID, used for notification copy. */
   channelNames?: Record<string, string>;
+  /** Resolved participant profiles, used for notification author names. */
+  participantProfiles?: Record<string, PublicIdentity>;
   /** Messages in the active channel, used for reaction author lookup. */
   activeChannelMessages?: PublicSpaceMessage[];
 }
@@ -125,10 +131,16 @@ export function handleSpaceSocketMessage(
             },
           };
         });
+        ctx.setUnreadBySpace?.((prev) => ({
+          ...prev,
+          [msg.spaceId]: (prev[msg.spaceId] ?? 0) + 1,
+        }));
       }
 
       if (!isFromSelf && ctx.fireNotification) {
         const channelName = ctx.channelNames?.[msg.channelId] ?? msg.channelId;
+        const senderProfile = ctx.participantProfiles?.[msg.fromIdentityId];
+        const senderName = senderProfile?.displayName ?? senderProfile?.username;
         const isReplyToMe =
           !!msg.replyToMessageId &&
           typeof msg.replyToMessageAuthorId === 'string' &&
@@ -139,19 +151,28 @@ export function handleSpaceSocketMessage(
           msg.mentionedIdentityIds.includes(ctx.identityId);
 
         if (isReplyToMe) {
-          ctx.fireNotification('Reply', `Someone replied to your message in #${channelName}`, {
+          const body = senderName
+            ? `${senderName} replied to your message in #${channelName}`
+            : `Someone replied to your message in #${channelName}`;
+          ctx.fireNotification('Reply', body, {
             channelId: msg.channelId,
             spaceId: msg.spaceId,
             isMention,
           });
         } else if (isMention) {
-          ctx.fireNotification('Mention', `You were mentioned in #${channelName}`, {
+          const body = senderName
+            ? `${senderName} mentioned you in #${channelName}`
+            : `You were mentioned in #${channelName}`;
+          ctx.fireNotification('Mention', body, {
             channelId: msg.channelId,
             spaceId: msg.spaceId,
             isMention: true,
           });
         } else if (!isActiveChannel) {
-          ctx.fireNotification('New message', `New message in #${channelName}`, {
+          const body = senderName
+            ? `${senderName} in #${channelName}`
+            : `New message in #${channelName}`;
+          ctx.fireNotification('New message', body, {
             channelId: msg.channelId,
             spaceId: msg.spaceId,
           });
@@ -219,9 +240,14 @@ export function handleSpaceSocketMessage(
         const targetMsg = ctx.activeChannelMessages?.find((m) => m.id === reaction.messageId);
         if (targetMsg && targetMsg.fromIdentityId === ctx.identityId) {
           const channelName = ctx.channelNames?.[reaction.channelId] ?? reaction.channelId;
+          const reactorProfile = ctx.participantProfiles?.[reaction.identityId];
+          const reactorName = reactorProfile?.displayName ?? reactorProfile?.username;
+          const body = reactorName
+            ? `${reactorName} reacted ${reaction.emoji} to your message in #${channelName}`
+            : `Someone reacted ${reaction.emoji} to your message in #${channelName}`;
           ctx.fireNotification(
             'Reaction',
-            `Someone reacted ${reaction.emoji} to your message in #${channelName}`,
+            body,
             { channelId: reaction.channelId, spaceId: reaction.spaceId },
           );
         }

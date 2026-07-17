@@ -30,6 +30,10 @@ export const mockNavigate = mock((_to: string | number, _options?: unknown) => {
 let _searchParams = new URLSearchParams();
 let _pathname = '/';
 let _params: Record<string, string> = {};
+let _matchResult: Record<string, string> | null = null;
+
+/** Mutable location object for easy test manipulation. */
+export const mockLocation = { pathname: '/' };
 
 /** Replace the URLSearchParams returned by useSearchParams(). */
 export function setMockSearchParams(params: URLSearchParams | string): void {
@@ -46,12 +50,19 @@ export function setMockParams(params: Record<string, string>): void {
   _params = params;
 }
 
+/** Replace the value returned by useMatch(). */
+export function setMockMatch(match: Record<string, string> | null): void {
+  _matchResult = match;
+}
+
 /** Reset state between tests (call from beforeEach). */
 export function resetReactRouterDomMock(): void {
   mockNavigate.mockClear();
   _searchParams = new URLSearchParams();
   _pathname = '/';
   _params = {};
+  _matchResult = null;
+  mockLocation.pathname = '/';
 }
 
 type LinkTo =
@@ -83,13 +94,14 @@ mock.module('react-router-dom', () => ({
     },
   ],
   useLocation: () => ({
-    pathname: _pathname,
+    pathname: mockLocation.pathname || _pathname,
     search: '',
     hash: '',
     state: null,
     key: 'default',
   }),
   useParams: () => _params,
+  useMatch: () => _matchResult,
   useNavigationType: () => 'PUSH',
   Navigate: () => null,
   Outlet: () => null,

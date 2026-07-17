@@ -38,6 +38,7 @@ function createContext(
   };
 
   let unreadByChannel: Record<string, SpaceChannelUnreadState> = {};
+  let unreadBySpace: Record<string, number> = {};
 
   const reactionAddedCalls: Array<{
     id: string;
@@ -76,10 +77,16 @@ function createContext(
     setUnreadByChannel: (updater) => {
       unreadByChannel = updater(unreadByChannel);
     },
+    setUnreadBySpace: (updater) => {
+      unreadBySpace = updater(unreadBySpace);
+    },
     fireNotification: (title, body, options) => {
       notificationCalls.push({ title, body, options });
     },
     channelNames: { 'ch-1': 'general' },
+    participantProfiles: {
+      'user-2': { id: 'user-2', displayName: 'Alice', username: 'alice' } as never,
+    },
     activeChannelMessages: messagesByChannel['ch-1']?.messages ?? [],
     ...overrides,
   };
@@ -91,6 +98,9 @@ function createContext(
     },
     get unreadByChannel() {
       return unreadByChannel;
+    },
+    get unreadBySpace() {
+      return unreadBySpace;
     },
     reactionAddedCalls,
     reactionRemovedCalls,
@@ -400,7 +410,7 @@ describe('spaceSocketHandlers', () => {
   // Notifications — space_message
   // -------------------------------------------------------------------------
 
-  test('space_message: fires notification for message from other user', () => {
+  test('space_message: fires notification with author name for message from known user', () => {
     const h = createContext({ activeChannelId: 'ch-other' });
     const msg = makeMessage({ id: 'msg-notif', fromIdentityId: 'user-2' });
     handleSpaceSocketMessage(
@@ -409,11 +419,22 @@ describe('spaceSocketHandlers', () => {
     );
     expect(h.notificationCalls).toHaveLength(1);
     expect(h.notificationCalls[0]!.title).toBe('New message');
-    expect(h.notificationCalls[0]!.body).toContain('#general');
+    expect(h.notificationCalls[0]!.body).toBe('Alice in #general');
     expect(h.notificationCalls[0]!.options.spaceId).toBe('space-1');
   });
 
-  test('space_message: fires reply notification when replyToMessageAuthorId matches self', () => {
+  test('space_message: fires notification with fallback for unknown author', () => {
+    const h = createContext({ activeChannelId: 'ch-other', participantProfiles: {} });
+    const msg = makeMessage({ id: 'msg-notif', fromIdentityId: 'user-unknown' });
+    handleSpaceSocketMessage(
+      { type: 'space_message', data: { message: msg } } as ChatIncomingMessage,
+      h.ctx,
+    );
+    expect(h.notificationCalls).toHaveLength(1);
+    expect(h.notificationCalls[0]!.body).toBe('New message in #general');
+  });
+
+  test('space_message: fires reply notification with author name', () => {
     const h = createContext();
     const msg = makeMessage({
       id: 'msg-reply',
@@ -427,11 +448,11 @@ describe('spaceSocketHandlers', () => {
     );
     expect(h.notificationCalls).toHaveLength(1);
     expect(h.notificationCalls[0]!.title).toBe('Reply');
-    expect(h.notificationCalls[0]!.body).toContain('replied to your message');
+    expect(h.notificationCalls[0]!.body).toBe('Alice replied to your message in #general');
     expect(h.notificationCalls[0]!.options.spaceId).toBe('space-1');
   });
 
-  test('space_message: fires mention notification when user is mentioned', () => {
+  test('space_message: fires mention notification with author name', () => {
     const h = createContext({ activeChannelId: 'ch-other' });
     const msg = makeMessage({
       id: 'msg-mention-notif',
@@ -444,6 +465,7 @@ describe('spaceSocketHandlers', () => {
     );
     expect(h.notificationCalls).toHaveLength(1);
     expect(h.notificationCalls[0]!.title).toBe('Mention');
+    expect(h.notificationCalls[0]!.body).toBe('Alice mentioned you in #general');
     expect(h.notificationCalls[0]!.options.isMention).toBe(true);
     expect(h.notificationCalls[0]!.options.spaceId).toBe('space-1');
   });
@@ -462,7 +484,7 @@ describe('spaceSocketHandlers', () => {
   // Notifications — space_reaction_added
   // -------------------------------------------------------------------------
 
-  test('space_reaction_added: fires notification when reaction is on own message', () => {
+  test('space_reaction_added: fires notification with author name when reaction is on own message', () => {
     const ownMsg = makeMessage({ id: 'msg-own', fromIdentityId: 'me-1' });
     const h = createContext({
       activeChannelMessages: [ownMsg],
@@ -486,7 +508,7 @@ describe('spaceSocketHandlers', () => {
     );
     expect(h.notificationCalls).toHaveLength(1);
     expect(h.notificationCalls[0]!.title).toBe('Reaction');
-    expect(h.notificationCalls[0]!.body).toContain('🎉');
+    expect(h.notificationCalls[0]!.body).toBe('Alice reacted 🎉 to your message in #general');
     expect(h.notificationCalls[0]!.options.spaceId).toBe('space-1');
   });
 
@@ -513,5 +535,48 @@ describe('spaceSocketHandlers', () => {
       h.ctx,
     );
     expect(h.notificationCalls).toHaveLength(0);
+  });
+
+  // -------------------------------------------------------------------------
+  // Space-level unread
+  // -------------------------------------------------------------------------
+
+  test('space_message: increments unreadBySpace for non-active channel', () => {
+    const h = createContext({ activeChannelId: 'ch-other' });
+    const msg = makeMessage({ id: 'msg-2', fromIdentityId: 'user-2' });
+    handleSpaceSocketMessage(
+      { type: 'space_message', data: { message: msg } } as ChatIncomingMessage,
+      h.ctx,
+    );
+    expect(h.unreadBySpace['space-1']).toBe(1);
+  });
+
+  test('space_message: accumulates unreadBySpace across multiple messages', () => {
+    const h = createContext({ activeChannelId: 'ch-other' });
+    for (let i = 0; i < 3; i++) {
+      handleSpaceSocketMessage(
+        {
+          type: 'space_message',
+          data: {
+            message: makeMessage({
+              id: `msg-space-${i}`,
+              fromIdentityId: 'user-2',
+            }),
+          },
+        } as ChatIncomingMessage,
+        h.ctx,
+      );
+    }
+    expect(h.unreadBySpace['space-1']).toBe(3);
+  });
+
+  test('space_message: does not increment unreadBySpace for active channel', () => {
+    const h = createContext();
+    const msg = makeMessage({ id: 'msg-active', fromIdentityId: 'user-2' });
+    handleSpaceSocketMessage(
+      { type: 'space_message', data: { message: msg } } as ChatIncomingMessage,
+      h.ctx,
+    );
+    expect(h.unreadBySpace['space-1']).toBeUndefined();
   });
 });

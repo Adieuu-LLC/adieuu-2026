@@ -3,31 +3,12 @@ import { createElement } from 'react';
 import { act } from 'react';
 import { GlobalWindow } from 'happy-dom';
 import { createRoot } from 'react-dom/client';
-import * as sharedActual from '@adieuu/shared';
-import { mockNavigate, resetReactRouterDomMock } from '../../test/react-router-dom-mock';
+import { resetReactRouterDomMock, mockNavigate, mockLocation } from '../../test/react-router-dom-mock';
 import { resetReactI18nextMock, setMockTranslate } from '../../test/react-i18next-mock';
-import { emitSpacesChanged } from '../../services/spacesMembershipEvents';
 
 setMockTranslate((key, def) => (typeof def === 'string' ? def : key));
 
 let mockIdentityStatus = 'logged_in';
-
-mock.module('../../config', () => ({
-  useAppConfig: () => ({ apiBaseUrl: 'http://localhost:3000' }),
-}));
-
-const mockListMine = mock(
-  () =>
-    Promise.resolve({ success: true, data: { spaces: [] as unknown[] } }) as Promise<{
-      success: boolean;
-      data?: { spaces: unknown[] };
-    }>,
-);
-
-mock.module('@adieuu/shared', () => ({
-  ...sharedActual,
-  createApiClient: () => ({ spaces: { listMine: mockListMine } }),
-}));
 
 mock.module('../../hooks/useIdentity', () => ({
   useIdentity: () => ({ status: mockIdentityStatus }),
@@ -61,6 +42,16 @@ function makeSpace(overrides: Record<string, unknown> = {}) {
   };
 }
 
+let mockSpacesValue = {
+  spaces: [] as unknown[],
+  spacesLoading: false,
+  unreadBySpace: {} as Record<string, number>,
+};
+
+mock.module('../../hooks/useSpaces', () => ({
+  useSpaces: () => mockSpacesValue,
+}));
+
 const { SpacesSidebarSection } = await import('./spaces');
 
 type G = typeof globalThis & {
@@ -78,9 +69,12 @@ beforeEach(() => {
   setMockTranslate((key, def) => (typeof def === 'string' ? def : key));
   resetReactRouterDomMock();
   mockIdentityStatus = 'logged_in';
-  mockListMine.mockClear();
-  mockListMine.mockImplementation(() => Promise.resolve({ success: true, data: { spaces: [] } }));
   closeMobile.mockClear();
+  mockSpacesValue = {
+    spaces: [],
+    spacesLoading: false,
+    unreadBySpace: {},
+  };
 
   const g = globalThis as G;
   prevWindow = g.window;
@@ -112,14 +106,15 @@ async function renderSection() {
 }
 
 describe('SpacesSidebarSection', () => {
-  it('lists the Spaces the Alias is a member of and opens one on click', async () => {
-    mockListMine.mockImplementation(() =>
-      Promise.resolve({ success: true, data: { spaces: [makeSpace()] } }),
-    );
+  it('lists Spaces and opens one on click', async () => {
+    mockSpacesValue = {
+      spaces: [makeSpace()],
+      spacesLoading: false,
+      unreadBySpace: {},
+    };
 
     const { root, container } = await renderSection();
 
-    expect(mockListMine).toHaveBeenCalledTimes(1);
     expect(happy.document.body.textContent).toContain('Test Space');
 
     const spaceRow = [...happy.document.querySelectorAll('button.conversation-list-item')][0];
@@ -134,33 +129,8 @@ describe('SpacesSidebarSection', () => {
     container.remove();
   });
 
-  it('refetches membership when a Space is created/joined elsewhere', async () => {
-    mockListMine.mockImplementation(() => Promise.resolve({ success: true, data: { spaces: [] } }));
-
-    const { root, container } = await renderSection();
-
-    expect(mockListMine).toHaveBeenCalledTimes(1);
-    expect(happy.document.body.textContent).toContain("You haven't joined any Spaces yet");
-
-    // A Space is now created elsewhere; the next fetch returns it.
-    mockListMine.mockImplementation(() =>
-      Promise.resolve({ success: true, data: { spaces: [makeSpace({ name: 'Brand New Space' })] } }),
-    );
-
-    await act(async () => {
-      emitSpacesChanged();
-      await new Promise((r) => setTimeout(r, 0));
-    });
-
-    expect(mockListMine).toHaveBeenCalledTimes(2);
-    expect(happy.document.body.textContent).toContain('Brand New Space');
-
-    await act(async () => root.unmount());
-    container.remove();
-  });
-
   it('shows an empty state when the Alias has no Spaces', async () => {
-    mockListMine.mockImplementation(() => Promise.resolve({ success: true, data: { spaces: [] } }));
+    mockSpacesValue = { spaces: [], spacesLoading: false, unreadBySpace: {} };
 
     const { root, container } = await renderSection();
 
@@ -186,13 +156,48 @@ describe('SpacesSidebarSection', () => {
     container.remove();
   });
 
-  it('prompts to sign into an Alias when not in an identity session (no fetch)', async () => {
+  it('prompts to sign into an Alias when not in an identity session', async () => {
     mockIdentityStatus = 'logged_out';
 
     const { root, container } = await renderSection();
 
-    expect(mockListMine).not.toHaveBeenCalled();
     expect(happy.document.body.textContent).toContain('Sign into an Alias to see Spaces');
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  it('highlights the active Space based on the current route', async () => {
+    mockSpacesValue = {
+      spaces: [makeSpace(), makeSpace({ id: 'space-2', slug: 'other-space', name: 'Other Space' })],
+      spacesLoading: false,
+      unreadBySpace: {},
+    };
+    mockLocation.pathname = '/s/test-space';
+
+    const { root, container } = await renderSection();
+
+    const rows = [...happy.document.querySelectorAll('button.conversation-list-item')];
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.classList.contains('conversation-list-item-active')).toBe(true);
+    expect(rows[1]!.classList.contains('conversation-list-item-active')).toBe(false);
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  it('shows unread badges from unreadBySpace', async () => {
+    mockSpacesValue = {
+      spaces: [makeSpace()],
+      spacesLoading: false,
+      unreadBySpace: { 'space-1': 5 },
+    };
+
+    const { root, container } = await renderSection();
+
+    const badge = happy.document.querySelector('.conversation-list-item-badge');
+    expect(badge).toBeDefined();
+    expect(badge!.textContent).toBe('5');
 
     await act(async () => root.unmount());
     container.remove();

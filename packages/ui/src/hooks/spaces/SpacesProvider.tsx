@@ -45,6 +45,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   const [sending, setSending] = useState(false);
   const [participantProfiles, setParticipantProfiles] = useState<Record<string, PublicIdentity>>({});
   const [unreadByChannel, setUnreadByChannel] = useState<Record<string, SpaceChannelUnreadState>>({});
+  const [unreadBySpace, setUnreadBySpace] = useState<Record<string, number>>({});
 
   const socketCallbacksRef = useRef<{
     onReactionAdded?: SpacesContextValue['onSocketReactionAdded'];
@@ -127,6 +128,14 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
         setActiveChannelIdState(null);
         return;
       }
+      const matchedSpace = spacesRef.current.find((s) => s.slug === slug);
+      if (matchedSpace) {
+        setUnreadBySpace((prev) => {
+          if (!prev[matchedSpace.id]) return prev;
+          const { [matchedSpace.id]: _, ...rest } = prev;
+          return rest;
+        });
+      }
       void resolveSpace(slug);
     },
     [resolveSpace, clearActiveSpace],
@@ -145,6 +154,10 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       const spaceId = activeSpaceIdRef.current;
       if (channelId && spaceId) {
         void fetchChannelMessages(spaceId, channelId);
+        try {
+          const key = `adieuu:lastChannel:${spaceId}`;
+          localStorage.setItem(key, channelId);
+        } catch { /* quota / SSR */ }
       }
     },
     [fetchChannelMessages],
@@ -248,6 +261,9 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     [channels],
   );
 
+  const participantProfilesRef = useRef<Record<string, PublicIdentity>>({});
+  participantProfilesRef.current = participantProfiles;
+
   const activeChannelMessagesRef = useRef<PublicSpaceMessage[]>([]);
   activeChannelMessagesRef.current = activeChannelId
     ? messagesByChannel[activeChannelId]?.messages ?? []
@@ -266,8 +282,10 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     refreshChannelMessagesRef,
     socketCallbacksRef,
     setUnreadByChannel,
+    setUnreadBySpace,
     fireNotificationRef,
     channelNamesRef,
+    participantProfilesRef,
     activeChannelMessagesRef,
   });
 
@@ -288,6 +306,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       sending,
       participantProfiles,
       unreadByChannel,
+      unreadBySpace,
       setActiveSpace,
       setActiveChannel,
       sendMessage,
@@ -308,6 +327,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       sending,
       participantProfiles,
       unreadByChannel,
+      unreadBySpace,
       setActiveSpace,
       setActiveChannel,
       sendMessage,

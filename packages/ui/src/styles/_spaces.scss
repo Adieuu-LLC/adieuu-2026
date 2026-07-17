@@ -201,9 +201,18 @@
   }
 
   &.space-sidebar-link-active {
-    background: var(--color-surface-elevated);
-    color: var(--color-text-primary);
+    background: var(--color-bg-active);
+    color: var(--color-accent-primary);
     font-weight: var(--font-weight-medium);
+
+    .space-sidebar-channel-hash {
+      color: var(--color-accent-primary);
+    }
+
+    &:hover {
+      background: var(--color-bg-active);
+      color: var(--color-accent-primary);
+    }
   }
 
   &:disabled {
@@ -251,6 +260,28 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.space-sidebar-unread-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  min-width: 18px;
+  height: 18px;
+  line-height: 18px;
+  text-align: center;
+  border-radius: 9px;
+  padding: 0 5px;
+  background: var(--color-text-muted);
+  color: var(--color-bg-primary);
+
+  &--mention {
+    background: var(--color-accent-primary);
+    color: var(--color-bg-primary);
+  }
 }
 
 .space-outlet {

@@ -4,10 +4,14 @@
  * Resolves the slug, guards for an Alias session, and renders a Discord-like
  * secondary sidebar (channels) alongside an `<Outlet />` for the landing page
  * or channel views.
+ *
+ * When navigating to the index route (`/s/:slug` with no channel), the layout
+ * auto-redirects to the last-viewed channel (persisted in localStorage) or the
+ * first channel in the list.
  */
 
-import { useEffect } from 'react';
-import { Link, Outlet, useParams } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
+import { Link, Outlet, useParams, useNavigate, useMatch } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useSpaces } from '../../hooks/useSpaces';
@@ -17,15 +21,26 @@ import { Spinner } from '../../components/Spinner';
 import { SpaceSecondarySidebar } from './SpaceSecondarySidebar';
 import '../../styles/_spaces.scss';
 
+function getLastChannel(spaceId: string): string | null {
+  try {
+    return localStorage.getItem(`adieuu:lastChannel:${spaceId}`);
+  } catch {
+    return null;
+  }
+}
+
 export function SpaceLayout() {
   const { t } = useTranslation();
   const { slug } = useParams<{ slug: string }>();
+  const navigate = useNavigate();
+  const isIndexRoute = !!useMatch('/s/:slug');
   const { status: identityStatus } = useIdentity();
   const isLoggedIn = identityStatus === 'logged_in';
   const {
     activeSpace,
     activeSpaceLoading,
     activeSpaceError,
+    channels,
     setActiveSpace,
   } = useSpaces();
 
@@ -37,6 +52,23 @@ export function SpaceLayout() {
       setActiveSpace(null);
     };
   }, [isLoggedIn, slug, setActiveSpace]);
+
+  const didRedirect = useRef(false);
+  useEffect(() => {
+    if (!isIndexRoute || !activeSpace || !slug || channels.length === 0 || didRedirect.current) return;
+    const lastChannelId = getLastChannel(activeSpace.id);
+    const target = lastChannelId && channels.some((ch) => ch.id === lastChannelId)
+      ? lastChannelId
+      : channels[0]?.id;
+    if (target) {
+      didRedirect.current = true;
+      navigate(`/s/${slug}/c/${target}`, { replace: true });
+    }
+  }, [isIndexRoute, activeSpace, slug, channels, navigate]);
+
+  useEffect(() => {
+    didRedirect.current = false;
+  }, [slug]);
 
   if (!isLoggedIn) {
     return (
