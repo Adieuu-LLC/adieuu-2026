@@ -145,9 +145,17 @@ export async function sendSpaceMessage(
     replyToMessageAuthorId = replyTarget.fromIdentityId;
   }
 
-  const mentionedObjIds = params.mentionedIdentityIds
-    ?.map((id) => parseObjId(id))
-    .filter((id): id is ObjectId => id !== null);
+  let mentionedObjIds: ObjectId[] | undefined;
+  if (params.mentionedIdentityIds?.length) {
+    mentionedObjIds = [];
+    for (const id of params.mentionedIdentityIds) {
+      const parsed = parseObjId(id);
+      if (!parsed) {
+        return { success: false, error: 'Invalid mention id.', errorCode: 'INVALID_ID' };
+      }
+      mentionedObjIds.push(parsed);
+    }
+  }
 
   const expiresAt =
     params.expiresInSeconds != null && params.expiresInSeconds > 0
@@ -324,6 +332,11 @@ export async function editSpaceMessage(
     return { success: false, error: 'Invalid message content.', errorCode: 'INVALID_CONTENT' };
   }
 
+  const channel = await getSpaceChannelRepository().findByIdInSpace(spaceId, channelId);
+  if (!channel) {
+    return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
+  }
+
   const messageRepo = getSpaceMessageRepository();
   const message = await messageRepo.findByIdInChannel(channelId, messageId);
   if (!message) {
@@ -339,12 +352,18 @@ export async function editSpaceMessage(
     return { success: false, error: "You can't edit this message anymore.", errorCode: 'MAX_EDITS_REACHED' };
   }
 
-  const updated = await messageRepo.editMessage(messageId, trimmed);
-  if (!updated) {
+  const editResult = await messageRepo.editMessage(messageId, trimmed);
+  if (!editResult) {
     return { success: false, error: 'Failed to edit message.', errorCode: 'MESSAGE_NOT_FOUND' };
   }
+  if (editResult.conflict) {
+    if (editResult.current?.deleted) {
+      return { success: false, error: 'This message has been deleted.', errorCode: 'MESSAGE_DELETED' };
+    }
+    return { success: false, error: 'Edit conflict; please retry.', errorCode: 'EDIT_CONFLICT' };
+  }
 
-  const publicMessage = toPublicSpaceMessage(updated);
+  const publicMessage = toPublicSpaceMessage(editResult.message);
   await publishSpaceEvent(spaceId.toHexString(), {
     type: 'space_message_edited',
     data: {
@@ -375,6 +394,11 @@ export async function deleteSpaceMessage(
   const callerId = parseObjId(callerIdRaw);
   if (!spaceId || !channelId || !messageId || !callerId) {
     return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
+  }
+
+  const channel = await getSpaceChannelRepository().findByIdInSpace(spaceId, channelId);
+  if (!channel) {
+    return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
   }
 
   const messageRepo = getSpaceMessageRepository();
@@ -423,6 +447,11 @@ export async function modDeleteSpaceMessage(
   }
   if (!memberHasPermission(perms, 'manageMembers') && !perms.isAdmin) {
     return { success: false, error: 'Moderator permissions required.', errorCode: 'FORBIDDEN' };
+  }
+
+  const channel = await getSpaceChannelRepository().findByIdInSpace(spaceId, channelId);
+  if (!channel) {
+    return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
   }
 
   const messageRepo = getSpaceMessageRepository();

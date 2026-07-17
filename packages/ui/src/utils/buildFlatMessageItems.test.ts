@@ -29,8 +29,8 @@ describe('buildFlatMessageItems', () => {
   it('inserts day separator between messages on different days', () => {
     const items = buildFlatMessageItems(
       [
-        msg('m1', '2024-06-15T10:00:00Z'),
-        msg('m2', '2024-06-16T10:00:00Z'),
+        msg('m1', new Date(2024, 5, 15, 10, 0, 0).toISOString()),
+        msg('m2', new Date(2024, 5, 16, 10, 0, 0).toISOString()),
       ],
       0,
       0,
@@ -42,8 +42,8 @@ describe('buildFlatMessageItems', () => {
   it('does NOT insert day separator between messages on the same day', () => {
     const items = buildFlatMessageItems(
       [
-        msg('m1', '2024-06-15T08:00:00Z'),
-        msg('m2', '2024-06-15T20:00:00Z'),
+        msg('m1', new Date(2024, 5, 15, 8, 0, 0).toISOString()),
+        msg('m2', new Date(2024, 5, 15, 20, 0, 0).toISOString()),
       ],
       0,
       0,
@@ -55,8 +55,8 @@ describe('buildFlatMessageItems', () => {
   it('handles cross-year day separator', () => {
     const items = buildFlatMessageItems(
       [
-        msg('m1', '2023-12-31T23:00:00Z'),
-        msg('m2', '2024-01-01T01:00:00Z'),
+        msg('m1', new Date(2023, 11, 31, 23, 0, 0).toISOString()),
+        msg('m2', new Date(2024, 0, 1, 1, 0, 0).toISOString()),
       ],
       0,
       0,

@@ -161,11 +161,8 @@ export function useMessageScroll({
   const scrollToBottom = useCallback(
     (behavior: ScrollBehavior = 'smooth') => {
       scrollToBottomImpl(behavior);
-      requestAnimationFrame(() => {
-        handleAtBottomStateChange(true);
-      });
     },
-    [scrollToBottomImpl, handleAtBottomStateChange],
+    [scrollToBottomImpl],
   );
 
   const scrollToBottomIfPinned = useCallback(() => {

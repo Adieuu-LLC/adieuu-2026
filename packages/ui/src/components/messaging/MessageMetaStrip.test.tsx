@@ -37,9 +37,17 @@ let happy: GlobalWindow;
 let root: Root | null = null;
 let container: ReturnType<typeof happy.document.createElement>;
 
+let savedWindow: PropertyDescriptor | undefined;
+let savedDocument: PropertyDescriptor | undefined;
+let savedReactActEnv: PropertyDescriptor | undefined;
+
 beforeEach(() => {
-  happy = new GlobalWindow({ url: 'http://localhost' });
   const g = globalThis as G;
+  savedWindow = Object.getOwnPropertyDescriptor(g, 'window');
+  savedDocument = Object.getOwnPropertyDescriptor(g, 'document');
+  savedReactActEnv = Object.getOwnPropertyDescriptor(g, 'IS_REACT_ACT_ENVIRONMENT');
+
+  happy = new GlobalWindow({ url: 'http://localhost' });
   g.window = happy as unknown as typeof g.window;
   g.document = happy.document as unknown as Document;
   g.IS_REACT_ACT_ENVIRONMENT = true;
@@ -52,10 +60,14 @@ afterEach(() => {
     act(() => root!.unmount());
     root = null;
   }
+  happy.close();
   const g = globalThis as G;
-  delete g.window;
-  delete g.document;
-  delete g.IS_REACT_ACT_ENVIRONMENT;
+  if (savedWindow) Object.defineProperty(g, 'window', savedWindow);
+  else delete g.window;
+  if (savedDocument) Object.defineProperty(g, 'document', savedDocument);
+  else delete g.document;
+  if (savedReactActEnv) Object.defineProperty(g, 'IS_REACT_ACT_ENVIRONMENT', savedReactActEnv);
+  else delete g.IS_REACT_ACT_ENVIRONMENT;
 });
 
 function makeMessage(overrides: Partial<ChannelMessage> = {}): ChannelMessage {

@@ -55,9 +55,19 @@ import type { PublicSpaceMessage } from '@adieuu/shared';
 import type { ReplyQuotePayload } from '../conversations/conversationUtils';
 import type { EditHistoryEntry } from '../../components/messaging/EditHistoryLabel';
 
+function looksLikeCipherPayload(content: string): boolean {
+  try {
+    const parsed = JSON.parse(content);
+    return !!(parsed && parsed.ciphertext && parsed.nonce && parsed.cipherId);
+  } catch {
+    return false;
+  }
+}
+
 function decryptBody(
   content: string | undefined,
   cipher: CommunityCipher | null | undefined,
+  fallback: string,
 ): string {
   if (!content) return '';
   if (cipher) {
@@ -68,9 +78,10 @@ function decryptBody(
         return fromBytes(decryptWithCipher(cipher, payload));
       }
     } catch {
-      // fall through
+      return fallback;
     }
   }
+  if (looksLikeCipherPayload(content)) return fallback;
   return content;
 }
 
@@ -124,9 +135,11 @@ export function SpaceChannelView() {
     return getCipherKey(localCipherId);
   }, [isEncrypted, activeSpace, getCipherKey]);
 
+  const encryptedFallback = t('spaces.channel.encryptedUnavailable', '[Encrypted message]');
+
   const decryptContent = useCallback(
-    (content: string | undefined) => decryptBody(content, spaceCipher),
-    [spaceCipher],
+    (content: string | undefined) => decryptBody(content, spaceCipher, encryptedFallback),
+    [spaceCipher, encryptedFallback],
   );
 
   // ---------------------------------------------------------------------------

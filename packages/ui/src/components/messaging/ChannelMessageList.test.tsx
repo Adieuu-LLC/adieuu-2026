@@ -35,6 +35,10 @@ let happy: import('happy-dom').GlobalWindow;
 let prevWindow: typeof globalThis.window;
 let prevDocument: typeof globalThis.document;
 let prevRaf: typeof globalThis.requestAnimationFrame;
+let prevIO: unknown;
+let prevRO: unknown;
+let hadIO: boolean;
+let hadRO: boolean;
 
 function makeChannelMessage(
   id: string,
@@ -137,8 +141,12 @@ beforeEach(() => {
   g.window = happy as unknown as import('happy-dom').GlobalWindow & typeof globalThis;
   g.document = happy.document;
   g.requestAnimationFrame = happy.requestAnimationFrame.bind(happy);
-  if (!g.IntersectionObserver) (g as any).IntersectionObserver = StubIO;
-  if (!g.ResizeObserver) (g as any).ResizeObserver = StubRO;
+  hadIO = 'IntersectionObserver' in g;
+  hadRO = 'ResizeObserver' in g;
+  prevIO = (g as any).IntersectionObserver;
+  prevRO = (g as any).ResizeObserver;
+  (g as any).IntersectionObserver = StubIO;
+  (g as any).ResizeObserver = StubRO;
 });
 
 afterEach(async () => {
@@ -149,6 +157,10 @@ afterEach(async () => {
   g.window = prevWindow;
   g.document = prevDocument;
   g.requestAnimationFrame = prevRaf;
+  if (hadIO) (g as any).IntersectionObserver = prevIO;
+  else delete (g as any).IntersectionObserver;
+  if (hadRO) (g as any).ResizeObserver = prevRO;
+  else delete (g as any).ResizeObserver;
 });
 
 async function render(props: Record<string, unknown> = {}) {

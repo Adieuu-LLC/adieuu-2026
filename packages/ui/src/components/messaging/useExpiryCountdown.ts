@@ -8,8 +8,13 @@ export function useExpiryCountdown(expiresAt?: string): string | null {
       setRemaining(null);
       return;
     }
+    const ts = new Date(expiresAt).getTime();
+    if (!Number.isFinite(ts)) {
+      setRemaining(null);
+      return;
+    }
     const update = () => {
-      const ms = new Date(expiresAt).getTime() - Date.now();
+      const ms = ts - Date.now();
       if (ms <= 0) { setRemaining('Expired'); return; }
       const totalSec = Math.ceil(ms / 1000);
       if (totalSec < 60) setRemaining(`${totalSec}s`);

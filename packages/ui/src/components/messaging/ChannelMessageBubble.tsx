@@ -263,6 +263,15 @@ export const ChannelMessageBubble = memo(function ChannelMessageBubble({
   const mouseHandlers = {
     onMouseEnter: () => setShowActions(true),
     onMouseLeave: () => { if (!actionBarPopoverOpen) setShowActions(false); },
+    onFocus: (e: React.FocusEvent) => {
+      if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+      setShowActions(true);
+    },
+    onBlur: (e: React.FocusEvent) => {
+      if (actionBarPopoverOpen) return;
+      if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+      setShowActions(false);
+    },
   };
 
   // ==================== LINEAR LAYOUT ====================
@@ -275,9 +284,9 @@ export const ChannelMessageBubble = memo(function ChannelMessageBubble({
       : <span className="dm-message-avatar-placeholder">{displayName.charAt(0).toUpperCase()}</span>;
 
     const messageRow = (
-      // biome-ignore lint/a11y/noStaticElementInteractions: hover delegation to show/hide action bar
+      // biome-ignore lint/a11y/noStaticElementInteractions: hover/focus delegation to show/hide action bar
       <div className={`dm-message dm-message--linear${isPinned ? ' dm-message--pinned' : ''}${isFlashHighlight ? ' dm-message--flash-highlight' : ''}`}
-        style={linearHoverStyle} {...mouseHandlers}>
+        style={linearHoverStyle} tabIndex={0} {...mouseHandlers}>
         {linearMessageTintMarker && <div className="dm-message-linear-tint-marker" style={{ background: senderColor }} aria-hidden />}
         {profile ? (
           <IdentityHoverCard identity={profile} positioning={{ placement: 'right', gutter: 8 }} extraFooter={memberSecurityHoverFooter}>
@@ -320,7 +329,7 @@ export const ChannelMessageBubble = memo(function ChannelMessageBubble({
       <div className={`dm-message${applyOwnAlignment ? ' dm-message--own' : ''}`}>
         <div className="dm-message-bubble-wrapper">
           <div className={`dm-message-bubble${applyOwnAlignment ? ' dm-message-bubble--own' : ''}`}>
-            <p className="dm-message-text" style={{ fontStyle: 'italic', opacity: 0.6 }}>Message deleted</p>
+            <p className="dm-message-text" style={{ fontStyle: 'italic', opacity: 0.6 }}>{t('conversations.messageDeleted', 'Message deleted')}</p>
           </div>
         </div>
       </div>
@@ -328,9 +337,9 @@ export const ChannelMessageBubble = memo(function ChannelMessageBubble({
   }
 
   const bubbleRow = (
-    // biome-ignore lint/a11y/noStaticElementInteractions: hover delegation to show/hide action bar
+    // biome-ignore lint/a11y/noStaticElementInteractions: hover/focus delegation to show/hide action bar
     <div className={`dm-message${applyOwnAlignment ? ' dm-message--own' : ''}${isPinned ? ' dm-message--pinned' : ''}${isFlashHighlight ? ' dm-message--flash-highlight' : ''}`}
-      {...mouseHandlers}>
+      tabIndex={0} {...mouseHandlers}>
       {!isOwn && senderProfile && (
         <IdentityHoverCard identity={senderProfile} positioning={{ placement: 'right', gutter: 8 }} extraFooter={memberSecurityHoverFooter}>
           <button type="button" className="dm-message-sender" style={senderNameStyle}>

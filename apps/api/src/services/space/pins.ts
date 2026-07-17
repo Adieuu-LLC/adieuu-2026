@@ -43,6 +43,11 @@ export async function pinSpaceMessage(
     return { success: false, error: 'Moderator permissions required.', errorCode: 'FORBIDDEN' };
   }
 
+  const channel = await getSpaceChannelRepository().findByIdInSpace(spaceId, channelId);
+  if (!channel) {
+    return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
+  }
+
   const message = await getSpaceMessageRepository().findByIdInChannel(channelId, messageId);
   if (!message || message.deleted) {
     return { success: false, error: 'Message not found.', errorCode: 'MESSAGE_NOT_FOUND' };
@@ -98,6 +103,11 @@ export async function unpinSpaceMessage(
     return { success: false, error: 'Moderator permissions required.', errorCode: 'FORBIDDEN' };
   }
 
+  const channel = await getSpaceChannelRepository().findByIdInSpace(spaceId, channelId);
+  if (!channel) {
+    return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
+  }
+
   const pinRepo = getSpacePinRepository();
   const removed = await pinRepo.removePin(channelId, messageId);
   if (!removed) {
@@ -143,28 +153,42 @@ export async function getSpacePinnedMessages(
     return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
   }
 
-  const cursorObjId = cursor && isValidObjectId(cursor) ? new ObjectId(cursor) : undefined;
+  let decodedCursor: { pinnedAt: Date; id: ObjectId } | undefined;
+  if (cursor) {
+    const sep = cursor.indexOf('_');
+    if (sep > 0) {
+      const ms = Number(cursor.slice(0, sep));
+      const hex = cursor.slice(sep + 1);
+      if (!Number.isNaN(ms) && isValidObjectId(hex)) {
+        decodedCursor = { pinnedAt: new Date(ms), id: new ObjectId(hex) };
+      }
+    }
+  }
+
   const pinRepo = getSpacePinRepository();
-  const pins = await pinRepo.findByChannel(channelId, limit + 1, cursorObjId);
+  const pins = await pinRepo.findByChannel(channelId, limit + 1, decodedCursor);
 
   const hasMore = pins.length > limit;
   const page = hasMore ? pins.slice(0, limit) : pins;
 
   const messageRepo = getSpaceMessageRepository();
-  const messages = await Promise.all(
-    page.map(async (pin) => {
-      const msg = await messageRepo.findById(pin.messageId);
-      return msg ? toPublicSpaceMessage(msg) : null;
-    }),
-  );
+  const messageIds = page.map((pin) => pin.messageId);
+  const msgs = await messageRepo.findByIds(messageIds);
+  const lookup = new Map(msgs.map((m) => [m._id.toHexString(), m]));
+  const messages = page.map((pin) => {
+    const msg = lookup.get(pin.messageId.toHexString());
+    return msg ? toPublicSpaceMessage(msg) : null;
+  });
 
-  const filteredMessages = messages.filter(
-    (msg): msg is NonNullable<typeof msg> => msg !== null,
-  );
+  let nextCursor: string | null = null;
+  if (hasMore && page.length > 0) {
+    const lastPin = page[page.length - 1]!;
+    nextCursor = `${lastPin.pinnedAt.getTime()}_${lastPin._id.toHexString()}`;
+  }
 
   return {
     success: true,
-    messages: filteredMessages,
-    cursor: hasMore && page.length > 0 ? page[page.length - 1]!._id.toHexString() : null,
+    messages,
+    cursor: nextCursor,
   };
 }

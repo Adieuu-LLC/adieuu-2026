@@ -80,8 +80,10 @@ export function useMessageScrollOrchestration(
 
   const historyScrollAnchorRef = useRef<HistoryScrollAnchor | null>(null);
   const initialOpenBottomSnapDoneRef = useRef(false);
+  const generationRef = useRef(0);
 
   useEffect(() => {
+    generationRef.current += 1;
     initialOpenBottomSnapDoneRef.current = false;
     historyScrollAnchorRef.current = null;
   }, [entityId]);
@@ -127,9 +129,13 @@ export function useMessageScrollOrchestration(
         anchor = { anchorKey: headMessageId, targetViewportOffsetPx: cr.top - vRect.top };
       }
     }
+    const gen = generationRef.current;
     void Promise.resolve(loadNewer()).then(() => {
+      if (gen !== generationRef.current) return;
       requestAnimationFrame(() => {
+        if (gen !== generationRef.current) return;
         requestAnimationFrame(() => {
+          if (gen !== generationRef.current) return;
           const el = scrollViewportRef.current;
           const c = messagesContentRef.current;
           if (anchor && el && c) {
@@ -166,11 +172,15 @@ export function useMessageScrollOrchestration(
     clearMessageScrollCache(entityId);
     historyScrollAnchorRef.current = null;
     setIsAtBottom(true);
+    const gen = generationRef.current;
     if (jumpToLatest) {
       await jumpToLatest(entityId);
     }
+    if (gen !== generationRef.current) return;
     requestAnimationFrame(() => {
+      if (gen !== generationRef.current) return;
       requestAnimationFrame(() => {
+        if (gen !== generationRef.current) return;
         scrollToBottom('auto');
       });
     });
@@ -266,8 +276,11 @@ export function useMessageScrollOrchestration(
     if (flatItems.length === 0 || messagesLoading) return;
     if (initialOpenBottomSnapDoneRef.current) return;
     initialOpenBottomSnapDoneRef.current = true;
+    const gen = generationRef.current;
     requestAnimationFrame(() => {
+      if (gen !== generationRef.current) return;
       requestAnimationFrame(() => {
+        if (gen !== generationRef.current) return;
         scrollToBottom('auto');
       });
     });

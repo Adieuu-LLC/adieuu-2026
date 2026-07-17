@@ -291,6 +291,7 @@ export function MessageActionBar({
           type="button"
           className="message-action-bar-btn"
           onClick={onDeleteForSelf}
+          aria-label="Delete for me"
         >
           <Icon name="trash" className="message-action-bar-icon" />
         </button>
@@ -301,6 +302,7 @@ export function MessageActionBar({
             type="button"
             className="message-action-bar-btn"
             onClick={onDeleteForEveryone}
+            aria-label="Delete for everyone"
           >
             <Icon name="trash" className="message-action-bar-icon" style={{ color: 'var(--color-error)' }} />
           </button>

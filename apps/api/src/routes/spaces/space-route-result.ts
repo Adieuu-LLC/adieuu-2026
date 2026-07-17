@@ -86,6 +86,8 @@ export function mapSpaceError(
       return { kind: 'conflict', code: 'REACTION_EXISTS', message };
     case 'ALREADY_PINNED':
       return { kind: 'conflict', code: 'ALREADY_PINNED', message };
+    case 'EDIT_CONFLICT':
+      return { kind: 'conflict', code: 'EDIT_CONFLICT', message };
     case 'INVALID_ENCRYPTION':
     case 'INVALID_ID':
     case 'INVALID_CONTENT':

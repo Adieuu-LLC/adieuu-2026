@@ -364,7 +364,8 @@ export async function getPinnedMessagesCtrl(
   if (!id.ok || !channelId.ok) return { kind: 'bad_request', message: 'Invalid id.' };
 
   const limit = clampSpaceListLimit(ctx.query.get('limit'), 50, 100);
-  const cursor = parseSpaceListCursor(ctx.query.get('cursor'));
+  const rawCursor = ctx.query.get('cursor');
+  const cursor = rawCursor && /^\d{1,15}_[0-9a-f]{24}$/.test(rawCursor) ? rawCursor : undefined;
 
   const result = await getSpacePinnedMessages(id.id, channelId.id, identity._id, limit, cursor);
   if (!result.success) {

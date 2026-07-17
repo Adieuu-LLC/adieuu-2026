@@ -40,7 +40,7 @@ export function MessageBody({
   if (message.deleted) {
     return (
       <p className="dm-message-text" style={{ fontStyle: 'italic', opacity: 0.6 }}>
-        Message deleted
+        {t('conversations.messageDeleted', 'Message deleted')}
       </p>
     );
   }

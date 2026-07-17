@@ -44,28 +44,30 @@ export function useDeviceTrust({
 
   useEffect(() => {
     let cancelled = false;
+    setDeviceSignatureTrust('none');
     async function run() {
       if (deleted || !body) {
-        setDeviceSignatureTrust('none');
         return;
       }
       if (!senderDeviceId) {
-        setDeviceSignatureTrust('none');
         return;
       }
       if (!peerKeysForSender) {
-        setDeviceSignatureTrust('none');
         return;
       }
-      const rec = await getDeviceSignatureVerification(fromIdentityId, senderDeviceId);
+      let rec: Awaited<ReturnType<typeof getDeviceSignatureVerification>>;
+      try {
+        rec = await getDeviceSignatureVerification(fromIdentityId, senderDeviceId);
+      } catch {
+        if (!cancelled) setDeviceSignatureTrust('none');
+        return;
+      }
       if (cancelled) return;
       if (!rec) {
-        setDeviceSignatureTrust('none');
         return;
       }
       const current = getSafetyFingerprintDisplayForDevice(peerKeysForSender, senderDeviceId);
       if (current == null) {
-        setDeviceSignatureTrust('none');
         return;
       }
       const trust = current === rec.verifiedDisplay ? 'match' : 'mismatch';

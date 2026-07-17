@@ -325,6 +325,7 @@ export function MessageContextMenuFrame({
               type="button"
               className="emoji-picker-popover-close"
               onClick={() => onShowContextReactionPicker(false)}
+              aria-label={t('conversations.closeReactionPicker', 'Close reaction picker')}
             >
               x
             </button>

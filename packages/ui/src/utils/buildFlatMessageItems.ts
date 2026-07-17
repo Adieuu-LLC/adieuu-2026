@@ -58,6 +58,7 @@ export function buildFlatMessageItems<
     unreadCount > 0 && unreadCount < messages.length
       ? messages.length - unreadCount
       : -1;
+  let unreadMarkerPlaced = false;
 
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i]!;
@@ -72,11 +73,13 @@ export function buildFlatMessageItems<
     if (showDaySep) {
       items.push({ type: 'day-separator', date: currDate, key: `day-${msg.id}` });
     }
+    const isFirstUnread = !unreadMarkerPlaced && unreadIdx >= 0 && i >= unreadIdx;
+    if (isFirstUnread) unreadMarkerPlaced = true;
     items.push({
       type: 'message',
       msg,
       key: msg.id,
-      isFirstUnread: i === unreadIdx || undefined,
+      isFirstUnread: isFirstUnread || undefined,
     });
   }
   return items;

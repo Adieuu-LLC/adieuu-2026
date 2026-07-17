@@ -32,6 +32,12 @@ export function areChannelMessageBubblePropsEqual(
   if (pm.replyToMessageId !== nm.replyToMessageId) return false;
   if (pm.channelId !== nm.channelId) return false;
   if (pm.messageType !== nm.messageType) return false;
+  if (pm.senderDeviceId !== nm.senderDeviceId) return false;
+  if (pm.systemEvent !== nm.systemEvent) return false;
+  if (pm.attachments !== nm.attachments) return false;
+  if (pm.mentions !== nm.mentions) return false;
+  if (pm.gifAttachments !== nm.gifAttachments) return false;
+  if (pm.customEmojis !== nm.customEmojis) return false;
 
   if (prev.onStartEdit !== next.onStartEdit) return false;
 
@@ -70,6 +76,7 @@ export function areChannelMessageBubblePropsEqual(
     if (pq.text !== nq.text) return false;
     if (pq.quotedAuthor?.displayName !== nq.quotedAuthor?.displayName) return false;
     if (pq.quotedAuthor?.avatarUrl !== nq.quotedAuthor?.avatarUrl) return false;
+    if (pq.onQuoteClick !== nq.onQuoteClick) return false;
   }
 
   return true;

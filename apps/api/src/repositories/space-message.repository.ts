@@ -9,6 +9,10 @@ import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
 import type { SpaceMessageDocument, CreateSpaceMessageInput } from '../models/space-message';
 
+export type EditMessageResult =
+  | { conflict: false; message: SpaceMessageDocument }
+  | { conflict: true; current: SpaceMessageDocument | null };
+
 export class SpaceMessageRepository extends BaseRepository<SpaceMessageDocument> {
   constructor() {
     super(Collections.SPACE_MESSAGES);
@@ -45,6 +49,13 @@ export class SpaceMessageRepository extends BaseRepository<SpaceMessageDocument>
       .sort({ createdAt: -1, _id: -1 })
       .limit(limit)
       .toArray()) as SpaceMessageDocument[];
+  }
+
+  async findByIds(ids: ObjectId[]): Promise<SpaceMessageDocument[]> {
+    if (!ids.length) return [];
+    return await this.collection
+      .find({ _id: { $in: ids } } as Filter<SpaceMessageDocument>)
+      .toArray() as SpaceMessageDocument[];
   }
 
   async findByIdInChannel(
@@ -96,13 +107,17 @@ export class SpaceMessageRepository extends BaseRepository<SpaceMessageDocument>
   async editMessage(
     messageId: ObjectId,
     content: string,
-  ): Promise<SpaceMessageDocument | null> {
+  ): Promise<EditMessageResult | null> {
     const existing = await this.findOne({ _id: messageId } as Filter<SpaceMessageDocument>);
     if (!existing) return null;
 
     const now = new Date();
     const result = await this.collection.findOneAndUpdate(
-      { _id: messageId } as Filter<SpaceMessageDocument>,
+      {
+        _id: messageId,
+        deleted: false,
+        revisionCount: existing.revisionCount,
+      } as Filter<SpaceMessageDocument>,
       {
         $set: { content, lastEditedAt: now, updatedAt: now },
         $inc: { revisionCount: 1 },
@@ -110,7 +125,11 @@ export class SpaceMessageRepository extends BaseRepository<SpaceMessageDocument>
       } as UpdateFilter<SpaceMessageDocument>,
       { returnDocument: 'after' },
     );
-    return result as SpaceMessageDocument | null;
+    if (!result) {
+      const current = await this.findOne({ _id: messageId } as Filter<SpaceMessageDocument>);
+      return { conflict: true, current: current ?? null };
+    }
+    return { conflict: false, message: result as SpaceMessageDocument };
   }
 
   async softDelete(messageId: ObjectId): Promise<SpaceMessageDocument | null> {

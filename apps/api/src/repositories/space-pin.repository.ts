@@ -22,11 +22,14 @@ export class SpacePinRepository extends BaseRepository<SpacePinDocument> {
   async findByChannel(
     channelId: ObjectId,
     limit = 50,
-    cursor?: ObjectId,
+    cursor?: { pinnedAt: Date; id: ObjectId },
   ): Promise<SpacePinDocument[]> {
     const filter: Filter<SpacePinDocument> = { channelId } as Filter<SpacePinDocument>;
     if (cursor) {
-      (filter as Record<string, unknown>)._id = { $lt: cursor };
+      (filter as Record<string, unknown>).$or = [
+        { pinnedAt: { $lt: cursor.pinnedAt } },
+        { pinnedAt: cursor.pinnedAt, _id: { $lt: cursor.id } },
+      ];
     }
     return (await this.collection
       .find(filter)

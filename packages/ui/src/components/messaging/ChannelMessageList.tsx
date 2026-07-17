@@ -199,7 +199,7 @@ export function ChannelMessageList({
   freeTierBanner,
   loadEditHistory,
   emptyMessage,
-  loadingLabel: _loadingLabel,
+  loadingLabel,
   trailingContent,
 }: ChannelMessageListProps) {
   const { t } = useTranslation();
@@ -433,8 +433,9 @@ export function ChannelMessageList({
     >
       {entityId !== activeEntityId ||
       (messagesLoading && messageCount === 0) ? (
-        <div className="dm-messages-loading">
+        <div className="dm-messages-loading" role="status">
           <div className="dm-messages-spinner" />
+          <span className="sr-only">{loadingLabel ?? t('conversations.loading', 'Loading messages…')}</span>
         </div>
       ) : messageCount === 0 && !messagesLoading ? (
         <div className="conversation-messages-empty">
@@ -479,8 +480,9 @@ export function ChannelMessageList({
             </section>
           ) : null}
           {messagesLoading && messageCount > 0 ? (
-            <div className="dm-messages-history-loading" aria-busy="true">
+            <div className="dm-messages-history-loading" role="status" aria-busy="true">
               <span className="spinner spinner-sm" />
+              <span className="sr-only">{loadingLabel ?? t('conversations.loading', 'Loading messages…')}</span>
             </div>
           ) : null}
           <div

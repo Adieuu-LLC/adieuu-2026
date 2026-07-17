@@ -55,7 +55,7 @@ export const MessageContextMenuItems = memo(function MessageContextMenuItems({
       )}
       <Menu.Item value="react" className="dm-context-menu-item">
         <Icon name="smilePlus" className="dm-context-menu-item-icon" />
-        React
+        {t('conversations.react', 'React')}
       </Menu.Item>
       {!isOwn && !isDeleted && (
         <Menu.Item value="report" className="dm-context-menu-item dm-context-menu-item--danger">
@@ -65,12 +65,12 @@ export const MessageContextMenuItems = memo(function MessageContextMenuItems({
       )}
       <Menu.Item value="delete-for-me" className="dm-context-menu-item">
         <Icon name="trash" className="dm-context-menu-item-icon" />
-        Delete for me
+        {t('conversations.deleteForMe', 'Delete for me')}
       </Menu.Item>
       {isOwn && (
         <Menu.Item value="delete-for-everyone" className="dm-context-menu-item dm-context-menu-item--danger">
           <Icon name="trash" className="dm-context-menu-item-icon" />
-          Delete for everyone
+          {t('conversations.deleteForEveryone', 'Delete for everyone')}
         </Menu.Item>
       )}
     </>

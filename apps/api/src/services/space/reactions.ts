@@ -7,6 +7,7 @@
 import { ObjectId } from 'mongodb';
 import { getSpaceMessageRepository } from '../../repositories/space-message.repository';
 import { getSpaceReactionRepository } from '../../repositories/space-reaction.repository';
+import { getSpaceChannelRepository } from '../../repositories/space-channel.repository';
 import { isValidObjectId } from '../../utils';
 import { toPublicSpaceReaction } from '../../models/space-reaction';
 import { resolveMemberPermissions } from './permissions';
@@ -43,8 +44,16 @@ export async function addSpaceReaction(
     return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
   }
 
+  const channel = await getSpaceChannelRepository().findByIdInSpace(spaceId, channelId);
+  if (!channel) {
+    return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
+  }
+
   const message = await getSpaceMessageRepository().findByIdInChannel(channelId, messageId);
   if (!message || message.deleted) {
+    return { success: false, error: 'Message not found.', errorCode: 'MESSAGE_NOT_FOUND' };
+  }
+  if (!message.spaceId.equals(spaceId)) {
     return { success: false, error: 'Message not found.', errorCode: 'MESSAGE_NOT_FOUND' };
   }
 
@@ -95,9 +104,17 @@ export async function removeSpaceReaction(
     return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
   }
 
+  const perms = await resolveMemberPermissions(spaceId, callerId);
+  if (!perms.isMember) {
+    return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
+  }
+
   const reactionRepo = getSpaceReactionRepository();
   const reaction = await reactionRepo.findById(reactionId);
   if (!reaction) {
+    return { success: false, error: 'Reaction not found.', errorCode: 'REACTION_NOT_FOUND' };
+  }
+  if (!reaction.spaceId.equals(spaceId) || !reaction.channelId.equals(channelId) || !reaction.messageId.equals(messageId)) {
     return { success: false, error: 'Reaction not found.', errorCode: 'REACTION_NOT_FOUND' };
   }
   if (!reaction.identityId.equals(callerId)) {
@@ -106,12 +123,12 @@ export async function removeSpaceReaction(
 
   await reactionRepo.deleteById(reactionId);
 
-  await publishSpaceEvent(spaceId.toHexString(), {
+  await publishSpaceEvent(reaction.spaceId.toHexString(), {
     type: 'space_reaction_removed',
     data: {
       reactionId: reactionId.toHexString(),
-      messageId: messageId.toHexString(),
-      channelId: channelId.toHexString(),
+      messageId: reaction.messageId.toHexString(),
+      channelId: reaction.channelId.toHexString(),
     },
   });
 
@@ -135,6 +152,16 @@ export async function getSpaceReactions(
   const perms = await resolveMemberPermissions(spaceId, callerId);
   if (!perms.isMember) {
     return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
+  }
+
+  const channel = await getSpaceChannelRepository().findByIdInSpace(spaceId, channelId);
+  if (!channel) {
+    return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
+  }
+
+  const message = await getSpaceMessageRepository().findByIdInChannel(channelId, messageId);
+  if (!message) {
+    return { success: false, error: 'Message not found.', errorCode: 'MESSAGE_NOT_FOUND' };
   }
 
   const reactions = await getSpaceReactionRepository().findByMessage(messageId);

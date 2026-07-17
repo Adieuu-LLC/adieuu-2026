@@ -54,6 +54,7 @@ export type SpaceErrorCode =
   | 'INVALID_REPLY_TARGET'
   | 'REACTION_EXISTS'
   | 'REACTION_NOT_FOUND'
+  | 'EDIT_CONFLICT'
   | 'ALREADY_PINNED'
   | 'PIN_NOT_FOUND';
 
@@ -182,7 +183,7 @@ export interface SpacePinResult {
 /** Result of listing pinned messages. */
 export interface SpacePinnedMessagesResult {
   success: boolean;
-  messages?: PublicSpaceMessage[];
+  messages?: (PublicSpaceMessage | null)[];
   cursor?: string | null;
   error?: string;
   errorCode?: SpaceErrorCode;

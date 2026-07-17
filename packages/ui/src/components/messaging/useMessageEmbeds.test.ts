@@ -68,6 +68,7 @@ type G = typeof globalThis & {
 
 let happy: GlobalWindow;
 let root: Root | null = null;
+let savedLocalStorage: PropertyDescriptor | undefined;
 
 beforeEach(() => {
   embedPrefState = { mode: 'all', allowlist: [], maxWidth: 'medium' };
@@ -81,6 +82,7 @@ beforeEach(() => {
   g.document = happy.document as unknown as Document;
   g.IS_REACT_ACT_ENVIRONMENT = true;
 
+  savedLocalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
   Object.defineProperty(globalThis, 'localStorage', {
     value: {
       _store: new Map<string, string>(),
@@ -105,6 +107,8 @@ afterEach(() => {
   delete g.window;
   delete g.document;
   delete g.IS_REACT_ACT_ENVIRONMENT;
+  if (savedLocalStorage) Object.defineProperty(globalThis, 'localStorage', savedLocalStorage);
+  else delete (globalThis as Record<string, unknown>).localStorage;
 });
 
 function renderHook(content: string, selfId: string | undefined): { current: UseMessageEmbedsResult } {
