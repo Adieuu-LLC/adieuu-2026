@@ -46,6 +46,7 @@ import { useMessageScroll } from '../../hooks/useMessageScroll';
 import { useMessageScrollOrchestration } from '../../hooks/useMessageScrollOrchestration';
 import { useChannelReactions } from '../../hooks/useChannelReactions';
 import { createSpaceReactionsAdapter } from '../../hooks/adapters/spaceReactionsAdapter';
+import { useFavoriteEmojis } from '../../hooks/useFavoriteEmojis';
 import { useChannelPins } from '../../hooks/useChannelPins';
 import { createSpacePinsAdapter } from '../../hooks/adapters/spacePinsAdapter';
 import { useReplyParentHydration, buildChannelReplyQuote } from '../../hooks/useReplyParentHydration';
@@ -372,7 +373,7 @@ export function SpaceChannelView() {
 
       if (editingMessage) {
         if (!spaceId || !channelId) return;
-        let content = parsed.text;
+        let content = parsed.isStructured ? composerPayload : parsed.text;
         if (isEncrypted && spaceCipher) {
           const encrypted = encryptWithCipher(spaceCipher, toBytes(content));
           content = JSON.stringify(serializeCipherPayload(encrypted));
@@ -487,11 +488,16 @@ export function SpaceChannelView() {
   }, [pinnedCount, channelMessages, pinnedMessageIds, t]);
 
   // ---------------------------------------------------------------------------
+  // Favorite emojis (shared across Conversations and Spaces)
+  // ---------------------------------------------------------------------------
+
+  const { favorites: favoriteEmojis, addFavorite, removeFavorite } = useFavoriteEmojis(identity?.id);
+
+  // ---------------------------------------------------------------------------
   // Report (stub)
   // ---------------------------------------------------------------------------
 
   const noopReport = useCallback(() => {}, []);
-  const noopFav = useCallback(() => {}, []);
 
   // ---------------------------------------------------------------------------
   // Edit history loader
@@ -624,14 +630,14 @@ export function SpaceChannelView() {
           memberSettings={{}}
           messageLayout="linear"
           memberColorDisplay="name-only"
-          favoriteEmojis={[]}
+          favoriteEmojis={favoriteEmojis}
           getGroupedReactions={getGroupedReactions}
           onDeleteMessage={handleDeleteMessage}
           onReact={onReact}
           onToggleReaction={onToggleReaction}
           onReportMessage={noopReport}
-          onAddFavorite={noopFav}
-          onRemoveFavorite={noopFav}
+          onAddFavorite={addFavorite}
+          onRemoveFavorite={removeFavorite}
           onLinkClick={handleLinkClick}
           showScrollButton={showScrollButton}
           onJumpToLatest={handleJumpToLatest}

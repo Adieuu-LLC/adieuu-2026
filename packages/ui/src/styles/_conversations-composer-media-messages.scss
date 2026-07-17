@@ -677,6 +677,19 @@
     transform: translate(-50%, -50%);
     z-index: var(--z-modal, 200);
   }
+
+  &--fav {
+    overflow: visible;
+  }
+}
+
+.emoji-picker-popover-header {
+  margin: 0;
+  padding: 10px 14px 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.01em;
 }
 
 .emoji-picker-popover-close {

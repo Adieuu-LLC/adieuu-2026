@@ -244,14 +244,17 @@ export function MessageActionBar({
               <button
                 type="button"
                 className="message-action-bar-btn message-action-bar-btn--add-fav"
-                title="Add favourite reaction"
+                title={t('conversations.addFavouriteEmoji', 'Add to quick reactions')}
               >
                 <Icon name="plus" className="message-action-bar-icon message-action-bar-icon--sm" />
               </button>
             </Popover.Trigger>
             <Portal>
               <Popover.Positioner>
-                <Popover.Content className="emoji-picker-popover">
+                <Popover.Content className="emoji-picker-popover emoji-picker-popover--fav">
+                  <p className="emoji-picker-popover-header">
+                    {t('conversations.chooseFavouriteReaction', 'Choose a quick reaction')}
+                  </p>
                   <EmojiPicker
                     onEmojiSelect={handleFavPickerSelect}
                     customEmojis={customEmojis}
