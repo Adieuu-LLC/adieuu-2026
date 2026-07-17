@@ -41,6 +41,7 @@ export {
   listSpaceChannels,
   sendSpaceMessage,
   getSpaceMessages,
+  getSpaceMessage,
   editSpaceMessage,
   deleteSpaceMessage,
   modDeleteSpaceMessage,

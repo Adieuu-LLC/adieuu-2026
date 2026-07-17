@@ -29,6 +29,7 @@ import { toPublicSpaceMessage } from '../../models/space-message';
 import { resolveMemberPermissions, memberHasPermission } from './permissions';
 import { canReadSpace } from './access';
 import { publishSpaceEvent } from './redis-events';
+import { createNotification } from '../notification.service';
 import type {
   SpaceChannelsResult,
   SpaceMessageResult,
@@ -80,6 +81,7 @@ export async function sendSpaceMessage(
     clientMessageId: string;
     replyToMessageId?: string;
     mentionedIdentityIds?: string[];
+    expiresInSeconds?: number;
   },
 ): Promise<SpaceMessageResult> {
   const spaceId = parseObjId(spaceIdRaw);
@@ -124,6 +126,7 @@ export async function sendSpaceMessage(
   }
 
   let replyToMessageObjId: ObjectId | undefined;
+  let replyToMessageAuthorId: ObjectId | undefined;
   if (params.replyToMessageId) {
     const replyId = parseObjId(params.replyToMessageId);
     if (!replyId) {
@@ -139,11 +142,17 @@ export async function sendSpaceMessage(
       };
     }
     replyToMessageObjId = replyId;
+    replyToMessageAuthorId = replyTarget.fromIdentityId;
   }
 
   const mentionedObjIds = params.mentionedIdentityIds
     ?.map((id) => parseObjId(id))
     .filter((id): id is ObjectId => id !== null);
+
+  const expiresAt =
+    params.expiresInSeconds != null && params.expiresInSeconds > 0
+      ? new Date(Date.now() + params.expiresInSeconds * 1000)
+      : undefined;
 
   const messageRepo = getSpaceMessageRepository();
 
@@ -162,6 +171,7 @@ export async function sendSpaceMessage(
       clientMessageId: params.clientMessageId,
       ...(replyToMessageObjId ? { replyToMessageId: replyToMessageObjId } : {}),
       ...(mentionedObjIds?.length ? { mentionedIdentityIds: mentionedObjIds } : {}),
+      ...(expiresAt ? { expiresAt } : {}),
     });
   } catch (err) {
     if (typeof err === 'object' && err !== null && (err as { code?: number }).code === 11000) {
@@ -172,10 +182,33 @@ export async function sendSpaceMessage(
   }
 
   const publicMessage = toPublicSpaceMessage(message);
+  if (replyToMessageAuthorId) {
+    publicMessage.replyToMessageAuthorId = replyToMessageAuthorId.toHexString();
+  }
   await publishSpaceEvent(spaceId.toHexString(), {
     type: 'space_message',
     data: { message: publicMessage },
   });
+
+  const senderHex = senderId.toHexString();
+  const notifBase = {
+    spaceId: spaceId.toHexString(),
+    channelId: channelId.toHexString(),
+    messageId: publicMessage.id,
+    fromIdentityId: senderHex,
+  };
+
+  if (replyToMessageAuthorId && !replyToMessageAuthorId.equals(senderId)) {
+    createNotification(replyToMessageAuthorId, 'space_message_reply', notifBase).catch(() => {});
+  }
+
+  if (mentionedObjIds?.length) {
+    for (const mentionId of mentionedObjIds) {
+      if (mentionId.equals(senderId)) continue;
+      if (replyToMessageAuthorId && mentionId.equals(replyToMessageAuthorId)) continue;
+      createNotification(mentionId, 'space_message_mention', notifBase).catch(() => {});
+    }
+  }
 
   return { success: true, message: publicMessage };
 }
@@ -228,6 +261,44 @@ export async function getSpaceMessages(
     messages: page.map(toPublicSpaceMessage),
     cursor: hasMore && page.length > 0 ? page[page.length - 1]!._id.toHexString() : null,
   };
+}
+
+/**
+ * Fetch a single message by ID (includes revisionHistory when present).
+ */
+export async function getSpaceMessage(
+  spaceIdRaw: string | ObjectId,
+  channelIdRaw: string | ObjectId,
+  messageIdRaw: string | ObjectId,
+  requesterIdentityIdRaw: string | ObjectId,
+): Promise<SpaceMessageResult> {
+  const spaceId = parseObjId(spaceIdRaw);
+  const channelId = parseObjId(channelIdRaw);
+  const messageId = parseObjId(messageIdRaw);
+  const requesterId = parseObjId(requesterIdentityIdRaw);
+  if (!spaceId || !channelId || !messageId || !requesterId) {
+    return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
+  }
+
+  const space = await getSpaceRepository().findById(spaceId);
+  if (!space) {
+    return { success: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' };
+  }
+
+  const access = await canReadSpace(space, requesterId);
+  if (!access.ok) return { success: false, error: access.error, errorCode: access.errorCode };
+
+  const channel = await getSpaceChannelRepository().findByIdInSpace(spaceId, channelId);
+  if (!channel) {
+    return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
+  }
+
+  const message = await getSpaceMessageRepository().findByIdInChannel(channelId, messageId);
+  if (!message) {
+    return { success: false, error: 'Message not found.', errorCode: 'MESSAGE_NOT_FOUND' };
+  }
+
+  return { success: true, message: toPublicSpaceMessage(message) };
 }
 
 /**

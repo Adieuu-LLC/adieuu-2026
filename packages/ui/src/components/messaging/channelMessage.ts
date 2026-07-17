@@ -154,6 +154,7 @@ export function spaceMessageToChannel(
     replyToMessageId: msg.replyToMessageId,
     revisionCount: msg.revisionCount ?? 0,
     lastEditedAt: msg.lastEditedAt,
+    expiresAt: msg.expiresAt,
     _sourceSpace: msg,
   };
 }

@@ -20,6 +20,11 @@ export interface SpacesSocketEffectsParams {
     onPinsUpdated?: SpacesContextValue['onSocketPinsUpdated'];
   }>;
   setUnreadByChannel: React.Dispatch<React.SetStateAction<Record<string, SpaceChannelUnreadState>>>;
+  fireNotificationRef: MutableRefObject<
+    ((title: string, body: string, options: { isMention?: boolean; channelId: string; spaceSlug?: string; onClick?: () => void }) => void) | undefined
+  >;
+  channelNamesRef: MutableRefObject<Record<string, string>>;
+  activeChannelMessagesRef: MutableRefObject<PublicSpaceMessage[]>;
 }
 
 export function useSpacesSocketEffects(params: SpacesSocketEffectsParams): void {
@@ -36,6 +41,9 @@ export function useSpacesSocketEffects(params: SpacesSocketEffectsParams): void 
     refreshChannelMessagesRef,
     socketCallbacksRef,
     setUnreadByChannel,
+    fireNotificationRef,
+    channelNamesRef,
+    activeChannelMessagesRef,
   } = params;
 
   useEffect(() => {
@@ -58,6 +66,11 @@ export function useSpacesSocketEffects(params: SpacesSocketEffectsParams): void 
         onSocketPinsUpdated: (messageId, action) =>
           socketCallbacksRef.current.onPinsUpdated?.(messageId, action),
         setUnreadByChannel: (updater) => setUnreadByChannel((prev) => updater(prev)),
+        fireNotification: fireNotificationRef.current
+          ? (title, body, opts) => fireNotificationRef.current?.(title, body, opts)
+          : undefined,
+        channelNames: channelNamesRef.current,
+        activeChannelMessages: activeChannelMessagesRef.current,
       });
     });
 

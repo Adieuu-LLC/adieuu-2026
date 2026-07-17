@@ -24,6 +24,7 @@ import { MessageContextMenuFrame } from './MessageContextMenu';
 import { captureMessageContextStash } from '../../utils/contextMenuMedia';
 import { ReactionBar } from '../../pages/conversations/ReactionBar';
 import type { MediaMessageLayout } from '../MediaMessage';
+import type { EditHistoryEntry } from './EditHistoryLabel';
 import { useMessageEmbeds } from './useMessageEmbeds';
 import { useDeviceTrust } from './useDeviceTrust';
 import { useExpiryCountdown } from './useExpiryCountdown';
@@ -77,6 +78,7 @@ export interface ChannelMessageBubbleProps {
   customEmojis?: PublicCustomEmoji[];
   hideUnmoderatedMedia?: boolean;
   pageTagCtx?: PageTagRenderContext;
+  loadEditHistory?: (messageId: string) => Promise<EditHistoryEntry[] | null>;
 }
 
 export const ChannelMessageBubble = memo(function ChannelMessageBubble({
@@ -91,6 +93,7 @@ export const ChannelMessageBubble = memo(function ChannelMessageBubble({
   peerPublicKeysById = {}, verificationRevision = 0,
   customEmojisDisabled = false, customEmojis,
   hideUnmoderatedMedia = false, pageTagCtx,
+  loadEditHistory,
 }: ChannelMessageBubbleProps) {
   const { t } = useTranslation();
   const { block: blockIdentity } = useBlockContext();
@@ -235,7 +238,7 @@ export const ChannelMessageBubble = memo(function ChannelMessageBubble({
       hideUnmoderatedMedia={hideUnmoderatedMedia} embeds={embeds} />
   );
 
-  const metaStripProps = { message, deviceSignatureTrustIcon, signatureWarningIcon, fsDowngradeIcon, fsInfo, isPinned, countdown } as const;
+  const metaStripProps = { message, deviceSignatureTrustIcon, signatureWarningIcon, fsDowngradeIcon, fsInfo, isPinned, countdown, loadEditHistory } as const;
 
   const blockConfirmDialog = !isOwn && (
     <ConfirmDialog open={blockConfirmOpen} onOpenChange={setBlockConfirmOpen}

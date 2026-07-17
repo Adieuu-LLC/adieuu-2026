@@ -7,7 +7,7 @@ import {
   formatMessageTime,
   formatAbsoluteTime,
 } from '../../pages/conversations/conversationUtils';
-import { MessageEditHistoryLabel } from '../../pages/conversations/MessageEditHistoryLabel';
+import { EditHistoryLabel, type EditHistoryEntry } from './EditHistoryLabel';
 
 export interface MessageMetaStripProps {
   message: ChannelMessage;
@@ -19,6 +19,8 @@ export interface MessageMetaStripProps {
   countdown: string | null;
   /** 'header' for linear layout header, 'footer' for bubble layout footer */
   variant: 'header' | 'footer';
+  /** Loader for edit history entries. When provided, the "Edited" label becomes interactive. */
+  loadEditHistory?: (messageId: string) => Promise<EditHistoryEntry[] | null>;
 }
 
 export function MessageMetaStrip({
@@ -30,6 +32,7 @@ export function MessageMetaStrip({
   isPinned,
   countdown,
   variant,
+  loadEditHistory,
 }: MessageMetaStripProps) {
   const { t } = useTranslation();
 
@@ -43,11 +46,12 @@ export function MessageMetaStrip({
         </Tooltip>
       )}
       {(message.revisionCount ?? 0) > 0 && (
-        message._sourceConversation
-          ? <MessageEditHistoryLabel
-              message={message._sourceConversation}
+        loadEditHistory
+          ? <EditHistoryLabel
+              lastEditedAt={message.lastEditedAt}
+              loadHistory={() => loadEditHistory(message.id)}
               className="dm-message-edited-label"
-              {...(variant === 'footer' ? { variant: 'footer' } : {})}
+              variant={variant}
             />
           : <span className="dm-message-edited-label">{t('conversations.messageEdited')}</span>
       )}

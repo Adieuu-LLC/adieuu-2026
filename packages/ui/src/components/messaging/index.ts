@@ -19,3 +19,5 @@ export type { MessageBodyProps } from './MessageBody';
 export { MessageMetaStrip } from './MessageMetaStrip';
 export type { MessageMetaStripProps } from './MessageMetaStrip';
 export { areChannelMessageBubblePropsEqual } from './channelMessageBubbleMemo';
+export { EditHistoryLabel } from './EditHistoryLabel';
+export type { EditHistoryEntry, EditHistoryLabelProps } from './EditHistoryLabel';

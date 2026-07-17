@@ -15,6 +15,7 @@
 import { useMemo, useCallback, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DisplayMessage } from '../../hooks/useConversations';
+import { useConversations } from '../../hooks/useConversations';
 import type { GroupedReaction, ReactionCustomEmoji } from '../../hooks/useReactions';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
 import type { IdentityPublicKeys, PublicCustomEmoji, PublicIdentity } from '@adieuu/shared';
@@ -276,6 +277,18 @@ export function ConversationMessageList({
     </div>
   ) : null;
 
+  const { loadMessageEditHistory } = useConversations();
+
+  const loadEditHistory = useCallback(
+    async (messageId: string) => {
+      if (!conversationId) return null;
+      const msg = messagesById.get(messageId);
+      if (!msg) return null;
+      return loadMessageEditHistory(conversationId, msg);
+    },
+    [conversationId, messagesById, loadMessageEditHistory],
+  );
+
   return (
     <ChannelMessageList
       entityId={conversationId}
@@ -338,6 +351,7 @@ export function ConversationMessageList({
       systemMessageRenderer={systemMessageRenderer}
       freeTierBanner={freeTierBanner}
       trailingContent={pendingOutboxNode}
+      loadEditHistory={loadEditHistory}
     />
   );
 }

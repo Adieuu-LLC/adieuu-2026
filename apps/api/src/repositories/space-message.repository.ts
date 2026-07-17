@@ -97,12 +97,16 @@ export class SpaceMessageRepository extends BaseRepository<SpaceMessageDocument>
     messageId: ObjectId,
     content: string,
   ): Promise<SpaceMessageDocument | null> {
+    const existing = await this.findOne({ _id: messageId } as Filter<SpaceMessageDocument>);
+    if (!existing) return null;
+
     const now = new Date();
     const result = await this.collection.findOneAndUpdate(
       { _id: messageId } as Filter<SpaceMessageDocument>,
       {
         $set: { content, lastEditedAt: now, updatedAt: now },
         $inc: { revisionCount: 1 },
+        $push: { revisionHistory: { content: existing.content, replacedAt: now } },
       } as UpdateFilter<SpaceMessageDocument>,
       { returnDocument: 'after' },
     );

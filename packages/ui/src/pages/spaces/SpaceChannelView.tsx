@@ -29,6 +29,9 @@ import { useCipherStore } from '../../hooks/useCipherStore';
 import { getSpaceCipherLink } from '../../services/spaceCipherService';
 import { parsePayload } from '../../services/messagePayload';
 import { Spinner } from '../../components/Spinner';
+import { Button } from '../../components/Button';
+import { Tooltip } from '../../components/Tooltip';
+import { Icon } from '../../icons/Icon';
 import { MessageComposer } from '../../components/composer/MessageComposer';
 import type { ComposerSendFn, ComposerReplyContext } from '../../components/composer/composerTypes';
 import {
@@ -38,6 +41,7 @@ import {
 import { ChannelMessageList } from '../../components/messaging/ChannelMessageList';
 import { ChannelPinsMenu } from '../../components/messaging/ChannelPinsMenu';
 import { buildFlatMessageItems, type ChannelListItem } from '../../utils/buildFlatMessageItems';
+import { SpaceMembersSidebar } from './SpaceMembersSidebar';
 import { useMessageScroll } from '../../hooks/useMessageScroll';
 import { useMessageScrollOrchestration } from '../../hooks/useMessageScrollOrchestration';
 import { useChannelReactions } from '../../hooks/useChannelReactions';
@@ -48,6 +52,7 @@ import { useReplyParentHydration, buildChannelReplyQuote } from '../../hooks/use
 import { createSpaceReplyAdapter } from '../../hooks/adapters/spaceReplyAdapter';
 import type { PublicSpaceMessage } from '@adieuu/shared';
 import type { ReplyQuotePayload } from '../conversations/conversationUtils';
+import type { EditHistoryEntry } from '../../components/messaging/EditHistoryLabel';
 
 function decryptBody(
   content: string | undefined,
@@ -140,9 +145,19 @@ export function SpaceChannelView() {
     [channelMessages],
   );
 
+  const [expiryTick, setExpiryTick] = useState(0);
+
+  useEffect(() => {
+    const hasExpiring = channelMessages.some((m) => m.expiresAt);
+    if (!hasExpiring) return;
+    const timer = setInterval(() => setExpiryTick((x) => x + 1), 1000);
+    return () => clearInterval(timer);
+  }, [channelMessages]);
+
   const flatItems: ChannelListItem<ChannelMessage>[] = useMemo(
-    () => buildFlatMessageItems(channelMessages, 0, 0),
-    [channelMessages],
+    () => buildFlatMessageItems(channelMessages, 0, Date.now()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [channelMessages, expiryTick],
   );
 
   // ---------------------------------------------------------------------------
@@ -232,6 +247,26 @@ export function SpaceChannelView() {
     }
   }, [channelMessages, hydrateAll]);
 
+  // ---------------------------------------------------------------------------
+  // Scroll to specific message (pins, reply quotes)
+  // ---------------------------------------------------------------------------
+
+  const FLASH_HIGHLIGHT_MS = 2800;
+  const [flashingMessageId, setFlashingMessageId] = useState<string | null>(null);
+  const scrollViewportRefStable = useRef<HTMLDivElement | null>(null);
+
+  const scrollToMessageId = useCallback(
+    (messageId: string) => {
+      const el = scrollViewportRefStable.current?.querySelector(`[data-message-id="${messageId}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setFlashingMessageId(messageId);
+        setTimeout(() => setFlashingMessageId(null), FLASH_HIGHLIGHT_MS);
+      }
+    },
+    [],
+  );
+
   const replyQuoteBuilder = useCallback(
     (msg: ChannelMessage): ReplyQuotePayload | null => {
       if (!msg.replyToMessageId) return null;
@@ -244,13 +279,13 @@ export function SpaceChannelView() {
         },
         (id) => participantProfiles[id]?.avatarUrl,
         () => {
-          /* scroll to parent — TODO: implement scrollToMessageId */
+          if (msg.replyToMessageId) scrollToMessageId(msg.replyToMessageId);
         },
         t('conversations.replyDeleted', 'Message deleted'),
         t('conversations.replyOriginal', 'Original message'),
       );
     },
-    [getParentInfo, participantProfiles, t],
+    [getParentInfo, participantProfiles, t, scrollToMessageId],
   );
 
   // ---------------------------------------------------------------------------
@@ -330,7 +365,7 @@ export function SpaceChannelView() {
   // ---------------------------------------------------------------------------
 
   const onSend: ComposerSendFn = useCallback(
-    async (composerPayload: string) => {
+    async (composerPayload: string, options?) => {
       const parsed = parsePayload(composerPayload);
       const hasContent = !!parsed.text || parsed.gifAttachments.length > 0;
       if (!hasContent) return;
@@ -351,6 +386,7 @@ export function SpaceChannelView() {
       const mentionedIdentityIds = parsed.mentions
         .map((m) => m.id)
         .filter((id): id is string => !!id);
+      const expiresInSeconds = options?.expiresInSeconds;
 
       const content = parsed.isStructured ? composerPayload : parsed.text;
 
@@ -361,12 +397,14 @@ export function SpaceChannelView() {
           JSON.stringify(serialized),
           replyToMessageId,
           mentionedIdentityIds.length ? mentionedIdentityIds : undefined,
+          expiresInSeconds,
         );
       } else {
         await sendMessage(
           content,
           replyToMessageId,
           mentionedIdentityIds.length ? mentionedIdentityIds : undefined,
+          expiresInSeconds,
         );
       }
       setReplyContext(null);
@@ -401,6 +439,8 @@ export function SpaceChannelView() {
     messageLayoutKey,
   });
 
+  scrollViewportRefStable.current = scrollViewportRef.current;
+
   const {
     handleReachOlder,
     handleReachNewer: _handleReachNewer,
@@ -424,20 +464,76 @@ export function SpaceChannelView() {
   });
 
   // ---------------------------------------------------------------------------
+  // Members pane
+  // ---------------------------------------------------------------------------
+
+  const [showMembers, setShowMembers] = useState(false);
+  const toggleMembers = useCallback(() => setShowMembers((v) => !v), []);
+
+  // ---------------------------------------------------------------------------
+  // Pin preview for toolbar subtitle
+  // ---------------------------------------------------------------------------
+
+  const latestPinInfo = useMemo(() => {
+    if (pinnedCount === 0) return null;
+    const pinned = channelMessages.find((m) => pinnedMessageIds.includes(m.id));
+    if (!pinned) return null;
+    const { text } = parsePayload(pinned.body);
+    const cleaned = text.replace(/\s+/g, ' ').trim();
+    const preview = !cleaned
+      ? t('conversations.pinnedMessage', 'Pinned')
+      : cleaned.length > 70 ? `${cleaned.slice(0, 70)}…` : cleaned;
+    return { preview, messageId: pinned.id };
+  }, [pinnedCount, channelMessages, pinnedMessageIds, t]);
+
+  // ---------------------------------------------------------------------------
   // Report (stub)
   // ---------------------------------------------------------------------------
 
   const noopReport = useCallback(() => {}, []);
   const noopFav = useCallback(() => {}, []);
 
+  // ---------------------------------------------------------------------------
+  // Edit history loader
+  // ---------------------------------------------------------------------------
+
+  const loadEditHistory = useCallback(
+    async (messageId: string): Promise<EditHistoryEntry[] | null> => {
+      if (!spaceId || !channelId) return null;
+      try {
+        const res = await api.spaces.getMessage(spaceId, channelId, messageId);
+        if (!res.success || !res.data) return null;
+        const history = (res.data as { revisionHistory?: { content: string; replacedAt: string }[] }).revisionHistory;
+        if (!history || history.length === 0) return [];
+
+        return history.map((entry) => {
+          let plaintext = entry.content;
+          if (isEncrypted && spaceCipher) {
+            try {
+              const parsed = JSON.parse(entry.content) as SerializedCipherPayload;
+              const payload = deserializeCipherPayload(parsed);
+              plaintext = fromBytes(decryptWithCipher(spaceCipher, payload));
+            } catch {
+              return { replacedAt: entry.replacedAt, decryptionError: 'Unable to decrypt' };
+            }
+          }
+          return { replacedAt: entry.replacedAt, plaintext };
+        });
+      } catch {
+        return null;
+      }
+    },
+    [spaceId, channelId, api, isEncrypted, spaceCipher],
+  );
+
   const handleLinkClick = useCallback((href: string) => {
     window.open(href, '_blank', 'noopener,noreferrer');
   }, []);
 
   const wrappedSend: ComposerSendFn = useCallback(
-    async (payload: string) => {
+    async (payload, options) => {
       markJustSent();
-      await onSend(payload);
+      await onSend(payload, options);
     },
     [onSend, markJustSent],
   );
@@ -457,28 +553,65 @@ export function SpaceChannelView() {
   return (
     <div className="space-channel-view">
       <div className="space-channel-toolbar">
-        <span className="space-channel-toolbar-hash">#</span>
-        <span className="space-channel-toolbar-name">{activeChannel.name}</span>
-        {isEncrypted && (
-          <span className="spaces-badge spaces-badge--encrypted spaces-badge--toolbar">
-            {t('spaces.encrypted')}
-          </span>
-        )}
+        <div className="space-channel-toolbar-left">
+          <span className="space-channel-toolbar-hash">#</span>
+          <div className="space-channel-toolbar-info">
+            <span className="space-channel-toolbar-name">
+              {activeChannel.name}
+              {isEncrypted && (
+                <span className="spaces-badge spaces-badge--encrypted spaces-badge--toolbar">
+                  {t('spaces.encrypted')}
+                </span>
+              )}
+            </span>
+            {latestPinInfo ? (
+              <button
+                type="button"
+                className="space-channel-toolbar-subtitle space-channel-toolbar-subtitle--clickable"
+                onClick={() => scrollToMessageId(latestPinInfo.messageId)}
+              >
+                {latestPinInfo.preview}
+              </button>
+            ) : (
+              <span className="space-channel-toolbar-subtitle">
+                {`${activeSpace?.memberCount ?? 0} ${t('conversations.members', 'members')}`}
+              </span>
+            )}
+          </div>
+        </div>
         <div className="space-channel-toolbar-actions">
           <ChannelPinsMenu
             channelId={channelId!}
             pinnedCount={pinnedCount}
             pinnedMessageIdsKey={pinnedMessageIdsKey}
             loadPinnedMessagesPage={loadPinnedMessagesPage}
+            scrollToMessageId={scrollToMessageId}
             onUnpin={async (msgId) => { await onUnpin(msgId); }}
             canUnpin={canManagePins}
             participantProfiles={participantProfiles}
             memberSettings={{}}
             identity={identity}
           />
+          <Tooltip content={t('conversations.members', 'Members')} position="bottom">
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              className={`conversation-toolbar-btn conversation-toolbar-btn--icon-only${showMembers ? ' active' : ''}`}
+              onClick={toggleMembers}
+              aria-label={t('conversations.members', 'Members')}
+              aria-pressed={showMembers}
+            >
+              <span className="conversation-toolbar-btn-icon" aria-hidden>
+                <Icon name="users" size="sm" />
+              </span>
+            </Button>
+          </Tooltip>
         </div>
       </div>
 
+      <div className="space-channel-content-row">
+      <div className="space-channel-content">
       <div className="space-channel-body">
         <ChannelMessageList
           entityId={channelId}
@@ -520,6 +653,9 @@ export function SpaceChannelView() {
           onReply={handleReply}
           onStartEdit={handleStartEdit}
           replyQuoteBuilder={replyQuoteBuilder}
+          scrollToMessageId={scrollToMessageId}
+          flashingMessageId={flashingMessageId}
+          loadEditHistory={loadEditHistory}
         />
       </div>
 
@@ -549,6 +685,19 @@ export function SpaceChannelView() {
             editingInitialAttachments={editingInitialAttachments}
           />
         )}
+      </div>
+      </div>
+
+      {showMembers && (
+        <SpaceMembersSidebar
+          spaceId={spaceId}
+          roles={[]}
+          selfId={identity?.id}
+          listMembers={(sid, opts) => api.spaces.listMembers(sid, opts)}
+          resolveProfile={(id) => participantProfiles[id]}
+          onClose={toggleMembers}
+        />
+      )}
       </div>
     </div>
   );

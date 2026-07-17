@@ -163,6 +163,16 @@ export class SpacesApi {
     );
   }
 
+  async getMessage(
+    spaceId: string,
+    channelId: string,
+    messageId: string,
+  ): Promise<ApiResponse<PublicSpaceMessage>> {
+    return this.client.get(
+      `/api/spaces/${encodeURIComponent(spaceId)}/channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}`
+    );
+  }
+
   async getMessagesAround(
     spaceId: string,
     channelId: string,

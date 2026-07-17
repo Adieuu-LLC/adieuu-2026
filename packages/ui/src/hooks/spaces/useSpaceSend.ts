@@ -11,6 +11,7 @@ type SpacesSendApiLike = {
       clientMessageId: string;
       replyToMessageId?: string;
       mentionedIdentityIds?: string[];
+      expiresInSeconds?: number;
     },
   ) => Promise<{ success: boolean; data?: PublicSpaceMessage }>;
 };
@@ -32,6 +33,7 @@ export function useSpaceSend(params: SpaceSendParams) {
       content: string,
       replyToMessageId?: string,
       mentionedIdentityIds?: string[],
+      expiresInSeconds?: number,
     ): Promise<PublicSpaceMessage | null> => {
       const spaceId = activeSpaceIdRef.current;
       const channelId = activeChannelIdRef.current;
@@ -46,6 +48,7 @@ export function useSpaceSend(params: SpaceSendParams) {
           clientMessageId,
           ...(replyToMessageId ? { replyToMessageId } : {}),
           ...(mentionedIdentityIds?.length ? { mentionedIdentityIds } : {}),
+          ...(expiresInSeconds != null ? { expiresInSeconds } : {}),
         });
         if (res.success && res.data) {
           setMessagesByChannel((prev) => {

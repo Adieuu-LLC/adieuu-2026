@@ -234,4 +234,15 @@ describe('spaceMessageToChannel', () => {
     expect(ch.gifAttachments).toEqual([]);
     expect(ch.customEmojis).toEqual({});
   });
+
+  it('maps expiresAt when present', () => {
+    const msg = makeSpaceMessage({ expiresAt: '2024-06-16T12:00:00.000Z' });
+    const ch = spaceMessageToChannel(msg, 'expiring text');
+    expect(ch.expiresAt).toBe('2024-06-16T12:00:00.000Z');
+  });
+
+  it('leaves expiresAt undefined when absent', () => {
+    const ch = spaceMessageToChannel(makeSpaceMessage(), 'text');
+    expect(ch.expiresAt).toBeUndefined();
+  });
 });

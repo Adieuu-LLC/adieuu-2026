@@ -54,7 +54,7 @@ export interface SpacesContextValue {
 
   setActiveSpace: (slug: string | null) => void;
   setActiveChannel: (channelId: string | null) => void;
-  sendMessage: (content: string, replyToMessageId?: string, mentionedIdentityIds?: string[]) => Promise<PublicSpaceMessage | null>;
+  sendMessage: (content: string, replyToMessageId?: string, mentionedIdentityIds?: string[], expiresInSeconds?: number) => Promise<PublicSpaceMessage | null>;
   loadOlderMessages: () => Promise<void>;
   refresh: () => Promise<void>;
   clearChannelUnread: (channelId: string) => void;

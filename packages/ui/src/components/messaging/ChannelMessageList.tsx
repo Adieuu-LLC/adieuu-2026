@@ -31,6 +31,7 @@ import {
 import { scrollViewportCanScroll } from '../../utils/messageScrollUtils';
 import { Tooltip } from '../Tooltip';
 import { Icon } from '../../icons/Icon';
+import type { EditHistoryEntry } from './EditHistoryLabel';
 import { ChannelMessageBubble } from './ChannelMessageBubble';
 
 // ---------------------------------------------------------------------------
@@ -122,6 +123,9 @@ export interface ChannelMessageListProps {
   freeTierBanner?: ReactNode;
   pendingOutboxRenderer?: (item: { pendingCount: number }) => ReactNode;
 
+  /** Loader for edit history entries. When provided, the "Edited" label becomes interactive. */
+  loadEditHistory?: (messageId: string) => Promise<EditHistoryEntry[] | null>;
+
   emptyMessage?: string;
   loadingLabel?: string;
   /** Rendered at the end of the messages content div (e.g. pending-outbox row). */
@@ -193,6 +197,7 @@ export function ChannelMessageList({
   replyQuoteBuilder,
   systemMessageRenderer,
   freeTierBanner,
+  loadEditHistory,
   emptyMessage,
   loadingLabel: _loadingLabel,
   trailingContent,
@@ -361,6 +366,7 @@ export function ChannelMessageList({
             verificationRevision={verificationRevision}
             hideUnmoderatedMedia={hideUnmoderatedMedia}
             pageTagCtx={pageTagCtx}
+            loadEditHistory={loadEditHistory}
           />
           {renderMessageExtras ? renderMessageExtras(msg) : null}
         </>
@@ -405,6 +411,7 @@ export function ChannelMessageList({
       replyQuoteBuilder,
       systemMessageRenderer,
       renderMessageExtras,
+      loadEditHistory,
     ],
   );
 

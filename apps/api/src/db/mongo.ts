@@ -887,11 +887,12 @@ export async function createIndexes(): Promise<void> {
     { unique: true, partialFilterExpression: { status: 'pending' } },
   );
 
-  // Space messages — channel pagination + client dedup
+  // Space messages — channel pagination + client dedup + TTL auto-delete
   const spaceMessages = database.collection(Collections.SPACE_MESSAGES);
   await spaceMessages.createIndex({ channelId: 1, createdAt: -1 });
   await spaceMessages.createIndex({ channelId: 1, _id: -1 });
   await spaceMessages.createIndex({ channelId: 1, clientMessageId: 1 }, { unique: true });
+  await spaceMessages.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, sparse: true });
 
   // Space reactions — one reaction per emoji per user per message
   const spaceReactions = database.collection(Collections.SPACE_REACTIONS);

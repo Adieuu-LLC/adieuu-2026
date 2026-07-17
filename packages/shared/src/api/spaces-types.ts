@@ -185,8 +185,11 @@ export interface PublicSpaceMessage {
   deleted: boolean;
   revisionCount: number;
   lastEditedAt?: string;
+  revisionHistory?: { content: string; replacedAt: string }[];
   replyToMessageId?: string;
+  replyToMessageAuthorId?: string;
   mentionedIdentityIds?: string[];
+  expiresAt?: string;
   createdAt: string;
 }
 
@@ -230,6 +233,7 @@ export interface SendSpaceMessageParams {
   clientMessageId: string;
   replyToMessageId?: string;
   mentionedIdentityIds?: string[];
+  expiresInSeconds?: number;
 }
 
 export interface EditSpaceMessageParams {

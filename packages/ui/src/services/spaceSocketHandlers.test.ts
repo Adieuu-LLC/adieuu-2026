@@ -50,6 +50,11 @@ function createContext(
   const reactionRemovedCalls: Array<{ messageId: string; reactionId: string }> = [];
   const pinsUpdatedCalls: Array<{ messageId: string; action: 'pinned' | 'unpinned' }> = [];
   const fetchCalls: Array<{ spaceId: string; channelId: string }> = [];
+  const notificationCalls: Array<{
+    title: string;
+    body: string;
+    options: { isMention?: boolean; channelId: string; spaceSlug?: string; onClick?: () => void };
+  }> = [];
 
   const ctx: SpaceSocketHandlerContext = {
     setSpaces: () => {},
@@ -71,6 +76,11 @@ function createContext(
     setUnreadByChannel: (updater) => {
       unreadByChannel = updater(unreadByChannel);
     },
+    fireNotification: (title, body, options) => {
+      notificationCalls.push({ title, body, options });
+    },
+    channelNames: { 'ch-1': 'general' },
+    activeChannelMessages: messagesByChannel['ch-1']?.messages ?? [],
     ...overrides,
   };
 
@@ -86,6 +96,7 @@ function createContext(
     reactionRemovedCalls,
     pinsUpdatedCalls,
     fetchCalls,
+    notificationCalls,
   };
 }
 
@@ -383,5 +394,120 @@ describe('spaceSocketHandlers', () => {
 
     expect(h.unreadByChannel['ch-1']!.unread).toBe(2);
     expect(h.unreadByChannel['ch-1']!.mention).toBe(true);
+  });
+
+  // -------------------------------------------------------------------------
+  // Notifications — space_message
+  // -------------------------------------------------------------------------
+
+  test('space_message: fires notification for message from other user', () => {
+    const h = createContext({ activeChannelId: 'ch-other' });
+    const msg = makeMessage({ id: 'msg-notif', fromIdentityId: 'user-2' });
+    handleSpaceSocketMessage(
+      { type: 'space_message', data: { message: msg } } as ChatIncomingMessage,
+      h.ctx,
+    );
+    expect(h.notificationCalls).toHaveLength(1);
+    expect(h.notificationCalls[0]!.title).toBe('New message');
+    expect(h.notificationCalls[0]!.body).toContain('#general');
+  });
+
+  test('space_message: fires reply notification when replyToMessageAuthorId matches self', () => {
+    const h = createContext();
+    const msg = makeMessage({
+      id: 'msg-reply',
+      fromIdentityId: 'user-2',
+      replyToMessageId: 'msg-1',
+      replyToMessageAuthorId: 'me-1',
+    });
+    handleSpaceSocketMessage(
+      { type: 'space_message', data: { message: msg } } as ChatIncomingMessage,
+      h.ctx,
+    );
+    expect(h.notificationCalls).toHaveLength(1);
+    expect(h.notificationCalls[0]!.title).toBe('Reply');
+    expect(h.notificationCalls[0]!.body).toContain('replied to your message');
+  });
+
+  test('space_message: fires mention notification when user is mentioned', () => {
+    const h = createContext({ activeChannelId: 'ch-other' });
+    const msg = makeMessage({
+      id: 'msg-mention-notif',
+      fromIdentityId: 'user-2',
+      mentionedIdentityIds: ['me-1'],
+    });
+    handleSpaceSocketMessage(
+      { type: 'space_message', data: { message: msg } } as ChatIncomingMessage,
+      h.ctx,
+    );
+    expect(h.notificationCalls).toHaveLength(1);
+    expect(h.notificationCalls[0]!.title).toBe('Mention');
+    expect(h.notificationCalls[0]!.options.isMention).toBe(true);
+  });
+
+  test('space_message: does NOT fire notification for own message', () => {
+    const h = createContext();
+    const msg = makeMessage({ id: 'msg-self', fromIdentityId: 'me-1' });
+    handleSpaceSocketMessage(
+      { type: 'space_message', data: { message: msg } } as ChatIncomingMessage,
+      h.ctx,
+    );
+    expect(h.notificationCalls).toHaveLength(0);
+  });
+
+  // -------------------------------------------------------------------------
+  // Notifications — space_reaction_added
+  // -------------------------------------------------------------------------
+
+  test('space_reaction_added: fires notification when reaction is on own message', () => {
+    const ownMsg = makeMessage({ id: 'msg-own', fromIdentityId: 'me-1' });
+    const h = createContext({
+      activeChannelMessages: [ownMsg],
+    });
+    handleSpaceSocketMessage(
+      {
+        type: 'space_reaction_added',
+        data: {
+          reaction: {
+            id: 'r-2',
+            spaceId: 'space-1',
+            channelId: 'ch-1',
+            messageId: 'msg-own',
+            identityId: 'user-2',
+            emoji: '🎉',
+            createdAt: '2026-07-16T00:00:00Z',
+          },
+        },
+      } as ChatIncomingMessage,
+      h.ctx,
+    );
+    expect(h.notificationCalls).toHaveLength(1);
+    expect(h.notificationCalls[0]!.title).toBe('Reaction');
+    expect(h.notificationCalls[0]!.body).toContain('🎉');
+  });
+
+  test('space_reaction_added: does NOT fire notification for reaction on others message', () => {
+    const otherMsg = makeMessage({ id: 'msg-other', fromIdentityId: 'user-3' });
+    const h = createContext({
+      activeChannelMessages: [otherMsg],
+    });
+    handleSpaceSocketMessage(
+      {
+        type: 'space_reaction_added',
+        data: {
+          reaction: {
+            id: 'r-3',
+            spaceId: 'space-1',
+            channelId: 'ch-1',
+            messageId: 'msg-other',
+            identityId: 'user-2',
+            emoji: '👍',
+            createdAt: '2026-07-16T00:00:00Z',
+          },
+        },
+      } as ChatIncomingMessage,
+      h.ctx,
+    );
+    expect(h.notificationCalls).toHaveLength(0);
   });
 });

@@ -71,6 +71,7 @@ export const SendSpaceMessageSchema = z.object({
   clientMessageId: z.string().uuid(),
   replyToMessageId: z.string().length(24).optional(),
   mentionedIdentityIds: z.array(z.string().length(24)).max(50).optional(),
+  expiresInSeconds: z.number().int().positive().optional(),
 });
 
 export const EditSpaceMessageSchema = z.object({

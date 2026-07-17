@@ -15,6 +15,7 @@
 import { Router } from '../../router';
 import { spaceRespond } from './space-route-result';
 import * as spaceController from './controller';
+import * as messageController from './message-controller';
 
 const router = new Router();
 
@@ -101,31 +102,35 @@ router.get('/spaces/:id/roles', async (ctx) => {
 // ---------------------------------------------------------------------------
 
 router.get('/spaces/:id/channels', async (ctx) => {
-  return spaceRespond(ctx, await spaceController.listChannelsCtrl(ctx));
+  return spaceRespond(ctx, await messageController.listChannelsCtrl(ctx));
 });
 
 router.get('/spaces/:id/channels/:channelId/messages', async (ctx) => {
-  return spaceRespond(ctx, await spaceController.getMessagesCtrl(ctx));
+  return spaceRespond(ctx, await messageController.getMessagesCtrl(ctx));
 });
 
 router.post('/spaces/:id/channels/:channelId/messages', async (ctx) => {
-  return spaceRespond(ctx, await spaceController.sendMessageCtrl(ctx));
+  return spaceRespond(ctx, await messageController.sendMessageCtrl(ctx));
 });
 
 router.get('/spaces/:id/channels/:channelId/messages/around/:msgId', async (ctx) => {
-  return spaceRespond(ctx, await spaceController.messagesAroundCtrl(ctx));
+  return spaceRespond(ctx, await messageController.messagesAroundCtrl(ctx));
+});
+
+router.get('/spaces/:id/channels/:channelId/messages/:msgId', async (ctx) => {
+  return spaceRespond(ctx, await messageController.getMessageCtrl(ctx));
 });
 
 router.patch('/spaces/:id/channels/:channelId/messages/:msgId', async (ctx) => {
-  return spaceRespond(ctx, await spaceController.editMessageCtrl(ctx));
+  return spaceRespond(ctx, await messageController.editMessageCtrl(ctx));
 });
 
 router.delete('/spaces/:id/channels/:channelId/messages/:msgId', async (ctx) => {
-  return spaceRespond(ctx, await spaceController.deleteMessageCtrl(ctx));
+  return spaceRespond(ctx, await messageController.deleteMessageCtrl(ctx));
 });
 
 router.delete('/spaces/:id/channels/:channelId/messages/:msgId/mod', async (ctx) => {
-  return spaceRespond(ctx, await spaceController.modDeleteMessageCtrl(ctx));
+  return spaceRespond(ctx, await messageController.modDeleteMessageCtrl(ctx));
 });
 
 // ---------------------------------------------------------------------------
@@ -133,18 +138,18 @@ router.delete('/spaces/:id/channels/:channelId/messages/:msgId/mod', async (ctx)
 // ---------------------------------------------------------------------------
 
 router.post('/spaces/:id/channels/:channelId/messages/:msgId/reactions', async (ctx) => {
-  return spaceRespond(ctx, await spaceController.addReactionCtrl(ctx));
+  return spaceRespond(ctx, await messageController.addReactionCtrl(ctx));
 });
 
 router.delete(
   '/spaces/:id/channels/:channelId/messages/:msgId/reactions/:reactionId',
   async (ctx) => {
-    return spaceRespond(ctx, await spaceController.removeReactionCtrl(ctx));
+    return spaceRespond(ctx, await messageController.removeReactionCtrl(ctx));
   },
 );
 
 router.get('/spaces/:id/channels/:channelId/messages/:msgId/reactions', async (ctx) => {
-  return spaceRespond(ctx, await spaceController.getReactionsCtrl(ctx));
+  return spaceRespond(ctx, await messageController.getReactionsCtrl(ctx));
 });
 
 // ---------------------------------------------------------------------------
@@ -152,15 +157,15 @@ router.get('/spaces/:id/channels/:channelId/messages/:msgId/reactions', async (c
 // ---------------------------------------------------------------------------
 
 router.post('/spaces/:id/channels/:channelId/pins', async (ctx) => {
-  return spaceRespond(ctx, await spaceController.pinMessageCtrl(ctx));
+  return spaceRespond(ctx, await messageController.pinMessageCtrl(ctx));
 });
 
 router.delete('/spaces/:id/channels/:channelId/pins/:msgId', async (ctx) => {
-  return spaceRespond(ctx, await spaceController.unpinMessageCtrl(ctx));
+  return spaceRespond(ctx, await messageController.unpinMessageCtrl(ctx));
 });
 
 router.get('/spaces/:id/channels/:channelId/pinned-messages', async (ctx) => {
-  return spaceRespond(ctx, await spaceController.getPinnedMessagesCtrl(ctx));
+  return spaceRespond(ctx, await messageController.getPinnedMessagesCtrl(ctx));
 });
 
 // ---------------------------------------------------------------------------

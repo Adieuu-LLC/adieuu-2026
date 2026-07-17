@@ -53,6 +53,7 @@ const svc = {
 mock.module('../../services/space.service', () => svc);
 
 import * as c from './controller';
+import * as mc from './message-controller';
 import { spaceRoutes } from './index';
 
 const HEX = new ObjectId().toHexString();
@@ -97,7 +98,7 @@ describe('space controllers - auth', () => {
     expect(await c.listMySpacesCtrl(makeCtx({ session: false }))).toEqual({ kind: 'unauthorized' });
     expect(await c.discoverSpacesCtrl(makeCtx({ session: false }))).toEqual({ kind: 'unauthorized' });
     expect(await c.getSpaceCtrl(makeCtx({ session: false }))).toEqual({ kind: 'unauthorized' });
-    expect(await c.sendMessageCtrl(makeCtx({ session: false }))).toEqual({ kind: 'unauthorized' });
+    expect(await mc.sendMessageCtrl(makeCtx({ session: false }))).toEqual({ kind: 'unauthorized' });
   });
 });
 
@@ -264,7 +265,7 @@ describe('messaging controllers', () => {
   });
 
   test('send validation_failed for a missing clientMessageId', async () => {
-    const r = await c.sendMessageCtrl(
+    const r = await mc.sendMessageCtrl(
       makeCtx({ params: { id: HEX, channelId: HEX }, body: { content: 'hi' } }),
     );
     expect(r).toEqual({ kind: 'validation_failed' });
@@ -275,7 +276,7 @@ describe('messaging controllers', () => {
     svc.sendSpaceMessage.mockResolvedValueOnce({
       success: false, errorCode: 'ENCRYPTION_NOT_SUPPORTED', error: 'encrypted',
     });
-    const r = await c.sendMessageCtrl(
+    const r = await mc.sendMessageCtrl(
       makeCtx({
         params: { id: HEX, channelId: HEX },
         body: { content: 'hi', clientMessageId: crypto.randomUUID() },
@@ -285,7 +286,7 @@ describe('messaging controllers', () => {
   });
 
   test('send returns the created message', async () => {
-    const r = await c.sendMessageCtrl(
+    const r = await mc.sendMessageCtrl(
       makeCtx({
         params: { id: HEX, channelId: HEX },
         body: { content: 'hi', clientMessageId: crypto.randomUUID() },
@@ -295,7 +296,7 @@ describe('messaging controllers', () => {
   });
 
   test('getMessages returns the list shape', async () => {
-    const r = await c.getMessagesCtrl(makeCtx({ params: { id: HEX, channelId: HEX } }));
+    const r = await mc.getMessagesCtrl(makeCtx({ params: { id: HEX, channelId: HEX } }));
     expect(r).toMatchObject({ kind: 'ok', data: { messages: [], cursor: null } });
   });
 });
@@ -348,19 +349,19 @@ describe('editMessageCtrl', () => {
   });
 
   test('returns unauthorized without a session', async () => {
-    const r = await c.editMessageCtrl(makeCtx({ session: false }));
+    const r = await mc.editMessageCtrl(makeCtx({ session: false }));
     expect(r).toEqual({ kind: 'unauthorized' });
   });
 
   test('returns bad_request for invalid id', async () => {
-    const r = await c.editMessageCtrl(
+    const r = await mc.editMessageCtrl(
       makeCtx({ params: { id: 'bad', channelId: CHID, msgId: MSGID }, body: { content: 'hi' } }),
     );
     expect(r).toEqual({ kind: 'bad_request', message: 'Invalid id.' });
   });
 
   test('returns validation_failed for missing content', async () => {
-    const r = await c.editMessageCtrl(
+    const r = await mc.editMessageCtrl(
       makeCtx({ params: { id: HEX, channelId: CHID, msgId: MSGID }, body: {} }),
     );
     expect(r).toEqual({ kind: 'validation_failed' });
@@ -370,7 +371,7 @@ describe('editMessageCtrl', () => {
     svc.editSpaceMessage.mockResolvedValueOnce({
       success: false, errorCode: 'NOT_AUTHOR', error: 'not yours',
     });
-    const r = await c.editMessageCtrl(
+    const r = await mc.editMessageCtrl(
       makeCtx({ params: { id: HEX, channelId: CHID, msgId: MSGID }, body: { content: 'hi' } }),
     );
     expect(r).toEqual({ kind: 'forbidden', message: 'not yours' });
@@ -380,14 +381,14 @@ describe('editMessageCtrl', () => {
     svc.editSpaceMessage.mockResolvedValueOnce({
       success: false, errorCode: 'MAX_EDITS_REACHED', error: 'max edits',
     });
-    const r = await c.editMessageCtrl(
+    const r = await mc.editMessageCtrl(
       makeCtx({ params: { id: HEX, channelId: CHID, msgId: MSGID }, body: { content: 'hi' } }),
     );
     expect(r).toEqual({ kind: 'bad_request', message: 'max edits' });
   });
 
   test('returns ok on success', async () => {
-    const r = await c.editMessageCtrl(
+    const r = await mc.editMessageCtrl(
       makeCtx({ params: { id: HEX, channelId: CHID, msgId: MSGID }, body: { content: 'hi' } }),
     );
     expect(r).toMatchObject({ kind: 'ok', data: { id: 'msg1' } });
@@ -401,7 +402,7 @@ describe('deleteMessageCtrl', () => {
   });
 
   test('returns unauthorized without a session', async () => {
-    const r = await c.deleteMessageCtrl(makeCtx({ session: false }));
+    const r = await mc.deleteMessageCtrl(makeCtx({ session: false }));
     expect(r).toEqual({ kind: 'unauthorized' });
   });
 
@@ -409,14 +410,14 @@ describe('deleteMessageCtrl', () => {
     svc.deleteSpaceMessage.mockResolvedValueOnce({
       success: false, errorCode: 'NOT_AUTHOR', error: 'not yours',
     });
-    const r = await c.deleteMessageCtrl(
+    const r = await mc.deleteMessageCtrl(
       makeCtx({ params: { id: HEX, channelId: CHID, msgId: MSGID } }),
     );
     expect(r).toEqual({ kind: 'forbidden', message: 'not yours' });
   });
 
   test('returns ok on success', async () => {
-    const r = await c.deleteMessageCtrl(
+    const r = await mc.deleteMessageCtrl(
       makeCtx({ params: { id: HEX, channelId: CHID, msgId: MSGID } }),
     );
     expect(r).toMatchObject({ kind: 'ok', data: undefined });
@@ -433,14 +434,14 @@ describe('modDeleteMessageCtrl', () => {
     svc.modDeleteSpaceMessage.mockResolvedValueOnce({
       success: false, errorCode: 'FORBIDDEN', error: 'not mod',
     });
-    const r = await c.modDeleteMessageCtrl(
+    const r = await mc.modDeleteMessageCtrl(
       makeCtx({ params: { id: HEX, channelId: CHID, msgId: MSGID } }),
     );
     expect(r).toEqual({ kind: 'forbidden', message: 'not mod' });
   });
 
   test('returns ok on success', async () => {
-    const r = await c.modDeleteMessageCtrl(
+    const r = await mc.modDeleteMessageCtrl(
       makeCtx({ params: { id: HEX, channelId: CHID, msgId: MSGID } }),
     );
     expect(r).toMatchObject({ kind: 'ok', data: undefined });
@@ -454,7 +455,7 @@ describe('messagesAroundCtrl', () => {
   });
 
   test('returns ok with messages list', async () => {
-    const r = await c.messagesAroundCtrl(
+    const r = await mc.messagesAroundCtrl(
       makeCtx({ params: { id: HEX, channelId: CHID, msgId: MSGID } }),
     );
     expect(r).toMatchObject({ kind: 'ok', data: { messages: [], cursor: null } });
@@ -464,7 +465,7 @@ describe('messagesAroundCtrl', () => {
     svc.getSpaceMessagesAround.mockResolvedValueOnce({
       success: false, errorCode: 'MESSAGE_NOT_FOUND', error: 'not found',
     });
-    const r = await c.messagesAroundCtrl(
+    const r = await mc.messagesAroundCtrl(
       makeCtx({ params: { id: HEX, channelId: CHID, msgId: MSGID } }),
     );
     expect(r).toEqual({ kind: 'not_found', message: 'not found' });
@@ -482,12 +483,12 @@ describe('addReactionCtrl', () => {
   });
 
   test('returns unauthorized without a session', async () => {
-    const r = await c.addReactionCtrl(makeCtx({ session: false }));
+    const r = await mc.addReactionCtrl(makeCtx({ session: false }));
     expect(r).toEqual({ kind: 'unauthorized' });
   });
 
   test('returns validation_failed for missing emoji', async () => {
-    const r = await c.addReactionCtrl(
+    const r = await mc.addReactionCtrl(
       makeCtx({ params: { id: HEX, channelId: CHID, msgId: MSGID }, body: {} }),
     );
     expect(r).toEqual({ kind: 'validation_failed' });
@@ -497,14 +498,14 @@ describe('addReactionCtrl', () => {
     svc.addSpaceReaction.mockResolvedValueOnce({
       success: false, errorCode: 'REACTION_EXISTS', error: 'already reacted',
     });
-    const r = await c.addReactionCtrl(
+    const r = await mc.addReactionCtrl(
       makeCtx({ params: { id: HEX, channelId: CHID, msgId: MSGID }, body: { emoji: '👍' } }),
     );
     expect(r).toEqual({ kind: 'conflict', code: 'REACTION_EXISTS', message: 'already reacted' });
   });
 
   test('returns ok on success', async () => {
-    const r = await c.addReactionCtrl(
+    const r = await mc.addReactionCtrl(
       makeCtx({ params: { id: HEX, channelId: CHID, msgId: MSGID }, body: { emoji: '👍' } }),
     );
     expect(r).toMatchObject({ kind: 'ok', data: { id: 'r1' } });
@@ -521,14 +522,14 @@ describe('removeReactionCtrl', () => {
     svc.removeSpaceReaction.mockResolvedValueOnce({
       success: false, errorCode: 'REACTION_NOT_FOUND', error: 'not found',
     });
-    const r = await c.removeReactionCtrl(
+    const r = await mc.removeReactionCtrl(
       makeCtx({ params: { id: HEX, channelId: CHID, msgId: MSGID, reactionId: HEX } }),
     );
     expect(r).toEqual({ kind: 'not_found', message: 'not found' });
   });
 
   test('returns ok on success', async () => {
-    const r = await c.removeReactionCtrl(
+    const r = await mc.removeReactionCtrl(
       makeCtx({ params: { id: HEX, channelId: CHID, msgId: MSGID, reactionId: HEX } }),
     );
     expect(r).toMatchObject({ kind: 'ok', data: undefined });
@@ -542,7 +543,7 @@ describe('getReactionsCtrl', () => {
   });
 
   test('returns ok with reactions list', async () => {
-    const r = await c.getReactionsCtrl(
+    const r = await mc.getReactionsCtrl(
       makeCtx({ params: { id: HEX, channelId: CHID, msgId: MSGID } }),
     );
     expect(r).toMatchObject({ kind: 'ok', data: { reactions: [] } });
@@ -560,12 +561,12 @@ describe('pinMessageCtrl', () => {
   });
 
   test('returns unauthorized without a session', async () => {
-    const r = await c.pinMessageCtrl(makeCtx({ session: false }));
+    const r = await mc.pinMessageCtrl(makeCtx({ session: false }));
     expect(r).toEqual({ kind: 'unauthorized' });
   });
 
   test('returns validation_failed for missing messageId', async () => {
-    const r = await c.pinMessageCtrl(
+    const r = await mc.pinMessageCtrl(
       makeCtx({ params: { id: HEX, channelId: CHID }, body: {} }),
     );
     expect(r).toEqual({ kind: 'validation_failed' });
@@ -575,7 +576,7 @@ describe('pinMessageCtrl', () => {
     svc.pinSpaceMessage.mockResolvedValueOnce({
       success: false, errorCode: 'ALREADY_PINNED', error: 'already pinned',
     });
-    const r = await c.pinMessageCtrl(
+    const r = await mc.pinMessageCtrl(
       makeCtx({ params: { id: HEX, channelId: CHID }, body: { messageId: MSGID } }),
     );
     expect(r).toEqual({ kind: 'conflict', code: 'ALREADY_PINNED', message: 'already pinned' });
@@ -585,14 +586,14 @@ describe('pinMessageCtrl', () => {
     svc.pinSpaceMessage.mockResolvedValueOnce({
       success: false, errorCode: 'FORBIDDEN', error: 'mod required',
     });
-    const r = await c.pinMessageCtrl(
+    const r = await mc.pinMessageCtrl(
       makeCtx({ params: { id: HEX, channelId: CHID }, body: { messageId: MSGID } }),
     );
     expect(r).toEqual({ kind: 'forbidden', message: 'mod required' });
   });
 
   test('returns ok on success', async () => {
-    const r = await c.pinMessageCtrl(
+    const r = await mc.pinMessageCtrl(
       makeCtx({ params: { id: HEX, channelId: CHID }, body: { messageId: MSGID } }),
     );
     expect(r).toMatchObject({ kind: 'ok', data: undefined });
@@ -609,14 +610,14 @@ describe('unpinMessageCtrl', () => {
     svc.unpinSpaceMessage.mockResolvedValueOnce({
       success: false, errorCode: 'PIN_NOT_FOUND', error: 'no pin',
     });
-    const r = await c.unpinMessageCtrl(
+    const r = await mc.unpinMessageCtrl(
       makeCtx({ params: { id: HEX, channelId: CHID, msgId: MSGID } }),
     );
     expect(r).toEqual({ kind: 'not_found', message: 'no pin' });
   });
 
   test('returns ok on success', async () => {
-    const r = await c.unpinMessageCtrl(
+    const r = await mc.unpinMessageCtrl(
       makeCtx({ params: { id: HEX, channelId: CHID, msgId: MSGID } }),
     );
     expect(r).toMatchObject({ kind: 'ok', data: undefined });
@@ -630,7 +631,7 @@ describe('getPinnedMessagesCtrl', () => {
   });
 
   test('returns ok with pinned messages', async () => {
-    const r = await c.getPinnedMessagesCtrl(
+    const r = await mc.getPinnedMessagesCtrl(
       makeCtx({ params: { id: HEX, channelId: CHID } }),
     );
     expect(r).toMatchObject({ kind: 'ok', data: { messages: [], cursor: null } });

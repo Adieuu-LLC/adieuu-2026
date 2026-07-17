@@ -22,8 +22,8 @@ mock.module('../../pages/conversations/conversationUtils', () => ({
   resolveDisplayName: () => 'User',
 }));
 
-mock.module('../../pages/conversations/MessageEditHistoryLabel', () => ({
-  MessageEditHistoryLabel: ({ className }: { className: string }) =>
+mock.module('./EditHistoryLabel', () => ({
+  EditHistoryLabel: ({ className }: { className: string }) =>
     createElement('span', { className, 'data-testid': 'edit-history-label' }, 'edit history'),
 }));
 
@@ -105,16 +105,17 @@ describe('MessageMetaStrip', () => {
     expect(c.innerHTML).not.toContain('time:2024-06-15T12:00:00.000Z');
   });
 
-  it('shows edited label when revisionCount > 0 without _sourceConversation', () => {
+  it('shows plain edited label when revisionCount > 0 without loadEditHistory', () => {
     const c = renderStrip({
       message: makeMessage({ revisionCount: 1 }),
     });
     expect(c.innerHTML).toContain('conversations.messageEdited');
   });
 
-  it('shows MessageEditHistoryLabel when _sourceConversation is present', () => {
+  it('shows EditHistoryLabel when loadEditHistory is provided', () => {
     const c = renderStrip({
-      message: makeMessage({ revisionCount: 2, _sourceConversation: {} as never }),
+      message: makeMessage({ revisionCount: 2 }),
+      loadEditHistory: async () => [],
     });
     expect(c.innerHTML).toContain('data-testid="edit-history-label"');
   });

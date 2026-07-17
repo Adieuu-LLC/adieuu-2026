@@ -1,8 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createApiClient, type PublicIdentity, type PublicSpace, type PublicSpaceChannel, type PublicSpaceMessage } from '@adieuu/shared';
-import { useAppConfig } from '../../config';
+import { useNavigate } from 'react-router-dom';
+import { useAppConfig, usePlatformCapabilities } from '../../config';
 import { useIdentity } from '../useIdentity';
 import { useChatSocket } from '../useChatSocket';
+import { useToast } from '../../components/Toast';
+import {
+  useNotificationSoundPreference,
+  useMentionNotificationSoundPreference,
+} from '../useNotificationSoundPreference';
+import { useClaimAchievement } from '../useClaimAchievement';
+import { fireSpaceNotification } from '../../utils/spaceNotifications';
 import { onSpacesChanged } from '../../services/spacesMembershipEvents';
 import type { SpaceChannelUnreadState } from '../../services/spaceSocketHandlers';
 import { SpacesContext } from './context';
@@ -17,6 +25,12 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   const isLoggedIn = identityStatus === 'logged_in';
   const { subscribe, onStateChange } = useChatSocket();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
+  const navigate = useNavigate();
+  const toast = useToast();
+  const { notifications, audio } = usePlatformCapabilities();
+  const soundPref = useNotificationSoundPreference();
+  const mentionSoundPref = useMentionNotificationSoundPreference();
+  const claimAchievement = useClaimAchievement();
 
   const [spaces, setSpaces] = useState<PublicSpace[]>([]);
   const [spacesLoading, setSpacesLoading] = useState(true);
@@ -204,6 +218,36 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     await fetchChannelMessages(spaceId, channelId, state.olderCursor);
   }, [messagesByChannel, fetchChannelMessages]);
 
+  const fireNotification = useCallback(
+    (title: string, body: string, options: { isMention?: boolean; channelId: string; spaceSlug?: string; onClick?: () => void }) => {
+      const slug = options.spaceSlug ?? activeSpaceInternal?.slug;
+      const navTo = options.onClick ?? (() => {
+        if (slug) navigate(`/s/${slug}/c/${options.channelId}`);
+      });
+      fireSpaceNotification(
+        title,
+        body,
+        { onClick: navTo, nativeTag: 'space-channel-event', isMention: options.isMention },
+        { toast, soundPref, mentionSoundPref, notifications, audio, onWilhelmScream: () => claimAchievement('wilhelm_scream') },
+      );
+    },
+    [toast, soundPref, mentionSoundPref, notifications, audio, claimAchievement, navigate, activeSpaceInternal?.slug],
+  );
+
+  const fireNotificationRef = useRef(fireNotification);
+  fireNotificationRef.current = fireNotification;
+
+  const channelNamesRef = useRef<Record<string, string>>({});
+  channelNamesRef.current = useMemo(
+    () => Object.fromEntries(channels.map((ch) => [ch.id, ch.name])),
+    [channels],
+  );
+
+  const activeChannelMessagesRef = useRef<PublicSpaceMessage[]>([]);
+  activeChannelMessagesRef.current = activeChannelId
+    ? messagesByChannel[activeChannelId]?.messages ?? []
+    : [];
+
   useSpacesSocketEffects({
     isLoggedIn,
     subscribe,
@@ -217,6 +261,9 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     refreshChannelMessagesRef,
     socketCallbacksRef,
     setUnreadByChannel,
+    fireNotificationRef,
+    channelNamesRef,
+    activeChannelMessagesRef,
   });
 
   const activeChannelState = activeChannelId ? messagesByChannel[activeChannelId] : undefined;

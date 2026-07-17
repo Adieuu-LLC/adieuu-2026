@@ -31,6 +31,7 @@ const messageRepo = {
   createMessage: mock(async (input: any) => ({ ...input, _id: new ObjectId(), createdAt: new Date() })) as AnyMock,
   findByClientMessageId: mock(async (_c: ObjectId, _id: string) => null as any) as AnyMock,
   findByChannel: mock(async (_c: ObjectId, _l?: number, _cur?: ObjectId, _d?: string) => [] as any[]) as AnyMock,
+  findByIdInChannel: mock(async (_c: ObjectId, _m: ObjectId) => null as any) as AnyMock,
 };
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -44,6 +45,11 @@ const publishSpaceEvent = mock(async () => {}) as AnyMock;
 mock.module('./redis-events', () => ({
   publishSpaceEvent,
   publishSpaceEventToIdentity: mock(async () => {}),
+}));
+
+const createNotificationMock = mock(async () => ({ success: true })) as AnyMock;
+mock.module('../notification.service', () => ({
+  createNotification: createNotificationMock,
 }));
 
 import { listSpaceChannels, sendSpaceMessage, getSpaceMessages } from './channels';
@@ -94,7 +100,9 @@ describe('space/channels', () => {
     channelRepo.findByIdInSpace.mockResolvedValue(null);
     messageRepo.findByClientMessageId.mockResolvedValue(null);
     messageRepo.findByChannel.mockResolvedValue([]);
+    messageRepo.findByIdInChannel.mockResolvedValue(null);
     publishSpaceEvent.mockClear();
+    createNotificationMock.mockClear();
   });
 
   describe('listSpaceChannels', () => {
