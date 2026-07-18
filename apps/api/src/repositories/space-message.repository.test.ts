@@ -92,4 +92,30 @@ describe('SpaceMessageRepository', () => {
     await repo.findByChannel(channelId, 50, cursor, 'asc');
     expect(lastFindFilter._id).toEqual({ $lt: cursor });
   });
+
+  test('findAfter returns messages newer than the anchor, oldest-first', async () => {
+    const repo = new SpaceMessageRepository();
+    const channelId = new ObjectId();
+    const anchor = new ObjectId();
+    await repo.findAfter(channelId, anchor, 30);
+    expect(lastFindFilter).toEqual({ channelId, _id: { $gt: anchor } });
+    expect(findResult.sort).toHaveBeenCalledWith({ createdAt: 1, _id: 1 });
+    expect(findResult.limit).toHaveBeenCalledWith(30);
+  });
+
+  test('hasMessageNewerThan probes for any message after the anchor', async () => {
+    const repo = new SpaceMessageRepository();
+    const channelId = new ObjectId();
+    const anchor = new ObjectId();
+    mockCollection.findOne.mockResolvedValueOnce({ _id: new ObjectId() });
+    const has = await repo.hasMessageNewerThan(channelId, anchor);
+    expect(has).toBe(true);
+    expect(mockCollection.findOne).toHaveBeenCalledWith(
+      { channelId, _id: { $gt: anchor } },
+      { projection: { _id: 1 } },
+    );
+
+    mockCollection.findOne.mockResolvedValueOnce(null);
+    expect(await repo.hasMessageNewerThan(channelId, anchor)).toBe(false);
+  });
 });

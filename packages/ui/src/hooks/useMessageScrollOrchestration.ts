@@ -78,16 +78,13 @@ export function useMessageScrollOrchestration(
     cachedScrollIndex,
   } = opts;
 
-  // Anchor to a row that already existed before an older page is requested,
-  // captured as an offset within the scroll content (independent of scrollTop).
-  // The restore below adds only the before/after delta of *this row* to the
-  // current scrollTop, so it stays a relative adjustment (a fast scroll during
-  // the async load is preserved) while ignoring media/reaction/banner growth
-  // elsewhere in the list — which a raw scrollHeight delta would wrongly fold in.
-  const pendingOlderAnchorRef = useRef<{
-    anchorKey: string;
-    contentOffsetPx: number;
-  } | null>(null);
+  // Anchor to the first row still visible at the top of the viewport before an
+  // older page is requested, captured as its offset from the viewport top. The
+  // restore below re-applies that offset via applyHistoryScrollAnchor, retried
+  // across rAF + a ResizeObserver window so late row growth (media, reaction
+  // chips, banners) that shifts content above the anchor is corrected rather
+  // than left as a visible jump.
+  const pendingOlderAnchorRef = useRef<HistoryScrollAnchor | null>(null);
   const initialOpenBottomSnapDoneRef = useRef(false);
   const generationRef = useRef(0);
 
@@ -103,14 +100,23 @@ export function useMessageScrollOrchestration(
     const content = messagesContentRef.current;
     pendingOlderAnchorRef.current = null;
     if (vp && content) {
-      const row = content.querySelector('[data-scroll-anchor-key]');
-      const anchorKey = (row as HTMLElement | null)?.dataset.scrollAnchorKey;
-      if (row && anchorKey) {
-        const vpTop = vp.getBoundingClientRect().top;
-        pendingOlderAnchorRef.current = {
-          anchorKey,
-          contentOffsetPx: row.getBoundingClientRect().top - vpTop + vp.scrollTop,
-        };
+      const vRect = vp.getBoundingClientRect();
+      // First row whose bottom is still below the viewport top edge: the topmost
+      // row the user can actually see. Anchoring to a visible row (not the
+      // topmost DOM row, which may be far above after several pages) keeps the
+      // correction stable even when the prepended page is short.
+      for (let i = 0; i < content.children.length; i++) {
+        const el = content.children[i] as HTMLElement;
+        const key = el.dataset.scrollAnchorKey;
+        if (!key) continue;
+        const cr = el.getBoundingClientRect();
+        if (cr.bottom > vRect.top + 1) {
+          pendingOlderAnchorRef.current = {
+            anchorKey: key,
+            targetViewportOffsetPx: cr.top - vRect.top,
+          };
+          break;
+        }
       }
     }
     void loadOlder();
@@ -202,30 +208,73 @@ export function useMessageScrollOrchestration(
 
   // Older-page load position preservation.
   //
-  // Runs once per completed older load: re-measure the anchor row captured
-  // before the load and add only *its* before/after content-offset delta to the
-  // current scrollTop, synchronously before paint. Because the offset was stored
-  // relative to the scroll content (independent of scrollTop), the delta equals
-  // exactly the content inserted above that row, so a fast scroll during the
-  // async fetch is preserved and media/reaction/banner growth elsewhere in the
-  // list does not skew the correction.
+  // Synchronously before paint (and again across the next frames), re-apply the
+  // captured anchor's viewport offset so the row the user was looking at stays
+  // put after older history is prepended above it.
   useLayoutEffect(() => {
     if (messagesLoading) return;
     const anchor = pendingOlderAnchorRef.current;
-    if (anchor == null) return;
-    pendingOlderAnchorRef.current = null;
+    if (!anchor) return;
     const vp = scrollViewportRef.current;
     const content = messagesContentRef.current;
     if (!vp || !content) return;
-    const escaped =
-      typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
-        ? CSS.escape(anchor.anchorKey)
-        : anchor.anchorKey.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-    const row = content.querySelector(`[data-scroll-anchor-key="${escaped}"]`);
-    if (!row) return;
-    const vpTop = vp.getBoundingClientRect().top;
-    const after = row.getBoundingClientRect().top - vpTop + vp.scrollTop;
-    vp.scrollTop += after - anchor.contentOffsetPx;
+
+    const run = () => {
+      const a = pendingOlderAnchorRef.current;
+      if (!a) return;
+      const r = applyHistoryScrollAnchor(vp, content, a);
+      if (r === 'missing') pendingOlderAnchorRef.current = null;
+    };
+    run();
+    requestAnimationFrame(run);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(run);
+    });
+  }, [messagesLoading, flatItems.length, entityId, scrollViewportRef, messagesContentRef]);
+
+  // Keep correcting the anchor while row heights settle asynchronously (avatars,
+  // media, reaction chips) so a late height change above the anchor does not
+  // leave a visible jump. Clears once aligned for two consecutive ticks, when
+  // the anchor row disappears, or after a safety timeout.
+  useEffect(() => {
+    if (messagesLoading) return undefined;
+    if (!pendingOlderAnchorRef.current) return undefined;
+    const vp = scrollViewportRef.current;
+    const content = messagesContentRef.current;
+    if (!vp || !content) return undefined;
+
+    let consecutiveAligned = 0;
+    const tick = () => {
+      const a = pendingOlderAnchorRef.current;
+      if (!a) return;
+      const r = applyHistoryScrollAnchor(vp, content, a);
+      if (r === 'missing') {
+        pendingOlderAnchorRef.current = null;
+        return;
+      }
+      if (r === 'aligned') {
+        consecutiveAligned += 1;
+        if (consecutiveAligned >= 2) pendingOlderAnchorRef.current = null;
+      } else {
+        consecutiveAligned = 0;
+      }
+    };
+
+    const ro = new ResizeObserver(() => {
+      tick();
+    });
+    ro.observe(content);
+    tick();
+
+    const t = window.setTimeout(() => {
+      pendingOlderAnchorRef.current = null;
+      ro.disconnect();
+    }, 2800);
+
+    return () => {
+      clearTimeout(t);
+      ro.disconnect();
+    };
   }, [messagesLoading, flatItems.length, entityId, scrollViewportRef, messagesContentRef]);
 
   // Keep bottom pinned when new messages arrive

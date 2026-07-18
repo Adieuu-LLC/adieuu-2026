@@ -17,14 +17,8 @@ import { SpacesContext } from './context';
 import { useSpaceDataFetching } from './useSpaceDataFetching';
 import { useSpaceSend } from './useSpaceSend';
 import { useSpacesSocketEffects } from './useSpacesSocketEffects';
+import { MAX_SPACE_LOADED_MESSAGES, trimSpaceMessages } from './spaceScrollUtils';
 import type { SpaceChannelMessagesState, SpacesContextValue } from './types';
-
-/**
- * Upper bound on how many messages we retain in a channel buffer. Trimming only
- * happens at the live tail (see {@link trimActiveChannelBuffer}), keeping ~3
- * pages of headroom so paging back and forth near the present does not churn.
- */
-const MAX_SPACE_LOADED_MESSAGES = 150;
 
 export function SpacesProvider({ children }: { children: ReactNode }) {
   const { apiBaseUrl } = useAppConfig();
@@ -236,7 +230,18 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     if (!spaceId || !channelId) return;
     const state = messagesByChannel[channelId];
     if (!state?.olderCursor || state.loading) return;
-    await fetchChannelMessages(spaceId, channelId, state.olderCursor);
+    await fetchChannelMessages(spaceId, channelId, state.olderCursor, { direction: 'older' });
+  }, [messagesByChannel, fetchChannelMessages]);
+
+  const loadNewerMessages = useCallback(async () => {
+    const spaceId = activeSpaceIdRef.current;
+    const channelId = activeChannelIdRef.current;
+    if (!spaceId || !channelId) return;
+    const state = messagesByChannel[channelId];
+    if (!state?.hasNewerPages || state.loading) return;
+    const head = state.messages[0];
+    if (!head) return;
+    await fetchChannelMessages(spaceId, channelId, head.id, { direction: 'newer' });
   }, [messagesByChannel, fetchChannelMessages]);
 
   const resolveProfilesPublic = useCallback(
@@ -256,25 +261,43 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     [fetchMessagesAroundInternal],
   );
 
-  // Bounded buffer: only trims when the caller is at the live tail, so the
-  // newest window is always retained (jump-to-latest and socket appends stay
-  // correct). Evicts the oldest overflow and advances the older cursor to the
-  // new oldest message so pagination continues from the right place. Spaces
-  // have no newer-pagination, so we never evict toward the present.
-  const trimActiveChannelBuffer = useCallback(() => {
+  // Bounded buffer, trimmed in whichever direction the user is scrolling away
+  // from (messages are newest-first: index 0 = newest, last = oldest).
+  //
+  // Fetch-driven growth is already hard-capped at merge time in
+  // useSpaceDataFetching; this is the safety net for socket-driven growth (live
+  // messages are prepended without a fetch):
+  //  - At the live tail: keep the newest window and advance the older cursor to
+  //    the new oldest so older pagination continues; head stays latest.
+  //  - Scrolled up (reading history): keep the oldest window, evicting the
+  //    newest overflow, and flag `hasNewerPages` so those evicted messages can
+  //    be reloaded from the buffer head via newer-pagination on scroll-down.
+  const trimActiveChannelBuffer = useCallback((atBottom: boolean) => {
     const channelId = activeChannelIdRef.current;
     if (!channelId) return;
     setMessagesByChannel((prev) => {
       const st = prev[channelId];
       if (!st || st.messages.length <= MAX_SPACE_LOADED_MESSAGES) return prev;
-      const trimmed = st.messages.slice(0, MAX_SPACE_LOADED_MESSAGES);
-      const newOldest = trimmed[trimmed.length - 1];
+      if (atBottom) {
+        const trimmed = trimSpaceMessages(st.messages, 'newest');
+        const newOldest = trimmed[trimmed.length - 1];
+        return {
+          ...prev,
+          [channelId]: {
+            ...st,
+            messages: trimmed,
+            olderCursor: newOldest ? newOldest.id : st.olderCursor,
+            hasNewerPages: false,
+          },
+        };
+      }
+      const trimmed = trimSpaceMessages(st.messages, 'oldest');
       return {
         ...prev,
         [channelId]: {
+          ...st,
           messages: trimmed,
-          olderCursor: newOldest ? newOldest.id : st.olderCursor,
-          loading: st.loading,
+          hasNewerPages: true,
         },
       };
     });
@@ -352,6 +375,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       activeMessages: activeChannelState?.messages ?? [],
       activeMessagesLoading: activeChannelState?.loading ?? false,
       activeMessagesOlderCursor: activeChannelState?.olderCursor ?? null,
+      activeMessagesHasNewerPages: activeChannelState?.hasNewerPages ?? false,
       sending,
       participantProfiles,
       unreadByChannel,
@@ -361,6 +385,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       setActiveChannel,
       sendMessage,
       loadOlderMessages,
+      loadNewerMessages,
       fetchMessagesAround,
       trimActiveChannelBuffer,
       refresh: fetchSpaces,
@@ -385,6 +410,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       setActiveChannel,
       sendMessage,
       loadOlderMessages,
+      loadNewerMessages,
       fetchMessagesAround,
       trimActiveChannelBuffer,
       fetchSpaces,

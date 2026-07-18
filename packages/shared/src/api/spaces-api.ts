@@ -107,7 +107,7 @@ export class SpacesApi {
     spaceId: string,
     channelId: string,
     options?: { limit?: number; cursor?: string; direction?: 'asc' | 'desc' }
-  ): Promise<ApiResponse<{ messages: PublicSpaceMessage[]; cursor: string | null }>> {
+  ): Promise<ApiResponse<{ messages: PublicSpaceMessage[]; cursor: string | null; hasNewerPages?: boolean }>> {
     const params = new URLSearchParams();
     if (options?.limit != null) params.set('limit', String(options.limit));
     if (options?.cursor) params.set('cursor', options.cursor);

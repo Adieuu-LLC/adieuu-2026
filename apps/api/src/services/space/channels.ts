@@ -258,20 +258,32 @@ export async function getSpaceMessages(
     return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
   }
 
+  const messageRepo = getSpaceMessageRepository();
   const cursorObjId = cursor && isValidObjectId(cursor) ? new ObjectId(cursor) : undefined;
-  // History pagination always walks older-than-cursor. Default an unspecified
+  // History pagination walks older-than-cursor by default. Default an unspecified
   // direction to 'asc' when a cursor is present so a client that forgets to send
-  // it does not silently receive newer-than rows (which dedupe to nothing).
+  // it does not silently receive newer-than rows. With a cursor, `desc` requests
+  // the next page toward the present (newer than the cursor).
   const effectiveDirection: 'asc' | 'desc' | undefined = cursorObjId && !direction ? 'asc' : direction;
-  const messages = await getSpaceMessageRepository().findByChannel(
-    channelId,
-    limit + 1,
-    cursorObjId,
-    effectiveDirection,
-  );
 
-  const hasMore = messages.length > limit;
-  const page = hasMore ? messages.slice(0, limit) : messages;
+  let page: Awaited<ReturnType<typeof messageRepo.findByChannel>>;
+  let olderCursor: string | null;
+
+  if (cursorObjId && effectiveDirection === 'desc') {
+    // Newer page: messages after the cursor, oldest-first, so they splice
+    // contiguously onto the client's buffer head. Reverse to newest-first to
+    // match the response convention. A newer fetch never changes the older
+    // cursor (the client keeps its own).
+    const ascChunk = await messageRepo.findAfter(channelId, cursorObjId, limit + 1);
+    const pageAsc = ascChunk.length > limit ? ascChunk.slice(0, limit) : ascChunk;
+    page = [...pageAsc].reverse();
+    olderCursor = null;
+  } else {
+    const messages = await messageRepo.findByChannel(channelId, limit + 1, cursorObjId, effectiveDirection);
+    const hasMore = messages.length > limit;
+    page = hasMore ? messages.slice(0, limit) : messages;
+    olderCursor = hasMore && page.length > 0 ? page[page.length - 1]!._id.toHexString() : null;
+  }
 
   // Flag which messages carry reactions so the client can reserve bar space
   // before the (separately fetched) reactions load. One indexed distinct query
@@ -279,12 +291,18 @@ export async function getSpaceMessages(
   const reactableIds = page.filter((m) => !m.deleted).map((m) => m._id);
   const withReactions = await getSpaceReactionRepository().messageIdsWithReactions(reactableIds);
 
+  // Whether more messages exist toward the present than the page's newest row,
+  // so the client can enable newer-page loading after trimming the buffer.
+  const newestId = page.length > 0 ? page[0]!._id : undefined;
+  const hasNewerPages = newestId ? await messageRepo.hasMessageNewerThan(channelId, newestId) : false;
+
   return {
     success: true,
     messages: page.map((m) =>
       toPublicSpaceMessage(m, { hasReactions: withReactions.has(m._id.toHexString()) }),
     ),
-    cursor: hasMore && page.length > 0 ? page[page.length - 1]!._id.toHexString() : null,
+    cursor: olderCursor,
+    hasNewerPages,
   };
 }
 

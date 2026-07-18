@@ -6,6 +6,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import type { PublicSpaceMessage } from '@adieuu/shared';
 import { useSpaceDataFetching, type SpaceDataFetchingParams } from './useSpaceDataFetching';
+import { MAX_SPACE_LOADED_MESSAGES } from './spaceScrollUtils';
 import type { SpaceChannelMessagesState } from './types';
 
 type G = typeof globalThis & {
@@ -55,7 +56,7 @@ function makeMsg(id: string, createdAt: string): PublicSpaceMessage {
 
 type GetMessagesResult = {
   success: boolean;
-  data?: { messages: PublicSpaceMessage[]; cursor: string | null };
+  data?: { messages: PublicSpaceMessage[]; cursor: string | null; hasNewerPages?: boolean };
 };
 
 interface Harness {
@@ -63,7 +64,7 @@ interface Harness {
     spaceId: string,
     channelId: string,
     cursor?: string,
-    options?: { mergeLatest?: boolean },
+    options?: { mergeLatest?: boolean; direction?: 'older' | 'newer' },
   ) => Promise<void>;
   refreshChannelMessages: (spaceId: string, channelId: string) => void;
   fetchMessagesAround: (
@@ -153,6 +154,86 @@ describe('useSpaceDataFetching.fetchChannelMessages', () => {
     expect(olderOpts.direction).toBe('asc');
     expect(ref.state[CHANNEL_ID]!.messages.map((m) => m.id)).toEqual(['m2', 'm1']);
     expect(ref.state[CHANNEL_ID]!.olderCursor).toBe('cursor-2');
+  });
+
+  it("direction:'newer' sends direction:'desc', prepends the newer page, and keeps the older cursor", async () => {
+    const getMessages = mock(
+      async (_s: string, _c: string, options?: { cursor?: string }): Promise<GetMessagesResult> => {
+        if (!options?.cursor) {
+          return {
+            success: true,
+            data: {
+              messages: [makeMsg('m2', '2024-01-02T00:00:00Z'), makeMsg('m1', '2024-01-01T00:00:00Z')],
+              cursor: 'cursor-1',
+              hasNewerPages: false,
+            },
+          };
+        }
+        // Newer page (already newest-first from the API), plus a flag that more remain.
+        return {
+          success: true,
+          data: {
+            messages: [makeMsg('m4', '2024-01-04T00:00:00Z'), makeMsg('m3', '2024-01-03T00:00:00Z')],
+            cursor: null,
+            hasNewerPages: true,
+          },
+        };
+      },
+    );
+    const api = { spaces: { getMessages, getMessagesAround: mock(async () => ({ success: true, data: { messages: [], cursor: null } })) } } as unknown as SpaceDataFetchingParams['api'];
+    const ref = renderDataHook(api);
+
+    await act(async () => {
+      await ref.fetchChannelMessages(SPACE_ID, CHANNEL_ID);
+    });
+    await act(async () => {
+      await ref.fetchChannelMessages(SPACE_ID, CHANNEL_ID, 'm2', { direction: 'newer' });
+    });
+
+    const newerOpts = getMessages.mock.calls[1]![2] as { cursor?: string; direction?: string };
+    expect(newerOpts.cursor).toBe('m2');
+    expect(newerOpts.direction).toBe('desc');
+    // Newer page splices above the existing head; order stays newest-first.
+    expect(ref.state[CHANNEL_ID]!.messages.map((m) => m.id)).toEqual(['m4', 'm3', 'm2', 'm1']);
+    // A newer fetch never advances the older cursor, and carries the flag through.
+    expect(ref.state[CHANNEL_ID]!.olderCursor).toBe('cursor-1');
+    expect(ref.state[CHANNEL_ID]!.hasNewerPages).toBe(true);
+  });
+
+  it('hard-caps the buffer at MAX_SPACE_LOADED_MESSAGES while paging older, keeping the oldest window', async () => {
+    let nextId = 1000;
+    const getMessages = mock(
+      async (_s: string, _c: string, options?: { cursor?: string }): Promise<GetMessagesResult> => {
+        // Each page is 30 messages, newest-first, older than any prior page.
+        const page: PublicSpaceMessage[] = [];
+        for (let i = 0; i < 30; i++) {
+          const id = `m${nextId--}`;
+          page.push(makeMsg(id, `2024-01-01T00:00:${String(i).padStart(2, '0')}Z`));
+        }
+        return { success: true, data: { messages: page, cursor: `cursor-${nextId}`, hasNewerPages: !!options?.cursor } };
+      },
+    );
+    const api = { spaces: { getMessages, getMessagesAround: mock(async () => ({ success: true, data: { messages: [], cursor: null } })) } } as unknown as SpaceDataFetchingParams['api'];
+    const ref = renderDataHook(api);
+
+    // Initial load, then keep paging older well past the cap.
+    await act(async () => {
+      await ref.fetchChannelMessages(SPACE_ID, CHANNEL_ID);
+    });
+    for (let p = 0; p < 6; p++) {
+      const cursor = ref.state[CHANNEL_ID]!.olderCursor!;
+      await act(async () => {
+        await ref.fetchChannelMessages(SPACE_ID, CHANNEL_ID, cursor, { direction: 'older' });
+      });
+    }
+
+    const buffer = ref.state[CHANNEL_ID]!.messages;
+    // Never overshoots the cap (no transient "cap + one page").
+    expect(buffer.length).toBe(MAX_SPACE_LOADED_MESSAGES);
+    // Kept the oldest window: the buffer tail is the most recently fetched (oldest) id.
+    expect(buffer[buffer.length - 1]!.id).toBe(`m${nextId + 1}`);
+    // Evicting the newest end means newer pages now exist.
+    expect(ref.state[CHANNEL_ID]!.hasNewerPages).toBe(true);
   });
 
   it('clears the loading flag on a non-success response', async () => {

@@ -135,6 +135,8 @@ export interface SpaceMessagesListResult {
   success: boolean;
   messages?: PublicSpaceMessage[];
   cursor?: string | null;
+  /** True when more messages exist toward the present than the returned page. */
+  hasNewerPages?: boolean;
   error?: string;
   errorCode?: SpaceErrorCode;
 }

@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react';
 import type { PublicSpace, PublicSpaceChannel, PublicSpaceMessage } from '@adieuu/shared';
 import type { SpaceChannelMessagesState } from './types';
+import { MAX_SPACE_LOADED_MESSAGES, trimSpaceMessages } from './spaceScrollUtils';
 
 type SpacesApiLike = {
   listMine: () => Promise<{ success: boolean; data?: { spaces: PublicSpace[] } }>;
@@ -10,7 +11,7 @@ type SpacesApiLike = {
     spaceId: string,
     channelId: string,
     options?: { limit?: number; cursor?: string; direction?: 'asc' | 'desc' },
-  ) => Promise<{ success: boolean; data?: { messages: PublicSpaceMessage[]; cursor: string | null } }>;
+  ) => Promise<{ success: boolean; data?: { messages: PublicSpaceMessage[]; cursor: string | null; hasNewerPages?: boolean } }>;
   getMessagesAround: (
     spaceId: string,
     channelId: string,
@@ -19,7 +20,9 @@ type SpacesApiLike = {
   ) => Promise<{ success: boolean; data?: { messages: PublicSpaceMessage[]; cursor: string | null } }>;
 };
 
-const MESSAGES_PAGE_SIZE = 50;
+// Matches the Conversations client page size (DEFAULT_MESSAGE_PAGE_LIMIT). Smaller
+// pages fetch more often but keep each request/render cheap; the API clamps 1-100.
+const MESSAGES_PAGE_SIZE = 30;
 
 /** Error codes returned by the API when a Space is genuinely missing. */
 const NOT_FOUND_CODES = new Set(['NOT_FOUND', 'FORBIDDEN']);
@@ -118,26 +121,29 @@ export function useSpaceDataFetching(params: SpaceDataFetchingParams) {
       spaceId: string,
       channelId: string,
       cursor?: string,
-      options?: { mergeLatest?: boolean },
+      options?: { mergeLatest?: boolean; direction?: 'older' | 'newer' },
     ) => {
       const mergeLatest = options?.mergeLatest ?? false;
+      const loadNewer = options?.direction === 'newer';
       const seq = ++channelMsgSeq.current;
       setMessagesByChannel((prev) => ({
         ...prev,
         [channelId]: {
           messages: prev[channelId]?.messages ?? [],
           olderCursor: prev[channelId]?.olderCursor ?? null,
+          hasNewerPages: prev[channelId]?.hasNewerPages,
           loading: true,
         },
       }));
       try {
-        // A cursor always means "load older" for Spaces; the repository returns
-        // messages older than the cursor only when direction is 'asc'. Omitting
-        // it makes the API return newer-than-cursor rows, which dedupe to zero
-        // and terminate pagination early (history stuck at the first page).
+        // For Spaces a cursor with direction 'asc' returns messages older than
+        // the cursor; 'desc' returns the next page toward the present (newer
+        // than the cursor). Omitting the cursor returns the latest page.
         const res = await api.spaces.getMessages(spaceId, channelId, {
           limit: MESSAGES_PAGE_SIZE,
-          ...(cursor ? { cursor, direction: 'asc' as const } : {}),
+          ...(cursor
+            ? { cursor, direction: (loadNewer ? 'desc' : 'asc') as 'asc' | 'desc' }
+            : {}),
         });
         if (seq !== channelMsgSeq.current) return;
         if (res.success && res.data) {
@@ -145,25 +151,57 @@ export function useSpaceDataFetching(params: SpaceDataFetchingParams) {
             const existing = prev[channelId];
             let merged: PublicSpaceMessage[];
             let nextCursor: string | null;
-            if (cursor) {
-              // Older page: append below existing history (newest-first order).
+            let hasNewerPages: boolean | undefined;
+            if (loadNewer) {
+              // Newer page: splice above the existing head (newest-first order),
+              // keep the older cursor, and take hasNewerPages from the response.
+              merged = deduplicateMessages([...res.data!.messages, ...(existing?.messages ?? [])]);
+              nextCursor = existing?.olderCursor ?? null;
+              hasNewerPages = res.data!.hasNewerPages ?? false;
+            } else if (cursor) {
+              // Older page: append below existing history. Loading older never
+              // changes whether newer pages exist — preserve the current flag.
               merged = deduplicateMessages([...(existing?.messages ?? []), ...res.data!.messages]);
               nextCursor = res.data!.cursor;
+              hasNewerPages = existing?.hasNewerPages;
             } else if (mergeLatest && existing?.messages?.length) {
               // Reconnect/focus refresh: prepend the newest page while keeping
               // already-loaded older history and its cursor intact.
               merged = deduplicateMessages([...res.data!.messages, ...existing.messages]);
               nextCursor = existing.olderCursor;
+              hasNewerPages = existing.hasNewerPages;
             } else {
               // Initial load: replace the window with the latest page.
               merged = res.data!.messages;
               nextCursor = res.data!.cursor;
+              hasNewerPages = res.data!.hasNewerPages ?? false;
             }
+
+            // Hard-cap the buffer at merge time so the stored window (and thus
+            // the rendered DOM) never overshoots by a page. Trim on the side we
+            // are moving away from, based on load direction rather than a
+            // possibly-stale at-bottom flag:
+            //  - older load: keep the oldest window; dropping the newest end
+            //    means newer pages now exist.
+            //  - newer load / latest page: keep the newest window; dropping the
+            //    oldest end means the older cursor must advance to the new tail.
+            if (merged.length > MAX_SPACE_LOADED_MESSAGES) {
+              if (cursor && !loadNewer) {
+                merged = trimSpaceMessages(merged, 'oldest');
+                hasNewerPages = true;
+              } else {
+                merged = trimSpaceMessages(merged, 'newest');
+                const newOldest = merged[merged.length - 1];
+                if (newOldest) nextCursor = newOldest.id;
+              }
+            }
+
             return {
               ...prev,
               [channelId]: {
                 messages: merged,
                 olderCursor: nextCursor,
+                hasNewerPages,
                 loading: false,
               },
             };
@@ -230,6 +268,7 @@ export function useSpaceDataFetching(params: SpaceDataFetchingParams) {
             [channelId]: {
               messages: merged,
               olderCursor: existing?.olderCursor ?? null,
+              hasNewerPages: existing?.hasNewerPages,
               loading: existing?.loading ?? false,
             },
           };

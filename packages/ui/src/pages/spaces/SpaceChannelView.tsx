@@ -104,12 +104,14 @@ export function SpaceChannelView() {
     activeMessages,
     activeMessagesLoading,
     activeMessagesOlderCursor,
+    activeMessagesHasNewerPages,
     sending,
     participantProfiles,
     resolveProfiles,
     setActiveChannel,
     sendMessage,
     loadOlderMessages,
+    loadNewerMessages,
     fetchMessagesAround,
     trimActiveChannelBuffer,
     registerSocketCallbacks,
@@ -565,6 +567,10 @@ export function SpaceChannelView() {
     void loadOlderMessages();
   }, [loadOlderMessages]);
 
+  const handleLoadNewer = useCallback(() => {
+    void loadNewerMessages();
+  }, [loadNewerMessages]);
+
   const [isAtBottom, setIsAtBottom] = useState(true);
 
   const {
@@ -597,7 +603,7 @@ export function SpaceChannelView() {
 
   const {
     handleReachOlder,
-    handleReachNewer: _handleReachNewer,
+    handleReachNewer,
     handleJumpToLatest,
   } = useMessageScrollOrchestration({
     entityId: channelId,
@@ -606,9 +612,9 @@ export function SpaceChannelView() {
     flatItems,
     messagesLoading: activeMessagesLoading,
     hasOlderCursor: !!activeMessagesOlderCursor,
-    hasNewerPages: false,
+    hasNewerPages: activeMessagesHasNewerPages,
     loadOlder: handleLoadOlder,
-    loadNewer: () => {},
+    loadNewer: handleLoadNewer,
     scrollViewportRef,
     messagesContentRef,
     isAtBottomRef,
@@ -630,12 +636,13 @@ export function SpaceChannelView() {
     setShowManualLoadOlder(!scrollViewportCanScroll(vp));
   }, [activeMessagesOlderCursor, activeMessagesLoading, flatItems.length, scrollViewportRef]);
 
-  // Bound the buffer once we're back at the live tail (never mid reply-jump),
-  // so long-lived channels do not grow the DOM without limit.
+  // Bound the buffer in both directions as the user scrolls (never mid
+  // reply-jump), so long-lived channels do not grow the DOM without limit:
+  // at the tail keep the newest window, while reading history keep the oldest
+  // window and let newer-pagination reload the evicted tail on scroll-down.
   useEffect(() => {
-    if (!isAtBottom) return;
     if (pendingScrollToRef.current) return;
-    trimActiveChannelBuffer();
+    trimActiveChannelBuffer(isAtBottom);
   }, [isAtBottom, activeMessages.length, trimActiveChannelBuffer]);
 
   // ---------------------------------------------------------------------------
@@ -823,8 +830,8 @@ export function SpaceChannelView() {
           cachedScrollIndex={cachedScrollIndex}
           hasMoreOlder={!!activeMessagesOlderCursor}
           onReachOlder={handleReachOlder}
-          hasNewerPages={false}
-          onReachNewer={() => {}}
+          hasNewerPages={activeMessagesHasNewerPages}
+          onReachNewer={handleReachNewer}
           showManualLoadOlder={showManualLoadOlder}
           onManualLoadOlder={handleLoadOlder}
           emptyMessage={t('spaces.channel.noMessages')}

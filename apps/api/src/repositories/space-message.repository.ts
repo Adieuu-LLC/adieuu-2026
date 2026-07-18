@@ -51,6 +51,33 @@ export class SpaceMessageRepository extends BaseRepository<SpaceMessageDocument>
       .toArray()) as SpaceMessageDocument[];
   }
 
+  /**
+   * Messages strictly newer than `anchor` in a channel, oldest-first, capped at
+   * `limit`. Used for newer-page (toward-present) pagination so results splice
+   * contiguously onto the buffer head. Mirrors the `_id`-cursor / `createdAt`
+   * sort convention used by {@link findByChannel}.
+   */
+  async findAfter(
+    channelId: ObjectId,
+    anchor: ObjectId,
+    limit: number,
+  ): Promise<SpaceMessageDocument[]> {
+    return (await this.collection
+      .find({ channelId, _id: { $gt: anchor } } as Filter<SpaceMessageDocument>)
+      .sort({ createdAt: 1, _id: 1 })
+      .limit(limit)
+      .toArray()) as SpaceMessageDocument[];
+  }
+
+  /** True when at least one message newer than `anchor` exists in the channel. */
+  async hasMessageNewerThan(channelId: ObjectId, anchor: ObjectId): Promise<boolean> {
+    const doc = await this.collection.findOne(
+      { channelId, _id: { $gt: anchor } } as Filter<SpaceMessageDocument>,
+      { projection: { _id: 1 } },
+    );
+    return doc != null;
+  }
+
   async findByIds(ids: ObjectId[]): Promise<SpaceMessageDocument[]> {
     if (!ids.length) return [];
     return await this.collection

@@ -31,6 +31,8 @@ const messageRepo = {
   createMessage: mock(async (input: any) => ({ ...input, _id: new ObjectId(), createdAt: new Date() })) as AnyMock,
   findByClientMessageId: mock(async (_c: ObjectId, _id: string) => null as any) as AnyMock,
   findByChannel: mock(async (_c: ObjectId, _l?: number, _cur?: ObjectId, _d?: string) => [] as any[]) as AnyMock,
+  findAfter: mock(async (_c: ObjectId, _a: ObjectId, _l: number) => [] as any[]) as AnyMock,
+  hasMessageNewerThan: mock(async (_c: ObjectId, _a: ObjectId) => false) as AnyMock,
   findByIdInChannel: mock(async (_c: ObjectId, _m: ObjectId) => null as any) as AnyMock,
 };
 
@@ -105,6 +107,8 @@ describe('space/channels', () => {
     channelRepo.findByIdInSpace.mockResolvedValue(null);
     messageRepo.findByClientMessageId.mockResolvedValue(null);
     messageRepo.findByChannel.mockResolvedValue([]);
+    messageRepo.findAfter.mockResolvedValue([]);
+    messageRepo.hasMessageNewerThan.mockResolvedValue(false);
     messageRepo.findByIdInChannel.mockResolvedValue(null);
     reactionRepo.messageIdsWithReactions.mockResolvedValue(new Set<string>());
     publishSpaceEvent.mockClear();
@@ -289,16 +293,36 @@ describe('space/channels', () => {
       expect(call[3]).toBe('asc');
     });
 
-    test('honors an explicit direction over the cursor default', async () => {
+    test("direction 'desc' with a cursor loads the newer page contiguously via findAfter", async () => {
       const space = makeSpaceDoc({ visibility: 'public' });
       spaceRepo.findById.mockResolvedValue(space);
       const channel = makeChannelDoc(space._id);
       channelRepo.findByIdInSpace.mockResolvedValue(channel);
-      messageRepo.findByChannel.mockResolvedValue([]);
+      // findAfter returns oldest-first; the service reverses to newest-first.
+      const older = { _id: new ObjectId(), spaceId: space._id, channelId: channel._id, fromIdentityId: OWNER, content: 'older', clientMessageId: 'c1', createdAt: new Date() };
+      const newer = { _id: new ObjectId(), spaceId: space._id, channelId: channel._id, fromIdentityId: OWNER, content: 'newer', clientMessageId: 'c2', createdAt: new Date() };
+      messageRepo.findAfter.mockResolvedValue([older, newer]);
       const cursor = new ObjectId().toHexString();
-      await getSpaceMessages(space._id, channel._id, new ObjectId(), 50, cursor, 'desc');
-      const call = messageRepo.findByChannel.mock.calls.at(-1)!;
-      expect(call[3]).toBe('desc');
+      const r = await getSpaceMessages(space._id, channel._id, new ObjectId(), 50, cursor, 'desc');
+      // Newer page routes through findAfter, not findByChannel, with the cursor.
+      const afterCall = messageRepo.findAfter.mock.calls.at(-1)!;
+      expect((afterCall[1] as ObjectId).toHexString()).toBe(cursor);
+      // Response is newest-first and does not advance the older cursor.
+      expect(r.messages!.map((m) => m.id)).toEqual([newer._id.toHexString(), older._id.toHexString()]);
+      expect(r.cursor).toBeNull();
+    });
+
+    test('reports hasNewerPages from the repository', async () => {
+      const space = makeSpaceDoc({ visibility: 'public' });
+      spaceRepo.findById.mockResolvedValue(space);
+      const channel = makeChannelDoc(space._id);
+      channelRepo.findByIdInSpace.mockResolvedValue(channel);
+      messageRepo.findByChannel.mockResolvedValue([
+        { _id: new ObjectId(), spaceId: space._id, channelId: channel._id, fromIdentityId: OWNER, content: 'm', clientMessageId: 'c1', createdAt: new Date() },
+      ]);
+      messageRepo.hasMessageNewerThan.mockResolvedValue(true);
+      const r = await getSpaceMessages(space._id, channel._id, new ObjectId());
+      expect(r.hasNewerPages).toBe(true);
     });
 
     test('does not force a direction when no cursor is supplied', async () => {

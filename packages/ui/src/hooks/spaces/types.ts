@@ -5,6 +5,13 @@ export interface SpaceChannelMessagesState {
   messages: PublicSpaceMessage[];
   /** Cursor for fetching older messages. */
   olderCursor: string | null;
+  /**
+   * More messages exist toward the present than are currently in the buffer
+   * (either never loaded, or evicted by trimming while scrolled up). Drives the
+   * bottom sentinel / newer-page loading. The newer-page anchor is the buffer
+   * head (`messages[0]`).
+   */
+  hasNewerPages?: boolean;
   loading: boolean;
 }
 
@@ -31,6 +38,8 @@ export interface SpacesContextValue {
   activeMessages: PublicSpaceMessage[];
   activeMessagesLoading: boolean;
   activeMessagesOlderCursor: string | null;
+  /** Whether more messages exist toward the present than are in the buffer. */
+  activeMessagesHasNewerPages: boolean;
 
   sending: boolean;
 
@@ -63,6 +72,11 @@ export interface SpacesContextValue {
   sendMessage: (content: string, replyToMessageId?: string, mentionedIdentityIds?: string[], expiresInSeconds?: number) => Promise<PublicSpaceMessage | null>;
   loadOlderMessages: () => Promise<void>;
   /**
+   * Load the next page of messages toward the present (used after trimming the
+   * buffer while scrolled up). No-op unless `activeMessagesHasNewerPages`.
+   */
+  loadNewerMessages: () => Promise<void>;
+  /**
    * Fetch a window of messages centered on `messageId` (reply/pin jump to a
    * target outside the loaded buffer) and merge it into the active channel
    * store. Resolves with the fetched messages, or null on failure.
@@ -72,11 +86,12 @@ export interface SpacesContextValue {
     options?: { before?: number; after?: number },
   ) => Promise<PublicSpaceMessage[] | null>;
   /**
-   * Trim the active channel's message buffer to a bounded size. Safe to call
-   * only when at the live tail; retains the newest window and advances the
-   * older cursor so pagination stays consistent.
+   * Trim the active channel's message buffer to a bounded size. Pass whether the
+   * viewport is at the live tail: at bottom retains the newest window (and
+   * advances the older cursor); while scrolled up retains the oldest window and
+   * flags `hasNewerPages` so the evicted newest messages can be reloaded.
    */
-  trimActiveChannelBuffer: () => void;
+  trimActiveChannelBuffer: (atBottom: boolean) => void;
   refresh: () => Promise<void>;
   clearChannelUnread: (channelId: string) => void;
   registerSocketCallbacks: (callbacks: {

@@ -66,7 +66,7 @@ export async function listChannelsCtrl(
 
 export async function getMessagesCtrl(
   ctx: RouteContext,
-): Promise<SpaceRouteResult<{ messages: unknown[]; cursor: string | null }>> {
+): Promise<SpaceRouteResult<{ messages: unknown[]; cursor: string | null; hasNewerPages: boolean }>> {
   if (!ctx.identitySession) return { kind: 'unauthorized' };
   const { identity } = ctx.identitySession;
 
@@ -85,7 +85,14 @@ export async function getMessagesCtrl(
   if (!result.success) {
     return mapSpaceError(result.errorCode, result.error ?? 'Failed to list messages.');
   }
-  return { kind: 'ok', data: { messages: result.messages ?? [], cursor: result.cursor ?? null } };
+  return {
+    kind: 'ok',
+    data: {
+      messages: result.messages ?? [],
+      cursor: result.cursor ?? null,
+      hasNewerPages: result.hasNewerPages ?? false,
+    },
+  };
 }
 
 export async function getMessageCtrl(ctx: RouteContext): Promise<SpaceRouteResult<unknown>> {
