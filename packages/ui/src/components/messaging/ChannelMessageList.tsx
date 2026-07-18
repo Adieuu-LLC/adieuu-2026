@@ -215,6 +215,25 @@ export function ChannelMessageList({
   const olderPagingRearmRef = useRef(true);
   const newerPagingRearmRef = useRef(true);
 
+  // Latest paging inputs mirrored into refs so the sentinel IntersectionObservers
+  // can read current values without being torn down and rebuilt on every render
+  // (e.g. each `messagesLoading` toggle during a page load, or a new message).
+  const hasMoreOlderRef = useRef(hasMoreOlder);
+  hasMoreOlderRef.current = hasMoreOlder;
+  const hasNewerPagesRef = useRef(hasNewerPages);
+  hasNewerPagesRef.current = hasNewerPages;
+  const messagesLoadingRef = useRef(messagesLoading);
+  messagesLoadingRef.current = messagesLoading;
+  const onReachOlderRef = useRef(onReachOlder);
+  onReachOlderRef.current = onReachOlder;
+  const onReachNewerRef = useRef(onReachNewer);
+  onReachNewerRef.current = onReachNewer;
+
+  // Whether the scroll viewport (which hosts the sentinels) is mounted with
+  // content. Flips false->true once when the list first populates, so the
+  // observers attach after the async initial load without rebuilding per message.
+  const hasRows = flatItems.length > 0;
+
   useEffect(() => {
     restoredForEntityRef.current = null;
   }, [entityId]);
@@ -236,7 +255,8 @@ export function ChannelMessageList({
     }
   }, [entityId, cachedScrollIndex, flatItems.length, messagesContentRef]);
 
-  // Top sentinel – older page loading
+  // Top sentinel – older page loading. Created once per entity/mount; live
+  // paging inputs are read from refs so pagination toggles do not rebuild it.
   useEffect(() => {
     const root = scrollViewportRef.current;
     const sentinel = topSentinelRef.current;
@@ -249,19 +269,19 @@ export function ChannelMessageList({
           olderPagingRearmRef.current = true;
           return;
         }
-        if (!hasMoreOlder || messagesLoading) return;
+        if (!hasMoreOlderRef.current || messagesLoadingRef.current) return;
         if (!scrollViewportCanScroll(root)) return;
         if (!olderPagingRearmRef.current) return;
         olderPagingRearmRef.current = false;
-        onReachOlder();
+        onReachOlderRef.current();
       },
       { root, rootMargin: '120px 0px 0px 0px', threshold: 0 },
     );
     io.observe(sentinel);
     return () => io.disconnect();
-  }, [scrollViewportRef, hasMoreOlder, messagesLoading, onReachOlder, entityId, flatItems.length]);
+  }, [scrollViewportRef, entityId, activeEntityId, hasRows]);
 
-  // Bottom sentinel – newer page loading
+  // Bottom sentinel – newer page loading.
   useEffect(() => {
     const root = scrollViewportRef.current;
     const sentinel = bottomSentinelRef.current;
@@ -274,17 +294,17 @@ export function ChannelMessageList({
           newerPagingRearmRef.current = true;
           return;
         }
-        if (!hasNewerPages || messagesLoading) return;
+        if (!hasNewerPagesRef.current || messagesLoadingRef.current) return;
         if (!scrollViewportCanScroll(root)) return;
         if (!newerPagingRearmRef.current) return;
         newerPagingRearmRef.current = false;
-        onReachNewer();
+        onReachNewerRef.current();
       },
       { root, rootMargin: '0px 0px 120px 0px', threshold: 0 },
     );
     io.observe(sentinel);
     return () => io.disconnect();
-  }, [scrollViewportRef, hasNewerPages, messagesLoading, onReachNewer, entityId, flatItems.length]);
+  }, [scrollViewportRef, entityId, activeEntityId, hasRows]);
 
   const renderItem = useCallback(
     (item: ChannelListItem<ChannelMessage>) => {

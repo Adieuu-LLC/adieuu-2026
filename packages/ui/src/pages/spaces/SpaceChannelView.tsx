@@ -45,6 +45,7 @@ import { scrollViewportCanScroll } from '../../utils/messageScrollUtils';
 import { SpaceMembersSidebar } from './SpaceMembersSidebar';
 import { useMessageScroll } from '../../hooks/useMessageScroll';
 import { useMessageScrollOrchestration } from '../../hooks/useMessageScrollOrchestration';
+import { useViewportReactionFetch } from '../../hooks/useViewportReactionFetch';
 import { useChannelReactions } from '../../hooks/useChannelReactions';
 import { createSpaceReactionsAdapter } from '../../hooks/adapters/spaceReactionsAdapter';
 import { useFavoriteEmojis } from '../../hooks/useFavoriteEmojis';
@@ -55,6 +56,12 @@ import { createSpaceReplyAdapter } from '../../hooks/adapters/spaceReplyAdapter'
 import type { PublicSpaceMessage } from '@adieuu/shared';
 import type { ReplyQuotePayload } from '../conversations/conversationUtils';
 import type { EditHistoryEntry } from '../../components/messaging/EditHistoryLabel';
+import type { MemberSettingsMap } from '../../services/conversationCryptoService';
+
+// Stable reference so the memoized ChannelMessageBubble does not treat every
+// render as a member-settings change (a fresh `{}` literal would fail the
+// `prev.memberSettings !== next.memberSettings` check on every scroll tick).
+const EMPTY_MEMBER_SETTINGS: MemberSettingsMap = {};
 
 function looksLikeCipherPayload(content: string): boolean {
   try {
@@ -150,18 +157,52 @@ export function SpaceChannelView() {
   // Channel messages
   // ---------------------------------------------------------------------------
 
+  // Per-message decryption cache. Decryption is a pure function of
+  // (content, cipher), so as long as the cipher/channel is unchanged an
+  // unmodified message never needs re-decrypting — even when `activeMessages`
+  // churns from new messages, buffer trims, or socket-driven state updates. The
+  // map is rebuilt from the current buffer each pass (reusing prior bodies) so
+  // its size stays bounded to the loaded window.
+  const decryptCacheRef = useRef<{
+    cipher: CommunityCipher | null;
+    channelId: string | undefined;
+    map: Map<string, { content: string; body: string }>;
+  }>({ cipher: null, channelId: undefined, map: new Map() });
+
   const channelMessages: ChannelMessage[] = useMemo(() => {
+    const cache = decryptCacheRef.current;
+    if (cache.cipher !== spaceCipher || cache.channelId !== channelId) {
+      cache.cipher = spaceCipher;
+      cache.channelId = channelId;
+      cache.map = new Map();
+    }
+    const prev = cache.map;
+    const next = new Map<string, { content: string; body: string }>();
     const chronological = [...activeMessages].reverse();
-    return chronological.map((msg: PublicSpaceMessage) => {
-      const body = decryptContent(msg.content);
+    const result = chronological.map((msg: PublicSpaceMessage) => {
+      const rawContent = msg.content ?? '';
+      const cached = prev.get(msg.id);
+      const body =
+        cached && cached.content === rawContent
+          ? cached.body
+          : decryptContent(msg.content);
+      next.set(msg.id, { content: rawContent, body });
       return spaceMessageToChannel(msg, body);
     });
-  }, [activeMessages, decryptContent]);
+    cache.map = next;
+    return result;
+  }, [activeMessages, decryptContent, spaceCipher, channelId]);
 
-  const messageLayoutKey = useMemo(
-    () => channelMessages.map((m) => m.id).join(','),
-    [channelMessages],
-  );
+  // Lightweight change signal for scroll effects: changes on append (tail id),
+  // prepend (head id + length), and tail edits (lastEditedAt) without the O(n)
+  // multi-KB id-join the whole buffer would otherwise allocate each change.
+  const messageLayoutKey = useMemo(() => {
+    const n = channelMessages.length;
+    if (n === 0) return '';
+    const first = channelMessages[0]!;
+    const last = channelMessages[n - 1]!;
+    return `${n}:${first.id}:${last.id}:${last.lastEditedAt ?? ''}`;
+  }, [channelMessages]);
 
   const [expiryTick, setExpiryTick] = useState(0);
 
@@ -207,17 +248,8 @@ export function SpaceChannelView() {
     ingestSocketReactionRemoval,
   } = useChannelReactions(channelId, reactionsAdapter, identity?.id);
 
-  // Viewport-scoped, incremental reaction fetching (observer wired up after the
-  // scroll viewport ref is available; see below). Rather than re-requesting
-  // reactions for every message whenever the list changes (which grew O(n)
-  // requests on each new message and every history page), we fetch reactions
-  // only for messages that scroll into view, once each. Realtime add/remove is
-  // handled by the socket ingest callbacks thereafter.
-  const fetchedReactionIdsRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    fetchedReactionIdsRef.current = new Set();
-  }, [channelId]);
+  // Viewport-scoped, incremental reaction fetching is wired up via
+  // useViewportReactionFetch once the scroll viewport ref is available (below).
 
   // ---------------------------------------------------------------------------
   // Pins
@@ -554,51 +586,14 @@ export function SpaceChannelView() {
 
   scrollViewportRefStable.current = scrollViewportRef.current;
 
-  // Viewport-scoped reaction fetch: observe rendered message rows and request
-  // reactions only for those scrolling into view, deduped via
-  // fetchedReactionIdsRef.
-  useEffect(() => {
-    const root = scrollViewportRef.current;
-    if (!root || flatItems.length === 0) return;
-
-    const pending = new Set<string>();
-    let flushTimer: ReturnType<typeof setTimeout> | null = null;
-    const flush = () => {
-      flushTimer = null;
-      const ids = [...pending].filter((id) => !fetchedReactionIdsRef.current.has(id));
-      pending.clear();
-      if (ids.length === 0) return;
-      Promise.resolve(fetchReactions(ids))
-        .then(() => {
-          for (const id of ids) fetchedReactionIdsRef.current.add(id);
-        })
-        .catch(() => {});
-    };
-
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (!e.isIntersecting) continue;
-          const id = (e.target as HTMLElement).dataset.messageId;
-          if (id && !fetchedReactionIdsRef.current.has(id)) pending.add(id);
-        }
-        if (pending.size > 0 && flushTimer == null) {
-          flushTimer = setTimeout(flush, 150);
-        }
-      },
-      { root, rootMargin: '300px 0px 300px 0px', threshold: 0 },
-    );
-
-    root.querySelectorAll('[data-message-id]').forEach((node) => {
-      io.observe(node);
-    });
-
-    return () => {
-      if (flushTimer != null) clearTimeout(flushTimer);
-      io.disconnect();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flatItems, fetchReactions, channelId]);
+  // Viewport-scoped reaction fetch: request reactions only for message rows that
+  // scroll into view, deduped and incrementally observed.
+  useViewportReactionFetch({
+    entityId: channelId,
+    scrollViewportRef,
+    fetchReactions,
+    ready: flatItems.length > 0,
+  });
 
   const {
     handleReachOlder,
@@ -774,7 +769,7 @@ export function SpaceChannelView() {
             onUnpin={async (msgId) => { await onUnpin(msgId); }}
             canUnpin={canManagePins}
             participantProfiles={participantProfiles}
-            memberSettings={{}}
+            memberSettings={EMPTY_MEMBER_SETTINGS}
             identity={identity}
           />
           <Tooltip content={t('conversations.members', 'Members')} position="bottom">
@@ -806,7 +801,7 @@ export function SpaceChannelView() {
           messageCount={visibleMessageCount}
           identity={identity}
           participantProfiles={participantProfiles}
-          memberSettings={{}}
+          memberSettings={EMPTY_MEMBER_SETTINGS}
           messageLayout="linear"
           memberColorDisplay="name-only"
           favoriteEmojis={favoriteEmojis}

@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useCallback } from 'react';
 import type { RecipientKeys } from '../../services/conversationCryptoService';
 import type { ReactionCustomEmoji } from '../../services/reactionCryptoService';
 import type { DisplayMessage } from '../useConversations';
@@ -8,7 +8,6 @@ export function useConversationReactionHandlers(params: {
   conversationId: string | undefined;
   conversation: DecryptedConversation | undefined;
   activeMessages: DisplayMessage[];
-  fetchReactions: (messageIds: string[]) => void | Promise<unknown>;
   addReaction: (messageId: string, emoji: string, recipients: RecipientKeys[], customEmoji?: ReactionCustomEmoji) => Promise<unknown>;
   removeReaction: (ownReactionId: string, messageId: string) => Promise<unknown>;
   fetchRecipientKeys: (
@@ -22,53 +21,20 @@ export function useConversationReactionHandlers(params: {
     conversationId,
     conversation,
     activeMessages,
-    fetchReactions,
     addReaction,
     removeReaction,
     fetchRecipientKeys,
     scrollToBottomIfPinned,
   } = params;
 
-  // Message IDs whose reactions have already been fetched for the current
-  // conversation. Once fetched, realtime add/remove is handled by useReactions'
-  // own WebSocket subscription, so we never need to re-fetch the whole window.
-  const fetchedReactionMessageIdsRef = useRef<Set<string>>(new Set());
-  const fetchedConversationIdRef = useRef<string | undefined>(undefined);
+  // Reactions are prefetched viewport-scoped via useViewportReactionFetch (see
+  // ConversationView); once fetched, realtime add/remove is handled by
+  // useReactions' own WebSocket subscription.
   const pendingReactionsRef = useRef<Set<string>>(new Set());
   const activeMessagesRef = useRef(activeMessages);
   activeMessagesRef.current = activeMessages;
   const conversationRef = useRef(conversation);
   conversationRef.current = conversation;
-
-  useEffect(() => {
-    if (!conversationId || activeMessages.length === 0) return;
-
-    // Reset the dedup set whenever the active conversation changes; the
-    // reaction store (useReactions) is cleared on conversation change too.
-    if (fetchedConversationIdRef.current !== conversationId) {
-      fetchedConversationIdRef.current = conversationId;
-      fetchedReactionMessageIdsRef.current = new Set();
-    }
-
-    const fetched = fetchedReactionMessageIdsRef.current;
-    const newIds: string[] = [];
-    for (const m of activeMessages) {
-      if (!fetched.has(m.id)) {
-        newIds.push(m.id);
-      }
-    }
-
-    if (newIds.length === 0) return;
-    // Only mark IDs as fetched once the request succeeds; on failure they stay
-    // unmarked so a subsequent effect run retries them. (Adding to `fetched`
-    // here is safe even across conversation switches, since a switch swaps in a
-    // fresh Set and leaves this captured reference orphaned.)
-    Promise.resolve(fetchReactions(newIds))
-      .then(() => {
-        for (const id of newIds) fetched.add(id);
-      })
-      .catch(() => {});
-  }, [conversationId, activeMessages, fetchReactions]);
 
   const handleReact = useCallback(
     async (messageId: string, emoji: string, customEmoji?: ReactionCustomEmoji) => {
@@ -115,8 +81,6 @@ export function useConversationReactionHandlers(params: {
   );
 
   return {
-    /** Reset when switching active conversation (see ConversationView). */
-    fetchedReactionMessageIdsRef,
     handleReact,
     handleToggleReaction,
   };

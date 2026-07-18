@@ -63,6 +63,7 @@ export function useMessageScroll({
   const isAtBottomRef = useRef(true);
   const justSentRef = useRef(false);
   const lastUserScrollIntentAtRef = useRef(0);
+  const measureRafRef = useRef<number | null>(null);
   const visibleIndexRef = useRef<number | null>(null);
   const prevEntityIdRef = useRef<string | undefined>(undefined);
   // "Sticky bottom" intent, distinct from the instantaneous `isAtBottomRef`.
@@ -109,11 +110,44 @@ export function useMessageScroll({
     }
   }, []);
 
+  // Expensive DOM measurement (top-anchor record + first-visible-index scan),
+  // each an O(n) getBoundingClientRect loop. Runs at most once per frame via the
+  // rAF gate below so fast scrolling does not thrash layout on every scroll
+  // event. Reads pinnedToBottomRef, which is updated synchronously in the scroll
+  // handler, so the anchor decision here is never stale.
+  const measureScrollPosition = useCallback(() => {
+    measureRafRef.current = null;
+    const vp = scrollViewportRef.current;
+    const content = messagesContentRef.current;
+    if (!vp || !content) return;
+
+    if (!pinnedToBottomRef.current) {
+      recordTopAnchor();
+    }
+
+    const vRect = vp.getBoundingClientRect();
+    let firstIdx: number | null = null;
+    for (let i = 0; i < content.children.length; i++) {
+      const el = content.children[i] as HTMLElement | undefined;
+      if (!el?.dataset.dmItemIndex) continue;
+      const cr = el.getBoundingClientRect();
+      if (cr.bottom > vRect.top + 1) {
+        firstIdx = Number.parseInt(el.dataset.dmItemIndex!, 10);
+        break;
+      }
+    }
+    if (firstIdx != null && !Number.isNaN(firstIdx)) {
+      saveVisibleIndex(firstIdx);
+    }
+  }, [recordTopAnchor, saveVisibleIndex]);
+
   const onScrollViewportScroll = useCallback(() => {
     const vp = scrollViewportRef.current;
     const content = messagesContentRef.current;
     if (!vp || !content) return;
 
+    // Cheap, per-event work: at-bottom / pin state only reads scroll metrics
+    // (no layout-forcing getBoundingClientRect), so it stays inline.
     const { scrollTop, scrollHeight, clientHeight } = vp;
     const atBottom = computeIsAtBottom(
       scrollTop,
@@ -139,25 +173,12 @@ export function useMessageScroll({
     } else if (recentUserIntent) {
       pinnedToBottomRef.current = false;
     }
-    if (!pinnedToBottomRef.current) {
-      recordTopAnchor();
-    }
 
-    const vRect = vp.getBoundingClientRect();
-    let firstIdx: number | null = null;
-    for (let i = 0; i < content.children.length; i++) {
-      const el = content.children[i] as HTMLElement | undefined;
-      if (!el?.dataset.dmItemIndex) continue;
-      const cr = el.getBoundingClientRect();
-      if (cr.bottom > vRect.top + 1) {
-        firstIdx = Number.parseInt(el.dataset.dmItemIndex!, 10);
-        break;
-      }
+    // Defer the O(n) measurement to a single coalesced frame.
+    if (measureRafRef.current == null) {
+      measureRafRef.current = requestAnimationFrame(measureScrollPosition);
     }
-    if (firstIdx != null && !Number.isNaN(firstIdx)) {
-      saveVisibleIndex(firstIdx);
-    }
-  }, [entityId, markRead, recordTopAnchor, saveVisibleIndex, setIsAtBottom]);
+  }, [entityId, markRead, measureScrollPosition, setIsAtBottom]);
 
   const handleAtBottomStateChange = useCallback(
     (atBottom: boolean) => {
@@ -202,6 +223,10 @@ export function useMessageScroll({
 
   useEffect(() => {
     return () => {
+      if (measureRafRef.current != null) {
+        cancelAnimationFrame(measureRafRef.current);
+        measureRafRef.current = null;
+      }
       const eid = prevEntityIdRef.current;
       if (!eid) return;
       if (isAtBottomRef.current) {

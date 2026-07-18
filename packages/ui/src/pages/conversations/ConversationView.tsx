@@ -12,6 +12,7 @@ import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next';
 import { useConversations, type DisplayMessage } from '../../hooks/useConversations';
 import { useConversationScroll } from '../../hooks/useConversationScroll';
+import { useViewportReactionFetch } from '../../hooks/useViewportReactionFetch';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useAuth } from '../../hooks/useAuth';
 import { useCustomEmojis } from '../../hooks/useCustomEmojis';
@@ -513,14 +514,12 @@ export function ConversationView() {
   );
 
   const {
-    fetchedReactionMessageIdsRef,
     handleReact,
     handleToggleReaction,
   } = useConversationReactionHandlers({
     conversationId: id,
     conversation,
     activeMessages,
-    fetchReactions,
     addReaction,
     removeReaction,
     fetchRecipientKeys,
@@ -530,7 +529,6 @@ export function ConversationView() {
   useEffect(() => {
     if (id && id !== activeConversationId) {
       setActiveConversation(id);
-      fetchedReactionMessageIdsRef.current.clear();
     }
   }, [id, activeConversationId, setActiveConversation]);
 
@@ -684,6 +682,16 @@ export function ConversationView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [reversedMessages, unreadCount, expiryTick, id, mediaOutboxJobs]
   );
+
+  // Viewport-scoped reaction fetch: request reactions only for message rows that
+  // scroll into view, instead of bulk-fetching every loaded message on each
+  // buffer change.
+  useViewportReactionFetch({
+    entityId: id,
+    scrollViewportRef,
+    fetchReactions,
+    ready: flatItems.length > 0,
+  });
 
   const {
     handleReachOlder,
