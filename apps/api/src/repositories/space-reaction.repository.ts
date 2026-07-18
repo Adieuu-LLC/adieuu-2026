@@ -22,6 +22,19 @@ export class SpaceReactionRepository extends BaseRepository<SpaceReactionDocumen
     return await this.findMany({ messageId } as Filter<SpaceReactionDocument>, 500);
   }
 
+  /**
+   * Return the subset of the given message ids that have at least one reaction.
+   * Uses a `distinct` on the indexed `messageId` field so it stays cheap for a
+   * full page of messages.
+   */
+  async messageIdsWithReactions(messageIds: ObjectId[]): Promise<Set<string>> {
+    if (messageIds.length === 0) return new Set();
+    const ids = (await this.collection.distinct('messageId', {
+      messageId: { $in: messageIds },
+    } as Filter<SpaceReactionDocument>)) as ObjectId[];
+    return new Set(ids.map((id) => id.toHexString()));
+  }
+
   async findExisting(
     messageId: ObjectId,
     identityId: ObjectId,

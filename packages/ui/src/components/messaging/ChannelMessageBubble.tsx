@@ -194,10 +194,24 @@ export const ChannelMessageBubble = memo(function ChannelMessageBubble({
     />
   );
 
-  const reactionBar = (
-    <ReactionBar messageId={message.id} reactions={groupedReactions} onToggleReaction={onToggleReaction}
-      participantProfiles={participantProfiles} memberSettings={memberSettings} currentIdentityId={ownProfile?.id} />
-  );
+  // Reserve one reaction-row of height when the server says the message has
+  // reactions but they have not been fetched/decrypted yet. This keeps the row
+  // height stable so the tail does not shift when reactions arrive. The reserved
+  // slot mirrors a real chip's box exactly (see .message-reaction-chip--skeleton).
+  const showReservedReactionSlot =
+    !!message.hasReactions && groupedReactions.length === 0 && !message.deleted;
+  const reactionBar =
+    groupedReactions.length > 0 ? (
+      <ReactionBar messageId={message.id} reactions={groupedReactions} onToggleReaction={onToggleReaction}
+        participantProfiles={participantProfiles} memberSettings={memberSettings} currentIdentityId={ownProfile?.id} />
+    ) : showReservedReactionSlot ? (
+      <div className="message-reaction-bar message-reaction-bar--reserved" aria-hidden="true">
+        <span className="message-reaction-chip message-reaction-chip--skeleton">
+          <span className="message-reaction-chip-emoji" />
+          <span className="message-reaction-chip-count" />
+        </span>
+      </div>
+    ) : null;
 
   const onStashMessageContext = useCallback((e: React.MouseEvent) => {
     flushSync(() => setMessageContextStash(captureMessageContextStash(e.target)));

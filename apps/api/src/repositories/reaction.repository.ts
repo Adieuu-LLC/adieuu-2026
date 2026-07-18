@@ -43,6 +43,23 @@ export class ReactionRepository extends BaseRepository<ReactionDocument> {
   }
 
   /**
+   * Return the subset of the given message ids (within a conversation) that
+   * have at least one reaction. Count-only via a `distinct` on the indexed
+   * `messageId` field — never decrypts reaction content.
+   */
+  async messageIdsWithReactions(
+    conversationId: ObjectId,
+    messageIds: ObjectId[],
+  ): Promise<Set<string>> {
+    if (messageIds.length === 0) return new Set();
+    const ids = (await this.collection.distinct('messageId', {
+      conversationId,
+      messageId: { $in: messageIds },
+    })) as ObjectId[];
+    return new Set(ids.map((id) => id.toHexString()));
+  }
+
+  /**
    * Count reactions by a specific identity on a specific message.
    * Used to enforce the per-user-per-message limit.
    */

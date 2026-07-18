@@ -191,6 +191,13 @@ export interface PublicSpaceMessage {
   mentionedIdentityIds?: string[];
   expiresAt?: string;
   createdAt: string;
+  /**
+   * True when the message has at least one reaction. Lets the client reserve
+   * space for the reaction bar before the (separately fetched) reactions load,
+   * avoiding layout shift. Best-effort: computed at list time, so it may lag a
+   * very recent add/remove — the client still reconciles once reactions arrive.
+   */
+  hasReactions?: boolean;
 }
 
 /** Public space message reaction representation. */

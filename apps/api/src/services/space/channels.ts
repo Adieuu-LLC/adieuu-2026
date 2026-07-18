@@ -23,6 +23,7 @@ import { SPACE_MESSAGE_MAX_LENGTH } from '@adieuu/shared';
 import { getSpaceRepository } from '../../repositories/space.repository';
 import { getSpaceChannelRepository } from '../../repositories/space-channel.repository';
 import { getSpaceMessageRepository } from '../../repositories/space-message.repository';
+import { getSpaceReactionRepository } from '../../repositories/space-reaction.repository';
 import { isValidObjectId } from '../../utils';
 import { toPublicSpaceChannel } from '../../models/space-channel';
 import { toPublicSpaceMessage } from '../../models/space-message';
@@ -272,9 +273,17 @@ export async function getSpaceMessages(
   const hasMore = messages.length > limit;
   const page = hasMore ? messages.slice(0, limit) : messages;
 
+  // Flag which messages carry reactions so the client can reserve bar space
+  // before the (separately fetched) reactions load. One indexed distinct query
+  // per page; skips tombstones since deleted messages never render reactions.
+  const reactableIds = page.filter((m) => !m.deleted).map((m) => m._id);
+  const withReactions = await getSpaceReactionRepository().messageIdsWithReactions(reactableIds);
+
   return {
     success: true,
-    messages: page.map(toPublicSpaceMessage),
+    messages: page.map((m) =>
+      toPublicSpaceMessage(m, { hasReactions: withReactions.has(m._id.toHexString()) }),
+    ),
     cursor: hasMore && page.length > 0 ? page[page.length - 1]!._id.toHexString() : null,
   };
 }
@@ -522,9 +531,14 @@ export async function getSpaceMessagesAround(
 
   const messages = await messageRepo.findAround(channelId, targetId, before, after);
 
+  const reactableIds = messages.filter((m) => !m.deleted).map((m) => m._id);
+  const withReactions = await getSpaceReactionRepository().messageIdsWithReactions(reactableIds);
+
   return {
     success: true,
-    messages: messages.map(toPublicSpaceMessage),
+    messages: messages.map((m) =>
+      toPublicSpaceMessage(m, { hasReactions: withReactions.has(m._id.toHexString()) }),
+    ),
     cursor: null,
   };
 }

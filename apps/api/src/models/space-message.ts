@@ -46,7 +46,10 @@ export interface CreateSpaceMessageInput {
   expiresAt?: Date;
 }
 
-export function toPublicSpaceMessage(doc: SpaceMessageDocument): PublicSpaceMessage {
+export function toPublicSpaceMessage(
+  doc: SpaceMessageDocument,
+  opts?: { hasReactions?: boolean },
+): PublicSpaceMessage {
   return {
     id: doc._id.toHexString(),
     spaceId: doc.spaceId.toHexString(),
@@ -66,5 +69,6 @@ export function toPublicSpaceMessage(doc: SpaceMessageDocument): PublicSpaceMess
       : {}),
     ...(doc.expiresAt ? { expiresAt: doc.expiresAt.toISOString() } : {}),
     createdAt: doc.createdAt.toISOString(),
+    ...(opts?.hasReactions ? { hasReactions: true } : {}),
   };
 }

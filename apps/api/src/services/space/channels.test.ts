@@ -33,6 +33,10 @@ const messageRepo = {
   findByChannel: mock(async (_c: ObjectId, _l?: number, _cur?: ObjectId, _d?: string) => [] as any[]) as AnyMock,
   findByIdInChannel: mock(async (_c: ObjectId, _m: ObjectId) => null as any) as AnyMock,
 };
+
+const reactionRepo = {
+  messageIdsWithReactions: mock(async (_ids: ObjectId[]) => new Set<string>()) as AnyMock,
+};
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 mock.module('../../repositories/space.repository', () => ({ getSpaceRepository: () => spaceRepo }));
@@ -40,6 +44,7 @@ mock.module('../../repositories/space-member.repository', () => ({ getSpaceMembe
 mock.module('../../repositories/space-role.repository', () => ({ getSpaceRoleRepository: () => roleRepo }));
 mock.module('../../repositories/space-channel.repository', () => ({ getSpaceChannelRepository: () => channelRepo }));
 mock.module('../../repositories/space-message.repository', () => ({ getSpaceMessageRepository: () => messageRepo }));
+mock.module('../../repositories/space-reaction.repository', () => ({ getSpaceReactionRepository: () => reactionRepo }));
 
 const publishSpaceEvent = mock(async () => {}) as AnyMock;
 mock.module('./redis-events', () => ({
@@ -90,7 +95,7 @@ describe('space/channels', () => {
   afterAll(() => mock.restore());
 
   beforeEach(() => {
-    for (const repo of [spaceRepo, memberRepo, roleRepo, channelRepo, messageRepo]) {
+    for (const repo of [spaceRepo, memberRepo, roleRepo, channelRepo, messageRepo, reactionRepo]) {
       for (const fn of Object.values(repo)) (fn as AnyMock).mockClear();
     }
     spaceRepo.findById.mockResolvedValue(null);
@@ -101,6 +106,7 @@ describe('space/channels', () => {
     messageRepo.findByClientMessageId.mockResolvedValue(null);
     messageRepo.findByChannel.mockResolvedValue([]);
     messageRepo.findByIdInChannel.mockResolvedValue(null);
+    reactionRepo.messageIdsWithReactions.mockResolvedValue(new Set<string>());
     publishSpaceEvent.mockClear();
     createNotificationMock.mockClear();
   });
@@ -304,6 +310,30 @@ describe('space/channels', () => {
       await getSpaceMessages(space._id, channel._id, new ObjectId(), 50);
       const call = messageRepo.findByChannel.mock.calls.at(-1)!;
       expect(call[3]).toBeUndefined();
+    });
+
+    test('flags hasReactions only for messages that have reactions', async () => {
+      const space = makeSpaceDoc({ visibility: 'public' });
+      spaceRepo.findById.mockResolvedValue(space);
+      const channel = makeChannelDoc(space._id);
+      channelRepo.findByIdInSpace.mockResolvedValue(channel);
+      const withReaction = new ObjectId();
+      const withoutReaction = new ObjectId();
+      messageRepo.findByChannel.mockResolvedValue([
+        { _id: withReaction, spaceId: space._id, channelId: channel._id, fromIdentityId: OWNER, content: 'a', clientMessageId: 'c1', createdAt: new Date() },
+        { _id: withoutReaction, spaceId: space._id, channelId: channel._id, fromIdentityId: OWNER, content: 'b', clientMessageId: 'c2', createdAt: new Date() },
+      ]);
+      reactionRepo.messageIdsWithReactions.mockResolvedValue(new Set([withReaction.toHexString()]));
+
+      const r = await getSpaceMessages(space._id, channel._id, new ObjectId());
+      expect(r.success).toBe(true);
+      const a = r.messages!.find((m) => m.id === withReaction.toHexString());
+      const b = r.messages!.find((m) => m.id === withoutReaction.toHexString());
+      expect(a?.hasReactions).toBe(true);
+      expect(b?.hasReactions).toBeUndefined();
+      // Only non-deleted message ids are probed for reactions.
+      const probed = reactionRepo.messageIdsWithReactions.mock.calls.at(-1)![0] as ObjectId[];
+      expect(probed).toHaveLength(2);
     });
   });
 });

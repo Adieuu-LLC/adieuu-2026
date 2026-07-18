@@ -24,6 +24,7 @@ export function areChannelMessageBubblePropsEqual(
   if ((pm.revisionCount ?? 0) !== (nm.revisionCount ?? 0)) return false;
   if (pm.lastEditedAt !== nm.lastEditedAt) return false;
   if (pm.deleted !== nm.deleted) return false;
+  if (pm.hasReactions !== nm.hasReactions) return false;
   if (pm.forwardSecrecy !== nm.forwardSecrecy) return false;
   if (pm.fsDowngraded !== nm.fsDowngraded) return false;
   if (pm.signatureVerified !== nm.signatureVerified) return false;

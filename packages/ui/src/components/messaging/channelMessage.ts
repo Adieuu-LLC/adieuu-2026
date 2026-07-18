@@ -59,6 +59,11 @@ export interface ChannelMessage {
   expiresAt?: string;
   moderationEnabled?: boolean;
   e2eMediaIds?: string[];
+  /**
+   * Server hint that the message has at least one reaction. Used to reserve
+   * reaction-bar space before reactions load, preventing layout shift.
+   */
+  hasReactions?: boolean;
 
   /** Device id from the sender's E2E client (used for device trust UI). */
   senderDeviceId?: string;
@@ -110,6 +115,7 @@ export function displayMessageToChannel(msg: DisplayMessage): ChannelMessage {
     expiresAt: msg.expiresAt,
     moderationEnabled: msg.moderationEnabled,
     e2eMediaIds: msg.e2eMediaIds,
+    hasReactions: msg.hasReactions,
     senderDeviceId: parsed.senderDeviceId,
     signatureVerified: msg.signatureVerified,
     forwardSecrecy: msg.forwardSecrecy,
@@ -155,6 +161,7 @@ export function spaceMessageToChannel(
     revisionCount: msg.revisionCount ?? 0,
     lastEditedAt: msg.lastEditedAt,
     expiresAt: msg.expiresAt,
+    hasReactions: msg.hasReactions,
     _sourceSpace: msg,
   };
 }

@@ -161,6 +161,16 @@ describe('displayMessageToChannel', () => {
     expect(ch._sourceConversation).toBe(msg);
     expect(ch._sourceSpace).toBeUndefined();
   });
+
+  it('maps hasReactions when the server sets it', () => {
+    const ch = displayMessageToChannel(makeDisplayMessage({ hasReactions: true }));
+    expect(ch.hasReactions).toBe(true);
+  });
+
+  it('leaves hasReactions undefined when absent', () => {
+    const ch = displayMessageToChannel(makeDisplayMessage());
+    expect(ch.hasReactions).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -244,5 +254,15 @@ describe('spaceMessageToChannel', () => {
   it('leaves expiresAt undefined when absent', () => {
     const ch = spaceMessageToChannel(makeSpaceMessage(), 'text');
     expect(ch.expiresAt).toBeUndefined();
+  });
+
+  it('maps hasReactions when the server sets it', () => {
+    const ch = spaceMessageToChannel(makeSpaceMessage({ hasReactions: true }), 'text');
+    expect(ch.hasReactions).toBe(true);
+  });
+
+  it('leaves hasReactions undefined when absent', () => {
+    const ch = spaceMessageToChannel(makeSpaceMessage(), 'text');
+    expect(ch.hasReactions).toBeUndefined();
   });
 });

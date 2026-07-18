@@ -129,8 +129,8 @@ export function useMessageScroll({
       markRead(entityId);
     }
 
-    // Only a user-initiated upward scroll unpins from bottom. Growth-induced
-    // scroll events (no recent wheel/touch intent) never clear the intent, so
+    // Only a deliberate wheel/touch scroll unpins from bottom. Growth-induced
+    // scroll events (no recent user intent) never clear the intent, so
     // late-loading content re-pins rather than drifting the view upward.
     const recentUserIntent =
       Date.now() - lastUserScrollIntentAtRef.current < USER_SCROLL_SUPPRESS_MS;
@@ -237,9 +237,23 @@ export function useMessageScroll({
     const vp = scrollViewportRef.current;
     if (!vp) return;
     if (pinnedToBottomRef.current) {
+      // ResizeObserver fires after layout but before paint, so writing
+      // scrollTop here keeps the latest message glued to the bottom within the
+      // same frame — no shifted frame is ever painted. A follow-up rAF catches
+      // any sub-pixel settling (e.g. a reaction emoji image decoding late).
+      vp.scrollTop = vp.scrollHeight;
       requestAnimationFrame(() => {
-        scrollToBottomImpl('auto');
+        if (!pinnedToBottomRef.current) return;
+        const v = scrollViewportRef.current;
+        if (!v) return;
+        v.scrollTop = v.scrollHeight;
       });
+      return;
+    }
+    // While the user is mid-gesture, let their input win. Re-anchoring during a
+    // fast scroll snaps the view back to a slightly stale row (a jarring
+    // downward jump); any residual drift is corrected once the gesture settles.
+    if (Date.now() - lastUserScrollIntentAtRef.current < USER_SCROLL_SUPPRESS_MS) {
       return;
     }
     const anchor = topAnchorRef.current;
@@ -247,7 +261,7 @@ export function useMessageScroll({
     if (anchor && content) {
       applyHistoryScrollAnchor(vp, content, anchor);
     }
-  }, [scrollToBottomImpl]);
+  }, []);
 
   const markJustSent = useCallback(() => {
     justSentRef.current = true;
@@ -271,28 +285,49 @@ export function useMessageScroll({
 
     const observer = new ResizeObserver(() => {
       if (!pinnedToBottomRef.current) return;
+      // Viewport shrank (e.g. the composer grew) while pinned: keep the tail in
+      // view synchronously so no shifted frame paints.
+      el.scrollTop = el.scrollHeight;
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          scrollToBottomImpl('auto');
-        });
+        if (!pinnedToBottomRef.current) return;
+        el.scrollTop = el.scrollHeight;
       });
     });
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [entityId, messageLayoutKey, scrollToBottomImpl]);
+  }, [entityId, messageLayoutKey]);
 
   useEffect(() => {
     const content = messagesContentRef.current;
-    if (!content) return;
+    const vp = scrollViewportRef.current;
+    if (!content || !vp) return;
 
     const observer = new ResizeObserver(() => {
       maybeScrollToBottomAfterContentGrowth();
     });
-
     observer.observe(content);
-    return () => observer.disconnect();
-  }, [entityId, maybeScrollToBottomAfterContentGrowth]);
+
+    // The message content is only one child of the scroll viewport. The
+    // history-loading spinner, manual-paging controls and banners mount as
+    // siblings *above* it (e.g. when a reconcile refresh flips loading on/off),
+    // which changes the viewport's scrollHeight without resizing the observed
+    // content element — so the ResizeObserver above never fires. Watch direct
+    // child insert/remove too and re-pin (or re-anchor) with the same logic, so
+    // reconcile chrome does not drift the view.
+    const mo =
+      typeof MutationObserver !== 'undefined'
+        ? new MutationObserver(() => {
+            maybeScrollToBottomAfterContentGrowth();
+          })
+        : null;
+    mo?.observe(vp, { childList: true });
+
+    return () => {
+      observer.disconnect();
+      mo?.disconnect();
+    };
+  }, [entityId, messageLayoutKey, maybeScrollToBottomAfterContentGrowth]);
 
   return {
     scrollViewportRef,

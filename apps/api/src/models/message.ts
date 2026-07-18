@@ -241,6 +241,8 @@ function toPublicMessageRevisions(
 export type ToPublicMessageOptions = {
   /** When true, include full `encryptedRevisionHistory` in the response. */
   includeRevisionHistory?: boolean;
+  /** When true, the message carries at least one reaction (count-only, no decryption). */
+  hasReactions?: boolean;
 };
 
 /**
@@ -305,5 +307,6 @@ export function toPublicMessage(
     ...(doc.replyToMessageId
       ? { replyToMessageId: doc.replyToMessageId.toHexString() }
       : {}),
+    ...(options?.hasReactions ? { hasReactions: true } : {}),
   };
 }

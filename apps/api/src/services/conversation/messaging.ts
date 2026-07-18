@@ -527,7 +527,18 @@ async function buildMessagePagePayload(
   nextOlderCursor: string | null,
   minCreatedAtForRequester?: Date,
 ): Promise<MessagePagePayload> {
-  const publicMessages = docs.map((m) => toPublicMessage(m, requesterObjId));
+  // Flag messages carrying reactions so the client reserves reaction-bar space
+  // before the (separately batch-fetched) reactions load. Count-only distinct
+  // query; the deleted branch of toPublicMessage drops the flag on tombstones.
+  const withReactions = await getReactionRepository().messageIdsWithReactions(
+    convObjId,
+    docs.map((m) => m._id),
+  );
+  const publicMessages = docs.map((m) =>
+    toPublicMessage(m, requesterObjId, {
+      hasReactions: withReactions.has(m._id.toHexString()),
+    }),
+  );
   const bounds = messagePageBoundsFromNewestFirst(publicMessages);
   let hasNewerPages = false;
   if (bounds.pageNewestId) {
