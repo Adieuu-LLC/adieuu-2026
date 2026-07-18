@@ -55,8 +55,6 @@ export function useViewportReactionFetch({
 
   useEffect(() => {
     if (!ready || !entityId) return;
-    const root = scrollViewportRef.current;
-    if (!root) return;
 
     if (fetchedEntityRef.current !== entityId) {
       fetchedEntityRef.current = entityId;
@@ -64,68 +62,93 @@ export function useViewportReactionFetch({
     }
     const fetched = fetchedIdsRef.current;
 
-    const pending = new Set<string>();
+    let io: IntersectionObserver | null = null;
+    let mo: MutationObserver | null = null;
     let flushTimer: ReturnType<typeof setTimeout> | null = null;
-    const flush = () => {
-      flushTimer = null;
-      const ids = [...pending].filter((id) => !fetched.has(id));
-      pending.clear();
-      if (ids.length === 0) return;
-      // Only mark as fetched on success so a failed batch is retried when the
-      // rows next intersect.
-      Promise.resolve(fetchReactions(ids))
-        .then(() => {
-          for (const id of ids) fetched.add(id);
-        })
-        .catch(() => {});
-    };
-    const scheduleFlush = () => {
-      if (pending.size > 0 && flushTimer == null) {
-        flushTimer = setTimeout(flush, debounceMs);
-      }
-    };
+    let rafId: ReturnType<typeof requestAnimationFrame> | null = null;
+    let cancelled = false;
 
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (!e.isIntersecting) continue;
-          const id = (e.target as HTMLElement).dataset.messageId;
-          if (id && !fetched.has(id)) pending.add(id);
-        }
-        scheduleFlush();
-      },
-      { root, rootMargin, threshold: 0 },
-    );
-
-    const observeRow = (el: Element) => {
-      if ((el as HTMLElement).dataset?.messageId) io.observe(el);
-    };
-    const observeWithin = (node: Node) => {
-      // ELEMENT_NODE only; skip text/comment nodes.
-      if (node.nodeType !== 1) return;
-      const el = node as Element;
-      observeRow(el);
-      el.querySelectorAll('[data-message-id]').forEach(observeRow);
-    };
-
-    // Observe rows already mounted at attach time.
-    root.querySelectorAll('[data-message-id]').forEach(observeRow);
-
-    // Observe rows mounted later (new messages, history prepend) without
-    // rebuilding the IntersectionObserver.
-    const mo =
-      typeof MutationObserver !== 'undefined'
-        ? new MutationObserver((mutations) => {
-            for (const m of mutations) {
-              m.addedNodes.forEach(observeWithin);
-            }
+    const attach = (root: HTMLElement) => {
+      const pending = new Set<string>();
+      const flush = () => {
+        flushTimer = null;
+        const ids = [...pending].filter((id) => !fetched.has(id));
+        pending.clear();
+        if (ids.length === 0) return;
+        // Only mark as fetched on success so a failed batch is retried when the
+        // rows next intersect.
+        Promise.resolve(fetchReactions(ids))
+          .then(() => {
+            for (const id of ids) fetched.add(id);
           })
-        : null;
-    mo?.observe(root, { childList: true, subtree: true });
+          .catch(() => {});
+      };
+      const scheduleFlush = () => {
+        if (pending.size > 0 && flushTimer == null) {
+          flushTimer = setTimeout(flush, debounceMs);
+        }
+      };
+
+      io = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            if (!e.isIntersecting) continue;
+            const id = (e.target as HTMLElement).dataset.messageId;
+            if (id && !fetched.has(id)) pending.add(id);
+          }
+          scheduleFlush();
+        },
+        { root, rootMargin, threshold: 0 },
+      );
+
+      const observeRow = (el: Element) => {
+        if ((el as HTMLElement).dataset?.messageId) io?.observe(el);
+      };
+      const observeWithin = (node: Node) => {
+        // ELEMENT_NODE only; skip text/comment nodes.
+        if (node.nodeType !== 1) return;
+        const el = node as Element;
+        observeRow(el);
+        el.querySelectorAll('[data-message-id]').forEach(observeRow);
+      };
+
+      // Observe rows already mounted at attach time.
+      root.querySelectorAll('[data-message-id]').forEach(observeRow);
+
+      // Observe rows mounted later (new messages, history prepend) without
+      // rebuilding the IntersectionObserver.
+      mo =
+        typeof MutationObserver !== 'undefined'
+          ? new MutationObserver((mutations) => {
+              for (const m of mutations) {
+                m.addedNodes.forEach(observeWithin);
+              }
+            })
+          : null;
+      mo?.observe(root, { childList: true, subtree: true });
+    };
+
+    // The scroll viewport is rendered conditionally by the message list, so it
+    // may not be mounted yet even though `ready` is already true. Poll on the
+    // next frame(s) until it appears, then attach once — this catches the case
+    // where the viewport mounts after `ready` flipped true without any hook
+    // dependency changing (which would otherwise never re-run this effect).
+    const tryAttach = () => {
+      if (cancelled) return;
+      const root = scrollViewportRef.current;
+      if (!root) {
+        rafId = requestAnimationFrame(tryAttach);
+        return;
+      }
+      attach(root);
+    };
+    tryAttach();
 
     return () => {
+      cancelled = true;
+      if (rafId != null) cancelAnimationFrame(rafId);
       if (flushTimer != null) clearTimeout(flushTimer);
-      io.disconnect();
+      io?.disconnect();
       mo?.disconnect();
     };
   }, [entityId, ready, fetchReactions, rootMargin, debounceMs, scrollViewportRef]);

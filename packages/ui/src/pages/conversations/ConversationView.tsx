@@ -690,7 +690,7 @@ export function ConversationView() {
     entityId: id,
     scrollViewportRef,
     fetchReactions,
-    ready: flatItems.length > 0,
+    ready: flatItems.length > 0 && id === activeConversationId,
   });
 
   const {

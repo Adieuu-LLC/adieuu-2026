@@ -18,7 +18,6 @@ import {
   applyHistoryScrollAnchor,
   applyDistanceFromBottom,
   readDistanceFromBottom,
-  computeScrollTopAfterPrepend,
   type HistoryScrollAnchor,
 } from '../utils/messageScrollUtils';
 import { clearMessageScrollCache } from './useMessageScroll';
@@ -79,27 +78,43 @@ export function useMessageScrollOrchestration(
     cachedScrollIndex,
   } = opts;
 
-  // Viewport scrollHeight captured just before an older page is requested. The
-  // restore below adds the height delta to the *current* scrollTop, which keeps
-  // the reading position stable regardless of how far the user has scrolled
-  // during the async load — an absolute row anchor would instead yank a fast
-  // scroller back to a stale row.
-  const pendingOlderPrevHeightRef = useRef<number | null>(null);
+  // Anchor to a row that already existed before an older page is requested,
+  // captured as an offset within the scroll content (independent of scrollTop).
+  // The restore below adds only the before/after delta of *this row* to the
+  // current scrollTop, so it stays a relative adjustment (a fast scroll during
+  // the async load is preserved) while ignoring media/reaction/banner growth
+  // elsewhere in the list — which a raw scrollHeight delta would wrongly fold in.
+  const pendingOlderAnchorRef = useRef<{
+    anchorKey: string;
+    contentOffsetPx: number;
+  } | null>(null);
   const initialOpenBottomSnapDoneRef = useRef(false);
   const generationRef = useRef(0);
 
   useEffect(() => {
     generationRef.current += 1;
     initialOpenBottomSnapDoneRef.current = false;
-    pendingOlderPrevHeightRef.current = null;
+    pendingOlderAnchorRef.current = null;
   }, [entityId]);
 
   const handleReachOlder = useCallback(() => {
     if (!hasOlderCursor || messagesLoading) return;
     const vp = scrollViewportRef.current;
-    if (vp) pendingOlderPrevHeightRef.current = vp.scrollHeight;
+    const content = messagesContentRef.current;
+    pendingOlderAnchorRef.current = null;
+    if (vp && content) {
+      const row = content.querySelector('[data-scroll-anchor-key]');
+      const anchorKey = (row as HTMLElement | null)?.dataset.scrollAnchorKey;
+      if (row && anchorKey) {
+        const vpTop = vp.getBoundingClientRect().top;
+        pendingOlderAnchorRef.current = {
+          anchorKey,
+          contentOffsetPx: row.getBoundingClientRect().top - vpTop + vp.scrollTop,
+        };
+      }
+    }
     void loadOlder();
-  }, [hasOlderCursor, messagesLoading, loadOlder, scrollViewportRef]);
+  }, [hasOlderCursor, messagesLoading, loadOlder, scrollViewportRef, messagesContentRef]);
 
   const handleReachNewer = useCallback(() => {
     if (!hasNewerPages || messagesLoading) return;
@@ -154,13 +169,13 @@ export function useMessageScrollOrchestration(
       headMessageId === latestMessageId
     ) {
       clearMessageScrollCache(entityId);
-      pendingOlderPrevHeightRef.current = null;
+      pendingOlderAnchorRef.current = null;
       setIsAtBottom(true);
       scrollToBottom('smooth');
       return;
     }
     clearMessageScrollCache(entityId);
-    pendingOlderPrevHeightRef.current = null;
+    pendingOlderAnchorRef.current = null;
     setIsAtBottom(true);
     const gen = generationRef.current;
     if (jumpToLatest) {
@@ -187,29 +202,31 @@ export function useMessageScrollOrchestration(
 
   // Older-page load position preservation.
   //
-  // Runs once per completed older load: add the height that was prepended above
-  // the viewport (scrollHeight delta) to the current scrollTop, synchronously
-  // before paint. Because it is a *relative* adjustment to wherever the user is
-  // right now, a fast scroll during the async fetch is preserved rather than
-  // yanked back to a stale row. Late-loading row heights inside the prepended
-  // block (images/fonts) are handled by the idle content-anchor path in
-  // useMessageScroll, which yields while the user is actively scrolling.
+  // Runs once per completed older load: re-measure the anchor row captured
+  // before the load and add only *its* before/after content-offset delta to the
+  // current scrollTop, synchronously before paint. Because the offset was stored
+  // relative to the scroll content (independent of scrollTop), the delta equals
+  // exactly the content inserted above that row, so a fast scroll during the
+  // async fetch is preserved and media/reaction/banner growth elsewhere in the
+  // list does not skew the correction.
   useLayoutEffect(() => {
     if (messagesLoading) return;
-    const prevHeight = pendingOlderPrevHeightRef.current;
-    if (prevHeight == null) return;
-    pendingOlderPrevHeightRef.current = null;
+    const anchor = pendingOlderAnchorRef.current;
+    if (anchor == null) return;
+    pendingOlderAnchorRef.current = null;
     const vp = scrollViewportRef.current;
-    if (!vp) return;
-    const delta = vp.scrollHeight - prevHeight;
-    if (delta > 0) {
-      vp.scrollTop = computeScrollTopAfterPrepend(
-        vp.scrollTop,
-        prevHeight,
-        vp.scrollHeight,
-      );
-    }
-  }, [messagesLoading, flatItems.length, entityId, scrollViewportRef]);
+    const content = messagesContentRef.current;
+    if (!vp || !content) return;
+    const escaped =
+      typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+        ? CSS.escape(anchor.anchorKey)
+        : anchor.anchorKey.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const row = content.querySelector(`[data-scroll-anchor-key="${escaped}"]`);
+    if (!row) return;
+    const vpTop = vp.getBoundingClientRect().top;
+    const after = row.getBoundingClientRect().top - vpTop + vp.scrollTop;
+    vp.scrollTop += after - anchor.contentOffsetPx;
+  }, [messagesLoading, flatItems.length, entityId, scrollViewportRef, messagesContentRef]);
 
   // Keep bottom pinned when new messages arrive
   useLayoutEffect(() => {
