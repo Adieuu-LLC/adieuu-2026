@@ -222,6 +222,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     activeChannelIdRef,
     setSending,
     setMessagesByChannel,
+    showError: (msg: string) => toast?.({ type: 'error', message: msg }),
   });
 
   const loadOlderMessages = useCallback(async () => {

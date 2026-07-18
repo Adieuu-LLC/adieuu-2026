@@ -86,8 +86,11 @@ export const SPACE_CHANNEL_NAME_MAX_LENGTH = 100;
 /** The single text channel auto-created with every new Space. */
 export const DEFAULT_SPACE_CHANNEL_NAME = 'general';
 
-/** Max length for plaintext (non-E2EE) channel messages in the first pass. */
+/** Max length for plaintext (non-E2EE) channel messages. */
 export const SPACE_MESSAGE_MAX_LENGTH = 4000;
+
+/** Max length for the base64-encoded ciphertext field in E2EE messages. */
+export const SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH = 16384;
 
 /**
  * Blind-relay cipher verification challenge stored on a Space (or channel).
@@ -173,6 +176,15 @@ export interface PublicSpaceInvite {
   createdAt: string;
 }
 
+/** Revision history entry — stores whichever body mode the message used. */
+export interface SpaceMessageRevision {
+  replacedAt: string;
+  content?: string;
+  ciphertext?: string;
+  nonce?: string;
+  cipherId?: string;
+}
+
 /** Public channel message representation. */
 export interface PublicSpaceMessage {
   id: string;
@@ -181,11 +193,17 @@ export interface PublicSpaceMessage {
   fromIdentityId: string;
   /** Plaintext content when the channel/space is non-E2EE. */
   content?: string;
+  /** Base64-encoded ciphertext for E2EE messages (blind relay). */
+  ciphertext?: string;
+  /** Base64-encoded nonce for E2EE messages. */
+  nonce?: string;
+  /** Public cipher fingerprint for E2EE messages. */
+  cipherId?: string;
   clientMessageId: string;
   deleted: boolean;
   revisionCount: number;
   lastEditedAt?: string;
-  revisionHistory?: { content: string; replacedAt: string }[];
+  revisionHistory?: SpaceMessageRevision[];
   replyToMessageId?: string;
   replyToMessageAuthorId?: string;
   mentionedIdentityIds?: string[];
@@ -235,17 +253,35 @@ export interface UpdateSpaceParams {
   allowFreeMembers?: boolean;
 }
 
-export interface SendSpaceMessageParams {
-  content: string;
+/** Common fields for both plaintext and encrypted message sends. */
+interface SendSpaceMessageCommon {
   clientMessageId: string;
   replyToMessageId?: string;
   mentionedIdentityIds?: string[];
   expiresInSeconds?: number;
 }
 
-export interface EditSpaceMessageParams {
+/** Plaintext send (non-E2EE channels). */
+export interface SendSpaceMessagePlaintext extends SendSpaceMessageCommon {
   content: string;
+  ciphertext?: undefined;
+  nonce?: undefined;
+  cipherId?: undefined;
 }
+
+/** Encrypted send (E2EE channels via Community Cipher). */
+export interface SendSpaceMessageEncrypted extends SendSpaceMessageCommon {
+  content?: undefined;
+  ciphertext: string;
+  nonce: string;
+  cipherId: string;
+}
+
+export type SendSpaceMessageParams = SendSpaceMessagePlaintext | SendSpaceMessageEncrypted;
+
+export type EditSpaceMessageParams =
+  | { content: string; ciphertext?: undefined; nonce?: undefined; cipherId?: undefined }
+  | { content?: undefined; ciphertext: string; nonce: string; cipherId: string };
 
 export interface AddSpaceReactionParams {
   emoji: string;

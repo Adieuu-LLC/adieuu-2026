@@ -1,19 +1,13 @@
 import { useCallback, useRef } from 'react';
-import type { PublicSpaceMessage } from '@adieuu/shared';
+import type { PublicSpaceMessage, SendSpaceMessageParams } from '@adieuu/shared';
 import type { SpaceChannelMessagesState } from './types';
 
 type SpacesSendApiLike = {
   sendMessage: (
     spaceId: string,
     channelId: string,
-    params: {
-      content: string;
-      clientMessageId: string;
-      replyToMessageId?: string;
-      mentionedIdentityIds?: string[];
-      expiresInSeconds?: number;
-    },
-  ) => Promise<{ success: boolean; data?: PublicSpaceMessage }>;
+    params: SendSpaceMessageParams,
+  ) => Promise<{ success: boolean; data?: PublicSpaceMessage; error?: string }>;
 };
 
 export interface SpaceSendParams {
@@ -22,18 +16,16 @@ export interface SpaceSendParams {
   activeChannelIdRef: React.MutableRefObject<string | null>;
   setSending: React.Dispatch<React.SetStateAction<boolean>>;
   setMessagesByChannel: React.Dispatch<React.SetStateAction<Record<string, SpaceChannelMessagesState>>>;
+  showError?: (message: string) => void;
 }
 
 export function useSpaceSend(params: SpaceSendParams) {
-  const { api, activeSpaceIdRef, activeChannelIdRef, setSending, setMessagesByChannel } = params;
+  const { api, activeSpaceIdRef, activeChannelIdRef, setSending, setMessagesByChannel, showError } = params;
   const sendingRef = useRef(false);
 
   const sendMessage = useCallback(
     async (
-      content: string,
-      replyToMessageId?: string,
-      mentionedIdentityIds?: string[],
-      expiresInSeconds?: number,
+      msgParams: SendSpaceMessageParams,
     ): Promise<PublicSpaceMessage | null> => {
       const spaceId = activeSpaceIdRef.current;
       const channelId = activeChannelIdRef.current;
@@ -44,11 +36,8 @@ export function useSpaceSend(params: SpaceSendParams) {
       try {
         const clientMessageId = crypto.randomUUID();
         const res = await api.spaces.sendMessage(spaceId, channelId, {
-          content,
+          ...msgParams,
           clientMessageId,
-          ...(replyToMessageId ? { replyToMessageId } : {}),
-          ...(mentionedIdentityIds?.length ? { mentionedIdentityIds } : {}),
-          ...(expiresInSeconds != null ? { expiresInSeconds } : {}),
         });
         if (res.success && res.data) {
           setMessagesByChannel((prev) => {
@@ -65,13 +54,16 @@ export function useSpaceSend(params: SpaceSendParams) {
           });
           return res.data;
         }
+        if (showError) {
+          showError(res.error ?? 'Failed to send message.');
+        }
         return null;
       } finally {
         sendingRef.current = false;
         setSending(false);
       }
     },
-    [api, activeSpaceIdRef, activeChannelIdRef, setSending, setMessagesByChannel],
+    [api, activeSpaceIdRef, activeChannelIdRef, setSending, setMessagesByChannel, showError],
   );
 
   return { sendMessage };

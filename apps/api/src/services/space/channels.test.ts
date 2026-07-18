@@ -144,13 +144,23 @@ describe('space/channels', () => {
   });
 
   describe('sendSpaceMessage', () => {
-    test('rejects empty content', async () => {
-      const r = await sendSpaceMessage(new ObjectId(), new ObjectId(), new ObjectId(), { content: '   ', clientMessageId: 'c1' });
+    test('rejects empty content on a plaintext channel', async () => {
+      const space = makeSpaceDoc({ visibility: 'public' });
+      spaceRepo.findById.mockResolvedValue(space);
+      const sender = new ObjectId();
+      grantPermissions(space._id, sender, ['post']);
+      channelRepo.findByIdInSpace.mockResolvedValue(makeChannelDoc(space._id));
+      const r = await sendSpaceMessage(space._id, new ObjectId(), sender, { content: '   ', clientMessageId: 'c1' });
       expect(r).toMatchObject({ success: false, errorCode: 'INVALID_CONTENT' });
     });
 
-    test('rejects over-long content', async () => {
-      const r = await sendSpaceMessage(new ObjectId(), new ObjectId(), new ObjectId(), { content: 'x'.repeat(4001), clientMessageId: 'c1' });
+    test('rejects over-long content on a plaintext channel', async () => {
+      const space = makeSpaceDoc({ visibility: 'public' });
+      spaceRepo.findById.mockResolvedValue(space);
+      const sender = new ObjectId();
+      grantPermissions(space._id, sender, ['post']);
+      channelRepo.findByIdInSpace.mockResolvedValue(makeChannelDoc(space._id));
+      const r = await sendSpaceMessage(space._id, new ObjectId(), sender, { content: 'x'.repeat(4001), clientMessageId: 'c1' });
       expect(r).toMatchObject({ success: false, errorCode: 'INVALID_CONTENT' });
     });
 
@@ -181,25 +191,58 @@ describe('space/channels', () => {
       expect(r).toMatchObject({ success: false, errorCode: 'CHANNEL_NOT_FOUND' });
     });
 
-    test('rejects sending to an E2EE space (space cipher challenge)', async () => {
+    test('rejects plaintext send to an E2EE space', async () => {
       const space = makeSpaceDoc({ visibility: 'listed', cipherCheck: CIPHER_CHECK });
       spaceRepo.findById.mockResolvedValue(space);
       const sender = new ObjectId();
       grantPermissions(space._id, sender, ['post']);
       channelRepo.findByIdInSpace.mockResolvedValue(makeChannelDoc(space._id));
       const r = await sendSpaceMessage(space._id, new ObjectId(), sender, { content: 'hi', clientMessageId: 'c1' });
-      expect(r).toMatchObject({ success: false, errorCode: 'ENCRYPTION_NOT_SUPPORTED' });
+      expect(r).toMatchObject({ success: false, errorCode: 'INVALID_CONTENT' });
       expect(messageRepo.createMessage).not.toHaveBeenCalled();
     });
 
-    test('rejects sending to an E2EE channel (channel cipher challenge)', async () => {
+    test('rejects plaintext send to an E2EE channel', async () => {
       const space = makeSpaceDoc({ visibility: 'listed' });
       spaceRepo.findById.mockResolvedValue(space);
       const sender = new ObjectId();
       grantPermissions(space._id, sender, ['post']);
       channelRepo.findByIdInSpace.mockResolvedValue(makeChannelDoc(space._id, { cipherCheck: CIPHER_CHECK }));
       const r = await sendSpaceMessage(space._id, new ObjectId(), sender, { content: 'hi', clientMessageId: 'c1' });
-      expect(r).toMatchObject({ success: false, errorCode: 'ENCRYPTION_NOT_SUPPORTED' });
+      expect(r).toMatchObject({ success: false, errorCode: 'INVALID_CONTENT' });
+    });
+
+    test('rejects cipher fields on a plaintext channel', async () => {
+      const space = makeSpaceDoc({ visibility: 'public' });
+      spaceRepo.findById.mockResolvedValue(space);
+      const sender = new ObjectId();
+      grantPermissions(space._id, sender, ['post']);
+      channelRepo.findByIdInSpace.mockResolvedValue(makeChannelDoc(space._id));
+      const r = await sendSpaceMessage(space._id, new ObjectId(), sender, {
+        ciphertext: 'ct', nonce: 'nn', cipherId: 'cid', clientMessageId: 'c1',
+      });
+      expect(r).toMatchObject({ success: false, errorCode: 'INVALID_CONTENT' });
+    });
+
+    test('sends an encrypted message to an E2EE space', async () => {
+      const space = makeSpaceDoc({ visibility: 'listed', cipherCheck: CIPHER_CHECK });
+      spaceRepo.findById.mockResolvedValue(space);
+      const sender = new ObjectId();
+      grantPermissions(space._id, sender, ['post']);
+      const channel = makeChannelDoc(space._id);
+      channelRepo.findByIdInSpace.mockResolvedValue(channel);
+      const r = await sendSpaceMessage(space._id, channel._id, sender, {
+        ciphertext: 'encrypted-bytes', nonce: 'nonce-val', cipherId: 'cid-hex', clientMessageId: 'c1',
+      });
+      expect(r.success).toBe(true);
+      expect(r.message?.ciphertext).toBe('encrypted-bytes');
+      expect(r.message?.nonce).toBe('nonce-val');
+      expect(r.message?.cipherId).toBe('cid-hex');
+      expect(r.message?.content).toBeUndefined();
+      const [input] = messageRepo.createMessage.mock.calls[0]!;
+      expect(input).toMatchObject({ ciphertext: 'encrypted-bytes', nonce: 'nonce-val', cipherId: 'cid-hex' });
+      expect(input.content).toBeUndefined();
+      expect(publishSpaceEvent).toHaveBeenCalledTimes(1);
     });
 
     test('sends a plaintext message to a non-encrypted channel', async () => {

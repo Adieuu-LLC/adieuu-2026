@@ -96,7 +96,7 @@ const FORBIDDEN_KEYS = new Set([
   'key', 'keys', 'keymaterial', 'derivedkey', 'masterkey', 'privatekey',
   'encryptionkey', 'symmetrickey',
   'secret', 'secretkey', 'passphrase', 'password',
-  'cipherid', 'cipherids', 'cipherkey',
+  'cipherkey',
 ]);
 
 const ALLOWED_CIPHER_CHECK_KEYS = ['encryptedKnownValue', 'knownValue', 'nonce'];
@@ -206,17 +206,20 @@ describe('spaces blind-relay: public serializers echo only the challenge', () =>
     expect(Object.keys(pub.cipherCheck!).sort()).toEqual(ALLOWED_CIPHER_CHECK_KEYS);
   });
 
-  test('toPublicSpaceMessage never echoes ciphertext/key material', () => {
+  test('toPublicSpaceMessage echoes cipher payload fields but never key material', () => {
     const doc = {
       _id: new ObjectId(), spaceId: new ObjectId(), channelId: new ObjectId(),
-      fromIdentityId: new ObjectId(), content: 'hello',
-      // Reserved-at-rest fields must not be echoed by the first-pass serializer.
-      ciphertext: 'encrypted-bytes', nonce: 'n', key: 'leaked' as never,
+      fromIdentityId: new ObjectId(),
+      ciphertext: 'encrypted-bytes', nonce: 'n', cipherId: 'cid-hex',
+      key: 'leaked' as never,
       clientMessageId: crypto.randomUUID(), createdAt: new Date(), updatedAt: new Date(),
     };
     const pub = toPublicSpaceMessage(doc as never);
     expect(findKeyMaterial(pub)).toEqual([]);
-    expect('ciphertext' in pub).toBe(false);
+    expect(pub.ciphertext).toBe('encrypted-bytes');
+    expect(pub.nonce).toBe('n');
+    expect(pub.cipherId).toBe('cid-hex');
+    expect(pub.content).toBeUndefined();
   });
 });
 

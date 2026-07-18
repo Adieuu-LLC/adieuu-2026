@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import type { CommunityCipher } from '@adieuu/crypto';
+import type { EditSpaceMessageParams, SendSpaceMessageParams } from '@adieuu/shared';
 import type { ComposerSendFn, ComposerReplyContext } from '../../components/composer/composerTypes';
 import type { ChannelMessage } from '../../components/messaging/channelMessage';
 import { parsePayload } from '../../services/messagePayload';
@@ -14,19 +15,14 @@ export function useSpaceChannelComposer(params: {
   setEditingMessage: (msg: ChannelMessage | null) => void;
   replyContext: ComposerReplyContext | null;
   setReplyContext: (ctx: ComposerReplyContext | null) => void;
-  sendMessage: (
-    content: string,
-    replyToMessageId?: string,
-    mentionedIdentityIds?: string[],
-    expiresInSeconds?: number,
-  ) => Promise<unknown>;
+  sendMessage: (params: SendSpaceMessageParams) => Promise<unknown>;
   api: {
     spaces: {
       editMessage: (
         spaceId: string,
         channelId: string,
         messageId: string,
-        content: string,
+        body: EditSpaceMessageParams,
       ) => Promise<unknown>;
     };
   };
@@ -52,11 +48,14 @@ export function useSpaceChannelComposer(params: {
 
       if (editingMessage) {
         if (!spaceId || !channelId) return;
-        let content = parsed.isStructured ? composerPayload : parsed.text;
+        const raw = parsed.isStructured ? composerPayload : parsed.text;
+        let editBody: EditSpaceMessageParams;
         if (isEncrypted && spaceCipher) {
-          content = encryptContent(spaceCipher, content);
+          editBody = encryptContent(spaceCipher, raw);
+        } else {
+          editBody = { content: raw };
         }
-        await api.spaces.editMessage(spaceId, channelId, editingMessage.id, content);
+        await api.spaces.editMessage(spaceId, channelId, editingMessage.id, editBody);
         setEditingMessage(null);
         return;
       }
@@ -67,18 +66,26 @@ export function useSpaceChannelComposer(params: {
         .filter((id): id is string => !!id);
       const expiresInSeconds = options?.expiresInSeconds;
 
-      let content = parsed.isStructured ? composerPayload : parsed.text;
+      const raw = parsed.isStructured ? composerPayload : parsed.text;
+
+      const common = {
+        clientMessageId: crypto.randomUUID(),
+        ...(replyToMessageId ? { replyToMessageId } : {}),
+        ...(mentionedIdentityIds.length ? { mentionedIdentityIds } : {}),
+        ...(expiresInSeconds != null ? { expiresInSeconds } : {}),
+      };
+
+      let msgParams: SendSpaceMessageParams;
       if (isEncrypted && spaceCipher) {
-        content = encryptContent(spaceCipher, content);
+        msgParams = { ...common, ...encryptContent(spaceCipher, raw) };
+      } else {
+        msgParams = { ...common, content: raw };
       }
 
-      await sendMessage(
-        content,
-        replyToMessageId,
-        mentionedIdentityIds.length ? mentionedIdentityIds : undefined,
-        expiresInSeconds,
-      );
-      setReplyContext(null);
+      const result = await sendMessage(msgParams);
+      if (result) {
+        setReplyContext(null);
+      }
     },
     [sendMessage, isEncrypted, spaceCipher, editingMessage, api, spaceId, channelId, replyContext, setEditingMessage, setReplyContext],
   );

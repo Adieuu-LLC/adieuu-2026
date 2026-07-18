@@ -9,13 +9,14 @@ import type { SpacesApi, PublicSpaceMessage } from '@adieuu/shared';
 import type { ChannelPinsAdapter } from '../useChannelPins';
 import type { ChannelMessage } from '../../components/messaging/channelMessage';
 import { spaceMessageToChannel } from '../../components/messaging/channelMessage';
+import type { DecryptableMessage } from '../../pages/spaces/spaceChannelCipher';
 
 export function createSpacePinsAdapter(
   api: { spaces: SpacesApi },
   spaceId: string,
-  decryptBody?: (content: string | undefined) => string,
+  decryptBody?: (msg: DecryptableMessage | undefined) => string,
 ): ChannelPinsAdapter {
-  const decrypt = decryptBody ?? ((c: string | undefined) => c ?? '');
+  const decrypt = decryptBody ?? ((m: DecryptableMessage | undefined) => m?.content ?? '');
 
   return {
     async pinMessage(channelId: string, messageId: string): Promise<boolean> {
@@ -38,7 +39,7 @@ export function createSpacePinsAdapter(
       if (resp.success && resp.data) {
         const messages: ChannelMessage[] = resp.data.messages.map(
           (msg: PublicSpaceMessage) => {
-            const body = decrypt(msg.content);
+            const body = decrypt(msg);
             return spaceMessageToChannel(msg, body);
           },
         );

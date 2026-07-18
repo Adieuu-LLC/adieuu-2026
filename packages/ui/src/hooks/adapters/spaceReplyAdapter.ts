@@ -9,13 +9,14 @@ import type { SpacesApi } from '@adieuu/shared';
 import type { ReplyParentFetchAdapter } from '../useReplyParentHydration';
 import type { ChannelMessage } from '../../components/messaging/channelMessage';
 import { spaceMessageToChannel } from '../../components/messaging/channelMessage';
+import type { DecryptableMessage } from '../../pages/spaces/spaceChannelCipher';
 
 export function createSpaceReplyAdapter(
   api: { spaces: SpacesApi },
   spaceId: string,
-  decryptBody?: (content: string | undefined) => string,
+  decryptBody?: (msg: DecryptableMessage | undefined) => string,
 ): ReplyParentFetchAdapter {
-  const decrypt = decryptBody ?? ((c: string | undefined) => c ?? '');
+  const decrypt = decryptBody ?? ((m: DecryptableMessage | undefined) => m?.content ?? '');
 
   return {
     async fetchMessage(
@@ -32,7 +33,7 @@ export function createSpaceReplyAdapter(
         if (resp.success && resp.data && resp.data.messages.length > 0) {
           const msg = resp.data.messages.find((m) => m.id === messageId);
           if (msg) {
-            const body = decrypt(msg.content);
+            const body = decrypt(msg);
             return spaceMessageToChannel(msg, body);
           }
         }

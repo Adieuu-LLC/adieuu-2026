@@ -8,7 +8,9 @@ mock.module('../../services/messagePayload', () => ({
 }));
 
 mock.module('../../pages/spaces/spaceChannelCipher', () => ({
-  decryptEditHistoryEntry: (content: string) => ({ plaintext: `decrypted:${content}` }),
+  decryptEditHistoryEntry: (entry: { content?: string; ciphertext?: string }) => ({
+    plaintext: `decrypted:${entry.ciphertext ?? entry.content ?? ''}`,
+  }),
 }));
 
 const { useSpaceChannelMessageActions } = await import('./useSpaceChannelMessageActions');

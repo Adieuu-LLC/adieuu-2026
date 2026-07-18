@@ -118,7 +118,7 @@ describe('UpdateSpaceSchema', () => {
 });
 
 describe('SendSpaceMessageSchema', () => {
-  test('accepts a valid message', () => {
+  test('accepts a valid plaintext message', () => {
     const result = SendSpaceMessageSchema.safeParse({
       content: 'hello',
       clientMessageId: crypto.randomUUID(),
@@ -126,7 +126,35 @@ describe('SendSpaceMessageSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  test('rejects an empty message', () => {
+  test('accepts a valid encrypted message', () => {
+    const result = SendSpaceMessageSchema.safeParse({
+      ciphertext: 'ct-base64',
+      nonce: 'nonce-base64',
+      cipherId: 'cipher-hex',
+      clientMessageId: crypto.randomUUID(),
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test('rejects when both content and cipher fields are provided', () => {
+    const result = SendSpaceMessageSchema.safeParse({
+      content: 'hello',
+      ciphertext: 'ct',
+      nonce: 'nn',
+      cipherId: 'cid',
+      clientMessageId: crypto.randomUUID(),
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test('rejects when neither content nor cipher fields are provided', () => {
+    const result = SendSpaceMessageSchema.safeParse({
+      clientMessageId: crypto.randomUUID(),
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test('rejects an empty plaintext message', () => {
     const result = SendSpaceMessageSchema.safeParse({
       content: '',
       clientMessageId: crypto.randomUUID(),
@@ -134,7 +162,7 @@ describe('SendSpaceMessageSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  test('rejects an over-long message', () => {
+  test('rejects an over-long plaintext message', () => {
     const result = SendSpaceMessageSchema.safeParse({
       content: 'x'.repeat(SPACE_MESSAGE_MAX_LENGTH + 1),
       clientMessageId: crypto.randomUUID(),
@@ -144,6 +172,15 @@ describe('SendSpaceMessageSchema', () => {
 
   test('rejects a non-uuid clientMessageId', () => {
     const result = SendSpaceMessageSchema.safeParse({ content: 'hi', clientMessageId: 'nope' });
+    expect(result.success).toBe(false);
+  });
+
+  test('rejects partial cipher fields (missing nonce)', () => {
+    const result = SendSpaceMessageSchema.safeParse({
+      ciphertext: 'ct',
+      cipherId: 'cid',
+      clientMessageId: crypto.randomUUID(),
+    });
     expect(result.success).toBe(false);
   });
 });

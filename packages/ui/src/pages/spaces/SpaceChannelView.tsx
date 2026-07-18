@@ -32,7 +32,7 @@ import { scrollViewportCanScroll } from '../../utils/messageScrollUtils';
 import type { ReplyQuotePayload } from '../conversations/conversationUtils';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
 
-import { decryptBody } from './spaceChannelCipher';
+import { decryptBody, type DecryptableMessage } from './spaceChannelCipher';
 import { resolveLatestPinInfo } from './spaceChannelViewModel';
 import { useSpaceChannelMessages } from '../../hooks/spaces/useSpaceChannelMessages';
 import { useSpaceChannelScrollToMessage } from '../../hooks/spaces/useSpaceChannelScrollToMessage';
@@ -110,7 +110,7 @@ export function SpaceChannelView() {
   const encryptedFallback = t('spaces.channel.encryptedUnavailable', '[Encrypted message]');
 
   const decryptContent = useCallback(
-    (content: string | undefined) => decryptBody(content, spaceCipher, encryptedFallback),
+    (msg: DecryptableMessage | undefined) => decryptBody(msg, spaceCipher, encryptedFallback),
     [spaceCipher, encryptedFallback],
   );
 

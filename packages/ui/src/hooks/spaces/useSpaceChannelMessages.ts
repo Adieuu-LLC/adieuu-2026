@@ -7,6 +7,7 @@ import {
 } from '../../components/messaging/channelMessage';
 import { buildFlatMessageItems, type ChannelListItem } from '../../utils/buildFlatMessageItems';
 import { buildMessageLayoutKey, countVisibleMessages } from '../../pages/spaces/spaceChannelViewModel';
+import type { DecryptableMessage } from '../../pages/spaces/spaceChannelCipher';
 
 /**
  * Manages the decryption-cached channel message list, expiry tick, flat items,
@@ -16,19 +17,14 @@ export function useSpaceChannelMessages(params: {
   channelId: string | undefined;
   activeMessages: PublicSpaceMessage[];
   spaceCipher: CommunityCipher | null;
-  decryptContent: (content: string | undefined) => string;
+  decryptContent: (msg: DecryptableMessage | undefined) => string;
 }) {
   const { channelId, activeMessages, spaceCipher, decryptContent } = params;
 
-  // Per-message decryption cache. Decryption is a pure function of
-  // (content, cipher), so as long as the cipher/channel is unchanged an
-  // unmodified message never needs re-decrypting. The map is rebuilt from
-  // the current buffer each pass (reusing prior bodies) so its size stays
-  // bounded to the loaded window.
   const decryptCacheRef = useRef<{
     cipher: CommunityCipher | null;
     channelId: string | undefined;
-    map: Map<string, { content: string; body: string }>;
+    map: Map<string, { key: string; body: string }>;
   }>({ cipher: null, channelId: undefined, map: new Map() });
 
   const channelMessages: ChannelMessage[] = useMemo(() => {
@@ -39,16 +35,16 @@ export function useSpaceChannelMessages(params: {
       cache.map = new Map();
     }
     const prev = cache.map;
-    const next = new Map<string, { content: string; body: string }>();
+    const next = new Map<string, { key: string; body: string }>();
     const chronological = [...activeMessages].reverse();
     const result = chronological.map((msg: PublicSpaceMessage) => {
-      const rawContent = msg.content ?? '';
+      const cacheKey = msg.ciphertext ?? msg.content ?? '';
       const cached = prev.get(msg.id);
       const body =
-        cached && cached.content === rawContent
+        cached && cached.key === cacheKey
           ? cached.body
-          : decryptContent(msg.content);
-      next.set(msg.id, { content: rawContent, body });
+          : decryptContent(msg);
+      next.set(msg.id, { key: cacheKey, body });
       return spaceMessageToChannel(msg, body);
     });
     cache.map = next;

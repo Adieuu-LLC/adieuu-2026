@@ -20,7 +20,11 @@ mock.module('../../services/messagePayload', () => ({
 }));
 
 mock.module('../../pages/spaces/spaceChannelCipher', () => ({
-  encryptContent: (_cipher: unknown, text: string) => `encrypted:${text}`,
+  encryptContent: (_cipher: unknown, text: string) => ({
+    ciphertext: `ct:${text}`,
+    nonce: 'n',
+    cipherId: 'cid',
+  }),
 }));
 
 const { useSpaceChannelComposer } = await import('./useSpaceChannelComposer');
@@ -35,7 +39,7 @@ function makeParams(overrides?: Partial<Parameters<typeof useSpaceChannelCompose
     setEditingMessage: mock(() => {}),
     replyContext: null,
     setReplyContext: mock(() => {}),
-    sendMessage: mock(async () => {}),
+    sendMessage: mock(async () => ({ id: 'sent-1' })),
     api: {
       spaces: {
         editMessage: mock(async () => {}),
@@ -53,7 +57,9 @@ describe('useSpaceChannelComposer', () => {
     await act(async () => {
       await result.current.onSend('hello');
     });
-    expect(p.sendMessage).toHaveBeenCalledWith('hello', undefined, undefined, undefined);
+    const call = (p.sendMessage as ReturnType<typeof mock>).mock.calls[0]![0] as Record<string, unknown>;
+    expect(call.content).toBe('hello');
+    expect(call.ciphertext).toBeUndefined();
   });
 
   test('onSend skips empty content', async () => {
@@ -76,10 +82,37 @@ describe('useSpaceChannelComposer', () => {
     await act(async () => {
       await result.current.onSend('secret');
     });
-    expect(p.sendMessage).toHaveBeenCalledWith('encrypted:secret', undefined, undefined, undefined);
+    const call = (p.sendMessage as ReturnType<typeof mock>).mock.calls[0]![0] as Record<string, unknown>;
+    expect(call.ciphertext).toBe('ct:secret');
+    expect(call.nonce).toBe('n');
+    expect(call.cipherId).toBe('cid');
+    expect(call.content).toBeUndefined();
   });
 
-  test('onSend in edit mode calls editMessage and clears editing', async () => {
+  test('onSend in edit mode calls editMessage with cipher fields and clears editing', async () => {
+    const setEditingMessage = mock(() => {});
+    const editMessage = mock(async () => {});
+    const p = makeParams({
+      isEncrypted: true,
+      spaceCipher: {} as never,
+      editingMessage: { id: 'm1' } as never,
+      setEditingMessage,
+      api: { spaces: { editMessage } },
+    });
+    const { result } = await renderHook(() => useSpaceChannelComposer(p));
+
+    await act(async () => {
+      await result.current.onSend('updated text');
+    });
+    expect(editMessage).toHaveBeenCalledWith('sp-1', 'ch-1', 'm1', {
+      ciphertext: 'ct:updated text',
+      nonce: 'n',
+      cipherId: 'cid',
+    });
+    expect(setEditingMessage).toHaveBeenCalledWith(null);
+  });
+
+  test('onSend in edit mode calls editMessage with plaintext content', async () => {
     const setEditingMessage = mock(() => {});
     const editMessage = mock(async () => {});
     const p = makeParams({
@@ -92,11 +125,11 @@ describe('useSpaceChannelComposer', () => {
     await act(async () => {
       await result.current.onSend('updated text');
     });
-    expect(editMessage).toHaveBeenCalledWith('sp-1', 'ch-1', 'm1', 'updated text');
+    expect(editMessage).toHaveBeenCalledWith('sp-1', 'ch-1', 'm1', { content: 'updated text' });
     expect(setEditingMessage).toHaveBeenCalledWith(null);
   });
 
-  test('onSend clears replyContext after sending', async () => {
+  test('onSend clears replyContext after successful send', async () => {
     const setReplyContext = mock(() => {});
     const p = makeParams({
       replyContext: { messageId: 'r1', authorName: 'A', snippet: 'x', onCancel: () => {} },
@@ -108,6 +141,23 @@ describe('useSpaceChannelComposer', () => {
       await result.current.onSend('reply text');
     });
     expect(setReplyContext).toHaveBeenCalledWith(null);
-    expect(p.sendMessage).toHaveBeenCalledWith('reply text', 'r1', undefined, undefined);
+    const call = (p.sendMessage as ReturnType<typeof mock>).mock.calls[0]![0] as Record<string, unknown>;
+    expect(call.content).toBe('reply text');
+    expect(call.replyToMessageId).toBe('r1');
+  });
+
+  test('onSend does not clear replyContext when send returns falsy', async () => {
+    const setReplyContext = mock(() => {});
+    const p = makeParams({
+      replyContext: { messageId: 'r1', authorName: 'A', snippet: 'x', onCancel: () => {} },
+      setReplyContext,
+      sendMessage: mock(async () => null),
+    });
+    const { result } = await renderHook(() => useSpaceChannelComposer(p));
+
+    await act(async () => {
+      await result.current.onSend('reply text');
+    });
+    expect(setReplyContext).not.toHaveBeenCalled();
   });
 });

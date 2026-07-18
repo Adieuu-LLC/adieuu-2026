@@ -1,12 +1,10 @@
 /**
- * Space channels + non-E2EE (plaintext) messaging.
+ * Space channels — plaintext and E2EE (Cipher) messaging.
  *
- * First pass:
  * - List channels (visibility-gated read).
- * - Send/list plaintext messages for channels without a cipher challenge.
- * - Reject sends when the Space OR the channel carries a `cipherCheck`, since
- *   Cipher-encrypted messaging (client-side encrypt/decrypt via the blind relay)
- *   is deferred. The server never performs crypto.
+ * - Send/list plaintext messages for non-encrypted channels.
+ * - Send/list encrypted messages (ciphertext/nonce/cipherId) for E2EE channels.
+ *   The server acts as a blind relay and never performs crypto.
  *
  * Reading follows Space visibility (`public` is open; `listed`/`hidden` require
  * membership). Posting always requires membership plus the `post` permission.
@@ -19,7 +17,7 @@
  */
 
 import { ObjectId } from 'mongodb';
-import { SPACE_MESSAGE_MAX_LENGTH } from '@adieuu/shared';
+import { SPACE_MESSAGE_MAX_LENGTH, SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH } from '@adieuu/shared';
 import { getSpaceRepository } from '../../repositories/space.repository';
 import { getSpaceChannelRepository } from '../../repositories/space-channel.repository';
 import { getSpaceMessageRepository } from '../../repositories/space-message.repository';
@@ -70,15 +68,19 @@ export async function listSpaceChannels(
 }
 
 /**
- * Send a plaintext message to a channel. Requires membership + `post`. Rejects
- * E2EE channels/Spaces (deferred). Idempotent on `clientMessageId`.
+ * Send a message to a channel. Requires membership + `post`.
+ * Encrypted channels require ciphertext/nonce/cipherId; plaintext channels
+ * require content. Idempotent on `clientMessageId`.
  */
 export async function sendSpaceMessage(
   spaceIdRaw: string | ObjectId,
   channelIdRaw: string | ObjectId,
   senderIdentityIdRaw: string | ObjectId,
   params: {
-    content: string;
+    content?: string;
+    ciphertext?: string;
+    nonce?: string;
+    cipherId?: string;
     clientMessageId: string;
     replyToMessageId?: string;
     mentionedIdentityIds?: string[];
@@ -92,10 +94,6 @@ export async function sendSpaceMessage(
     return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
   }
 
-  const content = params.content?.trim() ?? '';
-  if (!content || content.length > SPACE_MESSAGE_MAX_LENGTH) {
-    return { success: false, error: 'Invalid message content.', errorCode: 'INVALID_CONTENT' };
-  }
   if (!params.clientMessageId) {
     return { success: false, error: 'Missing client message id.', errorCode: 'INVALID_CONTENT' };
   }
@@ -118,12 +116,28 @@ export async function sendSpaceMessage(
     return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
   }
 
-  if (space.cipherCheck || channel.cipherCheck) {
-    return {
-      success: false,
-      error: 'This Space is encrypted; plaintext messaging is not available yet.',
-      errorCode: 'ENCRYPTION_NOT_SUPPORTED',
-    };
+  const isEncrypted = !!(space.cipherCheck || channel.cipherCheck);
+  const hasCipherFields = !!(params.ciphertext && params.nonce && params.cipherId);
+
+  if (isEncrypted && !hasCipherFields) {
+    return { success: false, error: 'Encrypted channels require ciphertext, nonce, and cipherId.', errorCode: 'INVALID_CONTENT' };
+  }
+  if (!isEncrypted && hasCipherFields) {
+    return { success: false, error: 'Cipher fields are not accepted on plaintext channels.', errorCode: 'INVALID_CONTENT' };
+  }
+
+  let bodyFields: { content?: string; ciphertext?: string; nonce?: string; cipherId?: string };
+  if (isEncrypted) {
+    if (params.ciphertext!.length > SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH) {
+      return { success: false, error: 'Ciphertext too long.', errorCode: 'INVALID_CONTENT' };
+    }
+    bodyFields = { ciphertext: params.ciphertext, nonce: params.nonce, cipherId: params.cipherId };
+  } else {
+    const content = params.content?.trim() ?? '';
+    if (!content || content.length > SPACE_MESSAGE_MAX_LENGTH) {
+      return { success: false, error: 'Invalid message content.', errorCode: 'INVALID_CONTENT' };
+    }
+    bodyFields = { content };
   }
 
   let replyToMessageObjId: ObjectId | undefined;
@@ -180,7 +194,7 @@ export async function sendSpaceMessage(
       spaceId,
       channelId,
       fromIdentityId: senderId,
-      content,
+      ...bodyFields,
       clientMessageId: params.clientMessageId,
       ...(replyToMessageObjId ? { replyToMessageId: replyToMessageObjId } : {}),
       ...(mentionedObjIds?.length ? { mentionedIdentityIds: mentionedObjIds } : {}),
@@ -345,14 +359,15 @@ export async function getSpaceMessage(
 }
 
 /**
- * Edit a message (author only, max revisions).
+ * Edit a message (author only, max revisions). Supports both plaintext and
+ * cipher fields depending on the channel's encryption state.
  */
 export async function editSpaceMessage(
   spaceIdRaw: string | ObjectId,
   channelIdRaw: string | ObjectId,
   messageIdRaw: string | ObjectId,
   callerIdRaw: string | ObjectId,
-  content: string,
+  body: { content?: string; ciphertext?: string; nonce?: string; cipherId?: string },
 ): Promise<SpaceMessageResult> {
   const spaceId = parseObjId(spaceIdRaw);
   const channelId = parseObjId(channelIdRaw);
@@ -362,14 +377,38 @@ export async function editSpaceMessage(
     return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
   }
 
-  const trimmed = content?.trim() ?? '';
-  if (!trimmed || trimmed.length > SPACE_MESSAGE_MAX_LENGTH) {
-    return { success: false, error: 'Invalid message content.', errorCode: 'INVALID_CONTENT' };
+  const hasCipherFields = !!(body.ciphertext && body.nonce && body.cipherId);
+
+  const space = await getSpaceRepository().findById(spaceId);
+  if (!space) {
+    return { success: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' };
   }
 
   const channel = await getSpaceChannelRepository().findByIdInSpace(spaceId, channelId);
   if (!channel) {
     return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
+  }
+
+  const isEncrypted = !!(space.cipherCheck || channel.cipherCheck);
+  if (isEncrypted && !hasCipherFields) {
+    return { success: false, error: 'Encrypted channels require ciphertext, nonce, and cipherId.', errorCode: 'INVALID_CONTENT' };
+  }
+  if (!isEncrypted && hasCipherFields) {
+    return { success: false, error: 'Cipher fields are not accepted on plaintext channels.', errorCode: 'INVALID_CONTENT' };
+  }
+
+  let editBody: import('../../repositories/space-message.repository').EditMessageBody;
+  if (isEncrypted) {
+    if (body.ciphertext!.length > SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH) {
+      return { success: false, error: 'Ciphertext too long.', errorCode: 'INVALID_CONTENT' };
+    }
+    editBody = { ciphertext: body.ciphertext!, nonce: body.nonce!, cipherId: body.cipherId! };
+  } else {
+    const trimmed = body.content?.trim() ?? '';
+    if (!trimmed || trimmed.length > SPACE_MESSAGE_MAX_LENGTH) {
+      return { success: false, error: 'Invalid message content.', errorCode: 'INVALID_CONTENT' };
+    }
+    editBody = { content: trimmed };
   }
 
   const messageRepo = getSpaceMessageRepository();
@@ -387,7 +426,7 @@ export async function editSpaceMessage(
     return { success: false, error: "You can't edit this message anymore.", errorCode: 'MAX_EDITS_REACHED' };
   }
 
-  const editResult = await messageRepo.editMessage(messageId, trimmed);
+  const editResult = await messageRepo.editMessage(messageId, editBody);
   if (!editResult) {
     return { success: false, error: 'Failed to edit message.', errorCode: 'MESSAGE_NOT_FOUND' };
   }
@@ -405,7 +444,8 @@ export async function editSpaceMessage(
       channelId: channelId.toHexString(),
       messageId: messageId.toHexString(),
       fromIdentityId: callerId.toHexString(),
-      content: publicMessage.content,
+      ...(publicMessage.content !== undefined ? { content: publicMessage.content } : {}),
+      ...(publicMessage.ciphertext ? { ciphertext: publicMessage.ciphertext, nonce: publicMessage.nonce, cipherId: publicMessage.cipherId } : {}),
       lastEditedAt: publicMessage.lastEditedAt,
       revisionCount: publicMessage.revisionCount,
     },

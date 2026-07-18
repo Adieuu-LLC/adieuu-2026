@@ -94,16 +94,17 @@ export function useSpaceChannelMessageActions(params: {
       try {
         const res = await api.spaces.getMessage(spaceId, channelId, messageId);
         if (!res.success || !res.data) return null;
-        const history = (res.data as { revisionHistory?: { content: string; replacedAt: string }[] }).revisionHistory;
+        type RevisionEntry = { content?: string; ciphertext?: string; nonce?: string; cipherId?: string; replacedAt: string };
+        const history = (res.data as { revisionHistory?: RevisionEntry[] }).revisionHistory;
         if (!history || history.length === 0) return [];
 
         return history.map((entry) => {
           if (isEncrypted && spaceCipher) {
-            const result = decryptEditHistoryEntry(entry.content, spaceCipher);
+            const result = decryptEditHistoryEntry(entry, spaceCipher);
             if ('plaintext' in result) return { replacedAt: entry.replacedAt, plaintext: result.plaintext };
             return { replacedAt: entry.replacedAt, decryptionError: result.decryptionError };
           }
-          return { replacedAt: entry.replacedAt, plaintext: entry.content };
+          return { replacedAt: entry.replacedAt, plaintext: entry.content ?? '' };
         });
       } catch {
         return null;

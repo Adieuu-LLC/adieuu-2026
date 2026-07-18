@@ -2,6 +2,7 @@ import type { ApiResponse } from '../types';
 import type { HttpClient, RequestOptions } from './http-client';
 import type {
   CreateSpaceParams,
+  EditSpaceMessageParams,
   PublicSpace,
   PublicSpaceChannel,
   PublicSpaceInvite,
@@ -135,11 +136,11 @@ export class SpacesApi {
     spaceId: string,
     channelId: string,
     messageId: string,
-    content: string,
+    body: EditSpaceMessageParams,
   ): Promise<ApiResponse<PublicSpaceMessage>> {
     return this.client.patch(
       `/api/spaces/${encodeURIComponent(spaceId)}/channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}`,
-      { content },
+      body,
     );
   }
 

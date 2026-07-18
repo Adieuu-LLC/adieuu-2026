@@ -19,6 +19,7 @@ import {
   SPACE_CHANNEL_NAME_MIN_LENGTH,
   SPACE_CHANNEL_NAME_MAX_LENGTH,
   SPACE_MESSAGE_MAX_LENGTH,
+  SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH,
 } from '../api/spaces-types';
 
 export const SpaceVisibilitySchema = z.enum(SPACE_VISIBILITY_VALUES);
@@ -66,17 +67,52 @@ export const CreateSpaceInviteSchema = z.object({
   identityId: z.string().length(24),
 });
 
-export const SendSpaceMessageSchema = z.object({
-  content: z.string().min(1).max(SPACE_MESSAGE_MAX_LENGTH),
+const SpaceMessageCommonFields = {
   clientMessageId: z.string().uuid(),
   replyToMessageId: z.string().length(24).optional(),
   mentionedIdentityIds: z.array(z.string().length(24)).max(50).optional(),
   expiresInSeconds: z.number().int().positive().optional(),
-});
+};
 
-export const EditSpaceMessageSchema = z.object({
-  content: z.string().min(1).max(SPACE_MESSAGE_MAX_LENGTH),
-});
+const SpaceMessageCipherFields = {
+  ciphertext: z.string().min(1).max(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH),
+  nonce: z.string().min(1).max(500),
+  cipherId: z.string().min(1).max(256),
+};
+
+export const SendSpaceMessageSchema = z
+  .object({
+    content: z.string().min(1).max(SPACE_MESSAGE_MAX_LENGTH).optional(),
+    ...SpaceMessageCipherFields,
+    ciphertext: SpaceMessageCipherFields.ciphertext.optional(),
+    nonce: SpaceMessageCipherFields.nonce.optional(),
+    cipherId: SpaceMessageCipherFields.cipherId.optional(),
+    ...SpaceMessageCommonFields,
+  })
+  .refine(
+    (v) => {
+      const hasContent = !!v.content;
+      const hasCipher = !!(v.ciphertext && v.nonce && v.cipherId);
+      return (hasContent || hasCipher) && !(hasContent && hasCipher);
+    },
+    { message: 'Provide either content (plaintext) or ciphertext+nonce+cipherId (encrypted), not both' },
+  );
+
+export const EditSpaceMessageSchema = z
+  .object({
+    content: z.string().min(1).max(SPACE_MESSAGE_MAX_LENGTH).optional(),
+    ciphertext: SpaceMessageCipherFields.ciphertext.optional(),
+    nonce: SpaceMessageCipherFields.nonce.optional(),
+    cipherId: SpaceMessageCipherFields.cipherId.optional(),
+  })
+  .refine(
+    (v) => {
+      const hasContent = !!v.content;
+      const hasCipher = !!(v.ciphertext && v.nonce && v.cipherId);
+      return (hasContent || hasCipher) && !(hasContent && hasCipher);
+    },
+    { message: 'Provide either content (plaintext) or ciphertext+nonce+cipherId (encrypted), not both' },
+  );
 
 export const AddSpaceReactionSchema = z.object({
   emoji: z.string().min(1).max(32),

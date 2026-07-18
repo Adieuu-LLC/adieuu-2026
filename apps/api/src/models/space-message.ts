@@ -2,14 +2,22 @@
  * Space message model
  * A message posted in a Space channel.
  *
- * First pass: plaintext `content` for non-E2EE channels. The optional
- * `ciphertext`/`nonce` fields reserve the shape for the deferred cipher-encrypted
- * messaging path (the server remains a blind relay and stores no keys).
+ * Non-E2EE channels store plaintext in `content`. E2EE (Cipher-protected)
+ * channels store `ciphertext`, `nonce`, and `cipherId` — the server acts as a
+ * blind relay and never performs crypto.
  */
 
 import type { ObjectId } from 'mongodb';
 import type { BaseDocument } from './base';
-import type { PublicSpaceMessage } from '@adieuu/shared';
+import type { PublicSpaceMessage, SpaceMessageRevision } from '@adieuu/shared';
+
+export interface SpaceMessageRevisionDoc {
+  replacedAt: Date;
+  content?: string;
+  ciphertext?: string;
+  nonce?: string;
+  cipherId?: string;
+}
 
 export interface SpaceMessageDocument extends BaseDocument {
   spaceId: ObjectId;
@@ -17,15 +25,18 @@ export interface SpaceMessageDocument extends BaseDocument {
   fromIdentityId: ObjectId;
   /** Plaintext content when the channel/space is non-E2EE. */
   content?: string;
-  /** Reserved for the deferred E2EE path (Cipher-encrypted payload). */
+  /** Base64-encoded ciphertext for E2EE messages. */
   ciphertext?: string;
+  /** Base64-encoded nonce for E2EE messages. */
   nonce?: string;
+  /** Public cipher fingerprint for E2EE messages. */
+  cipherId?: string;
   /** Client-generated dedup id (unique per channel). */
   clientMessageId: string;
   deleted: boolean;
   revisionCount: number;
   lastEditedAt?: Date;
-  revisionHistory?: { content: string; replacedAt: Date }[];
+  revisionHistory?: SpaceMessageRevisionDoc[];
   replyToMessageId?: ObjectId;
   mentionedIdentityIds?: ObjectId[];
   expiresAt?: Date;
@@ -38,12 +49,21 @@ export interface CreateSpaceMessageInput {
   content?: string;
   ciphertext?: string;
   nonce?: string;
+  cipherId?: string;
   clientMessageId: string;
   deleted?: boolean;
   revisionCount?: number;
   replyToMessageId?: ObjectId;
   mentionedIdentityIds?: ObjectId[];
   expiresAt?: Date;
+}
+
+function serializeRevision(r: SpaceMessageRevisionDoc): SpaceMessageRevision {
+  return {
+    replacedAt: r.replacedAt.toISOString(),
+    ...(r.content !== undefined ? { content: r.content } : {}),
+    ...(r.ciphertext ? { ciphertext: r.ciphertext, nonce: r.nonce, cipherId: r.cipherId } : {}),
+  };
 }
 
 export function toPublicSpaceMessage(
@@ -56,12 +76,13 @@ export function toPublicSpaceMessage(
     channelId: doc.channelId.toHexString(),
     fromIdentityId: doc.fromIdentityId.toHexString(),
     ...(doc.content !== undefined ? { content: doc.content } : {}),
+    ...(doc.ciphertext ? { ciphertext: doc.ciphertext, nonce: doc.nonce, cipherId: doc.cipherId } : {}),
     clientMessageId: doc.clientMessageId,
     deleted: doc.deleted ?? false,
     revisionCount: doc.revisionCount ?? 0,
     ...(doc.lastEditedAt ? { lastEditedAt: doc.lastEditedAt.toISOString() } : {}),
     ...(!doc.deleted && doc.revisionHistory?.length
-      ? { revisionHistory: doc.revisionHistory.map((r) => ({ content: r.content, replacedAt: r.replacedAt.toISOString() })) }
+      ? { revisionHistory: doc.revisionHistory.map(serializeRevision) }
       : {}),
     ...(doc.replyToMessageId ? { replyToMessageId: doc.replyToMessageId.toHexString() } : {}),
     ...(doc.mentionedIdentityIds?.length

@@ -1,4 +1,4 @@
-import type { PublicIdentity, PublicSpace, PublicSpaceChannel, PublicSpaceMessage } from '@adieuu/shared';
+import type { PublicIdentity, PublicSpace, PublicSpaceChannel, PublicSpaceMessage, SendSpaceMessageParams } from '@adieuu/shared';
 import type { SpaceChannelUnreadState } from '../../services/spaceSocketHandlers';
 
 export interface SpaceChannelMessagesState {
@@ -69,7 +69,7 @@ export interface SpacesContextValue {
 
   setActiveSpace: (slug: string | null) => void;
   setActiveChannel: (channelId: string | null) => void;
-  sendMessage: (content: string, replyToMessageId?: string, mentionedIdentityIds?: string[], expiresInSeconds?: number) => Promise<PublicSpaceMessage | null>;
+  sendMessage: (params: SendSpaceMessageParams) => Promise<PublicSpaceMessage | null>;
   loadOlderMessages: () => Promise<void>;
   /**
    * Load the next page of messages toward the present (used after trimming the

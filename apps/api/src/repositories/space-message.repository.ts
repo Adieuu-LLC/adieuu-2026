@@ -1,13 +1,17 @@
 /**
  * Space message repository
- * Data access for messages posted in Space channels. First pass stores
- * plaintext content for non-E2EE channels; the E2EE path is deferred.
+ * Data access for messages posted in Space channels. Supports both plaintext
+ * (content) and E2EE (ciphertext/nonce/cipherId) messages.
  */
 
 import { type Filter, type UpdateFilter, ObjectId } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
-import type { SpaceMessageDocument, CreateSpaceMessageInput } from '../models/space-message';
+import type { SpaceMessageDocument, CreateSpaceMessageInput, SpaceMessageRevisionDoc } from '../models/space-message';
+
+export type EditMessageBody =
+  | { content: string; ciphertext?: undefined; nonce?: undefined; cipherId?: undefined }
+  | { content?: undefined; ciphertext: string; nonce: string; cipherId: string };
 
 export type EditMessageResult =
   | { conflict: false; message: SpaceMessageDocument }
@@ -133,12 +137,35 @@ export class SpaceMessageRepository extends BaseRepository<SpaceMessageDocument>
 
   async editMessage(
     messageId: ObjectId,
-    content: string,
+    body: EditMessageBody,
   ): Promise<EditMessageResult | null> {
     const existing = await this.findOne({ _id: messageId } as Filter<SpaceMessageDocument>);
     if (!existing) return null;
 
     const now = new Date();
+    const prevRevision: SpaceMessageRevisionDoc = { replacedAt: now };
+    if (existing.ciphertext) {
+      prevRevision.ciphertext = existing.ciphertext;
+      prevRevision.nonce = existing.nonce;
+      prevRevision.cipherId = existing.cipherId;
+    } else {
+      prevRevision.content = existing.content;
+    }
+
+    const $set: Record<string, unknown> = { lastEditedAt: now, updatedAt: now };
+    const $unset: Record<string, string> = {};
+    if (body.ciphertext) {
+      $set.ciphertext = body.ciphertext;
+      $set.nonce = body.nonce;
+      $set.cipherId = body.cipherId;
+      $unset.content = '';
+    } else {
+      $set.content = body.content;
+      $unset.ciphertext = '';
+      $unset.nonce = '';
+      $unset.cipherId = '';
+    }
+
     const result = await this.collection.findOneAndUpdate(
       {
         _id: messageId,
@@ -146,9 +173,10 @@ export class SpaceMessageRepository extends BaseRepository<SpaceMessageDocument>
         revisionCount: existing.revisionCount,
       } as Filter<SpaceMessageDocument>,
       {
-        $set: { content, lastEditedAt: now, updatedAt: now },
+        $set,
         $inc: { revisionCount: 1 },
-        $push: { revisionHistory: { content: existing.content, replacedAt: now } },
+        $push: { revisionHistory: prevRevision },
+        ...(Object.keys($unset).length ? { $unset } : {}),
       } as UpdateFilter<SpaceMessageDocument>,
       { returnDocument: 'after' },
     );
@@ -165,7 +193,7 @@ export class SpaceMessageRepository extends BaseRepository<SpaceMessageDocument>
       { _id: messageId } as Filter<SpaceMessageDocument>,
       {
         $set: { deleted: true, content: '', updatedAt: now },
-        $unset: { revisionHistory: '' },
+        $unset: { revisionHistory: '', ciphertext: '', nonce: '', cipherId: '' },
       } as UpdateFilter<SpaceMessageDocument>,
       { returnDocument: 'after' },
     );

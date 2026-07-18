@@ -124,13 +124,22 @@ export async function sendMessageCtrl(ctx: RouteContext): Promise<SpaceRouteResu
   const parsed = SendSpaceMessageSchema.safeParse(ctx.body);
   if (!parsed.success) return { kind: 'validation_failed' };
 
-  const content = sanitizeSpaceMessageContent(parsed.data.content);
-  if (!content.ok) return { kind: 'validation_failed' };
   const clientMessageId = sanitizeClientMessageId(parsed.data.clientMessageId);
   if (!clientMessageId.ok) return { kind: 'validation_failed' };
 
+  const hasCipher = !!(parsed.data.ciphertext && parsed.data.nonce && parsed.data.cipherId);
+
+  let bodyFields: { content?: string; ciphertext?: string; nonce?: string; cipherId?: string };
+  if (hasCipher) {
+    bodyFields = { ciphertext: parsed.data.ciphertext, nonce: parsed.data.nonce, cipherId: parsed.data.cipherId };
+  } else {
+    const content = sanitizeSpaceMessageContent(parsed.data.content);
+    if (!content.ok) return { kind: 'validation_failed' };
+    bodyFields = { content: content.content };
+  }
+
   const result = await sendSpaceMessage(id.id, channelId.id, identity._id, {
-    content: content.content,
+    ...bodyFields,
     clientMessageId: clientMessageId.clientMessageId,
     ...(parsed.data.replyToMessageId ? { replyToMessageId: parsed.data.replyToMessageId } : {}),
     ...(parsed.data.mentionedIdentityIds?.length
@@ -162,11 +171,19 @@ export async function editMessageCtrl(ctx: RouteContext): Promise<SpaceRouteResu
   const parsed = EditSpaceMessageSchema.safeParse(ctx.body);
   if (!parsed.success) return { kind: 'validation_failed' };
 
-  const content = sanitizeSpaceMessageContent(parsed.data.content);
-  if (!content.ok) return { kind: 'validation_failed' };
+  const hasCipher = !!(parsed.data.ciphertext && parsed.data.nonce && parsed.data.cipherId);
+
+  let bodyFields: { content?: string; ciphertext?: string; nonce?: string; cipherId?: string };
+  if (hasCipher) {
+    bodyFields = { ciphertext: parsed.data.ciphertext, nonce: parsed.data.nonce, cipherId: parsed.data.cipherId };
+  } else {
+    const content = sanitizeSpaceMessageContent(parsed.data.content);
+    if (!content.ok) return { kind: 'validation_failed' };
+    bodyFields = { content: content.content };
+  }
 
   const result = await editSpaceMessage(
-    id.id, channelId.id, messageId.id, identity._id, content.content,
+    id.id, channelId.id, messageId.id, identity._id, bodyFields,
   );
   if (!result.success) {
     return mapSpaceError(result.errorCode, result.error ?? 'Failed to edit message.');
