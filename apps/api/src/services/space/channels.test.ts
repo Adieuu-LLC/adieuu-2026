@@ -224,6 +224,22 @@ describe('space/channels', () => {
       expect(r).toMatchObject({ success: false, errorCode: 'INVALID_CONTENT' });
     });
 
+    test('rejects partial cipher fields with content on a plaintext channel', async () => {
+      const space = makeSpaceDoc({ visibility: 'public' });
+      spaceRepo.findById.mockResolvedValue(space);
+      const sender = new ObjectId();
+      grantPermissions(space._id, sender, ['post']);
+      channelRepo.findByIdInSpace.mockResolvedValue(makeChannelDoc(space._id));
+      const r = await sendSpaceMessage(space._id, new ObjectId(), sender, {
+        content: 'hello',
+        ciphertext: 'ct',
+        cipherId: 'cid',
+        clientMessageId: 'c1',
+      });
+      expect(r).toMatchObject({ success: false, errorCode: 'INVALID_CONTENT' });
+      expect(messageRepo.createMessage).not.toHaveBeenCalled();
+    });
+
     test('sends an encrypted message to an E2EE space', async () => {
       const space = makeSpaceDoc({ visibility: 'listed', cipherCheck: CIPHER_CHECK });
       spaceRepo.findById.mockResolvedValue(space);

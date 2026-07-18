@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CommunityCipher } from '@adieuu/crypto';
 import type { PublicIdentity } from '@adieuu/shared';
 import type { TFunction } from 'i18next';
@@ -6,7 +6,12 @@ import type { ComposerReplyContext } from '../../components/composer/composerTyp
 import type { ChannelMessage } from '../../components/messaging/channelMessage';
 import type { EditHistoryEntry } from '../../components/messaging/EditHistoryLabel';
 import { parsePayload } from '../../services/messagePayload';
-import { decryptEditHistoryEntry } from '../../pages/spaces/spaceChannelCipher';
+import { decryptEditHistoryEntry, looksLikeCipherPayload } from '../../pages/spaces/spaceChannelCipher';
+
+type DeleteMessageResult = {
+  success: boolean;
+  error?: string | { message?: string };
+};
 
 export function useSpaceChannelMessageActions(params: {
   spaceId: string;
@@ -16,8 +21,8 @@ export function useSpaceChannelMessageActions(params: {
   participantProfiles: Record<string, PublicIdentity>;
   api: {
     spaces: {
-      deleteMessage: (spaceId: string, channelId: string, messageId: string) => Promise<unknown>;
-      modDeleteMessage: (spaceId: string, channelId: string, messageId: string) => Promise<unknown>;
+      deleteMessage: (spaceId: string, channelId: string, messageId: string) => Promise<DeleteMessageResult>;
+      modDeleteMessage: (spaceId: string, channelId: string, messageId: string) => Promise<DeleteMessageResult>;
       getMessage: (spaceId: string, channelId: string, messageId: string) => Promise<{
         success: boolean;
         data?: unknown;
@@ -25,11 +30,17 @@ export function useSpaceChannelMessageActions(params: {
     };
   };
   t: TFunction;
+  showError?: (message: string) => void;
 }) {
-  const { spaceId, channelId, isEncrypted, spaceCipher, participantProfiles, api, t } = params;
+  const { spaceId, channelId, isEncrypted, spaceCipher, participantProfiles, api, t, showError } = params;
 
   const [replyContext, setReplyContext] = useState<ComposerReplyContext | null>(null);
   const [editingMessage, setEditingMessage] = useState<ChannelMessage | null>(null);
+
+  useEffect(() => {
+    setReplyContext(null);
+    setEditingMessage(null);
+  }, [channelId]);
 
   const handleReply = useCallback(
     (msg: ChannelMessage) => {
@@ -62,17 +73,22 @@ export function useSpaceChannelMessageActions(params: {
       if (!spaceId || !channelId) return;
       void (async () => {
         try {
-          if (forEveryone) {
-            await api.spaces.modDeleteMessage(spaceId, channelId, messageId);
-          } else {
-            await api.spaces.deleteMessage(spaceId, channelId, messageId);
+          const res = forEveryone
+            ? await api.spaces.modDeleteMessage(spaceId, channelId, messageId)
+            : await api.spaces.deleteMessage(spaceId, channelId, messageId);
+          if (!res.success) {
+            const errMsg =
+              typeof res.error === 'string'
+                ? res.error
+                : res.error?.message;
+            showError?.(errMsg ?? 'Failed to delete message.');
           }
         } catch {
-          // TODO: show error toast
+          showError?.('Failed to delete message.');
         }
       })();
     },
-    [api, spaceId, channelId],
+    [api, spaceId, channelId, showError],
   );
 
   const editingInitialPlaintext = useMemo(() => {
@@ -103,6 +119,14 @@ export function useSpaceChannelMessageActions(params: {
             const result = decryptEditHistoryEntry(entry, spaceCipher);
             if ('plaintext' in result) return { replacedAt: entry.replacedAt, plaintext: result.plaintext };
             return { replacedAt: entry.replacedAt, decryptionError: result.decryptionError };
+          }
+          if (isEncrypted && !spaceCipher) {
+            const hasCipherFields = !!(entry.ciphertext || entry.nonce || entry.cipherId);
+            const hasLegacyCipher =
+              typeof entry.content === 'string' && looksLikeCipherPayload(entry.content);
+            if (hasCipherFields || hasLegacyCipher || entry.content === undefined) {
+              return { replacedAt: entry.replacedAt, decryptionError: 'Unable to decrypt' };
+            }
           }
           return { replacedAt: entry.replacedAt, plaintext: entry.content ?? '' };
         });

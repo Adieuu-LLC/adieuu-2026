@@ -38,7 +38,10 @@ export function useSpaceChannelMessages(params: {
     const next = new Map<string, { key: string; body: string }>();
     const chronological = [...activeMessages].reverse();
     const result = chronological.map((msg: PublicSpaceMessage) => {
-      const cacheKey = msg.ciphertext ?? msg.content ?? '';
+      const cacheKey =
+        msg.ciphertext != null || msg.nonce != null || msg.cipherId != null
+          ? `${msg.ciphertext ?? ''}|${msg.nonce ?? ''}|${msg.cipherId ?? ''}`
+          : (msg.content ?? '');
       const cached = prev.get(msg.id);
       const body =
         cached && cached.key === cacheKey

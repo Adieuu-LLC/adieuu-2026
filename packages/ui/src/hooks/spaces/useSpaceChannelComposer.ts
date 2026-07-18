@@ -23,7 +23,7 @@ export function useSpaceChannelComposer(params: {
         channelId: string,
         messageId: string,
         body: EditSpaceMessageParams,
-      ) => Promise<unknown>;
+      ) => Promise<{ success: boolean }>;
     };
   };
 }) {
@@ -43,7 +43,10 @@ export function useSpaceChannelComposer(params: {
   const onSend: ComposerSendFn = useCallback(
     async (composerPayload: string, options?) => {
       const parsed = parsePayload(composerPayload);
-      const hasContent = !!parsed.text || parsed.gifAttachments.length > 0;
+      const hasContent =
+        !!parsed.text ||
+        parsed.gifAttachments.length > 0 ||
+        parsed.attachments.length > 0;
       if (!hasContent) return;
 
       if (editingMessage) {
@@ -55,8 +58,15 @@ export function useSpaceChannelComposer(params: {
         } else {
           editBody = { content: raw };
         }
-        await api.spaces.editMessage(spaceId, channelId, editingMessage.id, editBody);
-        setEditingMessage(null);
+        const response = await api.spaces.editMessage(
+          spaceId,
+          channelId,
+          editingMessage.id,
+          editBody,
+        );
+        if (response.success === true) {
+          setEditingMessage(null);
+        }
         return;
       }
 
@@ -86,6 +96,7 @@ export function useSpaceChannelComposer(params: {
       if (result) {
         setReplyContext(null);
       }
+      return result;
     },
     [sendMessage, isEncrypted, spaceCipher, editingMessage, api, spaceId, channelId, replyContext, setEditingMessage, setReplyContext],
   );

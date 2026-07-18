@@ -28,6 +28,8 @@ export function useSpaceChannelScrollToMessage(params: {
   const scrollViewportRefStable = useRef<HTMLDivElement | null>(null);
   const pendingScrollToRef = useRef<string | null>(null);
   const replyAroundFetchPendingRef = useRef(false);
+  const channelIdRef = useRef(channelId);
+  channelIdRef.current = channelId;
 
   const activeMessagesRef = useRef<PublicSpaceMessage[]>(activeMessages);
   activeMessagesRef.current = activeMessages;
@@ -59,11 +61,19 @@ export function useSpaceChannelScrollToMessage(params: {
       pendingScrollToRef.current = messageId;
       const haveInBuffer = activeMessagesRef.current.some((m) => m.id === messageId);
       if (!haveInBuffer) {
+        const jumpChannelId = channelIdRef.current;
         replyAroundFetchPendingRef.current = true;
         void fetchMessagesAround(messageId, {
           before: REPLY_JUMP_CONTEXT_BEFORE,
           after: REPLY_JUMP_CONTEXT_AFTER,
         }).then((messages) => {
+          // Ignore stale completions from a previous channel or jump.
+          if (
+            channelIdRef.current !== jumpChannelId ||
+            pendingScrollToRef.current !== messageId
+          ) {
+            return;
+          }
           replyAroundFetchPendingRef.current = false;
           if (messages == null) pendingScrollToRef.current = null;
         });
@@ -81,9 +91,14 @@ export function useSpaceChannelScrollToMessage(params: {
     );
     if (found) {
       const escaped = escapeMessageIdSelector(pendingId);
-      scrollViewportRefStable.current
-        ?.querySelector(`[data-message-id="${escaped}"]`)
-        ?.scrollIntoView({ block: 'center', behavior: 'auto' });
+      const el = scrollViewportRefStable.current?.querySelector(
+        `[data-message-id="${escaped}"]`,
+      );
+      if (!el) {
+        // Message is in the list model but not mounted yet — keep pending and retry.
+        return;
+      }
+      el.scrollIntoView({ block: 'center', behavior: 'auto' });
       pendingScrollToRef.current = null;
       replyAroundFetchPendingRef.current = false;
       flashMessageHighlight(pendingId);

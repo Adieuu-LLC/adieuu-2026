@@ -42,7 +42,7 @@ function makeParams(overrides?: Partial<Parameters<typeof useSpaceChannelCompose
     sendMessage: mock(async () => ({ id: 'sent-1' })),
     api: {
       spaces: {
-        editMessage: mock(async () => {}),
+        editMessage: mock(async () => ({ success: true })),
       },
     },
     ...overrides,
@@ -91,7 +91,7 @@ describe('useSpaceChannelComposer', () => {
 
   test('onSend in edit mode calls editMessage with cipher fields and clears editing', async () => {
     const setEditingMessage = mock(() => {});
-    const editMessage = mock(async () => {});
+    const editMessage = mock(async () => ({ success: true }));
     const p = makeParams({
       isEncrypted: true,
       spaceCipher: {} as never,
@@ -114,7 +114,7 @@ describe('useSpaceChannelComposer', () => {
 
   test('onSend in edit mode calls editMessage with plaintext content', async () => {
     const setEditingMessage = mock(() => {});
-    const editMessage = mock(async () => {});
+    const editMessage = mock(async () => ({ success: true }));
     const p = makeParams({
       editingMessage: { id: 'm1' } as never,
       setEditingMessage,
@@ -127,6 +127,43 @@ describe('useSpaceChannelComposer', () => {
     });
     expect(editMessage).toHaveBeenCalledWith('sp-1', 'ch-1', 'm1', { content: 'updated text' });
     expect(setEditingMessage).toHaveBeenCalledWith(null);
+  });
+
+  test('onSend in edit mode keeps editing when editMessage returns success: false', async () => {
+    const setEditingMessage = mock(() => {});
+    const editMessage = mock(async () => ({ success: false }));
+    const p = makeParams({
+      editingMessage: { id: 'm1' } as never,
+      setEditingMessage,
+      api: { spaces: { editMessage } },
+    });
+    const { result } = await renderHook(() => useSpaceChannelComposer(p));
+
+    await act(async () => {
+      await result.current.onSend('updated text');
+    });
+    expect(editMessage).toHaveBeenCalled();
+    expect(setEditingMessage).not.toHaveBeenCalled();
+  });
+
+  test('onSend allows attachment-only composer payload', async () => {
+    const p = makeParams();
+    const { result } = await renderHook(() => useSpaceChannelComposer(p));
+
+    const attachmentOnly = JSON.stringify({
+      text: '',
+      isStructured: true,
+      attachments: [{ mediaId: 'media-1', mimeType: 'image/png' }],
+      gifAttachments: [],
+      mentions: [],
+      pageTags: [],
+      customEmojis: {},
+    });
+
+    await act(async () => {
+      await result.current.onSend(attachmentOnly);
+    });
+    expect(p.sendMessage).toHaveBeenCalled();
   });
 
   test('onSend clears replyContext after successful send', async () => {

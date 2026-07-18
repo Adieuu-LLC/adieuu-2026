@@ -117,8 +117,12 @@ export async function sendSpaceMessage(
   }
 
   const isEncrypted = !!(space.cipherCheck || channel.cipherCheck);
+  const hasAnyCipherField = !!(params.ciphertext || params.nonce || params.cipherId);
   const hasCipherFields = !!(params.ciphertext && params.nonce && params.cipherId);
 
+  if (hasAnyCipherField && !hasCipherFields) {
+    return { success: false, error: 'Cipher fields must include ciphertext, nonce, and cipherId.', errorCode: 'INVALID_CONTENT' };
+  }
   if (isEncrypted && !hasCipherFields) {
     return { success: false, error: 'Encrypted channels require ciphertext, nonce, and cipherId.', errorCode: 'INVALID_CONTENT' };
   }
@@ -377,6 +381,7 @@ export async function editSpaceMessage(
     return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
   }
 
+  const hasAnyCipherField = !!(body.ciphertext || body.nonce || body.cipherId);
   const hasCipherFields = !!(body.ciphertext && body.nonce && body.cipherId);
 
   const space = await getSpaceRepository().findById(spaceId);
@@ -390,6 +395,9 @@ export async function editSpaceMessage(
   }
 
   const isEncrypted = !!(space.cipherCheck || channel.cipherCheck);
+  if (hasAnyCipherField && !hasCipherFields) {
+    return { success: false, error: 'Cipher fields must include ciphertext, nonce, and cipherId.', errorCode: 'INVALID_CONTENT' };
+  }
   if (isEncrypted && !hasCipherFields) {
     return { success: false, error: 'Encrypted channels require ciphertext, nonce, and cipherId.', errorCode: 'INVALID_CONTENT' };
   }

@@ -98,6 +98,9 @@ export function decryptEditHistoryEntry(
     }
   }
   if (entry.content !== undefined) {
+    if (looksLikeCipherPayload(entry.content)) {
+      return { decryptionError: 'Unable to decrypt' };
+    }
     return { plaintext: entry.content };
   }
   return { decryptionError: 'Unable to decrypt' };

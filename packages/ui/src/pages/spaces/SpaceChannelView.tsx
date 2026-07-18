@@ -17,6 +17,7 @@ import { useAppConfig } from '../../config';
 import { useCipherStore } from '../../hooks/useCipherStore';
 import { getSpaceCipherLink } from '../../services/spaceCipherService';
 import { Spinner } from '../../components/Spinner';
+import { useToast } from '../../components/Toast';
 import { SpaceMembersSidebar } from './SpaceMembersSidebar';
 import { useMessageScroll } from '../../hooks/useMessageScroll';
 import { useMessageScrollOrchestration } from '../../hooks/useMessageScrollOrchestration';
@@ -47,6 +48,7 @@ export function SpaceChannelView() {
   const { t } = useTranslation();
   const { channelId } = useParams<{ channelId: string }>();
   const { apiBaseUrl } = useAppConfig();
+  const toast = useToast();
   const {
     activeSpace,
     channels,
@@ -271,6 +273,7 @@ export function SpaceChannelView() {
     participantProfiles,
     api,
     t,
+    showError: (msg) => toast.error(msg),
   });
 
   // ---------------------------------------------------------------------------
@@ -327,8 +330,9 @@ export function SpaceChannelView() {
 
   const wrappedSend: import('../../components/composer/composerTypes').ComposerSendFn = useCallback(
     async (payload, options) => {
-      markJustSent();
-      await onSend(payload, options);
+      const outcome = await onSend(payload, options);
+      if (outcome) markJustSent();
+      return outcome;
     },
     [onSend, markJustSent],
   );

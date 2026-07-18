@@ -120,6 +120,13 @@ describe('decryptEditHistoryEntry', () => {
     expect('plaintext' in result && result.plaintext).toBe('plain edit');
   });
 
+  test('returns decryptionError for legacy serialized cipher in content', () => {
+    const cipher = makeCipher();
+    const legacy = JSON.stringify({ ciphertext: 'a', nonce: 'b', cipherId: 'c' });
+    const result = decryptEditHistoryEntry({ content: legacy }, cipher);
+    expect('decryptionError' in result).toBe(true);
+  });
+
   test('returns decryptionError when wrong cipher is used', () => {
     const cipher1 = makeCipher();
     const cipher2 = deriveCommunityCipher([{ type: 'text', value: 'other' }]);

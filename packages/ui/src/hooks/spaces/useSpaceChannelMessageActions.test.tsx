@@ -8,6 +8,14 @@ mock.module('../../services/messagePayload', () => ({
 }));
 
 mock.module('../../pages/spaces/spaceChannelCipher', () => ({
+  looksLikeCipherPayload: (content: string) => {
+    try {
+      const parsed = JSON.parse(content);
+      return !!(parsed && parsed.ciphertext && parsed.nonce && parsed.cipherId);
+    } catch {
+      return false;
+    }
+  },
   decryptEditHistoryEntry: (entry: { content?: string; ciphertext?: string }) => ({
     plaintext: `decrypted:${entry.ciphertext ?? entry.content ?? ''}`,
   }),
@@ -120,6 +128,70 @@ describe('useSpaceChannelMessageActions', () => {
       history = await result.current.loadEditHistory('m1');
     });
     expect(history).toEqual([{ replacedAt: '2024-01-01', plaintext: 'decrypted:old text' }]);
+  });
+
+  test('loadEditHistory returns decryptionError when encrypted and cipher unavailable', async () => {
+    const api = makeApi({
+      getMessage: mock(async () => ({
+        success: true,
+        data: {
+          revisionHistory: [
+            { ciphertext: 'ct', nonce: 'n', cipherId: 'cid', replacedAt: '2024-01-01' },
+          ],
+        },
+      })),
+    });
+    const { result } = await renderHook(() =>
+      useSpaceChannelMessageActions(makeParams({ api, isEncrypted: true, spaceCipher: null })),
+    );
+
+    let history: unknown;
+    await act(async () => {
+      history = await result.current.loadEditHistory('m1');
+    });
+    expect(history).toEqual([{ replacedAt: '2024-01-01', decryptionError: 'Unable to decrypt' }]);
+  });
+
+  test('handleDeleteMessage surfaces response-level failures via showError', async () => {
+    const showError = mock(() => {});
+    const api = makeApi({
+      deleteMessage: mock(async () => ({
+        success: false,
+        error: { code: 'FORBIDDEN', message: 'Nope' },
+      })),
+    });
+    const { result } = await renderHook(() =>
+      useSpaceChannelMessageActions(makeParams({ api, showError })),
+    );
+
+    await act(async () => {
+      result.current.handleDeleteMessage('m1', false);
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(showError).toHaveBeenCalledWith('Nope');
+  });
+
+  test('clears reply and editing when channelId changes', async () => {
+    const { result, rerender } = await renderHook(
+      (props: { channelId: string }) =>
+        useSpaceChannelMessageActions(makeParams({ channelId: props.channelId })),
+      { initialProps: { channelId: 'ch-1' } },
+    );
+
+    await act(async () => {
+      result.current.handleStartEdit(makeMsg({ id: 'm2' }));
+    });
+    await act(async () => {
+      result.current.handleReply(makeMsg());
+    });
+    expect(result.current.editingMessage).not.toBeNull();
+    expect(result.current.replyContext).not.toBeNull();
+
+    await act(async () => {
+      rerender({ channelId: 'ch-2' });
+    });
+    expect(result.current.replyContext).toBeNull();
+    expect(result.current.editingMessage).toBeNull();
   });
 
   test('editingInitialPlaintext derives from body', async () => {

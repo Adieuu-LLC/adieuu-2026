@@ -34,7 +34,7 @@ export function useSpaceSend(params: SpaceSendParams) {
       sendingRef.current = true;
       setSending(true);
       try {
-        const clientMessageId = crypto.randomUUID();
+        const clientMessageId = msgParams.clientMessageId ?? crypto.randomUUID();
         const res = await api.spaces.sendMessage(spaceId, channelId, {
           ...msgParams,
           clientMessageId,
