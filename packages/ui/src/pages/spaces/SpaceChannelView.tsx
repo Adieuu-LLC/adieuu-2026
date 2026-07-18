@@ -1,47 +1,22 @@
 /**
- * Channel view inside a Space.
+ * Channel view inside a Space — composition root.
  *
- * Displays messages for a single text channel using the shared
- * {@link ChannelMessageList} and {@link ChannelMessageBubble}.
- * When the Space or channel has a `cipherCheck`, messages are encrypted
- * locally with the matching Community Cipher before sending and decrypted
- * on display.
+ * Wires the extracted feature hooks and adapters, then renders the
+ * presentational {@link SpaceChannelToolbar}, {@link SpaceChannelMainPanel},
+ * and {@link SpaceMembersSidebar}.
  */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import {
-  decryptWithCipher,
-  deserializeCipherPayload,
-  encryptWithCipher,
-  fromBytes,
-  serializeCipherPayload,
-  toBytes,
-  type CommunityCipher,
-  type SerializedCipherPayload,
-} from '@adieuu/crypto';
+import type { CommunityCipher } from '@adieuu/crypto';
 import { createApiClient } from '@adieuu/shared';
 import { useSpaces } from '../../hooks/useSpaces';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useAppConfig } from '../../config';
 import { useCipherStore } from '../../hooks/useCipherStore';
 import { getSpaceCipherLink } from '../../services/spaceCipherService';
-import { parsePayload } from '../../services/messagePayload';
 import { Spinner } from '../../components/Spinner';
-import { Button } from '../../components/Button';
-import { Tooltip } from '../../components/Tooltip';
-import { Icon } from '../../icons/Icon';
-import { MessageComposer } from '../../components/composer/MessageComposer';
-import type { ComposerSendFn, ComposerReplyContext } from '../../components/composer/composerTypes';
-import {
-  spaceMessageToChannel,
-  type ChannelMessage,
-} from '../../components/messaging/channelMessage';
-import { ChannelMessageList } from '../../components/messaging/ChannelMessageList';
-import { ChannelPinsMenu } from '../../components/messaging/ChannelPinsMenu';
-import { buildFlatMessageItems, type ChannelListItem } from '../../utils/buildFlatMessageItems';
-import { scrollViewportCanScroll } from '../../utils/messageScrollUtils';
 import { SpaceMembersSidebar } from './SpaceMembersSidebar';
 import { useMessageScroll } from '../../hooks/useMessageScroll';
 import { useMessageScrollOrchestration } from '../../hooks/useMessageScrollOrchestration';
@@ -53,45 +28,20 @@ import { useChannelPins } from '../../hooks/useChannelPins';
 import { createSpacePinsAdapter } from '../../hooks/adapters/spacePinsAdapter';
 import { useReplyParentHydration, buildChannelReplyQuote } from '../../hooks/useReplyParentHydration';
 import { createSpaceReplyAdapter } from '../../hooks/adapters/spaceReplyAdapter';
-import type { PublicSpaceMessage } from '@adieuu/shared';
+import { scrollViewportCanScroll } from '../../utils/messageScrollUtils';
 import type { ReplyQuotePayload } from '../conversations/conversationUtils';
-import type { EditHistoryEntry } from '../../components/messaging/EditHistoryLabel';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
 
-// Stable reference so the memoized ChannelMessageBubble does not treat every
-// render as a member-settings change (a fresh `{}` literal would fail the
-// `prev.memberSettings !== next.memberSettings` check on every scroll tick).
+import { decryptBody } from './spaceChannelCipher';
+import { resolveLatestPinInfo } from './spaceChannelViewModel';
+import { useSpaceChannelMessages } from '../../hooks/spaces/useSpaceChannelMessages';
+import { useSpaceChannelScrollToMessage } from '../../hooks/spaces/useSpaceChannelScrollToMessage';
+import { useSpaceChannelMessageActions } from '../../hooks/spaces/useSpaceChannelMessageActions';
+import { useSpaceChannelComposer } from '../../hooks/spaces/useSpaceChannelComposer';
+import { SpaceChannelToolbar } from './SpaceChannelToolbar';
+import { SpaceChannelMainPanel } from './SpaceChannelMainPanel';
+
 const EMPTY_MEMBER_SETTINGS: MemberSettingsMap = {};
-
-function looksLikeCipherPayload(content: string): boolean {
-  try {
-    const parsed = JSON.parse(content);
-    return !!(parsed && parsed.ciphertext && parsed.nonce && parsed.cipherId);
-  } catch {
-    return false;
-  }
-}
-
-function decryptBody(
-  content: string | undefined,
-  cipher: CommunityCipher | null | undefined,
-  fallback: string,
-): string {
-  if (!content) return '';
-  if (cipher) {
-    try {
-      const parsed = JSON.parse(content) as SerializedCipherPayload;
-      if (parsed.ciphertext && parsed.nonce && parsed.cipherId) {
-        const payload = deserializeCipherPayload(parsed);
-        return fromBytes(decryptWithCipher(cipher, payload));
-      }
-    } catch {
-      return fallback;
-    }
-  }
-  if (looksLikeCipherPayload(content)) return fallback;
-  return content;
-}
 
 export function SpaceChannelView() {
   const { t } = useTranslation();
@@ -126,6 +76,10 @@ export function SpaceChannelView() {
     [apiBaseUrl],
   );
 
+  // ---------------------------------------------------------------------------
+  // Channel activation
+  // ---------------------------------------------------------------------------
+
   useEffect(() => {
     if (channelId) {
       setActiveChannel(channelId);
@@ -139,6 +93,10 @@ export function SpaceChannelView() {
     () => channels.find((c) => c.id === channelId) ?? null,
     [channels, channelId],
   );
+
+  // ---------------------------------------------------------------------------
+  // Cipher
+  // ---------------------------------------------------------------------------
 
   const isEncrypted = !!(activeSpace?.cipherCheck || activeChannel?.cipherCheck);
 
@@ -157,85 +115,17 @@ export function SpaceChannelView() {
   );
 
   // ---------------------------------------------------------------------------
-  // Channel messages
+  // Channel messages (decrypt + flat items)
   // ---------------------------------------------------------------------------
 
-  // Per-message decryption cache. Decryption is a pure function of
-  // (content, cipher), so as long as the cipher/channel is unchanged an
-  // unmodified message never needs re-decrypting — even when `activeMessages`
-  // churns from new messages, buffer trims, or socket-driven state updates. The
-  // map is rebuilt from the current buffer each pass (reusing prior bodies) so
-  // its size stays bounded to the loaded window.
-  const decryptCacheRef = useRef<{
-    cipher: CommunityCipher | null;
-    channelId: string | undefined;
-    map: Map<string, { content: string; body: string }>;
-  }>({ cipher: null, channelId: undefined, map: new Map() });
+  const spaceId = activeSpace?.id ?? '';
 
-  const channelMessages: ChannelMessage[] = useMemo(() => {
-    const cache = decryptCacheRef.current;
-    if (cache.cipher !== spaceCipher || cache.channelId !== channelId) {
-      cache.cipher = spaceCipher;
-      cache.channelId = channelId;
-      cache.map = new Map();
-    }
-    const prev = cache.map;
-    const next = new Map<string, { content: string; body: string }>();
-    const chronological = [...activeMessages].reverse();
-    const result = chronological.map((msg: PublicSpaceMessage) => {
-      const rawContent = msg.content ?? '';
-      const cached = prev.get(msg.id);
-      const body =
-        cached && cached.content === rawContent
-          ? cached.body
-          : decryptContent(msg.content);
-      next.set(msg.id, { content: rawContent, body });
-      return spaceMessageToChannel(msg, body);
-    });
-    cache.map = next;
-    return result;
-  }, [activeMessages, decryptContent, spaceCipher, channelId]);
-
-  // Lightweight change signal for scroll effects: changes on append (tail id),
-  // prepend (head id + length), and tail edits (lastEditedAt) without the O(n)
-  // multi-KB id-join the whole buffer would otherwise allocate each change.
-  const messageLayoutKey = useMemo(() => {
-    const n = channelMessages.length;
-    if (n === 0) return '';
-    const first = channelMessages[0]!;
-    const last = channelMessages[n - 1]!;
-    return `${n}:${first.id}:${last.id}:${last.lastEditedAt ?? ''}`;
-  }, [channelMessages]);
-
-  const [expiryTick, setExpiryTick] = useState(0);
-
-  useEffect(() => {
-    const hasExpiring = channelMessages.some((m) => m.expiresAt);
-    if (!hasExpiring) return;
-    const timer = setInterval(() => setExpiryTick((x) => x + 1), 1000);
-    return () => clearInterval(timer);
-  }, [channelMessages]);
-
-  const flatItems: ChannelListItem<ChannelMessage>[] = useMemo(
-    () => buildFlatMessageItems(channelMessages, 0, Date.now()),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [channelMessages, expiryTick],
-  );
-
-  // Count rendered message rows (not day separators, and excluding rows that
-  // `buildFlatMessageItems` dropped as expired) so the empty/loading gates in
-  // ChannelMessageList are accurate even when the raw buffer still holds
-  // expired messages.
-  const visibleMessageCount = useMemo(
-    () => flatItems.reduce((n, item) => n + (item.type === 'message' ? 1 : 0), 0),
-    [flatItems],
-  );
+  const { channelMessages, messageLayoutKey, flatItems, visibleMessageCount } =
+    useSpaceChannelMessages({ channelId, activeMessages, spaceCipher, decryptContent });
 
   // ---------------------------------------------------------------------------
   // Reactions
   // ---------------------------------------------------------------------------
-
-  const spaceId = activeSpace?.id ?? '';
 
   const reactionsAdapter = useMemo(
     () => createSpaceReactionsAdapter(api, spaceId),
@@ -250,9 +140,6 @@ export function SpaceChannelView() {
     ingestSocketReaction,
     ingestSocketReactionRemoval,
   } = useChannelReactions(channelId, reactionsAdapter, identity?.id);
-
-  // Viewport-scoped, incremental reaction fetching is wired up via
-  // useViewportReactionFetch once the scroll viewport ref is available (below).
 
   // ---------------------------------------------------------------------------
   // Pins
@@ -312,9 +199,6 @@ export function SpaceChannelView() {
     }
   }, [channelMessages, hydrateAll]);
 
-  // Resolve the display profiles for reply-quote authors. Parents fetched via
-  // hydration (out-of-buffer) are not covered by the sender auto-resolve effect
-  // in SpacesProvider, so their authors would otherwise render as a raw id.
   useEffect(() => {
     const authorIds = new Set<string>();
     for (const parent of Object.values(hydratedParents)) {
@@ -331,92 +215,20 @@ export function SpaceChannelView() {
   }, [hydratedParents, channelMessages, getParentInfo, participantProfiles, resolveProfiles]);
 
   // ---------------------------------------------------------------------------
-  // Scroll to specific message (pins, reply quotes)
+  // Scroll-to-message (pins, reply quotes)
   // ---------------------------------------------------------------------------
 
-  const FLASH_HIGHLIGHT_MS = 2800;
-  const REPLY_JUMP_CONTEXT_BEFORE = 25;
-  const REPLY_JUMP_CONTEXT_AFTER = 25;
-  const [flashingMessageId, setFlashingMessageId] = useState<string | null>(null);
-  const scrollViewportRefStable = useRef<HTMLDivElement | null>(null);
-  const pendingScrollToRef = useRef<string | null>(null);
-  const replyAroundFetchPendingRef = useRef(false);
-
-  const activeMessagesRef = useRef<PublicSpaceMessage[]>(activeMessages);
-  activeMessagesRef.current = activeMessages;
-
-  const escapeMessageIdSelector = useCallback((messageId: string) => {
-    if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
-      return CSS.escape(messageId);
-    }
-    return messageId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-  }, []);
-
-  const flashMessageHighlight = useCallback((messageId: string) => {
-    setFlashingMessageId(messageId);
-    setTimeout(
-      () => setFlashingMessageId((prev) => (prev === messageId ? null : prev)),
-      FLASH_HIGHLIGHT_MS,
-    );
-  }, []);
-
-  const scrollToMessageId = useCallback(
-    (messageId: string) => {
-      const escaped = escapeMessageIdSelector(messageId);
-      const el = scrollViewportRefStable.current?.querySelector(`[data-message-id="${escaped}"]`);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        flashMessageHighlight(messageId);
-        return;
-      }
-      // Target is outside the loaded window: fetch a context window around it,
-      // merge into the store, then retry the scroll once flatItems update.
-      pendingScrollToRef.current = messageId;
-      const haveInBuffer = activeMessagesRef.current.some((m) => m.id === messageId);
-      if (!haveInBuffer) {
-        replyAroundFetchPendingRef.current = true;
-        void fetchMessagesAround(messageId, {
-          before: REPLY_JUMP_CONTEXT_BEFORE,
-          after: REPLY_JUMP_CONTEXT_AFTER,
-        }).then((messages) => {
-          replyAroundFetchPendingRef.current = false;
-          if (messages == null) pendingScrollToRef.current = null;
-        });
-      }
-    },
-    [escapeMessageIdSelector, flashMessageHighlight, fetchMessagesAround],
-  );
-
-  // Retry a pending reply/pin jump once the around-fetch merges into flatItems.
-  useLayoutEffect(() => {
-    const pendingId = pendingScrollToRef.current;
-    if (!pendingId) return;
-    const found = flatItems.some(
-      (item) => item.type === 'message' && item.msg.id === pendingId,
-    );
-    if (found) {
-      const escaped = escapeMessageIdSelector(pendingId);
-      scrollViewportRefStable.current
-        ?.querySelector(`[data-message-id="${escaped}"]`)
-        ?.scrollIntoView({ block: 'center', behavior: 'auto' });
-      pendingScrollToRef.current = null;
-      replyAroundFetchPendingRef.current = false;
-      flashMessageHighlight(pendingId);
-      return;
-    }
-    // Give up only once the fetch settled without producing the target.
-    if (activeMessagesLoading || replyAroundFetchPendingRef.current) return;
-    pendingScrollToRef.current = null;
-  }, [flatItems, activeMessagesLoading, escapeMessageIdSelector, flashMessageHighlight]);
-
-  // Cancel any in-flight jump when switching channels.
-  useEffect(() => {
-    pendingScrollToRef.current = null;
-    replyAroundFetchPendingRef.current = false;
-  }, [channelId]);
+  const { flashingMessageId, scrollToMessageId, scrollViewportRefStable, pendingScrollToRef } =
+    useSpaceChannelScrollToMessage({
+      channelId,
+      activeMessages,
+      activeMessagesLoading,
+      flatItems,
+      fetchMessagesAround,
+    });
 
   const replyQuoteBuilder = useCallback(
-    (msg: ChannelMessage): ReplyQuotePayload | null => {
+    (msg: import('../../components/messaging/channelMessage').ChannelMessage): ReplyQuotePayload | null => {
       if (!msg.replyToMessageId) return null;
       const parentInfo = getParentInfo(msg.replyToMessageId);
       return buildChannelReplyQuote(
@@ -437,128 +249,29 @@ export function SpaceChannelView() {
   );
 
   // ---------------------------------------------------------------------------
-  // Reply context for composer
+  // Message actions (reply, edit, delete, edit history)
   // ---------------------------------------------------------------------------
 
-  const [replyContext, setReplyContext] = useState<ComposerReplyContext | null>(null);
-
-  const handleReply = useCallback(
-    (msg: ChannelMessage) => {
-      const name =
-        participantProfiles[msg.fromIdentityId]?.displayName ??
-        participantProfiles[msg.fromIdentityId]?.username ??
-        msg.fromIdentityId.slice(0, 8);
-      const snippet = msg.body
-        ? msg.body.split(/\s+/).slice(0, 6).join(' ') +
-          (msg.body.split(/\s+/).length > 6 ? '…' : '')
-        : t('conversations.replyOriginal', 'Original message');
-      setReplyContext({
-        messageId: msg.id,
-        authorName: name,
-        snippet,
-        onCancel: () => setReplyContext(null),
-      });
-    },
-    [participantProfiles, t],
-  );
-
-  // ---------------------------------------------------------------------------
-  // Edit / Delete
-  // ---------------------------------------------------------------------------
-
-  const [editingMessage, setEditingMessage] = useState<ChannelMessage | null>(null);
-
-  const handleStartEdit = useCallback((msg: ChannelMessage) => {
-    if (msg.revisionCount >= 3) {
-      // MAX_EDITS_REACHED — matches backend limit
-      return;
-    }
-    setEditingMessage(msg);
-    setReplyContext(null);
-  }, []);
-
-  const handleDeleteMessage = useCallback(
-    (messageId: string, forEveryone: boolean) => {
-      if (!spaceId || !channelId) return;
-      void (async () => {
-        try {
-          if (forEveryone) {
-            await api.spaces.modDeleteMessage(spaceId, channelId, messageId);
-          } else {
-            await api.spaces.deleteMessage(spaceId, channelId, messageId);
-          }
-        } catch {
-          // TODO: show error toast
-        }
-      })();
-    },
-    [api, spaceId, channelId],
-  );
-
-  const editingInitialPlaintext = useMemo(() => {
-    if (!editingMessage?.body) return '';
-    return parsePayload(editingMessage.body).text;
-  }, [editingMessage]);
-
-  const editingInitialAttachments = useMemo(() => {
-    if (!editingMessage) return undefined;
-    return {
-      media: editingMessage.attachments ?? [],
-      gifs: editingMessage.gifAttachments ?? [],
-    };
-  }, [editingMessage]);
-
-  // ---------------------------------------------------------------------------
-  // Send / Edit submission
-  // ---------------------------------------------------------------------------
-
-  const onSend: ComposerSendFn = useCallback(
-    async (composerPayload: string, options?) => {
-      const parsed = parsePayload(composerPayload);
-      const hasContent = !!parsed.text || parsed.gifAttachments.length > 0;
-      if (!hasContent) return;
-
-      if (editingMessage) {
-        if (!spaceId || !channelId) return;
-        let content = parsed.isStructured ? composerPayload : parsed.text;
-        if (isEncrypted && spaceCipher) {
-          const encrypted = encryptWithCipher(spaceCipher, toBytes(content));
-          content = JSON.stringify(serializeCipherPayload(encrypted));
-        }
-        await api.spaces.editMessage(spaceId, channelId, editingMessage.id, content);
-        setEditingMessage(null);
-        return;
-      }
-
-      const replyToMessageId = replyContext?.messageId;
-      const mentionedIdentityIds = parsed.mentions
-        .map((m) => m.id)
-        .filter((id): id is string => !!id);
-      const expiresInSeconds = options?.expiresInSeconds;
-
-      const content = parsed.isStructured ? composerPayload : parsed.text;
-
-      if (isEncrypted && spaceCipher) {
-        const encrypted = encryptWithCipher(spaceCipher, toBytes(content));
-        const serialized = serializeCipherPayload(encrypted);
-        await sendMessage(
-          JSON.stringify(serialized),
-          replyToMessageId,
-          mentionedIdentityIds.length ? mentionedIdentityIds : undefined,
-          expiresInSeconds,
-        );
-      } else {
-        await sendMessage(
-          content,
-          replyToMessageId,
-          mentionedIdentityIds.length ? mentionedIdentityIds : undefined,
-          expiresInSeconds,
-        );
-      }
-      setReplyContext(null);
-    },
-    [sendMessage, isEncrypted, spaceCipher, editingMessage, api, spaceId, channelId, replyContext],
-  );
+  const {
+    replyContext,
+    setReplyContext,
+    editingMessage,
+    setEditingMessage,
+    handleReply,
+    handleStartEdit,
+    handleDeleteMessage,
+    editingInitialPlaintext,
+    editingInitialAttachments,
+    loadEditHistory,
+  } = useSpaceChannelMessageActions({
+    spaceId,
+    channelId,
+    isEncrypted,
+    spaceCipher,
+    participantProfiles,
+    api,
+    t,
+  });
 
   // ---------------------------------------------------------------------------
   // Scroll
@@ -573,14 +286,7 @@ export function SpaceChannelView() {
   }, [loadNewerMessages]);
 
   const [isAtBottom, setIsAtBottom] = useState(true);
-
-  // True while a jump-to-latest reload is discarding the buffer and refetching
-  // the tip. The trim effect keys off `isAtBottom`, which jump flips to true
-  // synchronously; without this guard trim could freeze a historical window as
-  // a faux tip (clearing `hasNewerPages`) before the refetch lands.
   const jumpInFlightRef = useRef(false);
-  // Shared with useMessageScroll: while a page-anchor restore owns the scroll
-  // position, its top-anchor correction stands down so the two do not fight.
   const historyAnchorActiveRef = useRef(false);
 
   const {
@@ -602,6 +308,31 @@ export function SpaceChannelView() {
     historyAnchorActiveRef,
   });
 
+  // ---------------------------------------------------------------------------
+  // Composer (send / edit submission)
+  // ---------------------------------------------------------------------------
+
+  const { onSend } = useSpaceChannelComposer({
+    spaceId,
+    channelId,
+    isEncrypted,
+    spaceCipher,
+    editingMessage,
+    setEditingMessage,
+    replyContext,
+    setReplyContext,
+    sendMessage,
+    api,
+  });
+
+  const wrappedSend: import('../../components/composer/composerTypes').ComposerSendFn = useCallback(
+    async (payload, options) => {
+      markJustSent();
+      await onSend(payload, options);
+    },
+    [onSend, markJustSent],
+  );
+
   const handleJumpReload = useCallback(
     async (id: string) => {
       jumpInFlightRef.current = true;
@@ -616,8 +347,6 @@ export function SpaceChannelView() {
 
   scrollViewportRefStable.current = scrollViewportRef.current;
 
-  // Viewport-scoped reaction fetch: request reactions only for message rows that
-  // scroll into view, deduped and incrementally observed.
   useViewportReactionFetch({
     entityId: channelId,
     scrollViewportRef,
@@ -651,9 +380,6 @@ export function SpaceChannelView() {
     cachedScrollIndex,
   });
 
-  // Fallback for short threads: when older history exists but the viewport does
-  // not overflow, the top IntersectionObserver never fires. Offer a manual
-  // "View older messages" affordance in that case.
   const [showManualLoadOlder, setShowManualLoadOlder] = useState(false);
   useEffect(() => {
     const vp = scrollViewportRef.current;
@@ -664,10 +390,6 @@ export function SpaceChannelView() {
     setShowManualLoadOlder(!scrollViewportCanScroll(vp));
   }, [activeMessagesOlderCursor, activeMessagesLoading, flatItems.length, scrollViewportRef]);
 
-  // Bound the buffer in both directions as the user scrolls (never mid
-  // reply-jump), so long-lived channels do not grow the DOM without limit:
-  // at the tail keep the newest window, while reading history keep the oldest
-  // window and let newer-pagination reload the evicted tail on scroll-down.
   useEffect(() => {
     if (pendingScrollToRef.current || jumpInFlightRef.current) return;
     trimActiveChannelBuffer(isAtBottom);
@@ -684,20 +406,13 @@ export function SpaceChannelView() {
   // Pin preview for toolbar subtitle
   // ---------------------------------------------------------------------------
 
-  const latestPinInfo = useMemo(() => {
-    if (pinnedCount === 0) return null;
-    const pinned = channelMessages.find((m) => pinnedMessageIds.includes(m.id));
-    if (!pinned) return null;
-    const { text } = parsePayload(pinned.body);
-    const cleaned = text.replace(/\s+/g, ' ').trim();
-    const preview = !cleaned
-      ? t('conversations.pinnedMessage', 'Pinned')
-      : cleaned.length > 70 ? `${cleaned.slice(0, 70)}…` : cleaned;
-    return { preview, messageId: pinned.id };
-  }, [pinnedCount, channelMessages, pinnedMessageIds, t]);
+  const latestPinInfo = useMemo(
+    () => resolveLatestPinInfo(channelMessages, pinnedMessageIds, pinnedCount, t),
+    [channelMessages, pinnedMessageIds, pinnedCount, t],
+  );
 
   // ---------------------------------------------------------------------------
-  // Favorite emojis (shared across Conversations and Spaces)
+  // Favorite emojis
   // ---------------------------------------------------------------------------
 
   const { favorites: favoriteEmojis, addFavorite, removeFavorite } = useFavoriteEmojis(identity?.id);
@@ -708,50 +423,9 @@ export function SpaceChannelView() {
 
   const noopReport = useCallback(() => {}, []);
 
-  // ---------------------------------------------------------------------------
-  // Edit history loader
-  // ---------------------------------------------------------------------------
-
-  const loadEditHistory = useCallback(
-    async (messageId: string): Promise<EditHistoryEntry[] | null> => {
-      if (!spaceId || !channelId) return null;
-      try {
-        const res = await api.spaces.getMessage(spaceId, channelId, messageId);
-        if (!res.success || !res.data) return null;
-        const history = (res.data as { revisionHistory?: { content: string; replacedAt: string }[] }).revisionHistory;
-        if (!history || history.length === 0) return [];
-
-        return history.map((entry) => {
-          let plaintext = entry.content;
-          if (isEncrypted && spaceCipher) {
-            try {
-              const parsed = JSON.parse(entry.content) as SerializedCipherPayload;
-              const payload = deserializeCipherPayload(parsed);
-              plaintext = fromBytes(decryptWithCipher(spaceCipher, payload));
-            } catch {
-              return { replacedAt: entry.replacedAt, decryptionError: 'Unable to decrypt' };
-            }
-          }
-          return { replacedAt: entry.replacedAt, plaintext };
-        });
-      } catch {
-        return null;
-      }
-    },
-    [spaceId, channelId, api, isEncrypted, spaceCipher],
-  );
-
   const handleLinkClick = useCallback((href: string) => {
     window.open(href, '_blank', 'noopener,noreferrer');
   }, []);
-
-  const wrappedSend: ComposerSendFn = useCallback(
-    async (payload, options) => {
-      markJustSent();
-      await onSend(payload, options);
-    },
-    [onSend, markJustSent],
-  );
 
   // ---------------------------------------------------------------------------
   // Render
@@ -767,78 +441,37 @@ export function SpaceChannelView() {
 
   return (
     <div className="space-channel-view">
-      <div className="space-channel-toolbar">
-        <div className="space-channel-toolbar-left">
-          <span className="space-channel-toolbar-hash">#</span>
-          <div className="space-channel-toolbar-info">
-            <span className="space-channel-toolbar-name">
-              {activeChannel.name}
-              {isEncrypted && (
-                <span className="spaces-badge spaces-badge--encrypted spaces-badge--toolbar">
-                  {t('spaces.encrypted')}
-                </span>
-              )}
-            </span>
-            {latestPinInfo ? (
-              <button
-                type="button"
-                className="space-channel-toolbar-subtitle space-channel-toolbar-subtitle--clickable"
-                onClick={() => scrollToMessageId(latestPinInfo.messageId)}
-              >
-                {latestPinInfo.preview}
-              </button>
-            ) : (
-              <span className="space-channel-toolbar-subtitle">
-                {`${activeSpace?.memberCount ?? 0} ${t('conversations.members', 'members')}`}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="space-channel-toolbar-actions">
-          <ChannelPinsMenu
-            channelId={channelId!}
-            pinnedCount={pinnedCount}
-            pinnedMessageIdsKey={pinnedMessageIdsKey}
-            loadPinnedMessagesPage={loadPinnedMessagesPage}
-            scrollToMessageId={scrollToMessageId}
-            onUnpin={async (msgId) => { await onUnpin(msgId); }}
-            canUnpin={canManagePins}
-            participantProfiles={participantProfiles}
-            memberSettings={EMPTY_MEMBER_SETTINGS}
-            identity={identity}
-          />
-          <Tooltip content={t('conversations.members', 'Members')} position="bottom">
-            <Button
-              variant="ghost"
-              size="sm"
-              type="button"
-              className={`conversation-toolbar-btn conversation-toolbar-btn--icon-only${showMembers ? ' active' : ''}`}
-              onClick={toggleMembers}
-              aria-label={t('conversations.members', 'Members')}
-              aria-pressed={showMembers}
-            >
-              <span className="conversation-toolbar-btn-icon" aria-hidden>
-                <Icon name="users" size="sm" />
-              </span>
-            </Button>
-          </Tooltip>
-        </div>
-      </div>
+      <SpaceChannelToolbar
+        channelName={activeChannel.name}
+        isEncrypted={isEncrypted}
+        memberCount={activeSpace?.memberCount ?? 0}
+        latestPinInfo={latestPinInfo}
+        scrollToMessageId={scrollToMessageId}
+        channelId={channelId!}
+        pinnedCount={pinnedCount}
+        pinnedMessageIdsKey={pinnedMessageIdsKey}
+        loadPinnedMessagesPage={loadPinnedMessagesPage}
+        onUnpin={async (msgId) => { await onUnpin(msgId); }}
+        canManagePins={canManagePins}
+        participantProfiles={participantProfiles}
+        memberSettings={EMPTY_MEMBER_SETTINGS}
+        identity={identity}
+        showMembers={showMembers}
+        onToggleMembers={toggleMembers}
+        t={t}
+      />
 
       <div className="space-channel-content-row">
       <div className="space-channel-content">
-      <div className="space-channel-body">
-        <ChannelMessageList
-          entityId={channelId}
-          activeEntityId={activeChannelId}
+        <SpaceChannelMainPanel
+          channelId={channelId}
+          activeChannelId={activeChannelId}
           flatItems={flatItems}
           messagesLoading={activeMessagesLoading}
-          messageCount={visibleMessageCount}
+          visibleMessageCount={visibleMessageCount}
           identity={identity}
           participantProfiles={participantProfiles}
           memberSettings={EMPTY_MEMBER_SETTINGS}
-          messageLayout="linear"
-          memberColorDisplay="name-only"
           favoriteEmojis={favoriteEmojis}
           getGroupedReactions={getGroupedReactions}
           onDeleteMessage={handleDeleteMessage}
@@ -862,7 +495,6 @@ export function SpaceChannelView() {
           onReachNewer={handleReachNewer}
           showManualLoadOlder={showManualLoadOlder}
           onManualLoadOlder={handleReachOlder}
-          emptyMessage={t('spaces.channel.noMessages')}
           pinnedMessageIds={pinnedMessageIds}
           canManagePins={canManagePins}
           onPinMessage={(msgId) => void onPin(msgId)}
@@ -873,36 +505,17 @@ export function SpaceChannelView() {
           scrollToMessageId={scrollToMessageId}
           flashingMessageId={flashingMessageId}
           loadEditHistory={loadEditHistory}
+          isEncrypted={isEncrypted}
+          spaceCipher={spaceCipher}
+          sending={sending}
+          wrappedSend={wrappedSend}
+          replyContext={replyContext}
+          editingMessage={editingMessage}
+          setEditingMessage={setEditingMessage}
+          editingInitialPlaintext={editingInitialPlaintext}
+          editingInitialAttachments={editingInitialAttachments}
+          t={t}
         />
-      </div>
-
-      <div className="space-channel-composer">
-        {isEncrypted && !spaceCipher ? (
-          <div className="space-channel-no-cipher">
-            <p className="spaces-state-body">
-              {t('spaces.channel.noCipher')}
-            </p>
-          </div>
-        ) : (
-          <MessageComposer
-            channelId={activeChannelId ?? channelId!}
-            sending={sending}
-            onSend={wrappedSend}
-            replyContext={replyContext}
-            editContext={
-              editingMessage
-                ? {
-                    messageId: editingMessage.id,
-                    onCancel: () => setEditingMessage(null),
-                  }
-                : null
-            }
-            editingMessageKey={editingMessage?.id ?? null}
-            editingInitialPlaintext={editingInitialPlaintext}
-            editingInitialAttachments={editingInitialAttachments}
-          />
-        )}
-      </div>
       </div>
 
       {showMembers && (
