@@ -76,17 +76,33 @@ export const MediaMessage = memo(function MediaMessage({
       : undefined;
 
   /** Same "contain" box as .media-message-image / grid tile so loading UI is not full-width then very tall. */
-  const { placeholderSizeStyle, placeholderClassName } = useMemo(() => {
+  const { placeholderSizeStyle, placeholderClassName, hasKnownDims } = useMemo(() => {
     const w = attachment.width;
     const h = attachment.height;
     if (!w || !h) {
-      return { placeholderSizeStyle: undefined as CSSProperties | undefined, placeholderClassName: '' };
+      // No intrinsic dimensions: reserve a sensible fallback box (4:3) so the
+      // row does not collapse to zero height and then reflow when media loads.
+      const width = layout === 'grid' ? 220 : 260;
+      return {
+        placeholderSizeStyle: {
+          width,
+          maxWidth: '100%',
+          aspectRatio: '4 / 3',
+          boxSizing: 'border-box' as const,
+        } as CSSProperties,
+        placeholderClassName: 'media-message-placeholder--sized',
+        hasKnownDims: false,
+      };
     }
     const maxW = layout === 'grid' ? 280 : MEDIA_MESSAGE_INLINE_MAX_PX;
     const maxH = layout === 'grid' ? 200 : MEDIA_MESSAGE_INLINE_MAX_PX;
     const { width, height } = getContainedMediaDisplaySize(w, h, maxW, maxH);
     if (width <= 0 || height <= 0) {
-      return { placeholderSizeStyle: undefined, placeholderClassName: '' };
+      return {
+        placeholderSizeStyle: undefined as CSSProperties | undefined,
+        placeholderClassName: '',
+        hasKnownDims: false,
+      };
     }
     return {
       placeholderSizeStyle: {
@@ -96,6 +112,7 @@ export const MediaMessage = memo(function MediaMessage({
         boxSizing: 'border-box' as const,
       },
       placeholderClassName: 'media-message-placeholder--sized',
+      hasKnownDims: true,
     };
   }, [attachment.width, attachment.height, layout]);
 
@@ -105,11 +122,12 @@ export const MediaMessage = memo(function MediaMessage({
   const mergePlaceholderStyle = (base?: CSSProperties): CSSProperties =>
     placeholderSizeStyle ? { ...base, ...placeholderSizeStyle } : { ...base, aspectRatio };
 
-  const imageSizeStyle: CSSProperties | undefined = placeholderSizeStyle
-    ? { width: placeholderSizeStyle.width, height: placeholderSizeStyle.height, maxWidth: '100%' }
-    : aspectRatio
-      ? { aspectRatio }
-      : undefined;
+  const imageSizeStyle: CSSProperties | undefined =
+    hasKnownDims && placeholderSizeStyle
+      ? { width: placeholderSizeStyle.width, height: placeholderSizeStyle.height, maxWidth: '100%' }
+      : aspectRatio
+        ? { aspectRatio }
+        : undefined;
 
   return (
     <div

@@ -69,6 +69,7 @@ export function SpaceSecondarySidebar() {
                 <span className="space-sidebar-channel-name">{ch.name}</span>
                 {unread && unread.unread > 0 && (
                   <span
+                    role="status"
                     className={`space-sidebar-unread-badge${unread.mention ? ' space-sidebar-unread-badge--mention' : ''}`}
                     aria-label={
                       unread.mention

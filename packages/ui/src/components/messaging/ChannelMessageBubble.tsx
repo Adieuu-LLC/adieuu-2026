@@ -285,8 +285,9 @@ export const ChannelMessageBubble = memo(function ChannelMessageBubble({
 
     const messageRow = (
       // biome-ignore lint/a11y/noStaticElementInteractions: hover/focus delegation to show/hide action bar
-      <div className={`dm-message dm-message--linear${isPinned ? ' dm-message--pinned' : ''}${isFlashHighlight ? ' dm-message--flash-highlight' : ''}`}
-        style={linearHoverStyle} tabIndex={0} {...mouseHandlers}>
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: focusable row reveals the action bar for keyboard users
+      <div tabIndex={0} className={`dm-message dm-message--linear${isPinned ? ' dm-message--pinned' : ''}${isFlashHighlight ? ' dm-message--flash-highlight' : ''}`}
+        style={linearHoverStyle} {...mouseHandlers}>
         {linearMessageTintMarker && <div className="dm-message-linear-tint-marker" style={{ background: senderColor }} aria-hidden />}
         {profile ? (
           <IdentityHoverCard identity={profile} positioning={{ placement: 'right', gutter: 8 }} extraFooter={memberSecurityHoverFooter}>
@@ -338,8 +339,9 @@ export const ChannelMessageBubble = memo(function ChannelMessageBubble({
 
   const bubbleRow = (
     // biome-ignore lint/a11y/noStaticElementInteractions: hover/focus delegation to show/hide action bar
-    <div className={`dm-message${applyOwnAlignment ? ' dm-message--own' : ''}${isPinned ? ' dm-message--pinned' : ''}${isFlashHighlight ? ' dm-message--flash-highlight' : ''}`}
-      tabIndex={0} {...mouseHandlers}>
+    // biome-ignore lint/a11y/noNoninteractiveTabindex: focusable row reveals the action bar for keyboard users
+    <div tabIndex={0} className={`dm-message${applyOwnAlignment ? ' dm-message--own' : ''}${isPinned ? ' dm-message--pinned' : ''}${isFlashHighlight ? ' dm-message--flash-highlight' : ''}`}
+      {...mouseHandlers}>
       {!isOwn && senderProfile && (
         <IdentityHoverCard identity={senderProfile} positioning={{ placement: 'right', gutter: 8 }} extraFooter={memberSecurityHoverFooter}>
           <button type="button" className="dm-message-sender" style={senderNameStyle}>

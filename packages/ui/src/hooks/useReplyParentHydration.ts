@@ -139,9 +139,12 @@ export function buildChannelReplyQuote(
   fallbackLabel: string,
 ): ReplyQuotePayload | null {
   if (!parentInfo) {
+    // Not yet hydrated: render a fixed-height skeleton (author row reserved) so
+    // the quote does not grow and push the timeline once the parent resolves.
     return {
       text: fallbackLabel,
       onQuoteClick,
+      pending: true,
     };
   }
   if (parentInfo.deleted) {

@@ -19,6 +19,13 @@ import { useSpaceSend } from './useSpaceSend';
 import { useSpacesSocketEffects } from './useSpacesSocketEffects';
 import type { SpaceChannelMessagesState, SpacesContextValue } from './types';
 
+/**
+ * Upper bound on how many messages we retain in a channel buffer. Trimming only
+ * happens at the live tail (see {@link trimActiveChannelBuffer}), keeping ~3
+ * pages of headroom so paging back and forth near the present does not churn.
+ */
+const MAX_SPACE_LOADED_MESSAGES = 150;
+
 export function SpacesProvider({ children }: { children: ReactNode }) {
   const { apiBaseUrl } = useAppConfig();
   const { status: identityStatus, identity } = useIdentity();
@@ -67,6 +74,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     clearActiveSpace,
     fetchChannelMessages,
     refreshChannelMessages,
+    fetchMessagesAround: fetchMessagesAroundInternal,
   } = useSpaceDataFetching({
     api,
     isLoggedIn,
@@ -231,6 +239,47 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     await fetchChannelMessages(spaceId, channelId, state.olderCursor);
   }, [messagesByChannel, fetchChannelMessages]);
 
+  const resolveProfilesPublic = useCallback(
+    (ids: string[]) => {
+      void resolveProfiles(ids);
+    },
+    [resolveProfiles],
+  );
+
+  const fetchMessagesAround = useCallback(
+    (messageId: string, options?: { before?: number; after?: number }) => {
+      const spaceId = activeSpaceIdRef.current;
+      const channelId = activeChannelIdRef.current;
+      if (!spaceId || !channelId) return Promise.resolve(null);
+      return fetchMessagesAroundInternal(spaceId, channelId, messageId, options);
+    },
+    [fetchMessagesAroundInternal],
+  );
+
+  // Bounded buffer: only trims when the caller is at the live tail, so the
+  // newest window is always retained (jump-to-latest and socket appends stay
+  // correct). Evicts the oldest overflow and advances the older cursor to the
+  // new oldest message so pagination continues from the right place. Spaces
+  // have no newer-pagination, so we never evict toward the present.
+  const trimActiveChannelBuffer = useCallback(() => {
+    const channelId = activeChannelIdRef.current;
+    if (!channelId) return;
+    setMessagesByChannel((prev) => {
+      const st = prev[channelId];
+      if (!st || st.messages.length <= MAX_SPACE_LOADED_MESSAGES) return prev;
+      const trimmed = st.messages.slice(0, MAX_SPACE_LOADED_MESSAGES);
+      const newOldest = trimmed[trimmed.length - 1];
+      return {
+        ...prev,
+        [channelId]: {
+          messages: trimmed,
+          olderCursor: newOldest ? newOldest.id : st.olderCursor,
+          loading: st.loading,
+        },
+      };
+    });
+  }, [setMessagesByChannel]);
+
   const spacesRef = useRef(spaces);
   spacesRef.current = spaces;
 
@@ -307,10 +356,13 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       participantProfiles,
       unreadByChannel,
       unreadBySpace,
+      resolveProfiles: resolveProfilesPublic,
       setActiveSpace,
       setActiveChannel,
       sendMessage,
       loadOlderMessages,
+      fetchMessagesAround,
+      trimActiveChannelBuffer,
       refresh: fetchSpaces,
       clearChannelUnread,
       registerSocketCallbacks,
@@ -328,10 +380,13 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       participantProfiles,
       unreadByChannel,
       unreadBySpace,
+      resolveProfilesPublic,
       setActiveSpace,
       setActiveChannel,
       sendMessage,
       loadOlderMessages,
+      fetchMessagesAround,
+      trimActiveChannelBuffer,
       fetchSpaces,
       clearChannelUnread,
       registerSocketCallbacks,

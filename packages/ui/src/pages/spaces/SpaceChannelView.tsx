@@ -8,7 +8,7 @@
  * on display.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -41,6 +41,7 @@ import {
 import { ChannelMessageList } from '../../components/messaging/ChannelMessageList';
 import { ChannelPinsMenu } from '../../components/messaging/ChannelPinsMenu';
 import { buildFlatMessageItems, type ChannelListItem } from '../../utils/buildFlatMessageItems';
+import { scrollViewportCanScroll } from '../../utils/messageScrollUtils';
 import { SpaceMembersSidebar } from './SpaceMembersSidebar';
 import { useMessageScroll } from '../../hooks/useMessageScroll';
 import { useMessageScrollOrchestration } from '../../hooks/useMessageScrollOrchestration';
@@ -98,9 +99,12 @@ export function SpaceChannelView() {
     activeMessagesOlderCursor,
     sending,
     participantProfiles,
+    resolveProfiles,
     setActiveChannel,
     sendMessage,
     loadOlderMessages,
+    fetchMessagesAround,
+    trimActiveChannelBuffer,
     registerSocketCallbacks,
   } = useSpaces();
 
@@ -174,6 +178,15 @@ export function SpaceChannelView() {
     [channelMessages, expiryTick],
   );
 
+  // Count rendered message rows (not day separators, and excluding rows that
+  // `buildFlatMessageItems` dropped as expired) so the empty/loading gates in
+  // ChannelMessageList are accurate even when the raw buffer still holds
+  // expired messages.
+  const visibleMessageCount = useMemo(
+    () => flatItems.reduce((n, item) => n + (item.type === 'message' ? 1 : 0), 0),
+    [flatItems],
+  );
+
   // ---------------------------------------------------------------------------
   // Reactions
   // ---------------------------------------------------------------------------
@@ -194,14 +207,17 @@ export function SpaceChannelView() {
     ingestSocketReactionRemoval,
   } = useChannelReactions(channelId, reactionsAdapter, identity?.id);
 
-  const prevMessageIdsRef = useRef<string>('');
+  // Viewport-scoped, incremental reaction fetching (observer wired up after the
+  // scroll viewport ref is available; see below). Rather than re-requesting
+  // reactions for every message whenever the list changes (which grew O(n)
+  // requests on each new message and every history page), we fetch reactions
+  // only for messages that scroll into view, once each. Realtime add/remove is
+  // handled by the socket ingest callbacks thereafter.
+  const fetchedReactionIdsRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
-    const ids = channelMessages.map((m) => m.id).join(',');
-    if (ids && ids !== prevMessageIdsRef.current) {
-      prevMessageIdsRef.current = ids;
-      void fetchReactions(channelMessages.map((m) => m.id));
-    }
-  }, [channelMessages, fetchReactions]);
+    fetchedReactionIdsRef.current = new Set();
+  }, [channelId]);
 
   // ---------------------------------------------------------------------------
   // Pins
@@ -249,7 +265,7 @@ export function SpaceChannelView() {
     [api, spaceId, decryptContent],
   );
 
-  const { getParentInfo, hydrateAll } = useReplyParentHydration(
+  const { getParentInfo, hydrateAll, hydratedParents } = useReplyParentHydration(
     channelId,
     channelMessages,
     replyAdapter,
@@ -261,25 +277,108 @@ export function SpaceChannelView() {
     }
   }, [channelMessages, hydrateAll]);
 
+  // Resolve the display profiles for reply-quote authors. Parents fetched via
+  // hydration (out-of-buffer) are not covered by the sender auto-resolve effect
+  // in SpacesProvider, so their authors would otherwise render as a raw id.
+  useEffect(() => {
+    const authorIds = new Set<string>();
+    for (const parent of Object.values(hydratedParents)) {
+      if (parent.fromIdentityId) authorIds.add(parent.fromIdentityId);
+    }
+    for (const msg of channelMessages) {
+      if (msg.replyToMessageId) {
+        const parent = getParentInfo(msg.replyToMessageId);
+        if (parent?.fromIdentityId) authorIds.add(parent.fromIdentityId);
+      }
+    }
+    const missing = [...authorIds].filter((id) => !participantProfiles[id]);
+    if (missing.length > 0) resolveProfiles(missing);
+  }, [hydratedParents, channelMessages, getParentInfo, participantProfiles, resolveProfiles]);
+
   // ---------------------------------------------------------------------------
   // Scroll to specific message (pins, reply quotes)
   // ---------------------------------------------------------------------------
 
   const FLASH_HIGHLIGHT_MS = 2800;
+  const REPLY_JUMP_CONTEXT_BEFORE = 25;
+  const REPLY_JUMP_CONTEXT_AFTER = 25;
   const [flashingMessageId, setFlashingMessageId] = useState<string | null>(null);
   const scrollViewportRefStable = useRef<HTMLDivElement | null>(null);
+  const pendingScrollToRef = useRef<string | null>(null);
+  const replyAroundFetchPendingRef = useRef(false);
+
+  const activeMessagesRef = useRef<PublicSpaceMessage[]>(activeMessages);
+  activeMessagesRef.current = activeMessages;
+
+  const escapeMessageIdSelector = useCallback((messageId: string) => {
+    if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+      return CSS.escape(messageId);
+    }
+    return messageId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  }, []);
+
+  const flashMessageHighlight = useCallback((messageId: string) => {
+    setFlashingMessageId(messageId);
+    setTimeout(
+      () => setFlashingMessageId((prev) => (prev === messageId ? null : prev)),
+      FLASH_HIGHLIGHT_MS,
+    );
+  }, []);
 
   const scrollToMessageId = useCallback(
     (messageId: string) => {
-      const el = scrollViewportRefStable.current?.querySelector(`[data-message-id="${messageId}"]`);
+      const escaped = escapeMessageIdSelector(messageId);
+      const el = scrollViewportRefStable.current?.querySelector(`[data-message-id="${escaped}"]`);
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        setFlashingMessageId(messageId);
-        setTimeout(() => setFlashingMessageId(null), FLASH_HIGHLIGHT_MS);
+        flashMessageHighlight(messageId);
+        return;
+      }
+      // Target is outside the loaded window: fetch a context window around it,
+      // merge into the store, then retry the scroll once flatItems update.
+      pendingScrollToRef.current = messageId;
+      const haveInBuffer = activeMessagesRef.current.some((m) => m.id === messageId);
+      if (!haveInBuffer) {
+        replyAroundFetchPendingRef.current = true;
+        void fetchMessagesAround(messageId, {
+          before: REPLY_JUMP_CONTEXT_BEFORE,
+          after: REPLY_JUMP_CONTEXT_AFTER,
+        }).then((messages) => {
+          replyAroundFetchPendingRef.current = false;
+          if (messages == null) pendingScrollToRef.current = null;
+        });
       }
     },
-    [],
+    [escapeMessageIdSelector, flashMessageHighlight, fetchMessagesAround],
   );
+
+  // Retry a pending reply/pin jump once the around-fetch merges into flatItems.
+  useLayoutEffect(() => {
+    const pendingId = pendingScrollToRef.current;
+    if (!pendingId) return;
+    const found = flatItems.some(
+      (item) => item.type === 'message' && item.msg.id === pendingId,
+    );
+    if (found) {
+      const escaped = escapeMessageIdSelector(pendingId);
+      scrollViewportRefStable.current
+        ?.querySelector(`[data-message-id="${escaped}"]`)
+        ?.scrollIntoView({ block: 'center', behavior: 'auto' });
+      pendingScrollToRef.current = null;
+      replyAroundFetchPendingRef.current = false;
+      flashMessageHighlight(pendingId);
+      return;
+    }
+    // Give up only once the fetch settled without producing the target.
+    if (activeMessagesLoading || replyAroundFetchPendingRef.current) return;
+    pendingScrollToRef.current = null;
+  }, [flatItems, activeMessagesLoading, escapeMessageIdSelector, flashMessageHighlight]);
+
+  // Cancel any in-flight jump when switching channels.
+  useEffect(() => {
+    pendingScrollToRef.current = null;
+    replyAroundFetchPendingRef.current = false;
+  }, [channelId]);
 
   const replyQuoteBuilder = useCallback(
     (msg: ChannelMessage): ReplyQuotePayload | null => {
@@ -434,7 +533,7 @@ export function SpaceChannelView() {
     void loadOlderMessages();
   }, [loadOlderMessages]);
 
-  const [, setIsAtBottom] = useState(true);
+  const [isAtBottom, setIsAtBottom] = useState(true);
 
   const {
     scrollViewportRef,
@@ -454,6 +553,52 @@ export function SpaceChannelView() {
   });
 
   scrollViewportRefStable.current = scrollViewportRef.current;
+
+  // Viewport-scoped reaction fetch: observe rendered message rows and request
+  // reactions only for those scrolling into view, deduped via
+  // fetchedReactionIdsRef.
+  useEffect(() => {
+    const root = scrollViewportRef.current;
+    if (!root || flatItems.length === 0) return;
+
+    const pending = new Set<string>();
+    let flushTimer: ReturnType<typeof setTimeout> | null = null;
+    const flush = () => {
+      flushTimer = null;
+      const ids = [...pending].filter((id) => !fetchedReactionIdsRef.current.has(id));
+      pending.clear();
+      if (ids.length === 0) return;
+      Promise.resolve(fetchReactions(ids))
+        .then(() => {
+          for (const id of ids) fetchedReactionIdsRef.current.add(id);
+        })
+        .catch(() => {});
+    };
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          const id = (e.target as HTMLElement).dataset.messageId;
+          if (id && !fetchedReactionIdsRef.current.has(id)) pending.add(id);
+        }
+        if (pending.size > 0 && flushTimer == null) {
+          flushTimer = setTimeout(flush, 150);
+        }
+      },
+      { root, rootMargin: '300px 0px 300px 0px', threshold: 0 },
+    );
+
+    root.querySelectorAll('[data-message-id]').forEach((node) => {
+      io.observe(node);
+    });
+
+    return () => {
+      if (flushTimer != null) clearTimeout(flushTimer);
+      io.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flatItems, fetchReactions, channelId]);
 
   const {
     handleReachOlder,
@@ -476,6 +621,27 @@ export function SpaceChannelView() {
     setIsAtBottom,
     cachedScrollIndex,
   });
+
+  // Fallback for short threads: when older history exists but the viewport does
+  // not overflow, the top IntersectionObserver never fires. Offer a manual
+  // "View older messages" affordance in that case.
+  const [showManualLoadOlder, setShowManualLoadOlder] = useState(false);
+  useEffect(() => {
+    const vp = scrollViewportRef.current;
+    if (!vp || !activeMessagesOlderCursor || activeMessagesLoading) {
+      setShowManualLoadOlder(false);
+      return;
+    }
+    setShowManualLoadOlder(!scrollViewportCanScroll(vp));
+  }, [activeMessagesOlderCursor, activeMessagesLoading, flatItems.length, scrollViewportRef]);
+
+  // Bound the buffer once we're back at the live tail (never mid reply-jump),
+  // so long-lived channels do not grow the DOM without limit.
+  useEffect(() => {
+    if (!isAtBottom) return;
+    if (pendingScrollToRef.current) return;
+    trimActiveChannelBuffer();
+  }, [isAtBottom, activeMessages.length, trimActiveChannelBuffer]);
 
   // ---------------------------------------------------------------------------
   // Members pane
@@ -637,7 +803,7 @@ export function SpaceChannelView() {
           activeEntityId={activeChannelId}
           flatItems={flatItems}
           messagesLoading={activeMessagesLoading}
-          messageCount={activeMessages.length}
+          messageCount={visibleMessageCount}
           identity={identity}
           participantProfiles={participantProfiles}
           memberSettings={{}}
@@ -664,6 +830,8 @@ export function SpaceChannelView() {
           onReachOlder={handleReachOlder}
           hasNewerPages={false}
           onReachNewer={() => {}}
+          showManualLoadOlder={showManualLoadOlder}
+          onManualLoadOlder={handleLoadOlder}
           emptyMessage={t('spaces.channel.noMessages')}
           pinnedMessageIds={pinnedMessageIds}
           canManagePins={canManagePins}

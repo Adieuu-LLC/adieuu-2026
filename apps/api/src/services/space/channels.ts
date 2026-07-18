@@ -258,11 +258,15 @@ export async function getSpaceMessages(
   }
 
   const cursorObjId = cursor && isValidObjectId(cursor) ? new ObjectId(cursor) : undefined;
+  // History pagination always walks older-than-cursor. Default an unspecified
+  // direction to 'asc' when a cursor is present so a client that forgets to send
+  // it does not silently receive newer-than rows (which dedupe to nothing).
+  const effectiveDirection: 'asc' | 'desc' | undefined = cursorObjId && !direction ? 'asc' : direction;
   const messages = await getSpaceMessageRepository().findByChannel(
     channelId,
     limit + 1,
     cursorObjId,
-    direction,
+    effectiveDirection,
   );
 
   const hasMore = messages.length > limit;

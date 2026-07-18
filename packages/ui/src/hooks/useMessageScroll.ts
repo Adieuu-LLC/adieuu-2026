@@ -8,7 +8,11 @@
  */
 
 import { useRef, useState, useCallback, useEffect } from 'react';
-import { computeIsAtBottom } from '../utils/messageScrollUtils';
+import {
+  applyHistoryScrollAnchor,
+  computeIsAtBottom,
+  type HistoryScrollAnchor,
+} from '../utils/messageScrollUtils';
 
 const scrollCache = new Map<string, number>();
 
@@ -16,7 +20,13 @@ export function clearMessageScrollCache(entityId: string): void {
   scrollCache.delete(entityId);
 }
 
-export const MESSAGE_AT_BOTTOM_THRESHOLD_PX = 900;
+/**
+ * Distance (px) from the content bottom within which we treat the viewport as
+ * "at the latest message". Kept tight so re-pin and unread state are accurate;
+ * a large value made the list snap to bottom even when the user was clearly
+ * reading history.
+ */
+export const MESSAGE_AT_BOTTOM_THRESHOLD_PX = 80;
 
 const USER_SCROLL_SUPPRESS_MS = 200;
 
@@ -55,6 +65,13 @@ export function useMessageScroll({
   const lastUserScrollIntentAtRef = useRef(0);
   const visibleIndexRef = useRef<number | null>(null);
   const prevEntityIdRef = useRef<string | undefined>(undefined);
+  // "Sticky bottom" intent, distinct from the instantaneous `isAtBottomRef`.
+  // Only a deliberate upward user scroll clears it, so content that grows while
+  // idling at the latest message re-pins instead of drifting up.
+  const pinnedToBottomRef = useRef(true);
+  // Last first-visible row + its viewport offset, used to hold scroll position
+  // when content above the viewport grows (reactions/media/replies hydrating).
+  const topAnchorRef = useRef<HistoryScrollAnchor | null>(null);
 
   const [showScrollButton, setShowScrollButton] = useState(false);
 
@@ -70,6 +87,26 @@ export function useMessageScroll({
     const vp = scrollViewportRef.current;
     if (!vp) return;
     vp.scrollTo({ top: vp.scrollHeight, behavior });
+  }, []);
+
+  const recordTopAnchor = useCallback(() => {
+    const vp = scrollViewportRef.current;
+    const content = messagesContentRef.current;
+    if (!vp || !content) return;
+    const vRect = vp.getBoundingClientRect();
+    for (let i = 0; i < content.children.length; i++) {
+      const el = content.children[i] as HTMLElement | undefined;
+      const key = el?.dataset.scrollAnchorKey;
+      if (!key) continue;
+      const cr = el!.getBoundingClientRect();
+      if (cr.bottom > vRect.top + 1) {
+        topAnchorRef.current = {
+          anchorKey: key,
+          targetViewportOffsetPx: cr.top - vRect.top,
+        };
+        break;
+      }
+    }
   }, []);
 
   const onScrollViewportScroll = useCallback(() => {
@@ -92,6 +129,20 @@ export function useMessageScroll({
       markRead(entityId);
     }
 
+    // Only a user-initiated upward scroll unpins from bottom. Growth-induced
+    // scroll events (no recent wheel/touch intent) never clear the intent, so
+    // late-loading content re-pins rather than drifting the view upward.
+    const recentUserIntent =
+      Date.now() - lastUserScrollIntentAtRef.current < USER_SCROLL_SUPPRESS_MS;
+    if (atBottom) {
+      pinnedToBottomRef.current = true;
+    } else if (recentUserIntent) {
+      pinnedToBottomRef.current = false;
+    }
+    if (!pinnedToBottomRef.current) {
+      recordTopAnchor();
+    }
+
     const vRect = vp.getBoundingClientRect();
     let firstIdx: number | null = null;
     for (let i = 0; i < content.children.length; i++) {
@@ -106,12 +157,13 @@ export function useMessageScroll({
     if (firstIdx != null && !Number.isNaN(firstIdx)) {
       saveVisibleIndex(firstIdx);
     }
-  }, [entityId, markRead, saveVisibleIndex, setIsAtBottom]);
+  }, [entityId, markRead, recordTopAnchor, saveVisibleIndex, setIsAtBottom]);
 
   const handleAtBottomStateChange = useCallback(
     (atBottom: boolean) => {
       const wasAtBottom = isAtBottomRef.current;
       isAtBottomRef.current = atBottom;
+      if (atBottom) pinnedToBottomRef.current = true;
       setIsAtBottom(atBottom);
       setShowScrollButton(!atBottom);
       if (atBottom && !wasAtBottom && entityId && markRead) {
@@ -138,9 +190,11 @@ export function useMessageScroll({
     }
 
     visibleIndexRef.current = null;
+    topAnchorRef.current = null;
 
     const restoring = entityId != null && scrollCache.has(entityId);
     isAtBottomRef.current = !restoring;
+    pinnedToBottomRef.current = !restoring;
     justSentRef.current = false;
     setIsAtBottom(!restoring);
     setShowScrollButton(restoring);
@@ -166,19 +220,33 @@ export function useMessageScroll({
   );
 
   const scrollToBottomIfPinned = useCallback(() => {
-    if (!isAtBottomRef.current) return;
-    if (Date.now() - lastUserScrollIntentAtRef.current < USER_SCROLL_SUPPRESS_MS) return;
+    if (!pinnedToBottomRef.current) return;
     requestAnimationFrame(() => {
       scrollToBottomImpl('auto');
     });
   }, [scrollToBottomImpl]);
 
+  /**
+   * Called whenever the content box changes height (reactions, media, GIFs and
+   * reply quotes hydrate asynchronously). Two cases:
+   *  - Pinned to bottom: re-pin so the latest message stays in view.
+   *  - Otherwise: hold the first-visible row in place so growth above the
+   *    viewport does not shove the reading position downward.
+   */
   const maybeScrollToBottomAfterContentGrowth = useCallback(() => {
-    if (!isAtBottomRef.current) return;
-    if (Date.now() - lastUserScrollIntentAtRef.current < USER_SCROLL_SUPPRESS_MS) return;
-    requestAnimationFrame(() => {
-      scrollToBottomImpl('auto');
-    });
+    const vp = scrollViewportRef.current;
+    if (!vp) return;
+    if (pinnedToBottomRef.current) {
+      requestAnimationFrame(() => {
+        scrollToBottomImpl('auto');
+      });
+      return;
+    }
+    const anchor = topAnchorRef.current;
+    const content = messagesContentRef.current;
+    if (anchor && content) {
+      applyHistoryScrollAnchor(vp, content, anchor);
+    }
   }, [scrollToBottomImpl]);
 
   const markJustSent = useCallback(() => {
@@ -202,7 +270,7 @@ export function useMessageScroll({
     if (!el) return;
 
     const observer = new ResizeObserver(() => {
-      if (!isAtBottomRef.current) return;
+      if (!pinnedToBottomRef.current) return;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           scrollToBottomImpl('auto');

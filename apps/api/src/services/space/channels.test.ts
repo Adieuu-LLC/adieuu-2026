@@ -270,5 +270,40 @@ describe('space/channels', () => {
       expect(r.messages).toHaveLength(2);
       expect(r.cursor).toBe(docs[1]!._id.toHexString());
     });
+
+    test('defaults an omitted direction to older-than (asc) when a cursor is present', async () => {
+      const space = makeSpaceDoc({ visibility: 'public' });
+      spaceRepo.findById.mockResolvedValue(space);
+      const channel = makeChannelDoc(space._id);
+      channelRepo.findByIdInSpace.mockResolvedValue(channel);
+      messageRepo.findByChannel.mockResolvedValue([]);
+      const cursor = new ObjectId().toHexString();
+      await getSpaceMessages(space._id, channel._id, new ObjectId(), 50, cursor);
+      const call = messageRepo.findByChannel.mock.calls.at(-1)!;
+      expect(call[3]).toBe('asc');
+    });
+
+    test('honors an explicit direction over the cursor default', async () => {
+      const space = makeSpaceDoc({ visibility: 'public' });
+      spaceRepo.findById.mockResolvedValue(space);
+      const channel = makeChannelDoc(space._id);
+      channelRepo.findByIdInSpace.mockResolvedValue(channel);
+      messageRepo.findByChannel.mockResolvedValue([]);
+      const cursor = new ObjectId().toHexString();
+      await getSpaceMessages(space._id, channel._id, new ObjectId(), 50, cursor, 'desc');
+      const call = messageRepo.findByChannel.mock.calls.at(-1)!;
+      expect(call[3]).toBe('desc');
+    });
+
+    test('does not force a direction when no cursor is supplied', async () => {
+      const space = makeSpaceDoc({ visibility: 'public' });
+      spaceRepo.findById.mockResolvedValue(space);
+      const channel = makeChannelDoc(space._id);
+      channelRepo.findByIdInSpace.mockResolvedValue(channel);
+      messageRepo.findByChannel.mockResolvedValue([]);
+      await getSpaceMessages(space._id, channel._id, new ObjectId(), 50);
+      const call = messageRepo.findByChannel.mock.calls.at(-1)!;
+      expect(call[3]).toBeUndefined();
+    });
   });
 });

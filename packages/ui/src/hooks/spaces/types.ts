@@ -55,10 +55,28 @@ export interface SpacesContextValue {
   onSocketReactionRemoved?: (messageId: string, reactionId: string) => void;
   onSocketPinsUpdated?: (messageId: string, action: 'pinned' | 'unpinned') => void;
 
+  /** Resolve author profiles for the given identity IDs (fire-and-forget). */
+  resolveProfiles: (ids: string[]) => void;
+
   setActiveSpace: (slug: string | null) => void;
   setActiveChannel: (channelId: string | null) => void;
   sendMessage: (content: string, replyToMessageId?: string, mentionedIdentityIds?: string[], expiresInSeconds?: number) => Promise<PublicSpaceMessage | null>;
   loadOlderMessages: () => Promise<void>;
+  /**
+   * Fetch a window of messages centered on `messageId` (reply/pin jump to a
+   * target outside the loaded buffer) and merge it into the active channel
+   * store. Resolves with the fetched messages, or null on failure.
+   */
+  fetchMessagesAround: (
+    messageId: string,
+    options?: { before?: number; after?: number },
+  ) => Promise<PublicSpaceMessage[] | null>;
+  /**
+   * Trim the active channel's message buffer to a bounded size. Safe to call
+   * only when at the live tail; retains the newest window and advances the
+   * older cursor so pagination stays consistent.
+   */
+  trimActiveChannelBuffer: () => void;
   refresh: () => Promise<void>;
   clearChannelUnread: (channelId: string) => void;
   registerSocketCallbacks: (callbacks: {

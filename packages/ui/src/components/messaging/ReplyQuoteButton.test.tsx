@@ -84,6 +84,17 @@ describe('ReplyQuoteButton', () => {
     expect(c.innerHTML).not.toContain('dm-message-reply-quote-avatar');
   });
 
+  it('reserves a skeleton author row while the parent is pending', () => {
+    const c = render({
+      replyQuote: { text: 'loading parent', onQuoteClick: () => {}, pending: true },
+    });
+    expect(c.innerHTML).toContain('dm-message-reply-quote-avatar--skeleton');
+    expect(c.innerHTML).toContain('dm-message-reply-quote-author--skeleton');
+    // Skeleton has no author text/avatar image yet.
+    expect(c.innerHTML).not.toContain('dm-message-reply-quote-avatar-img');
+    expect(c.innerHTML).toContain('loading parent');
+  });
+
   it('calls onQuoteClick when clicked', () => {
     const onClick = mock(() => {});
     const c = render({ replyQuote: { text: 'click me', onQuoteClick: onClick } });

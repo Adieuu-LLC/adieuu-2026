@@ -9,7 +9,13 @@ type SpacesApiLike = {
   getMessages: (
     spaceId: string,
     channelId: string,
-    options?: { limit?: number; cursor?: string },
+    options?: { limit?: number; cursor?: string; direction?: 'asc' | 'desc' },
+  ) => Promise<{ success: boolean; data?: { messages: PublicSpaceMessage[]; cursor: string | null } }>;
+  getMessagesAround: (
+    spaceId: string,
+    channelId: string,
+    messageId: string,
+    options?: { before?: number; after?: number },
   ) => Promise<{ success: boolean; data?: { messages: PublicSpaceMessage[]; cursor: string | null } }>;
 };
 
@@ -108,7 +114,13 @@ export function useSpaceDataFetching(params: SpaceDataFetchingParams) {
   }, [setActiveSpace, setActiveSpaceLoading, setActiveSpaceError, setChannels, setMessagesByChannel]);
 
   const fetchChannelMessages = useCallback(
-    async (spaceId: string, channelId: string, cursor?: string) => {
+    async (
+      spaceId: string,
+      channelId: string,
+      cursor?: string,
+      options?: { mergeLatest?: boolean },
+    ) => {
+      const mergeLatest = options?.mergeLatest ?? false;
       const seq = ++channelMsgSeq.current;
       setMessagesByChannel((prev) => ({
         ...prev,
@@ -119,26 +131,50 @@ export function useSpaceDataFetching(params: SpaceDataFetchingParams) {
         },
       }));
       try {
+        // A cursor always means "load older" for Spaces; the repository returns
+        // messages older than the cursor only when direction is 'asc'. Omitting
+        // it makes the API return newer-than-cursor rows, which dedupe to zero
+        // and terminate pagination early (history stuck at the first page).
         const res = await api.spaces.getMessages(spaceId, channelId, {
           limit: MESSAGES_PAGE_SIZE,
-          ...(cursor ? { cursor } : {}),
+          ...(cursor ? { cursor, direction: 'asc' as const } : {}),
         });
         if (seq !== channelMsgSeq.current) return;
         if (res.success && res.data) {
           setMessagesByChannel((prev) => {
             const existing = prev[channelId];
-            const oldMessages = cursor ? (existing?.messages ?? []) : [];
-            const merged = cursor
-              ? deduplicateMessages([...oldMessages, ...res.data!.messages])
-              : res.data!.messages;
+            let merged: PublicSpaceMessage[];
+            let nextCursor: string | null;
+            if (cursor) {
+              // Older page: append below existing history (newest-first order).
+              merged = deduplicateMessages([...(existing?.messages ?? []), ...res.data!.messages]);
+              nextCursor = res.data!.cursor;
+            } else if (mergeLatest && existing?.messages?.length) {
+              // Reconnect/focus refresh: prepend the newest page while keeping
+              // already-loaded older history and its cursor intact.
+              merged = deduplicateMessages([...res.data!.messages, ...existing.messages]);
+              nextCursor = existing.olderCursor;
+            } else {
+              // Initial load: replace the window with the latest page.
+              merged = res.data!.messages;
+              nextCursor = res.data!.cursor;
+            }
             return {
               ...prev,
               [channelId]: {
                 messages: merged,
-                olderCursor: res.data!.cursor,
+                olderCursor: nextCursor,
                 loading: false,
               },
             };
+          });
+        } else {
+          // Non-success response: clear the loading flag so the top sentinel is
+          // not gated forever.
+          setMessagesByChannel((prev) => {
+            const existing = prev[channelId];
+            if (!existing) return prev;
+            return { ...prev, [channelId]: { ...existing, loading: false } };
           });
         }
       } catch {
@@ -159,12 +195,51 @@ export function useSpaceDataFetching(params: SpaceDataFetchingParams) {
   /**
    * Re-fetch latest messages for a channel (merge-latest on socket event or
    * visibility change). Resets the sequence so only the freshest request wins.
+   * Preserves already-loaded older history rather than replacing the window.
    */
   const refreshChannelMessages = useCallback(
     (spaceId: string, channelId: string) => {
-      void fetchChannelMessages(spaceId, channelId);
+      void fetchChannelMessages(spaceId, channelId, undefined, { mergeLatest: true });
     },
     [fetchChannelMessages],
+  );
+
+  /**
+   * Fetch a window of messages centered on `messageId` (for reply/pin jumps to
+   * targets outside the loaded buffer) and merge them into the channel store,
+   * keeping newest-first ordering and preserving the existing older cursor so
+   * pagination continues to work. Returns the fetched messages, or null on
+   * failure.
+   */
+  const fetchMessagesAround = useCallback(
+    async (
+      spaceId: string,
+      channelId: string,
+      messageId: string,
+      options?: { before?: number; after?: number },
+    ): Promise<PublicSpaceMessage[] | null> => {
+      try {
+        const res = await api.spaces.getMessagesAround(spaceId, channelId, messageId, options);
+        if (!res.success || !res.data) return null;
+        const fetched = res.data.messages;
+        setMessagesByChannel((prev) => {
+          const existing = prev[channelId];
+          const merged = mergeMessagesNewestFirst(existing?.messages ?? [], fetched);
+          return {
+            ...prev,
+            [channelId]: {
+              messages: merged,
+              olderCursor: existing?.olderCursor ?? null,
+              loading: existing?.loading ?? false,
+            },
+          };
+        });
+        return fetched;
+      } catch {
+        return null;
+      }
+    },
+    [api, setMessagesByChannel],
   );
 
   return {
@@ -173,6 +248,7 @@ export function useSpaceDataFetching(params: SpaceDataFetchingParams) {
     clearActiveSpace,
     fetchChannelMessages,
     refreshChannelMessages,
+    fetchMessagesAround,
   };
 }
 
@@ -183,4 +259,24 @@ function deduplicateMessages(messages: PublicSpaceMessage[]): PublicSpaceMessage
     seen.add(m.id);
     return true;
   });
+}
+
+/**
+ * Merge two message lists into a single newest-first, de-duplicated list.
+ * Used when splicing an around-fetch window into the existing buffer. Ordering
+ * is by `createdAt` (newest first), tie-broken by descending id so ObjectId
+ * ordering stays stable for messages created within the same millisecond.
+ */
+function mergeMessagesNewestFirst(
+  existing: PublicSpaceMessage[],
+  incoming: PublicSpaceMessage[],
+): PublicSpaceMessage[] {
+  const merged = deduplicateMessages([...existing, ...incoming]);
+  merged.sort((a, b) => {
+    const ta = Date.parse(a.createdAt);
+    const tb = Date.parse(b.createdAt);
+    if (tb !== ta) return tb - ta;
+    return b.id.localeCompare(a.id);
+  });
+  return merged;
 }

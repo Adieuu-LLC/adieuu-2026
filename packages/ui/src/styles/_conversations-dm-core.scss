@@ -226,6 +226,10 @@
     &-item {
       padding-top: var(--spacing-md);
       position: relative;
+      // We own scroll preservation in JS (useMessageScroll). Disable the
+      // browser's native scroll anchoring so it doesn't fight our anchoring
+      // when async content (reactions/media/replies) grows a row.
+      overflow-anchor: none;
     }
 
     &-loading,
@@ -636,6 +640,21 @@
         height: 100%;
         object-fit: cover;
         display: block;
+      }
+
+      // Fixed-height placeholders shown while the parent message hydrates so the
+      // quote reserves its final height and does not shift the timeline.
+      &-avatar--skeleton {
+        background: var(--color-bg-muted);
+        opacity: 0.6;
+      }
+
+      &-author--skeleton {
+        width: 72px;
+        height: 12px;
+        border-radius: var(--radius-sm);
+        background: var(--color-bg-muted);
+        opacity: 0.6;
       }
 
       &-avatar-placeholder {
