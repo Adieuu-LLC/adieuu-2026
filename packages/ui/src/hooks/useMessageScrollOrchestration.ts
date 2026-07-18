@@ -12,12 +12,11 @@ import {
   useLayoutEffect,
   useRef,
   useCallback,
+  type MutableRefObject,
   type RefObject,
 } from 'react';
 import {
   applyHistoryScrollAnchor,
-  applyDistanceFromBottom,
-  readDistanceFromBottom,
   type HistoryScrollAnchor,
 } from '../utils/messageScrollUtils';
 import { clearMessageScrollCache } from './useMessageScroll';
@@ -45,6 +44,17 @@ export interface UseMessageScrollOrchestrationOptions {
   isAtBottomRef: RefObject<boolean>;
   scrollToBottom: (behavior?: ScrollBehavior) => void;
   setIsAtBottom: (v: boolean) => void;
+  /**
+   * Synchronously pin to the latest message (ref + state). Preferred over
+   * {@link setIsAtBottom} for jump-to-latest so the follow/layout-pin logic
+   * engages immediately. Falls back to `setIsAtBottom(true)` when absent.
+   */
+  pinToBottom?: () => void;
+  /**
+   * Shared flag telling {@link useMessageScroll} that a history-page anchor
+   * restore owns the scroll position, so its top-anchor correction stands down.
+   */
+  historyAnchorActiveRef?: MutableRefObject<boolean>;
   cachedScrollIndex: number | null;
 }
 
@@ -75,114 +85,101 @@ export function useMessageScrollOrchestration(
     isAtBottomRef,
     scrollToBottom,
     setIsAtBottom,
+    pinToBottom,
+    historyAnchorActiveRef,
     cachedScrollIndex,
   } = opts;
 
-  // Anchor to the first row still visible at the top of the viewport before an
-  // older page is requested, captured as its offset from the viewport top. The
-  // restore below re-applies that offset via applyHistoryScrollAnchor, retried
-  // across rAF + a ResizeObserver window so late row growth (media, reaction
-  // chips, banners) that shifts content above the anchor is corrected rather
-  // than left as a visible jump.
-  const pendingOlderAnchorRef = useRef<HistoryScrollAnchor | null>(null);
+  // Anchor to the first row still visible at the top of the viewport before a
+  // page (older or newer) is requested, captured as its offset from the
+  // viewport top. The restore below re-applies that offset via
+  // applyHistoryScrollAnchor, retried across rAF + a ResizeObserver window so
+  // late row growth (media, reaction chips, banners) that shifts content around
+  // the anchor is corrected rather than left as a visible jump.
+  const pendingHistoryAnchorRef = useRef<HistoryScrollAnchor | null>(null);
   const initialOpenBottomSnapDoneRef = useRef(false);
   const generationRef = useRef(0);
+
+  // Keep the cross-hook suppression flag in lockstep with the anchor: it is set
+  // whenever an anchor is pending and cleared the moment it resolves, so
+  // useMessageScroll only stands down for the exact restore window.
+  const setHistoryAnchor = useCallback(
+    (anchor: HistoryScrollAnchor | null) => {
+      pendingHistoryAnchorRef.current = anchor;
+      if (historyAnchorActiveRef) historyAnchorActiveRef.current = anchor != null;
+    },
+    [historyAnchorActiveRef],
+  );
+
+  // First row whose bottom is still below the viewport top edge: the topmost
+  // row the user can actually see. Anchoring to a visible row (not the topmost
+  // DOM row, which may be far above after several pages) keeps the correction
+  // stable regardless of how tall the fetched page turns out to be.
+  const captureFirstVisibleAnchor = useCallback((): HistoryScrollAnchor | null => {
+    const vp = scrollViewportRef.current;
+    const content = messagesContentRef.current;
+    if (!vp || !content) return null;
+    const vRect = vp.getBoundingClientRect();
+    for (let i = 0; i < content.children.length; i++) {
+      const el = content.children[i] as HTMLElement;
+      const key = el.dataset.scrollAnchorKey;
+      if (!key) continue;
+      const cr = el.getBoundingClientRect();
+      if (cr.bottom > vRect.top + 1) {
+        return { anchorKey: key, targetViewportOffsetPx: cr.top - vRect.top };
+      }
+    }
+    return null;
+  }, [scrollViewportRef, messagesContentRef]);
 
   useEffect(() => {
     generationRef.current += 1;
     initialOpenBottomSnapDoneRef.current = false;
-    pendingOlderAnchorRef.current = null;
-  }, [entityId]);
+    setHistoryAnchor(null);
+  }, [entityId, setHistoryAnchor]);
 
   const handleReachOlder = useCallback(() => {
     if (!hasOlderCursor || messagesLoading) return;
-    const vp = scrollViewportRef.current;
-    const content = messagesContentRef.current;
-    pendingOlderAnchorRef.current = null;
-    if (vp && content) {
-      const vRect = vp.getBoundingClientRect();
-      // First row whose bottom is still below the viewport top edge: the topmost
-      // row the user can actually see. Anchoring to a visible row (not the
-      // topmost DOM row, which may be far above after several pages) keeps the
-      // correction stable even when the prepended page is short.
-      for (let i = 0; i < content.children.length; i++) {
-        const el = content.children[i] as HTMLElement;
-        const key = el.dataset.scrollAnchorKey;
-        if (!key) continue;
-        const cr = el.getBoundingClientRect();
-        if (cr.bottom > vRect.top + 1) {
-          pendingOlderAnchorRef.current = {
-            anchorKey: key,
-            targetViewportOffsetPx: cr.top - vRect.top,
-          };
-          break;
-        }
-      }
-    }
+    // Older pages prepend above the viewport; hold the first visible row so the
+    // reading position does not jump to the far (older) side of the new page.
+    setHistoryAnchor(captureFirstVisibleAnchor());
     void loadOlder();
-  }, [hasOlderCursor, messagesLoading, loadOlder, scrollViewportRef, messagesContentRef]);
+  }, [hasOlderCursor, messagesLoading, loadOlder, captureFirstVisibleAnchor, setHistoryAnchor]);
 
   const handleReachNewer = useCallback(() => {
     if (!hasNewerPages || messagesLoading) return;
-    const vp = scrollViewportRef.current;
-    const content = messagesContentRef.current;
-    const distBefore = vp ? readDistanceFromBottom(vp) : 0;
-    let anchor: HistoryScrollAnchor | null = null;
-    if (vp && content && headMessageId) {
-      const vRect = vp.getBoundingClientRect();
-      const escaped =
-        typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
-          ? CSS.escape(headMessageId)
-          : headMessageId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-      const row = content.querySelector(`[data-scroll-anchor-key="${escaped}"]`);
-      if (row) {
-        const cr = row.getBoundingClientRect();
-        anchor = { anchorKey: headMessageId, targetViewportOffsetPx: cr.top - vRect.top };
-      }
-    }
-    const gen = generationRef.current;
-    void Promise.resolve(loadNewer()).then(() => {
-      if (gen !== generationRef.current) return;
-      requestAnimationFrame(() => {
-        if (gen !== generationRef.current) return;
-        requestAnimationFrame(() => {
-          if (gen !== generationRef.current) return;
-          const el = scrollViewportRef.current;
-          const c = messagesContentRef.current;
-          if (anchor && el && c) {
-            applyHistoryScrollAnchor(el, c, anchor);
-          } else if (el) {
-            applyDistanceFromBottom(el, distBefore);
-          }
-        });
-      });
-    });
-  }, [
-    headMessageId,
-    hasNewerPages,
-    messagesLoading,
-    loadNewer,
-    scrollViewportRef,
-    messagesContentRef,
-  ]);
+    // Newer pages append below the viewport; the same first-visible-row anchor
+    // (restored via the shared settle loop) keeps the current view fixed while
+    // content grows underneath, instead of the one-shot distance-from-bottom
+    // restore that could land on the far side after late row growth.
+    setHistoryAnchor(captureFirstVisibleAnchor());
+    void loadNewer();
+  }, [hasNewerPages, messagesLoading, loadNewer, captureFirstVisibleAnchor, setHistoryAnchor]);
+
+  const pinLatest = useCallback(() => {
+    if (pinToBottom) pinToBottom();
+    else setIsAtBottom(true);
+  }, [pinToBottom, setIsAtBottom]);
 
   const handleJumpToLatest = useCallback(async () => {
     if (!entityId) return;
-    if (
-      !messagesLoading &&
-      !hasNewerPages &&
-      latestMessageId &&
-      headMessageId === latestMessageId
-    ) {
+    // Fast path: already on the live tail (no reload needed). When a caller
+    // wires a latest-message id we require the buffer head to match it; without
+    // one (Spaces has no per-channel lastMessageId), "no newer pages and not
+    // loading" is the tip signal.
+    const atLiveTail = latestMessageId
+      ? !messagesLoading && !hasNewerPages && headMessageId === latestMessageId
+      : !messagesLoading && !hasNewerPages;
+    if (atLiveTail) {
       clearMessageScrollCache(entityId);
-      pendingOlderAnchorRef.current = null;
-      setIsAtBottom(true);
+      setHistoryAnchor(null);
+      pinLatest();
       scrollToBottom('smooth');
       return;
     }
     clearMessageScrollCache(entityId);
-    pendingOlderAnchorRef.current = null;
-    setIsAtBottom(true);
+    setHistoryAnchor(null);
+    pinLatest();
     const gen = generationRef.current;
     if (jumpToLatest) {
       await jumpToLatest(entityId);
@@ -203,7 +200,8 @@ export function useMessageScrollOrchestration(
     hasNewerPages,
     jumpToLatest,
     scrollToBottom,
-    setIsAtBottom,
+    setHistoryAnchor,
+    pinLatest,
   ]);
 
   // Older-page load position preservation.
@@ -213,24 +211,24 @@ export function useMessageScrollOrchestration(
   // put after older history is prepended above it.
   useLayoutEffect(() => {
     if (messagesLoading) return;
-    const anchor = pendingOlderAnchorRef.current;
+    const anchor = pendingHistoryAnchorRef.current;
     if (!anchor) return;
     const vp = scrollViewportRef.current;
     const content = messagesContentRef.current;
     if (!vp || !content) return;
 
     const run = () => {
-      const a = pendingOlderAnchorRef.current;
+      const a = pendingHistoryAnchorRef.current;
       if (!a) return;
       const r = applyHistoryScrollAnchor(vp, content, a);
-      if (r === 'missing') pendingOlderAnchorRef.current = null;
+      if (r === 'missing') setHistoryAnchor(null);
     };
     run();
     requestAnimationFrame(run);
     requestAnimationFrame(() => {
       requestAnimationFrame(run);
     });
-  }, [messagesLoading, flatItems.length, entityId, scrollViewportRef, messagesContentRef]);
+  }, [messagesLoading, flatItems.length, entityId, scrollViewportRef, messagesContentRef, setHistoryAnchor]);
 
   // Keep correcting the anchor while row heights settle asynchronously (avatars,
   // media, reaction chips) so a late height change above the anchor does not
@@ -238,23 +236,23 @@ export function useMessageScrollOrchestration(
   // the anchor row disappears, or after a safety timeout.
   useEffect(() => {
     if (messagesLoading) return undefined;
-    if (!pendingOlderAnchorRef.current) return undefined;
+    if (!pendingHistoryAnchorRef.current) return undefined;
     const vp = scrollViewportRef.current;
     const content = messagesContentRef.current;
     if (!vp || !content) return undefined;
 
     let consecutiveAligned = 0;
     const tick = () => {
-      const a = pendingOlderAnchorRef.current;
+      const a = pendingHistoryAnchorRef.current;
       if (!a) return;
       const r = applyHistoryScrollAnchor(vp, content, a);
       if (r === 'missing') {
-        pendingOlderAnchorRef.current = null;
+        setHistoryAnchor(null);
         return;
       }
       if (r === 'aligned') {
         consecutiveAligned += 1;
-        if (consecutiveAligned >= 2) pendingOlderAnchorRef.current = null;
+        if (consecutiveAligned >= 2) setHistoryAnchor(null);
       } else {
         consecutiveAligned = 0;
       }
@@ -267,7 +265,7 @@ export function useMessageScrollOrchestration(
     tick();
 
     const t = window.setTimeout(() => {
-      pendingOlderAnchorRef.current = null;
+      setHistoryAnchor(null);
       ro.disconnect();
     }, 2800);
 
@@ -275,7 +273,7 @@ export function useMessageScrollOrchestration(
       clearTimeout(t);
       ro.disconnect();
     };
-  }, [messagesLoading, flatItems.length, entityId, scrollViewportRef, messagesContentRef]);
+  }, [messagesLoading, flatItems.length, entityId, scrollViewportRef, messagesContentRef, setHistoryAnchor]);
 
   // Keep bottom pinned when new messages arrive
   useLayoutEffect(() => {

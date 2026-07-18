@@ -552,11 +552,18 @@ export async function getSpaceMessagesAround(
   const reactableIds = messages.filter((m) => !m.deleted).map((m) => m._id);
   const withReactions = await getSpaceReactionRepository().messageIdsWithReactions(reactableIds);
 
+  // `findAround` returns the window ascending (oldest first), so the last row is
+  // the newest. Report whether messages exist beyond it so the client can mark
+  // the merged buffer as detached (enabling newer-page loading / jump-to-latest).
+  const newestId = messages.length > 0 ? messages[messages.length - 1]!._id : undefined;
+  const hasNewerPages = newestId ? await messageRepo.hasMessageNewerThan(channelId, newestId) : false;
+
   return {
     success: true,
     messages: messages.map((m) =>
       toPublicSpaceMessage(m, { hasReactions: withReactions.has(m._id.toHexString()) }),
     ),
     cursor: null,
+    hasNewerPages,
   };
 }

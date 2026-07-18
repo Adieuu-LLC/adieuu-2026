@@ -112,6 +112,7 @@ export function SpaceChannelView() {
     sendMessage,
     loadOlderMessages,
     loadNewerMessages,
+    jumpToLatestMessages,
     fetchMessagesAround,
     trimActiveChannelBuffer,
     registerSocketCallbacks,
@@ -573,6 +574,15 @@ export function SpaceChannelView() {
 
   const [isAtBottom, setIsAtBottom] = useState(true);
 
+  // True while a jump-to-latest reload is discarding the buffer and refetching
+  // the tip. The trim effect keys off `isAtBottom`, which jump flips to true
+  // synchronously; without this guard trim could freeze a historical window as
+  // a faux tip (clearing `hasNewerPages`) before the refetch lands.
+  const jumpInFlightRef = useRef(false);
+  // Shared with useMessageScroll: while a page-anchor restore owns the scroll
+  // position, its top-anchor correction stands down so the two do not fight.
+  const historyAnchorActiveRef = useRef(false);
+
   const {
     scrollViewportRef,
     messagesContentRef,
@@ -580,6 +590,7 @@ export function SpaceChannelView() {
     isAtBottomRef,
     showScrollButton,
     scrollToBottom,
+    pinToBottom,
     markJustSent,
     cachedScrollIndex,
     onScrollViewportScroll,
@@ -588,7 +599,20 @@ export function SpaceChannelView() {
     entityId: channelId,
     setIsAtBottom,
     messageLayoutKey,
+    historyAnchorActiveRef,
   });
+
+  const handleJumpReload = useCallback(
+    async (id: string) => {
+      jumpInFlightRef.current = true;
+      try {
+        await jumpToLatestMessages(id);
+      } finally {
+        jumpInFlightRef.current = false;
+      }
+    },
+    [jumpToLatestMessages],
+  );
 
   scrollViewportRefStable.current = scrollViewportRef.current;
 
@@ -615,11 +639,15 @@ export function SpaceChannelView() {
     hasNewerPages: activeMessagesHasNewerPages,
     loadOlder: handleLoadOlder,
     loadNewer: handleLoadNewer,
+    jumpToLatest: handleJumpReload,
+    headMessageId: activeMessages[0]?.id,
     scrollViewportRef,
     messagesContentRef,
     isAtBottomRef,
     scrollToBottom,
     setIsAtBottom,
+    pinToBottom,
+    historyAnchorActiveRef,
     cachedScrollIndex,
   });
 
@@ -641,7 +669,7 @@ export function SpaceChannelView() {
   // at the tail keep the newest window, while reading history keep the oldest
   // window and let newer-pagination reload the evicted tail on scroll-down.
   useEffect(() => {
-    if (pendingScrollToRef.current) return;
+    if (pendingScrollToRef.current || jumpInFlightRef.current) return;
     trimActiveChannelBuffer(isAtBottom);
   }, [isAtBottom, activeMessages.length, trimActiveChannelBuffer]);
 
@@ -833,7 +861,7 @@ export function SpaceChannelView() {
           hasNewerPages={activeMessagesHasNewerPages}
           onReachNewer={handleReachNewer}
           showManualLoadOlder={showManualLoadOlder}
-          onManualLoadOlder={handleLoadOlder}
+          onManualLoadOlder={handleReachOlder}
           emptyMessage={t('spaces.channel.noMessages')}
           pinnedMessageIds={pinnedMessageIds}
           canManagePins={canManagePins}

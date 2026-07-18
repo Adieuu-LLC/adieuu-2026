@@ -77,6 +77,12 @@ export interface SpacesContextValue {
    */
   loadNewerMessages: () => Promise<void>;
   /**
+   * Discard the loaded window for a channel and re-fetch the latest page, so
+   * "jump to latest" lands on the channel's live tip even when the user is deep
+   * in history or the buffer was trimmed/detached (`hasNewerPages`).
+   */
+  jumpToLatestMessages: (channelId: string) => Promise<void>;
+  /**
    * Fetch a window of messages centered on `messageId` (reply/pin jump to a
    * target outside the loaded buffer) and merge it into the active channel
    * store. Resolves with the fetched messages, or null on failure.

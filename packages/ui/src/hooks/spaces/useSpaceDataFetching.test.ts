@@ -312,4 +312,38 @@ describe('useSpaceDataFetching.fetchMessagesAround', () => {
     // Existing older cursor is preserved (pagination continues from the tail).
     expect(ref.state[CHANNEL_ID]!.olderCursor).toBe('cursor-1');
   });
+
+  it('marks the buffer detached (hasNewerPages) from the around response', async () => {
+    const getMessages = mock(
+      async (): Promise<GetMessagesResult> => ({
+        success: true,
+        data: { messages: [makeMsg('m5', '2024-01-05T00:00:00Z')], cursor: 'cursor-1', hasNewerPages: false },
+      }),
+    );
+    // Jumping to a historical target: the around window does not reach the tip.
+    const getMessagesAround = mock(async () => ({
+      success: true,
+      data: {
+        messages: [makeMsg('m2', '2024-01-02T00:00:00Z'), makeMsg('m1', '2024-01-01T00:00:00Z')],
+        cursor: null,
+        hasNewerPages: true,
+      },
+    }));
+    const api = { spaces: { getMessages, getMessagesAround } } as unknown as SpaceDataFetchingParams['api'];
+    const ref = renderDataHook(api);
+
+    await act(async () => {
+      await ref.fetchChannelMessages(SPACE_ID, CHANNEL_ID);
+    });
+    // Sanity: the initial window is at the tip.
+    expect(ref.state[CHANNEL_ID]!.hasNewerPages).toBe(false);
+
+    await act(async () => {
+      await ref.fetchMessagesAround(SPACE_ID, CHANNEL_ID, 'm1');
+    });
+
+    // The around response flags newer pages, so the merged buffer is detached
+    // (jump-to-latest must reload rather than treat it as the live tip).
+    expect(ref.state[CHANNEL_ID]!.hasNewerPages).toBe(true);
+  });
 });

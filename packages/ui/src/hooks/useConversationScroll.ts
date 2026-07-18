@@ -5,6 +5,7 @@
  * @module hooks/useConversationScroll
  */
 
+import type { RefObject } from 'react';
 import {
   useMessageScroll,
   clearMessageScrollCache,
@@ -23,6 +24,7 @@ export interface UseConversationScrollOptions {
   setIsAtBottom: (value: boolean) => void;
   markConversationRead: (conversationId: string) => void;
   messageLayoutKey?: string;
+  historyAnchorActiveRef?: RefObject<boolean>;
 }
 
 export type UseConversationScrollResult = UseMessageScrollResult;
@@ -32,11 +34,13 @@ export function useConversationScroll({
   setIsAtBottom,
   markConversationRead,
   messageLayoutKey,
+  historyAnchorActiveRef,
 }: UseConversationScrollOptions): UseConversationScrollResult {
   return useMessageScroll({
     entityId: conversationId,
     setIsAtBottom,
     markRead: markConversationRead,
     messageLayoutKey,
+    historyAnchorActiveRef,
   });
 }

@@ -137,11 +137,17 @@ export function ConversationView() {
   const { fetchReactions, addReaction, removeReaction, getGroupedReactions } = useReactions(id ?? null);
   const { favorites: favoriteEmojis, addFavorite, removeFavorite } = useFavoriteEmojis(identity?.id);
 
+  // Shared with useConversationScroll: while a page-anchor restore owns the
+  // scroll position, its top-anchor correction stands down so the two do not
+  // fight and overshoot.
+  const historyAnchorActiveRef = useRef(false);
+
   const scroll = useConversationScroll({
     conversationId: id,
     setIsAtBottom,
     markConversationRead,
     messageLayoutKey,
+    historyAnchorActiveRef,
   });
 
   const { registerConversationOutboxHooks } = useMediaOutbox();
@@ -427,6 +433,8 @@ export function ConversationView() {
     isAtBottomRef: scroll.isAtBottomRef,
     scrollToBottom: scroll.scrollToBottom,
     setIsAtBottom,
+    pinToBottom: scroll.pinToBottom,
+    historyAnchorActiveRef,
     cachedScrollIndex: scroll.cachedScrollIndex,
     fetchMessagesAround,
     searchParams,
@@ -609,8 +617,8 @@ export function ConversationView() {
             hasNewerPages={activeMessagesHasNewerPages}
             showManualLoadOlder={activeShowManualLoadOlder}
             showManualLoadNewer={activeShowManualLoadNewer}
-            onManualLoadOlder={() => void loadOlder()}
-            onManualLoadNewer={() => void loadNewer()}
+            onManualLoadOlder={scrollOrchestration.handleReachOlder}
+            onManualLoadNewer={scrollOrchestration.handleReachNewer}
             canManagePins={canManagePinsUi}
             sending={sending}
             composerRef={composerRef}

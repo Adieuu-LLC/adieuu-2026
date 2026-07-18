@@ -14,8 +14,6 @@ import type { DecryptedConversation } from './types';
 import { clearConversationScrollCache } from '../useConversationScroll';
 import {
   applyHistoryScrollAnchor,
-  applyDistanceFromBottom,
-  readDistanceFromBottom,
   type HistoryScrollAnchor,
 } from '../../utils/messageScrollUtils';
 import {
@@ -44,6 +42,17 @@ export function useConversationScrollOrchestration(params: {
   isAtBottomRef: RefObject<boolean>;
   scrollToBottom: (behavior?: ScrollBehavior) => void;
   setIsAtBottom: (v: boolean) => void;
+  /**
+   * Synchronously pin to the latest message (ref + state). Preferred over
+   * {@link setIsAtBottom} for jump-to-latest so follow/layout-pin engages
+   * immediately. Falls back to `setIsAtBottom(true)` when absent.
+   */
+  pinToBottom?: () => void;
+  /**
+   * Shared flag telling {@link useMessageScroll} that a history-page anchor
+   * restore owns the scroll position, so its top-anchor correction stands down.
+   */
+  historyAnchorActiveRef?: MutableRefObject<boolean>;
   cachedScrollIndex: number | null;
   fetchMessagesAround: (
     conversationId: string,
@@ -74,6 +83,8 @@ export function useConversationScrollOrchestration(params: {
     isAtBottomRef,
     scrollToBottom,
     setIsAtBottom,
+    pinToBottom,
+    historyAnchorActiveRef,
     cachedScrollIndex,
     fetchMessagesAround,
     searchParams,
@@ -83,12 +94,39 @@ export function useConversationScrollOrchestration(params: {
     activeMessagesRef,
   } = params;
 
-  const historyScrollAnchorRef = useRef<{ anchorKey: string; targetViewportOffsetPx: number } | null>(null);
+  const historyScrollAnchorRef = useRef<HistoryScrollAnchor | null>(null);
   const pendingScrollToRef = useRef<string | null>(null);
   const replyAroundFetchPendingRef = useRef(false);
   const urlMessageIdOnConversationEntryRef = useRef<string | null>(null);
   const prevIdForUrlCaptureRef = useRef<string | undefined>(undefined);
   const initialOpenBottomSnapDoneRef = useRef(false);
+
+  // Keep the cross-hook suppression flag in lockstep with the anchor, so
+  // useMessageScroll only stands down for the exact restore window.
+  const setHistoryAnchor = useCallback(
+    (anchor: HistoryScrollAnchor | null) => {
+      historyScrollAnchorRef.current = anchor;
+      if (historyAnchorActiveRef) historyAnchorActiveRef.current = anchor != null;
+    },
+    [historyAnchorActiveRef],
+  );
+
+  const captureFirstVisibleAnchor = useCallback((): HistoryScrollAnchor | null => {
+    const vp = scrollViewportRef.current;
+    const content = messagesContentRef.current;
+    if (!vp || !content) return null;
+    const vRect = vp.getBoundingClientRect();
+    for (let i = 0; i < content.children.length; i++) {
+      const el = content.children[i] as HTMLElement;
+      const key = el.dataset.scrollAnchorKey;
+      if (!key) continue;
+      const cr = el.getBoundingClientRect();
+      if (cr.bottom > vRect.top + 1) {
+        return { anchorKey: key, targetViewportOffsetPx: cr.top - vRect.top };
+      }
+    }
+    return null;
+  }, [scrollViewportRef, messagesContentRef]);
 
   useEffect(() => {
     if (prevIdForUrlCaptureRef.current !== id) {
@@ -100,70 +138,27 @@ export function useConversationScrollOrchestration(params: {
   const handleReachOlder = useCallback(() => {
     if (pendingScrollToRef.current) return;
     if (!activeMessagesOlderCursor || messagesLoading) return;
-    const vp = scrollViewportRef.current;
-    const content = messagesContentRef.current;
-    if (vp && content) {
-      const vRect = vp.getBoundingClientRect();
-      for (let i = 0; i < content.children.length; i++) {
-        const el = content.children[i] as HTMLElement;
-        const key = el.dataset.scrollAnchorKey;
-        if (!key) continue;
-        const cr = el.getBoundingClientRect();
-        if (cr.bottom > vRect.top + 1) {
-          historyScrollAnchorRef.current = {
-            anchorKey: key,
-            targetViewportOffsetPx: cr.top - vRect.top,
-          };
-          break;
-        }
-      }
-    }
+    // Older pages prepend above the viewport; hold the first visible row so the
+    // reading position does not jump to the far (older) side of the new page.
+    setHistoryAnchor(captureFirstVisibleAnchor());
     void loadOlder();
-  }, [activeMessagesOlderCursor, messagesLoading, loadOlder, scrollViewportRef, messagesContentRef]);
+  }, [activeMessagesOlderCursor, messagesLoading, loadOlder, captureFirstVisibleAnchor, setHistoryAnchor]);
 
   const handleReachNewer = useCallback(() => {
     if (pendingScrollToRef.current) return;
     if (!activeMessagesHasNewerPages || messagesLoading) return;
-    const vp = scrollViewportRef.current;
-    const content = messagesContentRef.current;
-    const distBefore = vp ? readDistanceFromBottom(vp) : 0;
-    let anchor: HistoryScrollAnchor | null = null;
-    if (vp && content) {
-      const headId = activeMessages[0]?.id;
-      if (headId) {
-        const vRect = vp.getBoundingClientRect();
-        const escaped =
-          typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
-            ? CSS.escape(headId)
-            : headId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-        const row = content.querySelector(`[data-scroll-anchor-key="${escaped}"]`);
-        if (row) {
-          const cr = row.getBoundingClientRect();
-          anchor = { anchorKey: headId, targetViewportOffsetPx: cr.top - vRect.top };
-        }
-      }
-    }
-    void Promise.resolve(loadNewer()).then(() => {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const el = scrollViewportRef.current;
-          const c = messagesContentRef.current;
-          if (anchor && el && c) {
-            applyHistoryScrollAnchor(el, c, anchor);
-          } else if (el) {
-            applyDistanceFromBottom(el, distBefore);
-          }
-        });
-      });
-    });
-  }, [
-    activeMessages,
-    activeMessagesHasNewerPages,
-    messagesLoading,
-    loadNewer,
-    scrollViewportRef,
-    messagesContentRef,
-  ]);
+    // Newer pages append below the viewport; the same first-visible-row anchor
+    // (restored via the shared settle loop) keeps the current view fixed while
+    // content grows underneath, instead of a one-shot distance-from-bottom
+    // restore that could land on the far side after late row growth.
+    setHistoryAnchor(captureFirstVisibleAnchor());
+    void loadNewer();
+  }, [activeMessagesHasNewerPages, messagesLoading, loadNewer, captureFirstVisibleAnchor, setHistoryAnchor]);
+
+  const pinLatest = useCallback(() => {
+    if (pinToBottom) pinToBottom();
+    else setIsAtBottom(true);
+  }, [pinToBottom, setIsAtBottom]);
 
   const handleJumpToLatest = useCallback(async () => {
     if (!id) return;
@@ -177,14 +172,14 @@ export function useConversationScrollOrchestration(params: {
       headId === lastId
     ) {
       clearConversationScrollCache(id);
-      historyScrollAnchorRef.current = null;
-      setIsAtBottom(true);
+      setHistoryAnchor(null);
+      pinLatest();
       scrollToBottom('smooth');
       return;
     }
     clearConversationScrollCache(id);
-    historyScrollAnchorRef.current = null;
-    setIsAtBottom(true);
+    setHistoryAnchor(null);
+    pinLatest();
     await jumpToLatestMessages(id);
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -199,7 +194,8 @@ export function useConversationScrollOrchestration(params: {
     activeMessagesHasNewerPages,
     jumpToLatestMessages,
     scrollToBottom,
-    setIsAtBottom,
+    setHistoryAnchor,
+    pinLatest,
   ]);
 
   useLayoutEffect(() => {
@@ -214,14 +210,14 @@ export function useConversationScrollOrchestration(params: {
       const a = historyScrollAnchorRef.current;
       if (!a) return;
       const r = applyHistoryScrollAnchor(vp, content, a);
-      if (r === 'missing') historyScrollAnchorRef.current = null;
+      if (r === 'missing') setHistoryAnchor(null);
     };
     run();
     requestAnimationFrame(run);
     requestAnimationFrame(() => {
       requestAnimationFrame(run);
     });
-  }, [messagesLoading, flatItems.length, id, scrollViewportRef, messagesContentRef]);
+  }, [messagesLoading, flatItems.length, id, scrollViewportRef, messagesContentRef, setHistoryAnchor]);
 
   useEffect(() => {
     if (messagesLoading) return undefined;
@@ -236,12 +232,12 @@ export function useConversationScrollOrchestration(params: {
       if (!a) return;
       const r = applyHistoryScrollAnchor(vp, content, a);
       if (r === 'missing') {
-        historyScrollAnchorRef.current = null;
+        setHistoryAnchor(null);
         return;
       }
       if (r === 'aligned') {
         consecutiveAligned += 1;
-        if (consecutiveAligned >= 2) historyScrollAnchorRef.current = null;
+        if (consecutiveAligned >= 2) setHistoryAnchor(null);
       } else {
         consecutiveAligned = 0;
       }
@@ -254,7 +250,7 @@ export function useConversationScrollOrchestration(params: {
     tick();
 
     const t = window.setTimeout(() => {
-      historyScrollAnchorRef.current = null;
+      setHistoryAnchor(null);
       ro.disconnect();
     }, 2800);
 
@@ -262,7 +258,7 @@ export function useConversationScrollOrchestration(params: {
       clearTimeout(t);
       ro.disconnect();
     };
-  }, [messagesLoading, flatItems.length, id, scrollViewportRef, messagesContentRef]);
+  }, [messagesLoading, flatItems.length, id, scrollViewportRef, messagesContentRef, setHistoryAnchor]);
 
   useLayoutEffect(() => {
     if (!id) return;
@@ -365,8 +361,8 @@ export function useConversationScrollOrchestration(params: {
     pendingScrollToRef.current = null;
     replyAroundFetchPendingRef.current = false;
     initialOpenBottomSnapDoneRef.current = false;
-    historyScrollAnchorRef.current = null;
-  }, []);
+    setHistoryAnchor(null);
+  }, [setHistoryAnchor]);
 
   return {
     handleReachOlder,

@@ -35,6 +35,12 @@ export interface UseMessageScrollOptions {
   setIsAtBottom: (value: boolean) => void;
   markRead?: (entityId: string) => void;
   messageLayoutKey?: string;
+  /**
+   * When set to true by the scroll orchestration, a history-page anchor restore
+   * is in progress. While active, this hook's own top-anchor correction stands
+   * down so the two systems do not fight and overshoot (e.g. by a page height).
+   */
+  historyAnchorActiveRef?: React.RefObject<boolean>;
 }
 
 export interface UseMessageScrollResult {
@@ -45,6 +51,12 @@ export interface UseMessageScrollResult {
   showScrollButton: boolean;
   scrollToBottom: (behavior?: ScrollBehavior) => void;
   scrollToBottomIfPinned: () => void;
+  /**
+   * Synchronously assert the "pinned to latest" intent (ref + state together)
+   * without waiting for a scroll event. Used by jump-to-latest so the layout
+   * pin and follow logic engage immediately rather than lagging a frame.
+   */
+  pinToBottom: () => void;
   markJustSent: () => void;
   cachedScrollIndex: number | null;
   onScrollViewportScroll: () => void;
@@ -56,6 +68,7 @@ export function useMessageScroll({
   setIsAtBottom,
   markRead,
   messageLayoutKey,
+  historyAnchorActiveRef,
 }: UseMessageScrollOptions): UseMessageScrollResult {
   const scrollViewportRef = useRef<HTMLDivElement>(null);
   const messagesContentRef = useRef<HTMLDivElement>(null);
@@ -194,6 +207,10 @@ export function useMessageScroll({
     [entityId, setIsAtBottom, markRead],
   );
 
+  const pinToBottom = useCallback(() => {
+    handleAtBottomStateChange(true);
+  }, [handleAtBottomStateChange]);
+
   const onUserScrollIntent = useCallback(() => {
     lastUserScrollIntentAtRef.current = Date.now();
   }, []);
@@ -275,6 +292,11 @@ export function useMessageScroll({
       });
       return;
     }
+    // A history-page anchor restore owns the scroll position for its settle
+    // window; stand down so the two corrections do not fight and overshoot.
+    if (historyAnchorActiveRef?.current) {
+      return;
+    }
     // While the user is mid-gesture, let their input win. Re-anchoring during a
     // fast scroll snaps the view back to a slightly stale row (a jarring
     // downward jump); any residual drift is corrected once the gesture settles.
@@ -286,7 +308,7 @@ export function useMessageScroll({
     if (anchor && content) {
       applyHistoryScrollAnchor(vp, content, anchor);
     }
-  }, []);
+  }, [historyAnchorActiveRef]);
 
   const markJustSent = useCallback(() => {
     justSentRef.current = true;
@@ -362,6 +384,7 @@ export function useMessageScroll({
     showScrollButton,
     scrollToBottom,
     scrollToBottomIfPinned,
+    pinToBottom,
     markJustSent,
     cachedScrollIndex,
     onScrollViewportScroll,

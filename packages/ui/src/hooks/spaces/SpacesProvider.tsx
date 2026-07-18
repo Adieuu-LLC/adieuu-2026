@@ -244,6 +244,27 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     await fetchChannelMessages(spaceId, channelId, head.id, { direction: 'newer' });
   }, [messagesByChannel, fetchChannelMessages]);
 
+  const jumpToLatestMessages = useCallback(
+    async (channelId: string) => {
+      const spaceId = activeSpaceIdRef.current;
+      if (!spaceId || !channelId) return;
+      // Wipe the window synchronously so the refetch takes the initial-load
+      // (replace) path and lands on the live tip, rather than merging the latest
+      // page onto a detached history window.
+      setMessagesByChannel((prev) => ({
+        ...prev,
+        [channelId]: {
+          messages: [],
+          olderCursor: null,
+          hasNewerPages: false,
+          loading: true,
+        },
+      }));
+      await fetchChannelMessages(spaceId, channelId);
+    },
+    [fetchChannelMessages, setMessagesByChannel],
+  );
+
   const resolveProfilesPublic = useCallback(
     (ids: string[]) => {
       void resolveProfiles(ids);
@@ -386,6 +407,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       sendMessage,
       loadOlderMessages,
       loadNewerMessages,
+      jumpToLatestMessages,
       fetchMessagesAround,
       trimActiveChannelBuffer,
       refresh: fetchSpaces,
@@ -411,6 +433,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       sendMessage,
       loadOlderMessages,
       loadNewerMessages,
+      jumpToLatestMessages,
       fetchMessagesAround,
       trimActiveChannelBuffer,
       fetchSpaces,

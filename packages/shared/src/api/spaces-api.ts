@@ -178,7 +178,7 @@ export class SpacesApi {
     channelId: string,
     messageId: string,
     options?: { before?: number; after?: number },
-  ): Promise<ApiResponse<{ messages: PublicSpaceMessage[]; cursor: string | null }>> {
+  ): Promise<ApiResponse<{ messages: PublicSpaceMessage[]; cursor: string | null; hasNewerPages?: boolean }>> {
     const params = new URLSearchParams();
     if (options?.before != null) params.set('before', String(options.before));
     if (options?.after != null) params.set('after', String(options.after));

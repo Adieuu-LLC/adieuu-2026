@@ -17,7 +17,7 @@ type SpacesApiLike = {
     channelId: string,
     messageId: string,
     options?: { before?: number; after?: number },
-  ) => Promise<{ success: boolean; data?: { messages: PublicSpaceMessage[]; cursor: string | null } }>;
+  ) => Promise<{ success: boolean; data?: { messages: PublicSpaceMessage[]; cursor: string | null; hasNewerPages?: boolean } }>;
 };
 
 // Matches the Conversations client page size (DEFAULT_MESSAGE_PAGE_LIMIT). Smaller
@@ -260,15 +260,23 @@ export function useSpaceDataFetching(params: SpaceDataFetchingParams) {
         const res = await api.spaces.getMessagesAround(spaceId, channelId, messageId, options);
         if (!res.success || !res.data) return null;
         const fetched = res.data.messages;
+        const aroundHasNewerPages = res.data.hasNewerPages ?? false;
         setMessagesByChannel((prev) => {
           const existing = prev[channelId];
           const merged = mergeMessagesNewestFirst(existing?.messages ?? [], fetched);
+          // Take hasNewerPages from the API for the fetched window. Jumping to a
+          // target in history means newer messages exist beyond the buffer, so
+          // this must reflect the around response rather than a stale flag —
+          // otherwise jump-to-latest would treat the detached window as the tip.
+          // OR with the existing flag so a previously-detached buffer stays
+          // detached even when the around window happens to reach the tip.
+          const hasNewerPages = aroundHasNewerPages || (existing?.hasNewerPages ?? false);
           return {
             ...prev,
             [channelId]: {
               messages: merged,
               olderCursor: existing?.olderCursor ?? null,
-              hasNewerPages: existing?.hasNewerPages,
+              hasNewerPages,
               loading: existing?.loading ?? false,
             },
           };

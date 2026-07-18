@@ -34,6 +34,7 @@ const messageRepo = {
   findAfter: mock(async (_c: ObjectId, _a: ObjectId, _l: number) => [] as any[]) as AnyMock,
   hasMessageNewerThan: mock(async (_c: ObjectId, _a: ObjectId) => false) as AnyMock,
   findByIdInChannel: mock(async (_c: ObjectId, _m: ObjectId) => null as any) as AnyMock,
+  findAround: mock(async (_c: ObjectId, _t: ObjectId, _b: number, _a: number) => [] as any[]) as AnyMock,
 };
 
 const reactionRepo = {
@@ -59,7 +60,7 @@ mock.module('../notification.service', () => ({
   createNotification: createNotificationMock,
 }));
 
-import { listSpaceChannels, sendSpaceMessage, getSpaceMessages } from './channels';
+import { listSpaceChannels, sendSpaceMessage, getSpaceMessages, getSpaceMessagesAround } from './channels';
 
 const OWNER = new ObjectId();
 
@@ -110,6 +111,7 @@ describe('space/channels', () => {
     messageRepo.findAfter.mockResolvedValue([]);
     messageRepo.hasMessageNewerThan.mockResolvedValue(false);
     messageRepo.findByIdInChannel.mockResolvedValue(null);
+    messageRepo.findAround.mockResolvedValue([]);
     reactionRepo.messageIdsWithReactions.mockResolvedValue(new Set<string>());
     publishSpaceEvent.mockClear();
     createNotificationMock.mockClear();
@@ -358,6 +360,47 @@ describe('space/channels', () => {
       // Only non-deleted message ids are probed for reactions.
       const probed = reactionRepo.messageIdsWithReactions.mock.calls.at(-1)![0] as ObjectId[];
       expect(probed).toHaveLength(2);
+    });
+  });
+
+  describe('getSpaceMessagesAround', () => {
+    test('reports hasNewerPages based on the newest row in the window', async () => {
+      const space = makeSpaceDoc({ visibility: 'public' });
+      spaceRepo.findById.mockResolvedValue(space);
+      const channel = makeChannelDoc(space._id);
+      channelRepo.findByIdInSpace.mockResolvedValue(channel);
+      const target = { _id: new ObjectId(), spaceId: space._id, channelId: channel._id, fromIdentityId: OWNER, content: 't', clientMessageId: 'c1', createdAt: new Date() };
+      channelRepo.findByIdInSpace.mockResolvedValue(channel);
+      messageRepo.findByIdInChannel.mockResolvedValue(target);
+      // findAround returns the window ascending (oldest first); the last row is newest.
+      const older = { _id: new ObjectId(), spaceId: space._id, channelId: channel._id, fromIdentityId: OWNER, content: 'o', clientMessageId: 'c0', createdAt: new Date() };
+      const newest = { _id: new ObjectId(), spaceId: space._id, channelId: channel._id, fromIdentityId: OWNER, content: 'n', clientMessageId: 'c2', createdAt: new Date() };
+      messageRepo.findAround.mockResolvedValue([older, target, newest]);
+      messageRepo.hasMessageNewerThan.mockResolvedValue(true);
+
+      const r = await getSpaceMessagesAround(space._id, channel._id, new ObjectId(), target._id);
+
+      expect(r.success).toBe(true);
+      expect(r.hasNewerPages).toBe(true);
+      // Probes for messages newer than the window's newest row.
+      const probedAnchor = messageRepo.hasMessageNewerThan.mock.calls.at(-1)![1] as ObjectId;
+      expect(probedAnchor.toHexString()).toBe(newest._id.toHexString());
+    });
+
+    test('reports no newer pages when the window reaches the channel tip', async () => {
+      const space = makeSpaceDoc({ visibility: 'public' });
+      spaceRepo.findById.mockResolvedValue(space);
+      const channel = makeChannelDoc(space._id);
+      channelRepo.findByIdInSpace.mockResolvedValue(channel);
+      const target = { _id: new ObjectId(), spaceId: space._id, channelId: channel._id, fromIdentityId: OWNER, content: 't', clientMessageId: 'c1', createdAt: new Date() };
+      messageRepo.findByIdInChannel.mockResolvedValue(target);
+      messageRepo.findAround.mockResolvedValue([target]);
+      messageRepo.hasMessageNewerThan.mockResolvedValue(false);
+
+      const r = await getSpaceMessagesAround(space._id, channel._id, new ObjectId(), target._id);
+
+      expect(r.success).toBe(true);
+      expect(r.hasNewerPages).toBe(false);
     });
   });
 });
