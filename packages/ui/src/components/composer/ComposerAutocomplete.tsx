@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { PublicCustomEmoji } from '@adieuu/shared';
 import type { MentionableUser } from './composerTypes';
 import type { AppIconName } from '../../icons/appIcons';
@@ -11,7 +12,7 @@ export type ShortcodeSuggestion =
   | [code: string, emoji: string]
   | { type: 'custom'; emoji: PublicCustomEmoji };
 
-export function ComposerShortcodeAutocomplete({
+export const ComposerShortcodeAutocomplete = memo(function ComposerShortcodeAutocomplete({
   suggestions,
   selectedIdx,
   onSelect,
@@ -59,9 +60,9 @@ export function ComposerShortcodeAutocomplete({
       })}
     </div>
   );
-}
+});
 
-export function ComposerMentionAutocomplete({
+export const ComposerMentionAutocomplete = memo(function ComposerMentionAutocomplete({
   suggestions,
   selectedIdx,
   onSelect,
@@ -108,7 +109,7 @@ export function ComposerMentionAutocomplete({
       ))}
     </div>
   );
-}
+});
 
 export type PageTagSuggestion = {
   id: string;
@@ -116,7 +117,7 @@ export type PageTagSuggestion = {
   icon?: AppIconName;
 };
 
-export function ComposerPageTagAutocomplete({
+export const ComposerPageTagAutocomplete = memo(function ComposerPageTagAutocomplete({
   suggestions,
   selectedIdx,
   onSelect,
@@ -150,4 +151,4 @@ export function ComposerPageTagAutocomplete({
       ))}
     </div>
   );
-}
+});

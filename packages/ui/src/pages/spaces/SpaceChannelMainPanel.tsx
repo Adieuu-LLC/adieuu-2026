@@ -1,4 +1,4 @@
-import type { ReactNode, RefObject } from 'react';
+import { memo, useCallback, useMemo, type ReactNode, type RefObject } from 'react';
 import type { TFunction } from 'i18next';
 import type { PublicIdentity } from '@adieuu/shared';
 import type { ComposerSendFn, ComposerReplyContext } from '../../components/composer/composerTypes';
@@ -8,8 +8,53 @@ import type { GroupedReaction, ReactionCustomEmoji } from '../../hooks/useReacti
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
 import type { ReplyQuotePayload } from '../conversations/conversationUtils';
 import type { EditHistoryEntry } from '../../components/messaging/EditHistoryLabel';
+import type { GifAttachment, MediaAttachment } from '../../services/messagePayload';
 import { ChannelMessageList } from '../../components/messaging/ChannelMessageList';
 import { MessageComposer } from '../../components/composer/MessageComposer';
+
+type SpaceComposerIslandProps = {
+  channelId: string;
+  sending: boolean;
+  wrappedSend: ComposerSendFn;
+  replyContext: ComposerReplyContext | null;
+  editingMessage: ChannelMessage | null;
+  setEditingMessage: (msg: ChannelMessage | null) => void;
+  editingInitialPlaintext: string;
+  editingInitialAttachments: { media: MediaAttachment[]; gifs: GifAttachment[] } | undefined;
+};
+
+const SpaceComposerIsland = memo(function SpaceComposerIsland({
+  channelId,
+  sending,
+  wrappedSend,
+  replyContext,
+  editingMessage,
+  setEditingMessage,
+  editingInitialPlaintext,
+  editingInitialAttachments,
+}: SpaceComposerIslandProps) {
+  const handleCancelEdit = useCallback(() => setEditingMessage(null), [setEditingMessage]);
+  const editContext = useMemo(
+    () =>
+      editingMessage
+        ? { messageId: editingMessage.id, onCancel: handleCancelEdit }
+        : null,
+    [editingMessage, handleCancelEdit],
+  );
+
+  return (
+    <MessageComposer
+      channelId={channelId}
+      sending={sending}
+      onSend={wrappedSend}
+      replyContext={replyContext}
+      editContext={editContext}
+      editingMessageKey={editingMessage?.id ?? null}
+      editingInitialPlaintext={editingInitialPlaintext}
+      editingInitialAttachments={editingInitialAttachments}
+    />
+  );
+});
 
 export interface SpaceChannelMainPanelProps {
   channelId: string | undefined;
@@ -191,20 +236,13 @@ export function SpaceChannelMainPanel(props: SpaceChannelMainPanelProps): ReactN
             </p>
           </div>
         ) : (
-          <MessageComposer
+          <SpaceComposerIsland
             channelId={activeChannelId ?? channelId!}
             sending={sending}
-            onSend={wrappedSend}
+            wrappedSend={wrappedSend}
             replyContext={replyContext}
-            editContext={
-              editingMessage
-                ? {
-                    messageId: editingMessage.id,
-                    onCancel: () => setEditingMessage(null),
-                  }
-                : null
-            }
-            editingMessageKey={editingMessage?.id ?? null}
+            editingMessage={editingMessage}
+            setEditingMessage={setEditingMessage}
             editingInitialPlaintext={editingInitialPlaintext}
             editingInitialAttachments={editingInitialAttachments}
           />

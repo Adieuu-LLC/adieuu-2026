@@ -7,12 +7,14 @@
  * grouped hook results from {@link ConversationView}.
  */
 
-import type { ReactNode } from 'react';
+import { memo, useCallback, useMemo, type ReactNode } from 'react';
 import type { TFunction } from 'i18next';
 import type { PublicCustomEmoji, PublicIdentity } from '@adieuu/shared';
 import { Icon } from '../../icons/Icon';
 import { Button } from '../../components/Button';
 import { MessageComposer, type MessageComposerHandle } from '../../components/composer';
+import type { ComposerSendFn, ComposerReplyContext, MentionSource, PageTagSource } from '../../components/composer';
+import type { MediaAttachment, GifAttachment } from '../../services/messagePayload';
 import type { DisplayMessage } from '../../hooks/useConversations';
 import type { GroupedReaction, ReactionCustomEmoji } from '../../hooks/useReactions';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
@@ -30,6 +32,95 @@ import type { ChatItem } from './conversationUtils';
 import { resolveDisplayName } from './conversationUtils';
 
 type IdentityLike = { id: string; avatarUrl?: string; displayName?: string; username?: string } | null | undefined;
+
+type ConversationComposerIslandProps = {
+  composerRef: React.Ref<MessageComposerHandle>;
+  conversationId: string;
+  sending: boolean;
+  onSend: ComposerSendFn;
+  forwardSecrecyEnabled: boolean;
+  onToggleForwardSecrecy: () => void;
+  replyContext: ComposerReplyContext | null;
+  mentionSource: MentionSource | undefined;
+  pageTagSource: PageTagSource | undefined;
+  placeholderTarget: string;
+  mentionInsertRef: React.MutableRefObject<((identityId: string) => void) | null>;
+  gifsDisabled: boolean;
+  lastMessageText: string | undefined;
+  disabled: boolean;
+  customEmojis: PublicCustomEmoji[];
+  customEmojisDisabled: boolean;
+  editingMessage: DisplayMessage | null;
+  onCancelEdit: () => void;
+  editingInitialPlaintext: string;
+  editingInitialAttachments: { media: MediaAttachment[]; gifs: GifAttachment[] } | undefined;
+  allowSkipModeration: boolean;
+};
+
+const ConversationComposerIsland = memo(function ConversationComposerIsland({
+  composerRef,
+  conversationId,
+  sending,
+  onSend,
+  forwardSecrecyEnabled,
+  onToggleForwardSecrecy,
+  replyContext,
+  mentionSource,
+  pageTagSource,
+  placeholderTarget,
+  mentionInsertRef,
+  gifsDisabled,
+  lastMessageText,
+  disabled,
+  customEmojis,
+  customEmojisDisabled,
+  editingMessage,
+  onCancelEdit,
+  editingInitialPlaintext,
+  editingInitialAttachments,
+  allowSkipModeration,
+}: ConversationComposerIslandProps) {
+  const forwardSecrecy = useMemo(
+    () => ({ enabled: forwardSecrecyEnabled, onToggle: onToggleForwardSecrecy }),
+    [forwardSecrecyEnabled, onToggleForwardSecrecy],
+  );
+  const editContext = useMemo(
+    () =>
+      editingMessage
+        ? {
+            messageId: editingMessage.id,
+            clientMessageId: editingMessage.clientMessageId,
+            onCancel: onCancelEdit,
+          }
+        : null,
+    [editingMessage, onCancelEdit],
+  );
+
+  return (
+    <MessageComposer
+      ref={composerRef}
+      channelId={conversationId}
+      sending={sending}
+      onSend={onSend}
+      forwardSecrecy={forwardSecrecy}
+      replyContext={editingMessage ? null : replyContext}
+      mentionSource={mentionSource}
+      pageTagSource={pageTagSource}
+      placeholderTarget={placeholderTarget}
+      mentionInsertRef={mentionInsertRef}
+      gifsDisabled={gifsDisabled}
+      lastMessageText={lastMessageText}
+      disabled={disabled}
+      customEmojis={customEmojis}
+      customEmojisDisabled={customEmojisDisabled}
+      editContext={editContext}
+      editingMessageKey={editingMessage?.id ?? null}
+      editingInitialPlaintext={editingInitialPlaintext}
+      editingInitialAttachments={editingInitialAttachments}
+      allowSkipModeration={allowSkipModeration}
+    />
+  );
+});
 
 export interface ConversationMainPanelProps {
   conversationId: string;
@@ -152,7 +243,11 @@ export function ConversationMainPanel(props: ConversationMainPanelProps): ReactN
   } = props;
 
   const { keyChangeAlertIdentityIds, keyChangeAlertDismissed } = security;
-  const { editingMessage } = messageActions;
+  const { editingMessage, setEditingMessage } = messageActions;
+  const handleCancelEdit = useCallback(
+    () => setEditingMessage(null),
+    [setEditingMessage],
+  );
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop event delegation for file attachment
@@ -299,13 +394,14 @@ export function ConversationMainPanel(props: ConversationMainPanelProps): ReactN
             <span>{t('blocked.blockedByOtherBanner')}</span>
           </div>
         )}
-        <MessageComposer
-          ref={composerRef}
-          channelId={conversationId}
+        <ConversationComposerIsland
+          composerRef={composerRef}
+          conversationId={conversationId}
           sending={sending}
           onSend={composerAdapter.composerSend}
-          forwardSecrecy={{ enabled: prefs.useFs, onToggle: prefs.handleToggleFs }}
-          replyContext={editingMessage ? null : composerAdapter.composerReplyContext}
+          forwardSecrecyEnabled={prefs.useFs}
+          onToggleForwardSecrecy={prefs.handleToggleFs}
+          replyContext={composerAdapter.composerReplyContext}
           mentionSource={composerAdapter.composerMentionSource}
           pageTagSource={composerAdapter.composerPageTagSource}
           placeholderTarget={displayName}
@@ -317,16 +413,8 @@ export function ConversationMainPanel(props: ConversationMainPanelProps): ReactN
           disabled={isDmBlocked || blockedByOther}
           customEmojis={customEmojis}
           customEmojisDisabled={conversation.customEmojisDisabled === true}
-          editContext={
-            editingMessage
-              ? {
-                  messageId: editingMessage.id,
-                  clientMessageId: editingMessage.clientMessageId,
-                  onCancel: () => messageActions.setEditingMessage(null),
-                }
-              : null
-          }
-          editingMessageKey={editingMessage?.id ?? null}
+          editingMessage={editingMessage}
+          onCancelEdit={handleCancelEdit}
           editingInitialPlaintext={messageActions.editingInitialPlaintext}
           editingInitialAttachments={messageActions.editingInitialAttachments}
           allowSkipModeration={conversation.allowSkipModeration === true}

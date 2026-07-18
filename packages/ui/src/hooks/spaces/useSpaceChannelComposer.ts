@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import type { CommunityCipher } from '@adieuu/crypto';
 import type { EditSpaceMessageParams, SendSpaceMessageParams } from '@adieuu/shared';
 import type { ComposerSendFn, ComposerReplyContext } from '../../components/composer/composerTypes';
@@ -40,6 +40,13 @@ export function useSpaceChannelComposer(params: {
     api,
   } = params;
 
+  const editingMessageRef = useRef(editingMessage);
+  editingMessageRef.current = editingMessage;
+  const replyContextRef = useRef(replyContext);
+  replyContextRef.current = replyContext;
+  const spaceCipherRef = useRef(spaceCipher);
+  spaceCipherRef.current = spaceCipher;
+
   const onSend: ComposerSendFn = useCallback(
     async (composerPayload: string, options?) => {
       const parsed = parsePayload(composerPayload);
@@ -49,19 +56,23 @@ export function useSpaceChannelComposer(params: {
         parsed.attachments.length > 0;
       if (!hasContent) return;
 
-      if (editingMessage) {
+      const currentEditing = editingMessageRef.current;
+      const currentReply = replyContextRef.current;
+      const currentCipher = spaceCipherRef.current;
+
+      if (currentEditing) {
         if (!spaceId || !channelId) return;
         const raw = parsed.isStructured ? composerPayload : parsed.text;
         let editBody: EditSpaceMessageParams;
-        if (isEncrypted && spaceCipher) {
-          editBody = encryptContent(spaceCipher, raw);
+        if (isEncrypted && currentCipher) {
+          editBody = encryptContent(currentCipher, raw);
         } else {
           editBody = { content: raw };
         }
         const response = await api.spaces.editMessage(
           spaceId,
           channelId,
-          editingMessage.id,
+          currentEditing.id,
           editBody,
         );
         if (response.success === true) {
@@ -70,7 +81,7 @@ export function useSpaceChannelComposer(params: {
         return;
       }
 
-      const replyToMessageId = replyContext?.messageId;
+      const replyToMessageId = currentReply?.messageId;
       const mentionedIdentityIds = parsed.mentions
         .map((m) => m.id)
         .filter((id): id is string => !!id);
@@ -86,8 +97,8 @@ export function useSpaceChannelComposer(params: {
       };
 
       let msgParams: SendSpaceMessageParams;
-      if (isEncrypted && spaceCipher) {
-        msgParams = { ...common, ...encryptContent(spaceCipher, raw) };
+      if (isEncrypted && currentCipher) {
+        msgParams = { ...common, ...encryptContent(currentCipher, raw) };
       } else {
         msgParams = { ...common, content: raw };
       }
@@ -98,7 +109,7 @@ export function useSpaceChannelComposer(params: {
       }
       return result;
     },
-    [sendMessage, isEncrypted, spaceCipher, editingMessage, api, spaceId, channelId, replyContext, setEditingMessage, setReplyContext],
+    [sendMessage, isEncrypted, api, spaceId, channelId, setEditingMessage, setReplyContext],
   );
 
   return { onSend };

@@ -76,6 +76,10 @@ describe('convertShortcodes', () => {
     expect(convertShortcodes(plain)).toBe(plain);
   });
 
+  test('fast-path leaves alphanumeric text untouched', () => {
+    expect(convertShortcodes('hello world 123')).toBe('hello world 123');
+  });
+
   test('handles empty string', () => {
     expect(convertShortcodes('')).toBe('');
   });

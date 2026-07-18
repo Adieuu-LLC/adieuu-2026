@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, forwardRef, useImperativeHandle, memo, startTransition } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Popover, Portal, Menu } from '@ark-ui/react';
+import { Portal, Menu } from '@ark-ui/react';
 import { convertShortcodes, SHORTCODE_ENTRIES } from '../../utils/emojiShortcodes';
 import {
   serializePayload,
@@ -13,9 +13,8 @@ import {
 } from '../../services/messagePayload';
 import { getSenderDeviceIdForPayload } from '../../services/deviceInfo';
 import { createApiClient, CONV_MEDIA_BASE_MAX_BYTES, type PublicCustomEmoji } from '@adieuu/shared';
-import { EmojiPicker, type EmojiSelectResult } from '../EmojiPicker';
-import { GifPicker, type ContentTab } from '../GifPicker';
-import { Tooltip } from '../Tooltip';
+import type { EmojiSelectResult } from '../EmojiPicker';
+import type { ContentTab } from '../GifPicker';
 import { useToast } from '../Toast';
 import { Icon } from '../../icons/Icon';
 import { copyPlainTextToClipboard, readPlainTextFromClipboard } from '../../utils/contextMenuClipboard';
@@ -30,7 +29,6 @@ import type {
   PendingAttachment,
   TrackedMention,
   TrackedPageTag,
-  ComposerControlConfig,
 } from './composerTypes';
 import {
   MENTION_EVERYONE_ID,
@@ -49,15 +47,30 @@ import {
 import { detectShortcodeQuery, detectMentionQuery, detectPageTagQuery, updateMentionOffsets, updatePageTagOffsets, resolveMentionedIdentityIds } from './composerUtils';
 import { runGifSendNow } from './composerGifSendNow';
 import { ComposerAttachments } from './ComposerAttachments';
+import { ComposerBanners } from './ComposerBanners';
+import { ComposerLeftRail, ComposerRightRail } from './ComposerControlRails';
 import { ComposerShortcodeAutocomplete, ComposerMentionAutocomplete, ComposerPageTagAutocomplete, type MentionSuggestion, type PageTagSuggestion } from './ComposerAutocomplete';
-import { ComposerTTLMenu } from './ComposerTTLMenu';
-import { ComposerSendIcon } from './ComposerSendIcon';
+import { useComposerAutoHeight } from './useComposerAutoHeight';
 import { useComposerFieldInsets } from './useComposerFieldInsets';
 import { useMediaOutbox } from '../../services/mediaOutbox';
 import {
   getComposerControlsBySide,
   useComposerControlsPreference,
 } from '../../hooks/useComposerControlsPreference';
+
+function sameAcState<T extends { query: string } & Record<string, number>>(
+  prev: T | null,
+  next: T | null,
+): boolean {
+  if (prev === next) return true;
+  if (!prev || !next) return false;
+  if (prev.query !== next.query) return false;
+  for (const key of Object.keys(next) as (keyof T)[]) {
+    if (key === 'query') continue;
+    if (prev[key] !== next[key]) return false;
+  }
+  return true;
+}
 
 type ShortcodeSuggestion = [string, string] | { type: 'custom'; emoji: PublicCustomEmoji };
 
@@ -105,7 +118,7 @@ export type MessageComposerProps = {
   allowSkipModeration?: boolean;
 };
 
-export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposerProps>(function MessageComposer(
+const MessageComposerInner = forwardRef<MessageComposerHandle, MessageComposerProps>(function MessageComposer(
   {
   channelId,
   sending,
@@ -229,8 +242,11 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
 
   const handleShortcodeDetect = useCallback((text: string, cursorPos: number) => {
     const result = detectShortcodeQuery(text, cursorPos);
-    setShortcodeAC(result);
-    if (result) setAcSelectedIdx(0);
+    if (sameAcState(shortcodeACRef.current, result)) return;
+    startTransition(() => {
+      setShortcodeAC(result);
+      if (result) setAcSelectedIdx(0);
+    });
   }, []);
 
   // --- @mention autocomplete ---
@@ -277,10 +293,18 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   mentionSuggestionsRef.current = mentionSuggestions;
 
   const handleMentionDetect = useCallback((text: string, cursorPos: number) => {
-    if (!mentionSource) { setMentionAC(null); return; }
+    if (!mentionSource) {
+      if (mentionACRef.current != null) {
+        startTransition(() => setMentionAC(null));
+      }
+      return;
+    }
     const result = detectMentionQuery(text, cursorPos);
-    setMentionAC(result);
-    if (result) setMentionAcSelectedIdx(0);
+    if (sameAcState(mentionACRef.current, result)) return;
+    startTransition(() => {
+      setMentionAC(result);
+      if (result) setMentionAcSelectedIdx(0);
+    });
   }, [mentionSource]);
 
   const handleUpdateMentionOffsets = useCallback((oldText: string, newText: string, cursorPos: number) => {
@@ -319,10 +343,18 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   pageTagSuggestionsRef.current = pageTagSuggestions;
 
   const handlePageTagDetect = useCallback((text: string, cursorPos: number) => {
-    if (!pageTagSource) { setPageTagAC(null); return; }
+    if (!pageTagSource) {
+      if (pageTagACRef.current != null) {
+        startTransition(() => setPageTagAC(null));
+      }
+      return;
+    }
     const result = detectPageTagQuery(text, cursorPos);
-    setPageTagAC(result);
-    if (result) setPageTagAcSelectedIdx(0);
+    if (sameAcState(pageTagACRef.current, result)) return;
+    startTransition(() => {
+      setPageTagAC(result);
+      if (result) setPageTagAcSelectedIdx(0);
+    });
   }, [pageTagSource]);
 
   // --- Undo / redo history ---
@@ -563,25 +595,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     }
   }, [editContext, editingMessageKey, editingInitialPlaintext, editingInitialAttachments, setMessageText]);
 
-  const [isMultiLine, setIsMultiLine] = useState(false);
-
-  useEffect(() => {
-    const el = inputRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    const scrollH = el.scrollHeight;
-    const lineHeight = parseFloat(getComputedStyle(el).lineHeight) || 20;
-    const verticalPadding =
-      parseFloat(getComputedStyle(el).paddingTop) + parseFloat(getComputedStyle(el).paddingBottom);
-    const singleLineH = Math.ceil(lineHeight + verticalPadding);
-    // When empty, a wrapping placeholder can inflate scrollHeight beyond what
-    // a single line needs -- cap to single-line height so the composer stays compact.
-    const effectiveH = messageText ? scrollH : Math.min(scrollH, singleLineH);
-    el.style.height = `${effectiveH}px`;
-    const multi = effectiveH > singleLineH + 2;
-    setIsMultiLine(multi);
-    el.style.overflowY = effectiveH >= 500 ? 'auto' : 'hidden';
-  }, [messageText]);
+  const isMultiLine = useComposerAutoHeight(inputRef, messageText);
 
   const handleSend = useCallback(async () => {
     if (disabled) return;
@@ -1224,180 +1238,64 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     [disabled, composerControls, forwardSecrecy, gifsDisabled],
   );
   const fieldInsets = useComposerFieldInsets(leftControlsRef, rightControlsRef, fieldInsetsRemeasureKey);
-  const canSendMessage =
-    !!channelId &&
-    !disabled &&
-    !sending &&
-    (!!messageText.trim() || attachments.length > 0 || !!pendingGif);
-
-  const renderComposerControl = useCallback(
-    (control: ComposerControlConfig) => {
-      switch (control.id) {
-        case 'forwardSecrecy':
-          if (!forwardSecrecy) return null;
-          return (
-            <Tooltip
-              key={control.id}
-              content={
-                forwardSecrecy.enabled
-                  ? t('conversations.fsEnabled', 'Forward secrecy is on for this message')
-                  : t('conversations.fsDisabled', 'Forward secrecy is off for this message')
-              }
-              position="top"
-            >
-              <button
-                type="button"
-                className={`conversation-fs-toggle${forwardSecrecy.enabled ? ' conversation-fs-toggle--active' : ''}`}
-                onClick={() => {
-                  forwardSecrecy.onToggle();
-                  requestAnimationFrame(() => inputRef.current?.focus());
-                }}
-              >
-                FS
-              </button>
-            </Tooltip>
-          );
-        case 'timedMessage':
-          return (
-            <ComposerTTLMenu
-              key={control.id}
-              ttlSeconds={ttlSeconds}
-              onSelect={setTtlSeconds}
-              onAfterSelect={() => requestAnimationFrame(() => inputRef.current?.focus())}
-            />
-          );
-        case 'upload':
-          return (
-            <Tooltip key={control.id} content={t('conversations.attachMedia')} position="top">
-              <button
-                type="button"
-                className="conversation-attach-btn"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={sending || attachments.length >= MAX_ATTACHMENTS}
-              >
-                <Icon name="upload" />
-              </button>
-            </Tooltip>
-          );
-        case 'gif':
-          if (gifsDisabled) return null;
-          return (
-            <Popover.Root
-              key={control.id}
-              open={showMediaPicker}
-              onOpenChange={(e) => setShowMediaPicker(e.open)}
-              positioning={{ placement: 'top-end' }}
-              lazyMount
-              unmountOnExit
-            >
-              <Popover.Anchor asChild>
-                <span className="composer-popover-anchor">
-                  <Tooltip content={t('gif.composerButtonCombined', 'GIFs and Stickers')} position="top">
-                    <Popover.Trigger asChild>
-                      <button
-                        type="button"
-                        className="conversation-media-btn"
-                        disabled={sending}
-                      >
-                        <span className="conversation-media-btn__label">GIF</span>
-                      </button>
-                    </Popover.Trigger>
-                  </Tooltip>
-                </span>
-              </Popover.Anchor>
-              <Portal>
-                <Popover.Positioner>
-                  <Popover.Content className="gif-picker-popover">
-                    <GifPicker
-                      onGifSelect={handleGifSelect}
-                      onGifSendNow={handleGifSendNow}
-                      initialTab={lastMediaTab}
-                      onTabChange={setLastMediaTab}
-                      lastMessageText={lastMessageText}
-                      conversationId={channelId}
-                    />
-                  </Popover.Content>
-                </Popover.Positioner>
-              </Portal>
-            </Popover.Root>
-          );
-        case 'emoji':
-          return (
-            <Popover.Root
-              key={control.id}
-              open={showEmojiPicker}
-              onOpenChange={(e) => setShowEmojiPicker(e.open)}
-              positioning={{ placement: 'top-end' }}
-              lazyMount
-              unmountOnExit
-            >
-              <Popover.Anchor asChild>
-                <span className="composer-popover-anchor">
-                  <Tooltip content={t('conversations.emojiButton', 'Emoji')} position="top">
-                    <Popover.Trigger asChild>
-                      <button type="button" className="message-composer-emoji-btn">
-                        <Icon name="smile" className="message-composer-emoji-icon" />
-                      </button>
-                    </Popover.Trigger>
-                  </Tooltip>
-                </span>
-              </Popover.Anchor>
-              <Portal>
-                <Popover.Positioner>
-                  <Popover.Content className="emoji-picker-popover">
-                    <EmojiPicker
-                      onEmojiSelect={handleEmojiSelect}
-                      customEmojis={!customEmojisDisabled ? customEmojis : undefined}
-                    />
-                  </Popover.Content>
-                </Popover.Positioner>
-              </Portal>
-            </Popover.Root>
-          );
-        case 'send':
-          return (
-            <Tooltip key={control.id} content={t('conversations.send', 'Send')} position="top">
-              <button
-                type="button"
-                className="conversation-composer-send-btn"
-                onClick={() => void handleSend()}
-                disabled={!canSendMessage}
-                aria-label={t('conversations.send', 'Send')}
-              >
-                {control.sendShowText && (
-                  <span className="conversation-composer-send-btn__label">
-                    {t('conversations.send', 'Send')}
-                  </span>
-                )}
-                <ComposerSendIcon icon={control.sendIcon ?? 'paper-plane'} />
-              </button>
-            </Tooltip>
-          );
-        default:
-          return null;
-      }
-    },
-    [
-      forwardSecrecy,
-      t,
-      ttlSeconds,
-      sending,
-      attachments.length,
-      gifsDisabled,
-      showMediaPicker,
-      handleGifSelect,
-      handleGifSendNow,
-      lastMediaTab,
-      lastMessageText,
-      channelId,
-      showEmojiPicker,
-      handleEmojiSelect,
-      customEmojisDisabled,
-      customEmojis,
-      handleSend,
-      canSendMessage,
-    ],
+  const canSendMessage = useMemo(
+    () =>
+      !!channelId &&
+      !disabled &&
+      !sending &&
+      (!!messageText.trim() || attachments.length > 0 || !!pendingGif),
+    [channelId, disabled, sending, messageText, attachments.length, pendingGif],
   );
+
+  const focusInput = useCallback(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const onAttachClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const onSendClick = useCallback(() => {
+    void handleSend();
+  }, [handleSend]);
+
+  const onMediaPickerOpenChange = useCallback((open: boolean) => {
+    setShowMediaPicker(open);
+  }, []);
+
+  const onEmojiPickerOpenChange = useCallback((open: boolean) => {
+    setShowEmojiPicker(open);
+  }, []);
+
+  const clearPendingGif = useCallback(() => {
+    setPendingGif(null);
+  }, []);
+
+  const railShared = {
+    sending,
+    canSendMessage,
+    forwardSecrecy,
+    ttlSeconds,
+    onSelectTtl: setTtlSeconds,
+    attachmentCount: attachments.length,
+    gifsDisabled,
+    showMediaPicker,
+    onMediaPickerOpenChange,
+    lastMediaTab,
+    onMediaTabChange: setLastMediaTab,
+    onGifSelect: handleGifSelect,
+    onGifSendNow: handleGifSendNow,
+    lastMessageText: showMediaPicker ? lastMessageText : undefined,
+    channelId,
+    showEmojiPicker,
+    onEmojiPickerOpenChange,
+    onEmojiSelect: handleEmojiSelect,
+    customEmojisDisabled,
+    customEmojis,
+    onSend: onSendClick,
+    onAttachClick,
+    focusInput,
+  };
 
   return (
     <Menu.Root
@@ -1412,63 +1310,13 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
           {composerToast}
         </div>
       )}
-      {editContext && (
-        <div className="conversation-composer-reply">
-          <Icon name="pen" className="conversation-composer-reply-icon" />
-          <span className="conversation-composer-reply-text" title={t('conversations.editingMessage')}>
-            {t('conversations.editingMessage')}
-          </span>
-          <button
-            type="button"
-            className="conversation-composer-reply-cancel"
-            onClick={editContext.onCancel}
-            aria-label={t('conversations.cancelEdit')}
-          >
-            <Icon name="x" />
-          </button>
-        </div>
-      )}
-      {!editContext && replyContext && (
-        <div className="conversation-composer-reply">
-          <Icon name="reply" className="conversation-composer-reply-icon" />
-          <button
-            type="button"
-            className="conversation-composer-reply-text"
-            title={`${replyContext.authorName}: ${replyContext.snippet}`}
-            onClick={replyContext.onClick}
-          >
-            {replyContext.authorName}: {replyContext.snippet}
-          </button>
-          <button
-            type="button"
-            className="conversation-composer-reply-cancel"
-            onClick={replyContext.onCancel}
-            aria-label={t('conversations.cancelReply', 'Cancel reply')}
-          >
-            <Icon name="x" />
-          </button>
-        </div>
-      )}
-      {pendingGif && (
-        <div className="composer-gif-preview">
-          <img
-            src={pendingGif.tinyUrl}
-            alt={pendingGif.searchTerm || 'GIF'}
-            className="composer-gif-preview__img"
-          />
-          <span className="composer-gif-preview__label">
-            {pendingGif.type === 'sticker' ? 'Sticker' : 'GIF'}
-          </span>
-          <button
-            type="button"
-            className="composer-gif-preview__remove"
-            onClick={() => setPendingGif(null)}
-            aria-label={t('gif.removePreview', 'Remove GIF')}
-          >
-            <Icon name="x" />
-          </button>
-        </div>
-      )}
+      <ComposerBanners
+        editContext={editContext}
+        replyContext={replyContext}
+        pendingGif={pendingGif}
+        onClearPendingGif={clearPendingGif}
+        disabled={disabled || sending}
+      />
       <ComposerAttachments
         attachments={attachments}
         onRemove={removeAttachment}
@@ -1511,9 +1359,11 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
           onChange={handleFileSelect}
           style={{ display: 'none' }}
         />
-        <div className="conversation-composer-row__left" ref={leftControlsRef}>
-          {leftControls.map((control) => renderComposerControl(control))}
-        </div>
+        <ComposerLeftRail
+          controls={leftControls}
+          controlsRef={leftControlsRef}
+          {...railShared}
+        />
         <textarea
           ref={inputRef}
           id="message-composer"
@@ -1573,13 +1423,12 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
           readOnly={disabled}
           disabled={disabled || sending}
         />
-        <div
-          className="conversation-composer-row__right"
-          ref={rightControlsRef}
-          style={disabled ? { display: 'none' } : undefined}
-        >
-          {rightControls.map((control) => renderComposerControl(control))}
-        </div>
+        <ComposerRightRail
+          controls={rightControls}
+          controlsRef={rightControlsRef}
+          disabled={disabled}
+          {...railShared}
+        />
       </div>
     </div>
       </Menu.ContextTrigger>
@@ -1609,4 +1458,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   );
 });
 
+MessageComposerInner.displayName = 'MessageComposer';
+
+export const MessageComposer = memo(MessageComposerInner);
 MessageComposer.displayName = 'MessageComposer';
