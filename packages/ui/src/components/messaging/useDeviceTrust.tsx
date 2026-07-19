@@ -66,7 +66,13 @@ export function useDeviceTrust({
       if (!rec) {
         return;
       }
-      const current = getSafetyFingerprintDisplayForDevice(peerKeysForSender, senderDeviceId);
+      let current: string | null;
+      try {
+        current = getSafetyFingerprintDisplayForDevice(peerKeysForSender, senderDeviceId);
+      } catch {
+        if (!cancelled) setDeviceSignatureTrust('none');
+        return;
+      }
       if (current == null) {
         return;
       }

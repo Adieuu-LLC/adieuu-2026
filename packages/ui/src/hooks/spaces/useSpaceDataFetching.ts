@@ -217,13 +217,11 @@ export function useSpaceDataFetching(params: SpaceDataFetchingParams) {
         }
       } catch {
         if (seq === channelMsgSeq.current) {
-          setMessagesByChannel((prev) => ({
-            ...prev,
-            [channelId]: {
-              ...prev[channelId]!,
-              loading: false,
-            },
-          }));
+          setMessagesByChannel((prev) => {
+            const existing = prev[channelId];
+            if (!existing) return prev;
+            return { ...prev, [channelId]: { ...existing, loading: false } };
+          });
         }
       }
     },

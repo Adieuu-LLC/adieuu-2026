@@ -39,8 +39,10 @@ export function SpaceLayout() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const isIndexRoute = !!useMatch('/s/:slug');
-  const isManageRoute =
-    !!useMatch('/s/:slug/manage') || !!useMatch('/s/:slug/manage/*');
+  // Call both matches unconditionally — `||` short-circuit would skip a hook.
+  const manageExactMatch = useMatch('/s/:slug/manage');
+  const manageNestedMatch = useMatch('/s/:slug/manage/*');
+  const isManageRoute = !!manageExactMatch || !!manageNestedMatch;
   const { status: identityStatus } = useIdentity();
   const isLoggedIn = identityStatus === 'logged_in';
   const {

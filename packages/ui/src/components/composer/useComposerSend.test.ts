@@ -203,8 +203,12 @@ describe('useComposerSend', () => {
   });
 
   test('enqueue failure surfaces a toast and does not clear attachments', async () => {
+    const mentions: TrackedMention[] = [{ identityId: 'user-bob', offset: 0, length: 4 }];
+    const pageTags: TrackedPageTag[] = [{ pageId: 'home', offset: 5, length: 5 }];
     const params = makeParams({
       messageTextRef: { current: 'caption' },
+      mentionEntriesRef: { current: [...mentions] },
+      pageTagEntriesRef: { current: [...pageTags] },
       attachments: [makeAttachment()],
       enqueueMediaSend: mock(async () => { throw new Error('boom'); }),
     });
@@ -212,6 +216,9 @@ describe('useComposerSend', () => {
 
     expect(params.toastError).toHaveBeenCalledTimes(1);
     expect(params.setAttachments).not.toHaveBeenCalled();
+    expect(params.setMessageText).toHaveBeenCalledWith('caption');
+    expect(params.mentionEntriesRef.current).toEqual(mentions);
+    expect(params.pageTagEntriesRef.current).toEqual(pageTags);
   });
 
   test('edit-mode text send passes only forward-secrecy option', async () => {

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '../../components/Toast';
 import { parsePayload } from '../../services/messagePayload';
@@ -24,6 +24,13 @@ export function useConversationMessageActions(params: {
   const [flashingMessageId, setFlashingMessageId] = useState<string | null>(null);
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportTargetMessageId, setReportTargetMessageId] = useState<string | undefined>();
+
+  useEffect(() => {
+    setReplyingTo(null);
+    setEditingMessage(null);
+    setFlashingMessageId(null);
+    setReportModalOpen(false);
+  }, [conversationId]);
 
   const handleDeleteMessage = useCallback(
     (messageId: string, forEveryone: boolean) => {

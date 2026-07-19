@@ -164,6 +164,7 @@ export function MessageActionBar({
     const resolved = resolveCustomEmojiReaction(result);
     if (resolved) {
       onReact(resolved.emoji, resolved.customEmoji);
+      setReactPickerOpen(false);
     }
   }
 

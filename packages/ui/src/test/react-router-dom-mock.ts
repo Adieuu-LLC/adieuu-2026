@@ -43,6 +43,7 @@ export function setMockSearchParams(params: URLSearchParams | string): void {
 /** Replace the pathname returned by useLocation(). */
 export function setMockPathname(pathname: string): void {
   _pathname = pathname;
+  mockLocation.pathname = pathname;
 }
 
 /** Replace the route params returned by useParams(). */
@@ -94,7 +95,7 @@ mock.module('react-router-dom', () => ({
     },
   ],
   useLocation: () => ({
-    pathname: mockLocation.pathname || _pathname,
+    pathname: mockLocation.pathname,
     search: '',
     hash: '',
     state: null,

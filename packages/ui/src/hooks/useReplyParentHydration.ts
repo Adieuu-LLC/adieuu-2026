@@ -50,6 +50,7 @@ export function useReplyParentHydration(
   const channelIdRef = useRef(channelId);
   channelIdRef.current = channelId;
   const inflight = useRef(new Set<string>());
+  const unresolvedParents = useRef(new Set<string>());
 
   const messagesMap = useMemo(() => {
     const map = new Map<string, ChannelMessage>();
@@ -80,6 +81,7 @@ export function useReplyParentHydration(
       if (!cId) return;
       if (messagesMap.has(parentMessageId)) return;
       if (hydratedParents[parentMessageId]) return;
+      if (unresolvedParents.current.has(parentMessageId)) return;
       if (inflight.current.has(parentMessageId)) return;
 
       inflight.current.add(parentMessageId);
@@ -94,6 +96,8 @@ export function useReplyParentHydration(
               deleted: msg.deleted,
             },
           }));
+        } else {
+          unresolvedParents.current.add(parentMessageId);
         }
       } catch {
         // Swallow — the parent simply remains unhydrated.

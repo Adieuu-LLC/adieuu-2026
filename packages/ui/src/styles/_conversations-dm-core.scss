@@ -226,6 +226,7 @@
     &-item {
       padding-top: var(--spacing-md);
       position: relative;
+
       // We own scroll preservation in JS (useMessageScroll). Disable the
       // browser's native scroll anchoring so it doesn't fight our anchoring
       // when async content (reactions/media/replies) grows a row.

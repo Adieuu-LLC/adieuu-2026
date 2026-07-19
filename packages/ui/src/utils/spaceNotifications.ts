@@ -13,6 +13,7 @@ export type { ChannelNotificationDeps as SpaceNotificationDeps } from './channel
 export interface SpaceNotificationOptions {
   onClick?: () => void;
   nativeTag: string;
+  expiresAt?: string;
   isMention?: boolean;
 }
 
@@ -26,6 +27,7 @@ export function fireSpaceNotification(
     onClick: options.onClick,
     isViewingChannel: false,
     nativeTag: options.nativeTag,
+    expiresAt: options.expiresAt,
     isMention: options.isMention,
   }, deps);
 }

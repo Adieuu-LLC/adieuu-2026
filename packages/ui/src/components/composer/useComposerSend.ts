@@ -255,6 +255,9 @@ export function useComposerSend(params: UseComposerSendParams): () => Promise<vo
           t('conversations.uploadFailed', 'Upload failed'),
           err instanceof Error ? err.message : t('conversations.uploadFailedDesc', 'One or more attachments could not be uploaded.'),
         );
+        setMessageText(text);
+        mentionEntriesRef.current = currentMentions;
+        pageTagEntriesRef.current = currentPageTags;
         return;
       }
 

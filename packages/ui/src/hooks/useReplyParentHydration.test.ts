@@ -146,8 +146,12 @@ describe('useReplyParentHydration', () => {
   });
 
   it('handles fetch error gracefully', async () => {
+    let fetchCount = 0;
     const adapter: ReplyParentFetchAdapter = {
-      fetchMessage: async () => null,
+      fetchMessage: async () => {
+        fetchCount += 1;
+        return null;
+      },
     };
     const child = makeMsg('child-1', { replyToMessageId: 'missing-parent' });
     const ref = renderHook('ch-1', [child], adapter);
@@ -157,6 +161,12 @@ describe('useReplyParentHydration', () => {
     });
 
     expect(ref.getParentInfo('missing-parent')).toBeNull();
+    expect(fetchCount).toBe(1);
+
+    await act(async () => {
+      await ref.ensureHydrated('missing-parent');
+    });
+    expect(fetchCount).toBe(1);
   });
 
   it('handles rejected fetchMessage without unhandled rejection', async () => {

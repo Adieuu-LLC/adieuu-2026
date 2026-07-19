@@ -98,7 +98,7 @@ export async function verifySpaceCipherCheck(
 /**
  * Join-time detection: returns the first candidate Cipher that decrypts the
  * Space's challenge, or null when none match. Matching (Cipher, Space) keys are
- * cached as a side effect.
+ * cached as a side effect; failed candidates are evicted after each check.
  */
 export async function detectSpaceCipher(
   ciphers: readonly CommunityCipher[],
@@ -109,6 +109,7 @@ export async function detectSpaceCipher(
     if (await verifySpaceCipherCheck(cipher, spaceId, check)) {
       return cipher;
     }
+    evictSpaceKey(spaceId, cipher.cipherId);
   }
   return null;
 }

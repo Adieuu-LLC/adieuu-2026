@@ -389,7 +389,9 @@ export function JoinSpaceInterstitial({
                         ])
                       }
                       onRemoveEntropyRow={(id) =>
-                        setEntropyRows((rows) => rows.filter((r) => r.id !== id))
+                        setEntropyRows((rows) =>
+                          rows.length <= 1 ? rows : rows.filter((r) => r.id !== id),
+                        )
                       }
                       disabled={adding}
                     />

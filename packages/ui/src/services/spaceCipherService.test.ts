@@ -94,6 +94,20 @@ describe('spaceCipherService', () => {
       const found = await detectSpaceCipher([cipherFrom('nope')], SPACE_A, check);
       expect(found).toBeNull();
     });
+
+    test('detectSpaceCipher evicts failed candidates and keeps the match cached', async () => {
+      const decoy = cipherFrom('decoy');
+      const target = cipherFrom('the target');
+      const check = await createSpaceCipherCheck(target, SPACE_A);
+      const decoyBefore = await getSpaceKey(decoy, SPACE_A);
+      const found = await detectSpaceCipher([decoy, target], SPACE_A, check);
+      expect(found?.cipherId).toBe(target.cipherId);
+      // Failed decoy was evicted — next getSpaceKey re-derives a new object.
+      expect(await getSpaceKey(decoy, SPACE_A)).not.toBe(decoyBefore);
+      // Matched target remains cached.
+      const targetCached = await getSpaceKey(target, SPACE_A);
+      expect(await getSpaceKey(target, SPACE_A)).toBe(targetCached);
+    });
   });
 
   describe('local spaceId -> cipher link', () => {
