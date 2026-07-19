@@ -148,7 +148,7 @@ describe('space/invites', () => {
       const space = makeSpaceDoc();
       spaceRepo.findById.mockResolvedValue(space);
       const inviter = new ObjectId();
-      grantPermissions(space._id, inviter, ['read', 'post']);
+      grantPermissions(space._id, inviter, ['viewChannels', 'sendMessages']);
       const r = await createSpaceInvite(space._id, inviter, new ObjectId());
       expect(r).toMatchObject({ success: false, errorCode: 'FORBIDDEN' });
     });
@@ -157,7 +157,7 @@ describe('space/invites', () => {
       const space = makeSpaceDoc();
       spaceRepo.findById.mockResolvedValue(space);
       const inviter = new ObjectId();
-      grantPermissions(space._id, inviter, ['invite']);
+      grantPermissions(space._id, inviter, ['createInvite']);
       identityRepo.findByIdentityId.mockResolvedValue(null);
       const r = await createSpaceInvite(space._id, inviter, new ObjectId());
       expect(r).toMatchObject({ success: false, errorCode: 'IDENTITY_NOT_FOUND' });
@@ -177,7 +177,7 @@ describe('space/invites', () => {
             ? { _id: new ObjectId(), spaceId: space._id, identityId: invited, roleIds: [], status: 'active', joinedAt: new Date() }
             : null,
       );
-      roleRepo.findBySpace.mockResolvedValue([{ _id: roleId, spaceId: space._id, permissions: ['invite'] }]);
+      roleRepo.findBySpace.mockResolvedValue([{ _id: roleId, spaceId: space._id, permissions: ['createInvite'] }]);
       const r = await createSpaceInvite(space._id, inviter, invited);
       expect(r).toMatchObject({ success: false, errorCode: 'ALREADY_MEMBER' });
     });
@@ -186,7 +186,7 @@ describe('space/invites', () => {
       const space = makeSpaceDoc();
       spaceRepo.findById.mockResolvedValue(space);
       const inviter = new ObjectId();
-      grantPermissions(space._id, inviter, ['invite']);
+      grantPermissions(space._id, inviter, ['createInvite']);
       inviteRepo.findPendingForSpace.mockResolvedValue(makeInviteDoc({ spaceId: space._id }));
       const r = await createSpaceInvite(space._id, inviter, new ObjectId());
       expect(r).toMatchObject({ success: false, errorCode: 'INVITE_EXISTS' });
@@ -197,7 +197,7 @@ describe('space/invites', () => {
       spaceRepo.findById.mockResolvedValue(space);
       const inviter = new ObjectId();
       const invited = new ObjectId();
-      grantPermissions(space._id, inviter, ['admin']); // admin implies invite
+      grantPermissions(space._id, inviter, ['createInvite', 'manageInvites']); // admin implies invite
       const r = await createSpaceInvite(space._id, inviter, invited);
       expect(r.success).toBe(true);
       expect(inviteRepo.createInvite).toHaveBeenCalledTimes(1);
@@ -222,7 +222,7 @@ describe('space/invites', () => {
       spaceRepo.findById.mockResolvedValue(space);
       const inviter = new ObjectId();
       const invited = new ObjectId();
-      grantPermissions(space._id, inviter, ['admin']);
+      grantPermissions(space._id, inviter, ['createInvite', 'manageInvites']);
       const r = await createSpaceInvite(space._id, inviter, invited);
       expect(r.success).toBe(true);
       const [input] = inviteRepo.createInvite.mock.calls[0]!;
@@ -311,8 +311,10 @@ describe('space/invites', () => {
       const space = makeSpaceDoc();
       spaceRepo.findById.mockResolvedValue(space);
       const requester = new ObjectId();
-      grantPermissions(space._id, requester, ['read', 'post']);
-      const r = await revokeSpaceInvite(space._id, new ObjectId(), requester);
+      grantPermissions(space._id, requester, ['viewChannels', 'sendMessages']);
+      const invite = makeInviteDoc({ spaceId: space._id, invitedByIdentityId: OWNER });
+      inviteRepo.findById.mockResolvedValue(invite);
+      const r = await revokeSpaceInvite(space._id, invite._id, requester);
       expect(r).toMatchObject({ success: false, errorCode: 'FORBIDDEN' });
     });
 
@@ -320,7 +322,7 @@ describe('space/invites', () => {
       const space = makeSpaceDoc();
       spaceRepo.findById.mockResolvedValue(space);
       const requester = new ObjectId();
-      grantPermissions(space._id, requester, ['invite']);
+      grantPermissions(space._id, requester, ['createInvite']);
       inviteRepo.findById.mockResolvedValue(makeInviteDoc({ spaceId: new ObjectId() }));
       const r = await revokeSpaceInvite(space._id, new ObjectId(), requester);
       expect(r).toMatchObject({ success: false, errorCode: 'INVITE_NOT_FOUND' });
@@ -330,7 +332,7 @@ describe('space/invites', () => {
       const space = makeSpaceDoc();
       spaceRepo.findById.mockResolvedValue(space);
       const requester = new ObjectId();
-      grantPermissions(space._id, requester, ['invite']);
+      grantPermissions(space._id, requester, ['createInvite']);
       inviteRepo.findById.mockResolvedValue(makeInviteDoc({ spaceId: space._id, status: 'accepted' }));
       const r = await revokeSpaceInvite(space._id, new ObjectId(), requester);
       expect(r).toMatchObject({ success: false, errorCode: 'INVITE_NOT_PENDING' });
@@ -340,9 +342,13 @@ describe('space/invites', () => {
       const space = makeSpaceDoc();
       spaceRepo.findById.mockResolvedValue(space);
       const requester = new ObjectId();
-      grantPermissions(space._id, requester, ['invite']);
+      grantPermissions(space._id, requester, ['createInvite']);
       const invitee = new ObjectId();
-      const invite = makeInviteDoc({ spaceId: space._id, invitedIdentityId: invitee });
+      const invite = makeInviteDoc({
+        spaceId: space._id,
+        invitedIdentityId: invitee,
+        invitedByIdentityId: requester,
+      });
       inviteRepo.findById.mockResolvedValue(invite);
       const r = await revokeSpaceInvite(space._id, invite._id, requester);
       expect(r.success).toBe(true);

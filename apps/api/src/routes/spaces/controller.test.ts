@@ -23,7 +23,7 @@ const svc = {
   deleteSpace: mock(async () => ({ success: true })) as AnyMock,
   getSpaceViewerPermissions: mock(async () => ({
     success: true,
-    viewer: { isMember: true, isAdmin: true, permissions: ['admin'], roleIds: [] },
+    viewer: { isMember: true, isAdmin: true, permissions: ['manageMetadata', 'manageRoles'], roleIds: [] },
   })) as AnyMock,
   getSpaceManageOverview: mock(async () => ({
     success: true,
@@ -236,7 +236,7 @@ describe('getMyPermissionsCtrl / getManageOverviewCtrl / deleteSpaceCtrl', () =>
     svc.deleteSpace.mockClear();
     svc.getSpaceViewerPermissions.mockResolvedValue({
       success: true,
-      viewer: { isMember: true, isAdmin: true, permissions: ['admin'], roleIds: [] },
+      viewer: { isMember: true, isAdmin: true, permissions: ['manageMetadata', 'manageRoles'], roleIds: [] },
     });
     svc.getSpaceManageOverview.mockResolvedValue({
       success: true,

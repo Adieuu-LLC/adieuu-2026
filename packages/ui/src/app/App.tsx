@@ -63,7 +63,10 @@ const SpaceLayout = lazyRoute(() => import('../pages/spaces'), 'SpaceLayout');
 const SpaceLanding = lazyRoute(() => import('../pages/spaces'), 'SpaceLanding');
 const SpaceChannelView = lazyRoute(() => import('../pages/spaces'), 'SpaceChannelView');
 const SpaceManageGate = lazyRoute(() => import('../pages/spaces'), 'SpaceManageGate');
-const SpaceManageOverview = lazyRoute(() => import('../pages/spaces'), 'SpaceManageOverview');
+const SpaceManageLayout = lazyRoute(() => import('../pages/spaces'), 'SpaceManageLayout');
+const SpaceManageOverviewGate = lazyRoute(() => import('../pages/spaces'), 'SpaceManageOverviewGate');
+const SpaceManageRoles = lazyRoute(() => import('../pages/spaces'), 'SpaceManageRoles');
+const SpaceManageRoleDetail = lazyRoute(() => import('../pages/spaces'), 'SpaceManageRoleDetail');
 const Login = lazyRoute(() => import('../pages/auth'), 'Login');
 const Verify = lazyRoute(() => import('../pages/auth'), 'Verify');
 const MfaVerify = lazyRoute(() => import('../pages/auth'), 'MfaVerify');
@@ -373,7 +376,12 @@ export function App() {
           <Route index element={<SpaceLanding />} />
           <Route path="c/:channelId" element={<SpaceChannelView />} />
           <Route path="manage" element={<SpaceManageGate />}>
-            <Route index element={<SpaceManageOverview />} />
+            <Route element={<SpaceManageLayout />}>
+              <Route index element={<SpaceManageOverviewGate />} />
+              <Route path="roles" element={<SpaceManageRoles />} />
+              <Route path="roles/:roleId" element={<SpaceManageRoleDetail />} />
+              <Route path="roles/:roleId/:tab" element={<SpaceManageRoleDetail />} />
+            </Route>
           </Route>
         </Route>
         <Route path="/identity/:id" element={<IdentityProfileView />} />

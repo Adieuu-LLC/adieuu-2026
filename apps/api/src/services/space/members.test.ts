@@ -248,11 +248,11 @@ describe('space/members', () => {
       expect(r).toMatchObject({ success: false, errorCode: 'NOT_MEMBER' });
     });
 
-    test('rejects an actor without manageMembers', async () => {
+    test('rejects an actor without kickMembers', async () => {
       const space = makeSpaceDoc();
       spaceRepo.findById.mockResolvedValue(space);
       const acting = new ObjectId();
-      stubActingPermissions(space._id, acting, ['read', 'post']);
+      stubActingPermissions(space._id, acting, ['viewChannels', 'sendMessages']);
       const r = await removeSpaceMember(space._id, acting, new ObjectId());
       expect(r).toMatchObject({ success: false, errorCode: 'FORBIDDEN' });
     });
@@ -261,7 +261,7 @@ describe('space/members', () => {
       const space = makeSpaceDoc({ ownerIdentityId: OWNER });
       spaceRepo.findById.mockResolvedValue(space);
       const acting = new ObjectId();
-      stubActingPermissions(space._id, acting, ['manageMembers']);
+      stubActingPermissions(space._id, acting, ['kickMembers']);
       const r = await removeSpaceMember(space._id, acting, OWNER);
       expect(r).toMatchObject({ success: false, errorCode: 'CANNOT_REMOVE_OWNER' });
     });
@@ -270,7 +270,7 @@ describe('space/members', () => {
       const space = makeSpaceDoc();
       spaceRepo.findById.mockResolvedValue(space);
       const acting = new ObjectId();
-      stubActingPermissions(space._id, acting, ['admin']);
+      stubActingPermissions(space._id, acting, ['kickMembers']);
       memberRepo.removeMember.mockResolvedValue(false);
       const r = await removeSpaceMember(space._id, acting, new ObjectId());
       expect(r).toMatchObject({ success: false, errorCode: 'MEMBER_NOT_FOUND' });
@@ -280,7 +280,7 @@ describe('space/members', () => {
       const space = makeSpaceDoc();
       spaceRepo.findById.mockResolvedValue(space);
       const acting = new ObjectId();
-      stubActingPermissions(space._id, acting, ['admin']);
+      stubActingPermissions(space._id, acting, ['kickMembers']);
       memberRepo.removeMember.mockResolvedValue(true);
       const target = new ObjectId();
       const r = await removeSpaceMember(space._id, acting, target);
@@ -361,7 +361,7 @@ describe('space/members', () => {
         _id: new ObjectId(), spaceId: space._id, identityId: requester, roleIds: [], status: 'active',
       });
       roleRepo.findBySpace.mockResolvedValue([
-        { _id: new ObjectId(), spaceId: space._id, name: 'Admin', permissions: ['admin'], isDefaultMember: false, isSystem: true, createdAt: new Date(), updatedAt: new Date() },
+        { _id: new ObjectId(), spaceId: space._id, name: 'Admin', permissions: ['kickMembers'], systemKey: 'admin' as const, isDefaultMember: false, isSystem: true, createdAt: new Date(), updatedAt: new Date() },
       ]);
       const r = await listSpaceRoles(space._id, requester);
       expect(r.success).toBe(true);

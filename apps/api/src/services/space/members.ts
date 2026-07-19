@@ -188,8 +188,7 @@ export async function leaveSpace(
 }
 
 /**
- * Remove another member. Requires the acting identity to hold `manageMembers`
- * (or `admin`). The Space owner can never be removed.
+ * Remove another member. Requires `kickMembers`. The Space owner can never be removed.
  */
 export async function removeSpaceMember(
   spaceIdRaw: string | ObjectId,
@@ -212,7 +211,7 @@ export async function removeSpaceMember(
   if (!perms.isMember) {
     return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
   }
-  if (!memberHasPermission(perms, 'manageMembers')) {
+  if (!memberHasPermission(perms, 'kickMembers')) {
     return {
       success: false,
       error: 'You do not have permission to remove members.',

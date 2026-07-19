@@ -1,6 +1,6 @@
 /**
  * Route gate for Space Manage: waits for viewer permissions, then redirects
- * non-admins back to the Space.
+ * members without manage-UI permissions back to the Space.
  */
 
 import { Navigate, Outlet, useParams } from 'react-router-dom';
@@ -14,7 +14,7 @@ export function SpaceManageGate() {
   const {
     activeSpace,
     activeSpaceLoading,
-    isActiveSpaceAdmin,
+    canAccessSpaceManage,
     activeSpacePermissionsLoading,
   } = useSpaces();
 
@@ -28,7 +28,7 @@ export function SpaceManageGate() {
     );
   }
 
-  if (!isActiveSpaceAdmin) {
+  if (!canAccessSpaceManage) {
     return <Navigate to={`/s/${slug ?? activeSpace.slug}`} replace />;
   }
 

@@ -114,6 +114,76 @@ export class SpacesApi {
     return this.client.get(`/api/spaces/${encodeURIComponent(spaceId)}/roles`);
   }
 
+  async createRole(
+    spaceId: string,
+    body: {
+      name?: string;
+      permissions?: string[];
+      color?: string;
+      displaySeparately?: boolean;
+      mentionable?: boolean;
+      position?: number;
+      encryptedName?: string;
+      nameNonce?: string;
+      cipherId?: string;
+    },
+  ): Promise<ApiResponse<{ role: PublicSpaceRole }>> {
+    return this.client.post(`/api/spaces/${encodeURIComponent(spaceId)}/roles`, body);
+  }
+
+  async updateRole(
+    spaceId: string,
+    roleId: string,
+    body: {
+      name?: string;
+      permissions?: string[];
+      color?: string;
+      displaySeparately?: boolean;
+      mentionable?: boolean;
+      isDefaultMember?: boolean;
+      position?: number;
+      encryptedName?: string;
+      nameNonce?: string;
+      cipherId?: string;
+    },
+  ): Promise<ApiResponse<{ role: PublicSpaceRole }>> {
+    return this.client.patch(
+      `/api/spaces/${encodeURIComponent(spaceId)}/roles/${encodeURIComponent(roleId)}`,
+      body,
+    );
+  }
+
+  async deleteRole(spaceId: string, roleId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(
+      `/api/spaces/${encodeURIComponent(spaceId)}/roles/${encodeURIComponent(roleId)}`,
+    );
+  }
+
+  async listRoleMembers(
+    spaceId: string,
+    roleId: string,
+    options?: { limit?: number; cursor?: string },
+  ): Promise<ApiResponse<{ members: PublicSpaceMember[]; cursor: string | null }>> {
+    const params = new URLSearchParams();
+    if (options?.limit != null) params.set('limit', String(options.limit));
+    if (options?.cursor) params.set('cursor', options.cursor);
+    const query = params.toString();
+    return this.client.get(
+      `/api/spaces/${encodeURIComponent(spaceId)}/roles/${encodeURIComponent(roleId)}/members${query ? `?${query}` : ''}`,
+    );
+  }
+
+  async setMemberRoles(
+    spaceId: string,
+    identityId: string,
+    roleIds: string[],
+  ): Promise<ApiResponse<{ member: PublicSpaceMember }>> {
+    return this.client.put(
+      `/api/spaces/${encodeURIComponent(spaceId)}/members/${encodeURIComponent(identityId)}/roles`,
+      { roleIds },
+    );
+  }
+
   // --- Channels & messages ---
 
   async listChannels(spaceId: string): Promise<ApiResponse<{ channels: PublicSpaceChannel[] }>> {

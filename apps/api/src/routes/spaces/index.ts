@@ -109,6 +109,26 @@ router.get('/spaces/:id/roles', async (ctx) => {
   return spaceRespond(ctx, await spaceController.listRolesCtrl(ctx));
 });
 
+router.post('/spaces/:id/roles', async (ctx) => {
+  return spaceRespond(ctx, await spaceController.createRoleCtrl(ctx));
+});
+
+router.patch('/spaces/:id/roles/:roleId', async (ctx) => {
+  return spaceRespond(ctx, await spaceController.updateRoleCtrl(ctx));
+});
+
+router.delete('/spaces/:id/roles/:roleId', async (ctx) => {
+  return spaceRespond(ctx, await spaceController.deleteRoleCtrl(ctx));
+});
+
+router.get('/spaces/:id/roles/:roleId/members', async (ctx) => {
+  return spaceRespond(ctx, await spaceController.listRoleMembersCtrl(ctx));
+});
+
+router.put('/spaces/:id/members/:identityId/roles', async (ctx) => {
+  return spaceRespond(ctx, await spaceController.setMemberRolesCtrl(ctx));
+});
+
 // ---------------------------------------------------------------------------
 // Channels & messages
 // ---------------------------------------------------------------------------

@@ -158,7 +158,7 @@ export function SpaceChannelView() {
     [api, spaceId, decryptContent],
   );
 
-  const canManagePins = hasActiveSpacePermission('manageChannels');
+  const canManagePins = hasActiveSpacePermission('pinMessages');
 
   const {
     pinnedMessageIds,

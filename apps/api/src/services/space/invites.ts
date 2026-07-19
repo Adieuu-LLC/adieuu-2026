@@ -67,7 +67,7 @@ export async function createSpaceInvite(
   if (!perms.isMember) {
     return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
   }
-  if (!memberHasPermission(perms, 'invite')) {
+  if (!memberHasPermission(perms, 'createInvite')) {
     return { success: false, error: 'You do not have permission to invite members.', errorCode: 'FORBIDDEN' };
   }
 
@@ -217,9 +217,6 @@ export async function revokeSpaceInvite(
   if (!perms.isMember) {
     return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
   }
-  if (!memberHasPermission(perms, 'invite')) {
-    return { success: false, error: 'You do not have permission to revoke invites.', errorCode: 'FORBIDDEN' };
-  }
 
   const inviteRepo = getSpaceInviteRepository();
   const invite = await inviteRepo.findById(inviteId);
@@ -228,6 +225,14 @@ export async function revokeSpaceInvite(
   }
   if (invite.status !== 'pending') {
     return { success: false, error: 'Invite is not pending.', errorCode: 'INVITE_NOT_PENDING' };
+  }
+
+  const isOwnInvite = invite.invitedByIdentityId.equals(requesterId);
+  if (!isOwnInvite && !memberHasPermission(perms, 'manageInvites')) {
+    return { success: false, error: 'You do not have permission to revoke invites.', errorCode: 'FORBIDDEN' };
+  }
+  if (isOwnInvite && !memberHasPermission(perms, 'createInvite') && !memberHasPermission(perms, 'manageInvites')) {
+    return { success: false, error: 'You do not have permission to revoke invites.', errorCode: 'FORBIDDEN' };
   }
 
   const updated = await inviteRepo.updateStatus(inviteId, 'revoked');

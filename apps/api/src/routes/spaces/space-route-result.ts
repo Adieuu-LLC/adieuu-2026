@@ -60,6 +60,7 @@ export function mapSpaceError(
     case 'MESSAGE_NOT_FOUND':
     case 'REACTION_NOT_FOUND':
     case 'PIN_NOT_FOUND':
+    case 'ROLE_NOT_FOUND':
       return { kind: 'not_found', message };
     case 'TIER_REQUIRED':
     case 'INVITE_REQUIRED':
@@ -69,6 +70,10 @@ export function mapSpaceError(
     case 'NOT_AUTHOR':
     case 'OWNER_CANNOT_LEAVE':
     case 'CANNOT_REMOVE_OWNER':
+    case 'SYSTEM_ROLE':
+    case 'ROLE_IN_USE':
+    case 'LAST_ADMIN':
+    case 'ESCALATION':
       return { kind: 'forbidden', message };
     case 'SLUG_TAKEN':
       return { kind: 'conflict', code: 'SLUG_TAKEN', message };
@@ -91,6 +96,7 @@ export function mapSpaceError(
     case 'INVALID_ENCRYPTION':
     case 'INVALID_ID':
     case 'INVALID_CONTENT':
+    case 'INVALID_PERMISSIONS':
     case 'CANNOT_INVITE_SELF':
     case 'INVALID_REPLY_TARGET':
     case 'MAX_EDITS_REACHED':

@@ -4,12 +4,10 @@
  * @module constants/spaces
  */
 
-import { SPACE_PERMISSIONS, type SpacePermission } from '@adieuu/shared';
-
 /**
- * Reserved slugs, system role names, and default channel name live in
- * `@adieuu/shared` so the create flow (client) and the API validate against
- * a single source of truth.
+ * Reserved slugs, system role names, default channel name, and default
+ * permission sets live in `@adieuu/shared` so the create flow (client) and
+ * the API validate against a single source of truth.
  */
 export {
   SPACE_RESERVED_SLUGS,
@@ -17,9 +15,9 @@ export {
   DEFAULT_ADMIN_ROLE_NAME,
   DEFAULT_MEMBER_ROLE_NAME,
   DEFAULT_SPACE_CHANNEL_NAME,
+  DEFAULT_ADMIN_PERMISSIONS,
+  DEFAULT_MEMBER_PERMISSIONS,
+  DEFAULT_ADMIN_ROLE_COLOR,
+  DEFAULT_MEMBER_ROLE_COLOR,
+  DEFAULT_CUSTOM_ROLE_COLOR,
 } from '@adieuu/shared';
-
-/** Admin role gets every permission. */
-export const DEFAULT_ADMIN_PERMISSIONS: readonly SpacePermission[] = [...SPACE_PERMISSIONS];
-/** Default member role can read and post only. */
-export const DEFAULT_MEMBER_PERMISSIONS: readonly SpacePermission[] = ['read', 'post'];

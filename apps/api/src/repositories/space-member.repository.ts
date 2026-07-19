@@ -100,6 +100,52 @@ export class SpaceMemberRepository extends BaseRepository<SpaceMemberDocument> {
     return result.modifiedCount === 1;
   }
 
+  async setRoles(
+    spaceId: ObjectId,
+    identityId: ObjectId,
+    roleIds: ObjectId[],
+  ): Promise<SpaceMemberDocument | null> {
+    const result = await this.collection.findOneAndUpdate(
+      { spaceId, identityId } as Filter<SpaceMemberDocument>,
+      {
+        $set: { roleIds, updatedAt: new Date() },
+      } as UpdateFilter<SpaceMemberDocument>,
+      { returnDocument: 'after' },
+    );
+    return (result as SpaceMemberDocument | null) ?? null;
+  }
+
+  /** Count active members that hold a given role. */
+  async countWithRole(spaceId: ObjectId, roleId: ObjectId): Promise<number> {
+    return await this.count({
+      spaceId,
+      roleIds: roleId,
+      status: 'active',
+    } as Filter<SpaceMemberDocument>);
+  }
+
+  /** Members holding a given role, oldest first, cursor-paginated by _id. */
+  async listByRole(
+    spaceId: ObjectId,
+    roleId: ObjectId,
+    limit = 50,
+    cursor?: ObjectId,
+  ): Promise<SpaceMemberDocument[]> {
+    const filter: Record<string, unknown> = {
+      spaceId,
+      roleIds: roleId,
+      status: 'active',
+    };
+    if (cursor) {
+      filter._id = { $gt: cursor };
+    }
+    return (await this.collection
+      .find(filter as Filter<SpaceMemberDocument>)
+      .sort({ _id: 1 })
+      .limit(limit)
+      .toArray()) as SpaceMemberDocument[];
+  }
+
   async countBySpace(spaceId: ObjectId): Promise<number> {
     return await this.count({ spaceId } as Filter<SpaceMemberDocument>);
   }

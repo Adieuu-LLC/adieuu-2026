@@ -68,7 +68,7 @@ export async function listSpaceChannels(
 }
 
 /**
- * Send a message to a channel. Requires membership + `post`.
+ * Send a message to a channel. Requires membership + `sendMessages`.
  * Encrypted channels require ciphertext/nonce/cipherId; plaintext channels
  * require content. Idempotent on `clientMessageId`.
  */
@@ -107,7 +107,7 @@ export async function sendSpaceMessage(
   if (!perms.isMember) {
     return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
   }
-  if (!memberHasPermission(perms, 'post')) {
+  if (!memberHasPermission(perms, 'sendMessages')) {
     return { success: false, error: 'You do not have permission to post here.', errorCode: 'FORBIDDEN' };
   }
 
@@ -510,7 +510,7 @@ export async function deleteSpaceMessage(
 }
 
 /**
- * Moderator delete (soft-delete by mod/admin/owner).
+ * Moderator delete (soft-delete by anyone with `manageMessages`).
  */
 export async function modDeleteSpaceMessage(
   spaceIdRaw: string | ObjectId,
@@ -530,7 +530,7 @@ export async function modDeleteSpaceMessage(
   if (!perms.isMember) {
     return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
   }
-  if (!memberHasPermission(perms, 'manageMembers') && !perms.isAdmin) {
+  if (!memberHasPermission(perms, 'manageMessages')) {
     return { success: false, error: 'Moderator permissions required.', errorCode: 'FORBIDDEN' };
   }
 

@@ -36,15 +36,25 @@ export interface SpacesContextValue {
 
   /** Effective permissions for the current identity in the active Space. */
   activeSpacePermissions: SpacePermission[];
-  /** True when the viewer holds the `admin` super-permission. */
+  /** True when the viewer holds the system Admin role (not a permission bypass). */
   isActiveSpaceAdmin: boolean;
-  /** Whether `admin` or the given permission is held in the active Space. */
+  /** Whether the given permission is held in the active Space (or preview override). */
   hasActiveSpacePermission: (permission: SpacePermission) => boolean;
+  /** Whether the viewer can open the Space Manage shell. */
+  canAccessSpaceManage: boolean;
   /**
    * True while viewer permissions for the active Space are loading (or unknown).
-   * Manage gates should wait for this before redirecting non-admins.
+   * Manage gates should wait for this before redirecting.
    */
   activeSpacePermissionsLoading: boolean;
+  /**
+   * Client-only preview: when set, `hasActiveSpacePermission` uses this role's
+   * permission set instead of the viewer's real permissions.
+   */
+  rolePermissionPreview: { roleId: string; permissions: SpacePermission[] } | null;
+  setRolePermissionPreview: (
+    preview: { roleId: string; permissions: SpacePermission[] } | null,
+  ) => void;
 
   /** Channels for the active Space (sorted by position). */
   channels: PublicSpaceChannel[];

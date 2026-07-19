@@ -160,7 +160,7 @@ describe('space/channels', () => {
       const space = makeSpaceDoc({ visibility: 'public' });
       spaceRepo.findById.mockResolvedValue(space);
       const sender = new ObjectId();
-      grantPermissions(space._id, sender, ['post']);
+      grantPermissions(space._id, sender, ['sendMessages']);
       channelRepo.findByIdInSpace.mockResolvedValue(makeChannelDoc(space._id));
       const r = await sendSpaceMessage(space._id, new ObjectId(), sender, { content: '   ', clientMessageId: 'c1' });
       expect(r).toMatchObject({ success: false, errorCode: 'INVALID_CONTENT' });
@@ -170,7 +170,7 @@ describe('space/channels', () => {
       const space = makeSpaceDoc({ visibility: 'public' });
       spaceRepo.findById.mockResolvedValue(space);
       const sender = new ObjectId();
-      grantPermissions(space._id, sender, ['post']);
+      grantPermissions(space._id, sender, ['sendMessages']);
       channelRepo.findByIdInSpace.mockResolvedValue(makeChannelDoc(space._id));
       const r = await sendSpaceMessage(space._id, new ObjectId(), sender, { content: 'x'.repeat(4001), clientMessageId: 'c1' });
       expect(r).toMatchObject({ success: false, errorCode: 'INVALID_CONTENT' });
@@ -188,7 +188,7 @@ describe('space/channels', () => {
       const space = makeSpaceDoc();
       spaceRepo.findById.mockResolvedValue(space);
       const sender = new ObjectId();
-      grantPermissions(space._id, sender, ['read']);
+      grantPermissions(space._id, sender, ['viewChannels']);
       const r = await sendSpaceMessage(space._id, new ObjectId(), sender, { content: 'hi', clientMessageId: 'c1' });
       expect(r).toMatchObject({ success: false, errorCode: 'FORBIDDEN' });
     });
@@ -197,7 +197,7 @@ describe('space/channels', () => {
       const space = makeSpaceDoc();
       spaceRepo.findById.mockResolvedValue(space);
       const sender = new ObjectId();
-      grantPermissions(space._id, sender, ['post']);
+      grantPermissions(space._id, sender, ['sendMessages']);
       channelRepo.findByIdInSpace.mockResolvedValue(null);
       const r = await sendSpaceMessage(space._id, new ObjectId(), sender, { content: 'hi', clientMessageId: 'c1' });
       expect(r).toMatchObject({ success: false, errorCode: 'CHANNEL_NOT_FOUND' });
@@ -209,7 +209,7 @@ describe('space/channels', () => {
       });
       spaceRepo.findById.mockResolvedValue(space);
       const sender = new ObjectId();
-      grantPermissions(space._id, sender, ['post']);
+      grantPermissions(space._id, sender, ['sendMessages']);
       channelRepo.findByIdInSpace.mockResolvedValue(makeChannelDoc(space._id));
       const r = await sendSpaceMessage(space._id, new ObjectId(), sender, { content: 'hi', clientMessageId: 'c1' });
       expect(r).toMatchObject({ success: false, errorCode: 'INVALID_CONTENT' });
@@ -222,7 +222,7 @@ describe('space/channels', () => {
       });
       spaceRepo.findById.mockResolvedValue(space);
       const sender = new ObjectId();
-      grantPermissions(space._id, sender, ['post']);
+      grantPermissions(space._id, sender, ['sendMessages']);
       const channel = makeChannelDoc(space._id);
       channelRepo.findByIdInSpace.mockResolvedValue(channel);
       const r = await sendSpaceMessage(space._id, channel._id, sender, {
@@ -236,7 +236,7 @@ describe('space/channels', () => {
       const space = makeSpaceDoc({ visibility: 'listed' });
       spaceRepo.findById.mockResolvedValue(space);
       const sender = new ObjectId();
-      grantPermissions(space._id, sender, ['post']);
+      grantPermissions(space._id, sender, ['sendMessages']);
       channelRepo.findByIdInSpace.mockResolvedValue(makeChannelDoc(space._id, { cipherCheck: CIPHER_CHECK }));
       const r = await sendSpaceMessage(space._id, new ObjectId(), sender, { content: 'hi', clientMessageId: 'c1' });
       expect(r).toMatchObject({ success: false, errorCode: 'INVALID_CONTENT' });
@@ -246,7 +246,7 @@ describe('space/channels', () => {
       const space = makeSpaceDoc({ visibility: 'public' });
       spaceRepo.findById.mockResolvedValue(space);
       const sender = new ObjectId();
-      grantPermissions(space._id, sender, ['post']);
+      grantPermissions(space._id, sender, ['sendMessages']);
       channelRepo.findByIdInSpace.mockResolvedValue(makeChannelDoc(space._id));
       const r = await sendSpaceMessage(space._id, new ObjectId(), sender, {
         ciphertext: 'ct', nonce: 'nn', cipherId: 'cid', clientMessageId: 'c1',
@@ -258,7 +258,7 @@ describe('space/channels', () => {
       const space = makeSpaceDoc({ visibility: 'public' });
       spaceRepo.findById.mockResolvedValue(space);
       const sender = new ObjectId();
-      grantPermissions(space._id, sender, ['post']);
+      grantPermissions(space._id, sender, ['sendMessages']);
       channelRepo.findByIdInSpace.mockResolvedValue(makeChannelDoc(space._id));
       const r = await sendSpaceMessage(space._id, new ObjectId(), sender, {
         content: 'hello',
@@ -276,7 +276,7 @@ describe('space/channels', () => {
       });
       spaceRepo.findById.mockResolvedValue(space);
       const sender = new ObjectId();
-      grantPermissions(space._id, sender, ['post']);
+      grantPermissions(space._id, sender, ['sendMessages']);
       const channel = makeChannelDoc(space._id);
       channelRepo.findByIdInSpace.mockResolvedValue(channel);
       const r = await sendSpaceMessage(space._id, channel._id, sender, {
@@ -297,7 +297,7 @@ describe('space/channels', () => {
       const space = makeSpaceDoc({ visibility: 'public' });
       spaceRepo.findById.mockResolvedValue(space);
       const sender = new ObjectId();
-      grantPermissions(space._id, sender, ['post']);
+      grantPermissions(space._id, sender, ['sendMessages']);
       const channel = makeChannelDoc(space._id);
       channelRepo.findByIdInSpace.mockResolvedValue(channel);
       const r = await sendSpaceMessage(space._id, channel._id, sender, { content: '  hi there  ', clientMessageId: 'c1' });
@@ -316,7 +316,7 @@ describe('space/channels', () => {
       const space = makeSpaceDoc({ visibility: 'public' });
       spaceRepo.findById.mockResolvedValue(space);
       const sender = new ObjectId();
-      grantPermissions(space._id, sender, ['post']);
+      grantPermissions(space._id, sender, ['sendMessages']);
       const channel = makeChannelDoc(space._id);
       channelRepo.findByIdInSpace.mockResolvedValue(channel);
       messageRepo.findByClientMessageId.mockResolvedValue({

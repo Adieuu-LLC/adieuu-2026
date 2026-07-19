@@ -321,10 +321,18 @@ export const core = {
       home: 'Home',
       manage: 'Manage',
       textChannels: 'Text Channels',
+      openMenu: 'Open Space menu',
+      closeMenu: 'Close Space menu',
+      selectChannel: 'Select a channel',
     },
     manage: {
       title: 'Manage Space',
       subtitle: 'Overview and settings for {{name}}',
+      navLabel: 'Space management',
+      nav: {
+        overview: 'Overview',
+        roles: 'Roles',
+      },
       loadError: "Couldn't load Space management data.",
       stats: {
         members: 'Members',
@@ -350,6 +358,166 @@ export const core = {
       },
       deleteSuccess: '{{name}} was deleted.',
       deleteError: "Couldn't delete this Space. Please try again.",
+      roles: {
+        title: 'Roles',
+        subtitle: 'Create roles and control what members can do in this Space.',
+        loadError: "Couldn't load roles.",
+        notFound: 'That role was not found.',
+        create: 'Create role',
+        creating: 'Creating\u2026',
+        createSuccess: 'Role created.',
+        createError: "Couldn't create the role.",
+        newRoleName: 'New Role',
+        delete: 'Delete Role',
+        deleteSuccess: 'Role deleted.',
+        deleteError: "Couldn't delete the role.",
+        deleteInUseError: 'Remove all members from this system role before deleting it.',
+        deleteConfirmTitle: 'Delete this role?',
+        deleteConfirmBody: 'Members will lose "{{name}}" and its permissions.',
+        deleteSystemConfirmBody:
+          'Delete the system role "{{name}}"? This is only allowed when no members currently hold it.',
+        systemBadge: 'System',
+        adminName: 'Admin',
+        memberName: 'Everyone',
+        emptyEditor: 'Select a role to edit, or create a new one.',
+        selectRole: 'Select a role',
+        backToList: 'All roles',
+        save: 'Save changes',
+        saving: 'Saving\u2026',
+        saveError: "Couldn't save role changes.",
+        preview: 'Preview Space as this role',
+        previewActive: 'Previewing this Space as the selected role.',
+        exitPreview: 'Exit preview',
+        tabs: {
+          settings: 'Settings',
+          permissions: 'Permissions',
+          members: 'Manage Members',
+        },
+        settings: {
+          name: 'Role name',
+          color: 'Role color',
+          displaySeparately: 'Display role members separately',
+          displaySeparatelyHint: 'Show members with this role in their own group in the member list.',
+          mentionable: 'Allow anyone to mention this role',
+          mentionableHint: 'Members without special permissions can @mention this role.',
+          isDefault: 'Default role',
+          isDefaultHint: 'All new members are assigned this role when they join the Space.',
+          isDefaultCurrentHint:
+            'This is the default role for new members. To change it, enable Default role on another role.',
+        },
+        members: {
+          addLabel: 'Add member',
+          addPlaceholder: 'Select a member\u2026',
+          add: 'Add',
+          remove: 'Remove from role',
+          empty: 'No members have this role yet.',
+          membersUpdateError: "Couldn't update member roles.",
+          rolesLabel: 'Roles',
+          defaultRoleHint:
+            'Every member keeps the default role, so it cannot be removed from individuals here.',
+        },
+      },
+    },
+    permissions: {
+      toggle: {
+        no: 'No',
+        yes: 'Yes',
+        manage: 'Manage',
+      },
+      categories: {
+        general: 'General',
+        members: 'Members',
+        text: 'Text',
+        voice: 'Voice',
+        events: 'Events',
+        empty: 'Coming soon',
+        count: '{{count}} permissions',
+        comingSoon: 'Permissions for this category will be added later.',
+      },
+      viewChannels: {
+        title: 'View Channels',
+        description: 'Allows members to view channels in this Space.',
+      },
+      manageRoles: {
+        title: 'Manage Roles',
+        description: 'Allows members to create and edit roles below their own.',
+      },
+      viewAuditLog: {
+        title: 'View Audit Log',
+        description: 'Allows members to view the Space audit log.',
+      },
+      manageWebhooks: {
+        title: 'Manage Webhooks',
+        description: 'Allows members to create, edit, and delete webhooks.',
+      },
+      manageEncryption: {
+        title: 'Manage Encryption',
+        description: 'Allows members to manage Space encryption and Cipher settings.',
+      },
+      manageMetadata: {
+        title: 'Manage Metadata',
+        description: 'Allows members to change Space name, description, visibility, and related settings.',
+      },
+      createInvite: {
+        title: 'Create Invite',
+        description: 'Yes: create invites. Manage: revoke others\u2019 invites and edit invite settings.',
+      },
+      changeNickname: {
+        title: 'Change Nickname',
+        description: 'Yes: change own nickname. Manage: change other members\u2019 nicknames.',
+      },
+      kickMembers: {
+        title: 'Kick Members',
+        description: 'Allows members to remove other members from the Space.',
+      },
+      banMembers: {
+        title: 'Ban Members',
+        description: 'Allows members to ban other members from the Space.',
+      },
+      manageApplications: {
+        title: 'Approve Applications',
+        description: 'Allows members to approve or reject join applications.',
+      },
+      sendMessages: {
+        title: 'Send Messages',
+        description: 'Yes: send messages. Manage: edit or delete messages sent by others.',
+      },
+      embedLinks: {
+        title: 'Embed Links',
+        description: 'Allows links in messages to show embedded content previews.',
+      },
+      attachFiles: {
+        title: 'Attach Files',
+        description: 'Allows members to upload files in messages.',
+      },
+      addReactions: {
+        title: 'Add Reactions',
+        description: 'Allows members to add reactions to messages.',
+      },
+      useCustomEmoji: {
+        title: 'Use Custom Emoji',
+        description: 'Allows members to use custom emoji in messages and reactions.',
+      },
+      useGifsStickers: {
+        title: 'Use GIFs / Stickers',
+        description: 'Allows members to send GIFs and stickers.',
+      },
+      mentionHere: {
+        title: 'Mention @here',
+        description: 'Allows members to use @here to notify online members.',
+      },
+      mentionRoles: {
+        title: 'Mention Roles',
+        description: 'Allows members to mention roles that are not marked as mentionable by everyone.',
+      },
+      pinMessages: {
+        title: 'Pin Messages',
+        description: 'Allows members to pin and unpin messages in channels.',
+      },
+      bypassSlowmode: {
+        title: 'Bypass Slowmode',
+        description: 'Allows members to send messages without waiting for the slowmode cooldown.',
+      },
     },
     channel: {
       noMessages: 'No messages yet. Start the conversation!',

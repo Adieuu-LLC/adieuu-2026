@@ -32,6 +32,11 @@ export function useSidebar() {
   return context;
 }
 
+/** Returns null when rendered outside the app Sidebar (e.g. isolated Space layout). */
+export function useOptionalSidebar(): SidebarContextValue | null {
+  return useContext(SidebarContext);
+}
+
 // ============================================================================
 // Sidebar Components
 // ============================================================================

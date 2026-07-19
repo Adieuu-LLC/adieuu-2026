@@ -59,7 +59,13 @@ export type SpaceErrorCode =
   | 'REACTION_NOT_FOUND'
   | 'EDIT_CONFLICT'
   | 'ALREADY_PINNED'
-  | 'PIN_NOT_FOUND';
+  | 'PIN_NOT_FOUND'
+  | 'ROLE_NOT_FOUND'
+  | 'SYSTEM_ROLE'
+  | 'ROLE_IN_USE'
+  | 'LAST_ADMIN'
+  | 'ESCALATION'
+  | 'INVALID_PERMISSIONS';
 
 export interface SpaceResult {
   success: boolean;

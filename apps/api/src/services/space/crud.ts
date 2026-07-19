@@ -31,8 +31,10 @@ import {
   DEFAULT_MEMBER_ROLE_NAME,
   DEFAULT_ADMIN_PERMISSIONS,
   DEFAULT_MEMBER_PERMISSIONS,
+  DEFAULT_ADMIN_ROLE_COLOR,
+  DEFAULT_MEMBER_ROLE_COLOR,
+  isReservedSpaceSlug,
 } from '../../constants/spaces';
-import { isReservedSpaceSlug } from '../../constants/spaces';
 import { DEFAULT_SPACE_CHANNEL_NAME } from '@adieuu/shared';
 import type {
   CreateSpaceServiceParams,
@@ -219,7 +221,12 @@ export async function createSpace(
       spaceId: spaceObjId,
       name: e2ee ? '' : DEFAULT_ADMIN_ROLE_NAME,
       permissions: [...DEFAULT_ADMIN_PERMISSIONS],
+      color: DEFAULT_ADMIN_ROLE_COLOR,
+      displaySeparately: true,
+      mentionable: false,
+      position: 0,
       isSystem: true,
+      systemKey: 'admin',
       ...(adminSeed
         ? {
             encryptedName: adminSeed.encryptedName,
@@ -232,8 +239,13 @@ export async function createSpace(
       spaceId: spaceObjId,
       name: e2ee ? '' : DEFAULT_MEMBER_ROLE_NAME,
       permissions: [...DEFAULT_MEMBER_PERMISSIONS],
+      color: DEFAULT_MEMBER_ROLE_COLOR,
+      displaySeparately: false,
+      mentionable: false,
+      position: 1000,
       isDefaultMember: true,
       isSystem: true,
+      systemKey: 'member',
       ...(memberSeed
         ? {
             encryptedName: memberSeed.encryptedName,
@@ -407,7 +419,7 @@ export async function updateSpace(
   if (!perms.isMember) {
     return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
   }
-  if (!memberHasPermission(perms, 'admin')) {
+  if (!memberHasPermission(perms, 'manageMetadata')) {
     return {
       success: false,
       error: 'You do not have permission to manage this Space.',
@@ -517,7 +529,7 @@ export async function getSpaceManageOverview(
   if (!perms.isMember) {
     return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
   }
-  if (!memberHasPermission(perms, 'admin')) {
+  if (!memberHasPermission(perms, 'manageMetadata')) {
     return {
       success: false,
       error: 'You do not have permission to manage this Space.',
@@ -575,7 +587,7 @@ export async function deleteSpace(
   if (!perms.isMember) {
     return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
   }
-  if (!memberHasPermission(perms, 'admin')) {
+  if (!memberHasPermission(perms, 'manageMetadata')) {
     return {
       success: false,
       error: 'You do not have permission to manage this Space.',

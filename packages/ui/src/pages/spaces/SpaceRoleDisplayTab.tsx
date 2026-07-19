@@ -1,0 +1,152 @@
+/**
+ * Role Settings tab: name, color, hoist, mentionable, default role, preview.
+ */
+
+import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { PublicSpaceRole } from '@adieuu/shared';
+import { Button } from '../../components/Button';
+import { Card } from '../../components/Card';
+
+interface SpaceRoleDisplayTabProps {
+  role: PublicSpaceRole;
+  saving: boolean;
+  previewActive: boolean;
+  onSave: (patch: {
+    name?: string;
+    color?: string;
+    displaySeparately?: boolean;
+    mentionable?: boolean;
+    isDefaultMember?: boolean;
+  }) => Promise<boolean>;
+  onPreview: () => void;
+  onExitPreview: () => void;
+}
+
+export function SpaceRoleDisplayTab({
+  role,
+  saving,
+  previewActive,
+  onSave,
+  onPreview,
+  onExitPreview,
+}: SpaceRoleDisplayTabProps) {
+  const { t } = useTranslation();
+  const [name, setName] = useState(role.name);
+  const [color, setColor] = useState(role.color);
+  const [displaySeparately, setDisplaySeparately] = useState(role.displaySeparately);
+  const [mentionable, setMentionable] = useState(role.mentionable);
+  const [isDefaultMember, setIsDefaultMember] = useState(role.isDefaultMember);
+
+  useEffect(() => {
+    setName(role.name);
+    setColor(role.color);
+    setDisplaySeparately(role.displaySeparately);
+    setMentionable(role.mentionable);
+    setIsDefaultMember(role.isDefaultMember);
+  }, [role]);
+
+  const dirty =
+    name !== role.name ||
+    color !== role.color ||
+    displaySeparately !== role.displaySeparately ||
+    mentionable !== role.mentionable ||
+    isDefaultMember !== role.isDefaultMember;
+
+  return (
+    <Card className="admin-card space-role-tab-card">
+      <label className="admin-field-label">
+        {t('spaces.manage.roles.settings.name')}
+        <input
+          className="admin-input"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          disabled={!!role.encryptedName}
+          maxLength={100}
+        />
+      </label>
+
+      <label className="admin-field-label">
+        {t('spaces.manage.roles.settings.color')}
+        <div className="space-role-color-row">
+          <input
+            type="color"
+            className="space-role-color-input"
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+          />
+          <input
+            className="admin-input"
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            pattern="^#[0-9a-fA-F]{6}$"
+            maxLength={7}
+          />
+        </div>
+      </label>
+
+      <div>
+        <label className="admin-toggle">
+          <input
+            type="checkbox"
+            checked={displaySeparately}
+            onChange={(e) => setDisplaySeparately(e.target.checked)}
+          />
+          <span>{t('spaces.manage.roles.settings.displaySeparately')}</span>
+        </label>
+        <p className="admin-hint">{t('spaces.manage.roles.settings.displaySeparatelyHint')}</p>
+      </div>
+
+      <div>
+        <label className="admin-toggle">
+          <input
+            type="checkbox"
+            checked={mentionable}
+            onChange={(e) => setMentionable(e.target.checked)}
+          />
+          <span>{t('spaces.manage.roles.settings.mentionable')}</span>
+        </label>
+        <p className="admin-hint">{t('spaces.manage.roles.settings.mentionableHint')}</p>
+      </div>
+
+      <div>
+        <label className={`admin-toggle${role.isDefaultMember && isDefaultMember ? ' admin-toggle--disabled' : ''}`}>
+          <input
+            type="checkbox"
+            checked={isDefaultMember}
+            disabled={role.isDefaultMember && isDefaultMember}
+            onChange={(e) => setIsDefaultMember(e.target.checked)}
+          />
+          <span>{t('spaces.manage.roles.settings.isDefault')}</span>
+        </label>
+        <p className="admin-hint">
+          {role.isDefaultMember && isDefaultMember
+            ? t('spaces.manage.roles.settings.isDefaultCurrentHint')
+            : t('spaces.manage.roles.settings.isDefaultHint')}
+        </p>
+      </div>
+
+      <div className="space-role-display-actions">
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={!dirty || saving}
+          onClick={() =>
+            void onSave({ name, color, displaySeparately, mentionable, isDefaultMember })
+          }
+        >
+          {saving ? t('spaces.manage.roles.saving') : t('spaces.manage.roles.save')}
+        </Button>
+        {previewActive ? (
+          <Button variant="secondary" size="sm" onClick={onExitPreview}>
+            {t('spaces.manage.roles.exitPreview')}
+          </Button>
+        ) : (
+          <Button variant="secondary" size="sm" onClick={onPreview}>
+            {t('spaces.manage.roles.preview')}
+          </Button>
+        )}
+      </div>
+    </Card>
+  );
+}

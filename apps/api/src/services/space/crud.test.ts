@@ -197,7 +197,13 @@ describe('space/crud', () => {
       roleIds: [adminRoleId],
     });
     roleRepo.findBySpace.mockResolvedValue([
-      { _id: adminRoleId, spaceId, name: 'Admin', permissions: ['admin'] },
+      {
+        _id: adminRoleId,
+        spaceId,
+        name: 'Admin',
+        permissions: ['manageMetadata', 'manageRoles', 'kickMembers', 'viewChannels', 'sendMessages'],
+        systemKey: 'admin',
+      },
     ]);
   }
 
@@ -263,11 +269,17 @@ describe('space/crud', () => {
       const adminArg = roleRepo.createRole.mock.calls[0]![0];
       const memberArg = roleRepo.createRole.mock.calls[1]![0];
       expect(adminArg.name).toBe('Admin');
-      expect(adminArg.permissions).toContain('admin');
+      expect(adminArg.permissions).toContain('manageRoles');
+      expect(adminArg.permissions).toContain('manageMetadata');
+      expect(adminArg.permissions).not.toContain('admin');
       expect(adminArg.isSystem).toBe(true);
-      expect(memberArg.name).toBe('Member');
+      expect(adminArg.systemKey).toBe('admin');
+      expect(memberArg.name).toBe('Everyone');
       expect(memberArg.isDefaultMember).toBe(true);
-      expect(memberArg.permissions).toEqual(['read', 'post']);
+      expect(memberArg.systemKey).toBe('member');
+      expect(memberArg.permissions).toContain('viewChannels');
+      expect(memberArg.permissions).toContain('sendMessages');
+      expect(memberArg.permissions).not.toContain('manageRoles');
 
       // Creator added as a member with the Admin role.
       expect(memberRepo.createMember).toHaveBeenCalledTimes(1);
@@ -471,7 +483,7 @@ describe('space/crud', () => {
         _id: new ObjectId(), spaceId, identityId: CREATOR, status: 'active', roleIds: [memberRoleId],
       });
       roleRepo.findBySpace.mockResolvedValue([
-        { _id: memberRoleId, spaceId, name: 'Member', permissions: ['read', 'post'] },
+        { _id: memberRoleId, spaceId, name: 'Member', permissions: ['viewChannels', 'sendMessages'] },
       ]);
       const r = await updateSpace(spaceId, CREATOR, { name: 'New' });
       expect(r).toMatchObject({ success: false, errorCode: 'FORBIDDEN' });
@@ -556,7 +568,8 @@ describe('space/crud', () => {
       const r = await getSpaceViewerPermissions(spaceId, CREATOR);
       expect(r.success).toBe(true);
       expect(r.viewer).toMatchObject({ isMember: true, isAdmin: true });
-      expect(r.viewer!.permissions).toContain('admin');
+      expect(r.viewer!.permissions).toContain('manageMetadata');
+      expect(r.viewer!.permissions).not.toContain('admin');
     });
   });
 
@@ -569,7 +582,7 @@ describe('space/crud', () => {
         _id: new ObjectId(), spaceId, identityId: CREATOR, status: 'active', roleIds: [memberRoleId],
       });
       roleRepo.findBySpace.mockResolvedValue([
-        { _id: memberRoleId, spaceId, name: 'Member', permissions: ['read', 'post'] },
+        { _id: memberRoleId, spaceId, name: 'Member', permissions: ['viewChannels', 'sendMessages'] },
       ]);
       const r = await getSpaceManageOverview(spaceId, CREATOR);
       expect(r).toMatchObject({ success: false, errorCode: 'FORBIDDEN' });

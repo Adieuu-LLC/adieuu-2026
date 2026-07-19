@@ -64,36 +64,43 @@ describe('SpaceRoleRepository', () => {
     const role = await repo.createRole({
       spaceId: new ObjectId(),
       name: 'Member',
-      permissions: ['read', 'post'],
+      permissions: ['viewChannels', 'sendMessages'],
     });
     expect(role.isDefaultMember).toBe(false);
     expect(role.isSystem).toBe(false);
     const [doc] = mockCollection.insertOne.mock.calls[0]!;
     expect(doc.isDefaultMember).toBe(false);
     expect(doc.isSystem).toBe(false);
+    expect(doc.displaySeparately).toBe(false);
+    expect(doc.mentionable).toBe(false);
     expect(doc.createdAt).toBeInstanceOf(Date);
   });
 
-  test('createRole respects explicit flag values', async () => {
+  test('createRole normalizes legacy permissions and respects flags', async () => {
     const repo = new SpaceRoleRepository();
     const role = await repo.createRole({
       spaceId: new ObjectId(),
       name: 'Admin',
-      permissions: ['admin'],
+      // Legacy input still accepted via normalizeSpacePermissions.
+      permissions: ['admin' as never],
       isDefaultMember: false,
       isSystem: true,
+      systemKey: 'admin',
     });
     expect(role.isSystem).toBe(true);
     const [doc] = mockCollection.insertOne.mock.calls[0]!;
     expect(doc.isSystem).toBe(true);
+    expect(doc.systemKey).toBe('admin');
+    expect(doc.permissions).toContain('manageRoles');
+    expect(doc.permissions).not.toContain('admin');
   });
 
-  test('findBySpace queries by space and orders by _id ascending', async () => {
+  test('findBySpace queries by space and orders by position then _id', async () => {
     const repo = new SpaceRoleRepository();
     const spaceId = new ObjectId();
     await repo.findBySpace(spaceId);
     expect(lastFindFilter).toEqual({ spaceId });
-    expect(findResult.sort).toHaveBeenCalledWith({ _id: 1 });
+    expect(findResult.sort).toHaveBeenCalledWith({ position: 1, _id: 1 });
   });
 
   test('findDefaultMember filters by the default-member flag', async () => {

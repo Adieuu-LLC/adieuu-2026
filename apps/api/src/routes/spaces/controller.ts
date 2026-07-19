@@ -32,6 +32,11 @@ import {
   removeSpaceMember,
   listSpaceMembers,
   listSpaceRoles,
+  createSpaceRole,
+  updateSpaceRole,
+  deleteSpaceRole,
+  setMemberRoles,
+  listRoleMembers,
   createSpaceInvite,
   acceptSpaceInvite,
   declineSpaceInvite,
@@ -44,6 +49,9 @@ import {
   CreateSpaceSchema,
   UpdateSpaceSchema,
   CreateSpaceInviteSchema,
+  CreateSpaceRoleSchema,
+  UpdateSpaceRoleSchema,
+  SetMemberRolesSchema,
 } from '@adieuu/shared/schemas';
 import {
   sanitizeSpaceObjectId,
@@ -380,6 +388,103 @@ export async function listRolesCtrl(
     return mapSpaceError(result.errorCode, result.error ?? 'Failed to list roles.');
   }
   return { kind: 'ok', data: { roles: result.roles ?? [] } };
+}
+
+export async function createRoleCtrl(
+  ctx: RouteContext,
+): Promise<SpaceRouteResult<{ role: unknown }>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const id = sanitizeSpaceObjectId(ctx.params.id);
+  if (!id.ok) return { kind: 'bad_request', message: 'Invalid Space id.' };
+
+  const parsed = CreateSpaceRoleSchema.safeParse(ctx.body);
+  if (!parsed.success) return { kind: 'validation_failed' };
+
+  const result = await createSpaceRole(id.id, identity._id, parsed.data);
+  if (!result.success) {
+    return mapSpaceError(result.errorCode, result.error ?? 'Failed to create role.');
+  }
+  return { kind: 'ok', data: { role: result.role }, message: 'Role created.' };
+}
+
+export async function updateRoleCtrl(
+  ctx: RouteContext,
+): Promise<SpaceRouteResult<{ role: unknown }>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const id = sanitizeSpaceObjectId(ctx.params.id);
+  const roleId = sanitizeSpaceObjectId(ctx.params.roleId);
+  if (!id.ok || !roleId.ok) return { kind: 'bad_request', message: 'Invalid id.' };
+
+  const parsed = UpdateSpaceRoleSchema.safeParse(ctx.body);
+  if (!parsed.success) return { kind: 'validation_failed' };
+
+  const result = await updateSpaceRole(id.id, roleId.id, identity._id, parsed.data);
+  if (!result.success) {
+    return mapSpaceError(result.errorCode, result.error ?? 'Failed to update role.');
+  }
+  return { kind: 'ok', data: { role: result.role }, message: 'Role updated.' };
+}
+
+export async function deleteRoleCtrl(ctx: RouteContext): Promise<SpaceRouteResult<undefined>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const id = sanitizeSpaceObjectId(ctx.params.id);
+  const roleId = sanitizeSpaceObjectId(ctx.params.roleId);
+  if (!id.ok || !roleId.ok) return { kind: 'bad_request', message: 'Invalid id.' };
+
+  const result = await deleteSpaceRole(id.id, roleId.id, identity._id);
+  if (!result.success) {
+    return mapSpaceError(result.errorCode, result.error ?? 'Failed to delete role.');
+  }
+  return { kind: 'ok', data: undefined, message: 'Role deleted.' };
+}
+
+export async function listRoleMembersCtrl(
+  ctx: RouteContext,
+): Promise<SpaceRouteResult<{ members: unknown[]; cursor: string | null }>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const id = sanitizeSpaceObjectId(ctx.params.id);
+  const roleId = sanitizeSpaceObjectId(ctx.params.roleId);
+  if (!id.ok || !roleId.ok) return { kind: 'bad_request', message: 'Invalid id.' };
+
+  const limit = clampSpaceListLimit(ctx.query.get('limit'), 50, 100);
+  const cursor = parseSpaceListCursor(ctx.query.get('cursor'));
+
+  const result = await listRoleMembers(id.id, roleId.id, identity._id, limit, cursor);
+  if (!result.success) {
+    return mapSpaceError(result.errorCode, result.error ?? 'Failed to list role members.');
+  }
+  return {
+    kind: 'ok',
+    data: { members: result.members ?? [], cursor: result.cursor ?? null },
+  };
+}
+
+export async function setMemberRolesCtrl(
+  ctx: RouteContext,
+): Promise<SpaceRouteResult<{ member: unknown }>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const id = sanitizeSpaceObjectId(ctx.params.id);
+  const target = sanitizeSpaceObjectId(ctx.params.identityId);
+  if (!id.ok || !target.ok) return { kind: 'bad_request', message: 'Invalid id.' };
+
+  const parsed = SetMemberRolesSchema.safeParse(ctx.body);
+  if (!parsed.success) return { kind: 'validation_failed' };
+
+  const result = await setMemberRoles(id.id, target.id, identity._id, parsed.data.roleIds);
+  if (!result.success) {
+    return mapSpaceError(result.errorCode, result.error ?? 'Failed to update member roles.');
+  }
+  return { kind: 'ok', data: { member: result.member }, message: 'Member roles updated.' };
 }
 
 // ---------------------------------------------------------------------------

@@ -58,32 +58,39 @@ describe('space/permissions', () => {
     expect(perms.isMember).toBe(false);
   });
 
-  test('unions permissions across a member role', async () => {
+  test('unions and normalizes permissions across a member role', async () => {
     memberRepo.findMember.mockResolvedValue({
       _id: new ObjectId(), spaceId: SPACE, identityId: IDENTITY, roleIds: [MEMBER_ROLE], status: 'active',
     });
     roleRepo.findBySpace.mockResolvedValue([
-      { _id: MEMBER_ROLE, spaceId: SPACE, permissions: ['read', 'post'] },
+      { _id: MEMBER_ROLE, spaceId: SPACE, permissions: ['read', 'post'], systemKey: 'member' },
     ]);
 
     const perms = await resolveMemberPermissions(SPACE, IDENTITY);
     expect(perms.isMember).toBe(true);
     expect(perms.isAdmin).toBe(false);
-    expect(perms.permissions.has('read')).toBe(true);
-    expect(perms.permissions.has('post')).toBe(true);
-    expect(perms.permissions.has('manageMembers')).toBe(false);
+    expect(perms.permissions.has('viewChannels')).toBe(true);
+    expect(perms.permissions.has('sendMessages')).toBe(true);
+    expect(perms.permissions.has('kickMembers')).toBe(false);
   });
 
-  test('detects the admin super-permission', async () => {
+  test('isAdmin is true when the member holds the system Admin role', async () => {
     memberRepo.findMember.mockResolvedValue({
       _id: new ObjectId(), spaceId: SPACE, identityId: IDENTITY, roleIds: [ADMIN_ROLE], status: 'active',
     });
     roleRepo.findBySpace.mockResolvedValue([
-      { _id: ADMIN_ROLE, spaceId: SPACE, permissions: ['admin', 'read', 'post'] },
+      {
+        _id: ADMIN_ROLE,
+        spaceId: SPACE,
+        permissions: ['viewChannels', 'sendMessages'],
+        systemKey: 'admin',
+      },
     ]);
 
     const perms = await resolveMemberPermissions(SPACE, IDENTITY);
     expect(perms.isAdmin).toBe(true);
+    // No god-flag: isAdmin does not imply missing permissions.
+    expect(memberHasPermission(perms, 'manageRoles')).toBe(false);
   });
 
   test('unions permissions across multiple roles and ignores unknown role ids', async () => {
@@ -93,28 +100,35 @@ describe('space/permissions', () => {
       roleIds: [MEMBER_ROLE, unknownRole], status: 'active',
     });
     roleRepo.findBySpace.mockResolvedValue([
-      { _id: MEMBER_ROLE, spaceId: SPACE, permissions: ['read', 'post', 'invite'] },
+      { _id: MEMBER_ROLE, spaceId: SPACE, permissions: ['viewChannels', 'sendMessages', 'createInvite'] },
     ]);
 
     const perms = await resolveMemberPermissions(SPACE, IDENTITY);
-    expect(perms.permissions.has('invite')).toBe(true);
+    expect(perms.permissions.has('createInvite')).toBe(true);
     expect(perms.permissions.size).toBe(3);
   });
 
   describe('memberHasPermission', () => {
-    test('admin implies every permission', () => {
-      const perms = { isMember: true, isAdmin: true, permissions: new Set<never>(), roleIds: [] };
-      expect(memberHasPermission(perms, 'manageChannels')).toBe(true);
-      expect(memberHasPermission(perms, 'post')).toBe(true);
+    test('only holds explicit permissions (no admin bypass)', () => {
+      const perms = {
+        isMember: true,
+        isAdmin: true,
+        permissions: new Set(['sendMessages'] as const),
+        roleIds: [],
+      };
+      expect(memberHasPermission(perms, 'sendMessages')).toBe(true);
+      expect(memberHasPermission(perms, 'manageRoles')).toBe(false);
     });
 
     test('non-admin only holds explicit permissions', () => {
       const perms = {
-        isMember: true, isAdmin: false,
-        permissions: new Set(['read', 'post'] as const), roleIds: [],
+        isMember: true,
+        isAdmin: false,
+        permissions: new Set(['viewChannels', 'sendMessages'] as const),
+        roleIds: [],
       };
-      expect(memberHasPermission(perms, 'post')).toBe(true);
-      expect(memberHasPermission(perms, 'manageMembers')).toBe(false);
+      expect(memberHasPermission(perms, 'sendMessages')).toBe(true);
+      expect(memberHasPermission(perms, 'kickMembers')).toBe(false);
     });
   });
 });

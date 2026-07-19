@@ -10,9 +10,13 @@ import { getSpaceReactionRepository } from '../../repositories/space-reaction.re
 import { getSpaceChannelRepository } from '../../repositories/space-channel.repository';
 import { isValidObjectId } from '../../utils';
 import { toPublicSpaceReaction } from '../../models/space-reaction';
-import { resolveMemberPermissions } from './permissions';
+import { resolveMemberPermissions, memberHasPermission } from './permissions';
 import { publishSpaceEvent } from './redis-events';
 import type { SpaceReactionResult, SpaceReactionsListResult } from './types';
+
+function isCustomEmojiToken(emoji: string): boolean {
+  return emoji.startsWith('custom:') || /^:[a-z0-9_-]{2,32}:$/i.test(emoji);
+}
 
 function parseObjId(raw: string | ObjectId): ObjectId | null {
   if (raw instanceof ObjectId) return raw;
@@ -42,6 +46,16 @@ export async function addSpaceReaction(
   const perms = await resolveMemberPermissions(spaceId, callerId);
   if (!perms.isMember) {
     return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
+  }
+  if (!memberHasPermission(perms, 'addReactions')) {
+    return { success: false, error: 'You do not have permission to add reactions.', errorCode: 'FORBIDDEN' };
+  }
+  if (isCustomEmojiToken(trimmed) && !memberHasPermission(perms, 'useCustomEmoji')) {
+    return {
+      success: false,
+      error: 'You do not have permission to use custom emoji.',
+      errorCode: 'FORBIDDEN',
+    };
   }
 
   const channel = await getSpaceChannelRepository().findByIdInSpace(spaceId, channelId);

@@ -57,6 +57,10 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   const [activeSpacePermissions, setActiveSpacePermissions] = useState<SpacePermission[]>([]);
   const [isActiveSpaceAdmin, setIsActiveSpaceAdmin] = useState(false);
   const [activeSpacePermissionsLoading, setActiveSpacePermissionsLoading] = useState(false);
+  const [rolePermissionPreview, setRolePermissionPreview] = useState<{
+    roleId: string;
+    permissions: SpacePermission[];
+  } | null>(null);
 
   const socketCallbacksRef = useRef<{
     onReactionAdded?: SpacesContextValue['onSocketReactionAdded'];
@@ -141,6 +145,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
         setActiveSpacePermissions([]);
         setIsActiveSpaceAdmin(false);
         setActiveSpacePermissionsLoading(false);
+        setRolePermissionPreview(null);
         return;
       }
       const matchedSpace = spacesRef.current.find((s) => s.slug === slug);
@@ -159,6 +164,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   // Resolve viewer permissions whenever the active Space changes.
   useEffect(() => {
     const spaceId = activeSpaceInternal?.id;
+    setRolePermissionPreview(null);
     if (!isLoggedIn || !spaceId) {
       setActiveSpacePermissions([]);
       setIsActiveSpaceAdmin(false);
@@ -186,9 +192,25 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   }, [api, isLoggedIn, activeSpaceInternal?.id]);
 
   const hasActiveSpacePermission = useCallback(
-    (permission: SpacePermission) =>
-      isActiveSpaceAdmin || activeSpacePermissions.includes(permission),
-    [isActiveSpaceAdmin, activeSpacePermissions],
+    (permission: SpacePermission) => {
+      if (rolePermissionPreview) {
+        return rolePermissionPreview.permissions.includes(permission);
+      }
+      return activeSpacePermissions.includes(permission);
+    },
+    [rolePermissionPreview, activeSpacePermissions],
+  );
+
+  const canAccessSpaceManage = useMemo(
+    () =>
+      activeSpacePermissions.some(
+        (p) =>
+          p === 'manageMetadata' ||
+          p === 'manageRoles' ||
+          p === 'manageEncryption' ||
+          p === 'manageWebhooks',
+      ),
+    [activeSpacePermissions],
   );
 
   const removeSpaceLocally = useCallback(
@@ -486,7 +508,10 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       activeSpacePermissions,
       isActiveSpaceAdmin,
       hasActiveSpacePermission,
+      canAccessSpaceManage,
       activeSpacePermissionsLoading,
+      rolePermissionPreview,
+      setRolePermissionPreview,
       channels,
       activeChannelId,
       activeMessages: activeChannelState?.messages ?? [],
@@ -521,7 +546,9 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       activeSpacePermissions,
       isActiveSpaceAdmin,
       hasActiveSpacePermission,
+      canAccessSpaceManage,
       activeSpacePermissionsLoading,
+      rolePermissionPreview,
       channels,
       activeChannelId,
       activeChannelState,

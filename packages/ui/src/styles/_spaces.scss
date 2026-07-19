@@ -168,6 +168,7 @@
 // ============================================================================
 
 .space-page {
+  position: relative;
   display: flex;
   flex-direction: row;
   height: 100%;
@@ -185,6 +186,14 @@
   border-right: 1px solid var(--color-border);
   background: var(--color-bg-secondary);
   padding: 0;
+}
+
+.space-mobile-overlay {
+  display: none;
+}
+
+.space-mobile-chrome {
+  display: none;
 }
 
 .space-sidebar-banner {
@@ -462,7 +471,8 @@
 
 .space-channel-composer {
   flex-shrink: 0;
-  border-top: 1px solid var(--color-border);
+  padding: 5px;
+  // border-top: 1px solid var(--color-border);
 }
 
 .space-channel-e2ee-placeholder {
@@ -602,20 +612,150 @@ button.space-message-author:hover {
 }
 
 // ============================================================================
-// Responsive — collapse secondary sidebar on small screens
+// Responsive — hybrid mobile chrome + off-canvas channel drawer (≤720px)
+// Scoped inside `.space-page` so layers stay below the app sidebar stack.
 // ============================================================================
 
 @media (max-width: 720px) {
-  .space-page {
-    flex-direction: column;
+  .space-mobile-overlay {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background: rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+
+    &--visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
   }
 
   .space-secondary-sidebar {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: auto;
+    bottom: 0;
+    z-index: 3;
     flex: none;
-    height: auto;
-    max-height: 200px;
+    width: min(280px, 85vw);
+    max-width: 280px;
+    height: 100%;
+    max-height: none;
     border-right: none;
+    border-left: 1px solid var(--color-border);
+    border-bottom: none;
+    transform: translateX(105%);
+    transition: transform 0.2s ease;
+    box-shadow: none;
+
+    &--mobile-open {
+      transform: translateX(0);
+      box-shadow: var(--shadow-md);
+    }
+  }
+
+  .space-page--manage .space-secondary-sidebar,
+  .space-page--manage .space-mobile-overlay {
+    display: none;
+  }
+
+  .space-mobile-chrome {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex-shrink: 0;
+    padding: var(--spacing-sm) var(--spacing-md);
     border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-primary);
+    z-index: 1;
+  }
+
+  // App hamburger is fixed at ≤600px; keep chrome clear of it.
+  @media (max-width: 600px) {
+    .space-mobile-chrome {
+      padding-left: calc(44px + var(--spacing-md) + var(--spacing-sm));
+    }
+  }
+
+  .space-mobile-chrome-menu {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    cursor: pointer;
+
+    &:hover {
+      background: var(--color-bg-hover);
+    }
+  }
+
+  .space-mobile-chrome-select {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .space-mobile-chrome-select-control {
+    width: 100%;
+  }
+
+  .space-mobile-chrome-select-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+  }
+
+  .space-mobile-chrome-select-indicator {
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+  }
+
+  .space-mobile-chrome-select-content {
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    padding: var(--spacing-xs) 0;
+    z-index: var(--z-popover, 600);
+  }
+
+  .space-mobile-chrome-select-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-sm) var(--spacing-md);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    transition: background var(--transition-fast);
+
+    &:hover,
+    &[data-highlighted] {
+      background: var(--color-bg-hover);
+    }
+  }
+
+  .space-mobile-chrome-select-check {
+    color: var(--color-accent-primary);
+    flex-shrink: 0;
   }
 }
 
@@ -1023,84 +1163,5 @@ button.space-message-author:hover {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
-}
-
-// ---------------------------------------------------------------------------
-// Space Manage overview
-// ---------------------------------------------------------------------------
-
-.space-manage-page {
-  flex: 1;
-  min-width: 0;
-  overflow-y: auto;
-}
-
-.admin-stat-value--sm {
-  font-size: var(--font-size-md);
-  font-weight: 600;
-}
-
-.space-manage-recent-joins,
-.space-manage-danger {
-  margin-top: var(--spacing-lg);
-}
-
-.space-manage-empty {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
-.space-manage-join-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-}
-
-.space-manage-join-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-md);
-  padding: var(--spacing-xs) 0;
-  border-bottom: 1px solid var(--color-border-subtle, var(--color-border));
-
-  &:last-child {
-    border-bottom: none;
-  }
-}
-
-.space-manage-join-name {
-  font-weight: 500;
-  color: var(--color-text-primary);
-}
-
-.space-manage-join-when {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-  white-space: nowrap;
-}
-
-.space-manage-danger-body {
-  margin: 0 0 var(--spacing-md);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
-.space-manage-delete-label {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-  margin-top: var(--spacing-sm);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-}
-
-.space-manage-delete-input {
-  font-family: var(--font-mono, monospace);
-  letter-spacing: 0.04em;
 }
 

@@ -21,6 +21,7 @@ import {
   SPACE_MESSAGE_MAX_LENGTH,
   SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH,
   SPACE_SEED_ROLE_SYSTEMS,
+  SPACE_PERMISSIONS,
 } from '../api/spaces-types';
 
 export const SpaceVisibilitySchema = z.enum(SPACE_VISIBILITY_VALUES);
@@ -254,6 +255,60 @@ export const PinSpaceMessageSchema = z.object({
   messageId: z.string().length(24),
 });
 
+const SpacePermissionSchema = z.enum(SPACE_PERMISSIONS);
+
+export const CreateSpaceRoleSchema = z
+  .object({
+    name: z.string().min(1).max(100).optional(),
+    permissions: z.array(SpacePermissionSchema).max(SPACE_PERMISSIONS.length).optional(),
+    color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+    displaySeparately: z.boolean().optional(),
+    mentionable: z.boolean().optional(),
+    position: z.number().int().min(0).max(10_000).optional(),
+    encryptedName: z.string().min(1).max(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
+    nameNonce: z.string().min(1).max(500).optional(),
+    cipherId: z.string().min(1).max(256).optional(),
+  })
+  .refine(
+    (v) => {
+      const hasCipher = !!(v.encryptedName && v.nameNonce && v.cipherId);
+      const hasPartial =
+        !!(v.encryptedName || v.nameNonce || v.cipherId) && !hasCipher;
+      return !hasPartial;
+    },
+    { message: 'encryptedName, nameNonce, and cipherId must be provided together' },
+  );
+
+export const UpdateSpaceRoleSchema = z
+  .object({
+    name: z.string().min(1).max(100).optional(),
+    permissions: z.array(SpacePermissionSchema).max(SPACE_PERMISSIONS.length).optional(),
+    color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+    displaySeparately: z.boolean().optional(),
+    mentionable: z.boolean().optional(),
+    isDefaultMember: z.boolean().optional(),
+    position: z.number().int().min(0).max(10_000).optional(),
+    encryptedName: z.string().min(1).max(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
+    nameNonce: z.string().min(1).max(500).optional(),
+    cipherId: z.string().min(1).max(256).optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, {
+    message: 'At least one field is required',
+  })
+  .refine(
+    (v) => {
+      const hasCipher = !!(v.encryptedName && v.nameNonce && v.cipherId);
+      const hasPartial =
+        !!(v.encryptedName || v.nameNonce || v.cipherId) && !hasCipher;
+      return !hasPartial;
+    },
+    { message: 'encryptedName, nameNonce, and cipherId must be provided together' },
+  );
+
+export const SetMemberRolesSchema = z.object({
+  roleIds: z.array(z.string().length(24)).max(50),
+});
+
 export const CreateSpaceChannelSchema = z
   .object({
     name: z.string().min(SPACE_CHANNEL_NAME_MIN_LENGTH).max(SPACE_CHANNEL_NAME_MAX_LENGTH).optional(),
@@ -276,3 +331,6 @@ export type UpdateSpaceBody = z.infer<typeof UpdateSpaceSchema>;
 export type CreateSpaceInviteBody = z.infer<typeof CreateSpaceInviteSchema>;
 export type SendSpaceMessageBody = z.infer<typeof SendSpaceMessageSchema>;
 export type CreateSpaceChannelBody = z.infer<typeof CreateSpaceChannelSchema>;
+export type CreateSpaceRoleBody = z.infer<typeof CreateSpaceRoleSchema>;
+export type UpdateSpaceRoleBody = z.infer<typeof UpdateSpaceRoleSchema>;
+export type SetMemberRolesBody = z.infer<typeof SetMemberRolesSchema>;

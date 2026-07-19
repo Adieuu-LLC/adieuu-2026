@@ -29,20 +29,35 @@ export type SpaceMemberStatus = (typeof SPACE_MEMBER_STATUSES)[number];
 export const SPACE_INVITE_STATUSES = ['pending', 'accepted', 'declined', 'revoked'] as const;
 export type SpaceInviteStatus = (typeof SPACE_INVITE_STATUSES)[number];
 
-/**
- * Role permission flags. Full RBAC/ABAC is a later pass; the first pass seeds
- * a default Admin role (all flags) and a default Member role (`read` + `post`).
- */
-export const SPACE_PERMISSIONS = [
-  'admin',
-  'read',
-  'post',
-  'invite',
-  'manageChannels',
-  'manageRoles',
-  'manageMembers',
-] as const;
-export type SpacePermission = (typeof SPACE_PERMISSIONS)[number];
+export {
+  SPACE_PERMISSIONS,
+  SPACE_PERMISSION_SET,
+  SPACE_PERMISSION_CATEGORIES,
+  SPACE_PERMISSION_DEFS,
+  SPACE_MANAGE_UI_PERMISSIONS,
+  DEFAULT_MEMBER_PERMISSIONS,
+  DEFAULT_ADMIN_PERMISSIONS,
+  DEFAULT_ADMIN_ROLE_COLOR,
+  DEFAULT_MEMBER_ROLE_COLOR,
+  DEFAULT_CUSTOM_ROLE_COLOR,
+  normalizeSpacePermissions,
+  spacePermissionListHas,
+  canAccessSpaceManageUi,
+  getSpacePermissionToggleValue,
+  applySpacePermissionToggle,
+  spacePermissionToggleOptions,
+  spacePermissionsSubsetOf,
+  type SpacePermission,
+  type SpacePermissionCategory,
+  type SpacePermissionToggleKind,
+  type SpacePermissionToggleValue,
+  type SpacePermissionDef,
+} from './space-permissions';
+
+import type { SpacePermission } from './space-permissions';
+
+/** System role key stored on seeded Admin/Member roles. */
+export type SpaceRoleSystemKey = 'admin' | 'member';
 
 // --- Shared field constraints (used by both client and server validation) ---
 
@@ -89,7 +104,7 @@ export const SPACE_CHANNEL_NAME_MAX_LENGTH = 100;
 export const DEFAULT_SPACE_CHANNEL_NAME = 'general';
 /** System role names seeded with every new Space (plaintext labels for client encrypt). */
 export const DEFAULT_ADMIN_ROLE_NAME = 'Admin';
-export const DEFAULT_MEMBER_ROLE_NAME = 'Member';
+export const DEFAULT_MEMBER_ROLE_NAME = 'Everyone';
 
 /** Max length for plaintext (non-E2EE) channel messages. */
 export const SPACE_MESSAGE_MAX_LENGTH = 4000;
@@ -206,6 +221,14 @@ export interface PublicSpaceRole {
   /** Plaintext name; empty when the Space is e2ee. */
   name: string;
   permissions: SpacePermission[];
+  /** Hex color for role display (e.g. `#e74c3c`). */
+  color: string;
+  /** When true, members with this role are listed in a separate online group. */
+  displaySeparately: boolean;
+  /** When true, anyone in the Space may mention this role. */
+  mentionable: boolean;
+  /** Sort order in Manage UI (lower = higher). */
+  position: number;
   /** Present when the Space uses Cipher-encrypted role names. */
   encryptedName?: string;
   nameNonce?: string;
@@ -214,6 +237,8 @@ export interface PublicSpaceRole {
   isDefaultMember: boolean;
   /** System roles (Admin/Member) cannot be deleted. */
   isSystem: boolean;
+  /** Seeded system role identity (`admin` / `member`). */
+  systemKey?: SpaceRoleSystemKey;
   createdAt: string;
   updatedAt: string;
 }

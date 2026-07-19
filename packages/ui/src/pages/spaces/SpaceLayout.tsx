@@ -3,7 +3,8 @@
  *
  * Resolves the slug, guards for an Alias session, and renders a Discord-like
  * secondary sidebar (channels) alongside an `<Outlet />` for the landing page
- * or channel views.
+ * or channel views. On narrow viewports the channel rail becomes an off-canvas
+ * drawer with a compact Select chrome (hidden entirely on manage routes).
  *
  * When navigating to the index route (`/s/:slug` with no channel), the layout
  * auto-redirects to the last-viewed channel (persisted in localStorage) or the
@@ -20,7 +21,9 @@ import { Card } from '../../components/Card';
 import { Spinner } from '../../components/Spinner';
 import { JoinSpaceInterstitial } from './JoinSpaceInterstitial';
 import { SpaceJoinBanner } from './SpaceJoinBanner';
+import { SpaceMobileChrome } from './SpaceMobileChrome';
 import { SpaceSecondarySidebar } from './SpaceSecondarySidebar';
+import { useSpaceMobileNav } from './useSpaceMobileNav';
 import '../../styles/_spaces.scss';
 
 function getLastChannel(spaceId: string): string | null {
@@ -36,6 +39,8 @@ export function SpaceLayout() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const isIndexRoute = !!useMatch('/s/:slug');
+  const isManageRoute =
+    !!useMatch('/s/:slug/manage') || !!useMatch('/s/:slug/manage/*');
   const { status: identityStatus } = useIdentity();
   const isLoggedIn = identityStatus === 'logged_in';
   const {
@@ -47,6 +52,12 @@ export function SpaceLayout() {
     isActiveSpaceMember,
   } = useSpaces();
   const [joinOpen, setJoinOpen] = useState(false);
+  const {
+    isNarrow,
+    isMobileNavOpen,
+    closeMobileNav,
+    toggleMobileNav,
+  } = useSpaceMobileNav();
 
   useEffect(() => {
     if (isLoggedIn && slug) {
@@ -73,6 +84,11 @@ export function SpaceLayout() {
   useEffect(() => {
     didRedirect.current = false;
   }, [slug]);
+
+  // Close the channel drawer when entering manage (sidebar is hidden there).
+  useEffect(() => {
+    if (isManageRoute) closeMobileNav();
+  }, [isManageRoute, closeMobileNav]);
 
   if (!isLoggedIn) {
     return (
@@ -134,10 +150,34 @@ export function SpaceLayout() {
     );
   }
 
+  const hideChannelSidebar = isNarrow && isManageRoute;
+  const showMobileChrome = isNarrow && !isManageRoute;
+
   return (
-    <div className="space-page">
-      <SpaceSecondarySidebar />
+    <div className={`space-page${isNarrow ? ' space-page--narrow' : ''}${isManageRoute ? ' space-page--manage' : ''}`}>
+      {!hideChannelSidebar && (
+        <>
+          {isNarrow && (
+            <div
+              className={`space-mobile-overlay${isMobileNavOpen ? ' space-mobile-overlay--visible' : ''}`}
+              onClick={closeMobileNav}
+              aria-hidden="true"
+            />
+          )}
+          <SpaceSecondarySidebar
+            mobileOpen={isNarrow && isMobileNavOpen}
+            onNavigate={closeMobileNav}
+          />
+        </>
+      )}
       <div className="space-outlet">
+        {showMobileChrome && (
+          <SpaceMobileChrome
+            isMobileNavOpen={isMobileNavOpen}
+            onToggleNav={toggleMobileNav}
+            onNavigate={closeMobileNav}
+          />
+        )}
         <Outlet />
         {!isActiveSpaceMember && (
           <SpaceJoinBanner onRequestJoin={() => setJoinOpen(true)} />

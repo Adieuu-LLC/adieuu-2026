@@ -34,6 +34,26 @@ mock.module('../../icons/Icon', () => ({
   Icon: ({ name }: { name: string }) => createElement('span', { 'data-icon': name }),
 }));
 
+mock.module('../../components/Sidebar', () => ({
+  useSidebar: () => ({
+    isExpanded: true,
+    isMobileOpen: false,
+    orientation: 'left',
+    setExpanded: () => {},
+    setMobileOpen: () => {},
+    closeMobile: () => {},
+  }),
+  useOptionalSidebar: () => ({
+    isExpanded: true,
+    isMobileOpen: false,
+    orientation: 'left',
+    toggleExpanded: () => {},
+    setExpanded: () => {},
+    setMobileOpen: () => {},
+    closeMobile: () => {},
+  }),
+}));
+
 mock.module('./JoinSpaceInterstitial', () => ({
   JoinSpaceInterstitial: () => null,
 }));
@@ -62,6 +82,9 @@ function makeDefaultCtx(overrides: Record<string, unknown> = {}): Record<string,
     activeSpacePermissions: [],
     activeSpacePermissionsLoading: false,
     hasActiveSpacePermission: () => false,
+    canAccessSpaceManage: false,
+    rolePermissionPreview: null,
+    setRolePermissionPreview: () => {},
     ...overrides,
   };
 }
@@ -81,6 +104,17 @@ beforeEach(() => {
   g.IS_REACT_ACT_ENVIRONMENT = true;
   g.window = happy as unknown as GlobalWindow & typeof globalThis;
   g.document = happy.document;
+  // Desktop viewport for layout shell tests (mobile nav uses matchMedia 720px).
+  g.window.matchMedia = ((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  })) as typeof window.matchMedia;
 });
 
 afterEach(async () => {

@@ -39,7 +39,7 @@ export async function pinSpaceMessage(
   if (!perms.isMember) {
     return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
   }
-  if (!memberHasPermission(perms, 'manageChannels') && !perms.isAdmin) {
+  if (!memberHasPermission(perms, 'pinMessages')) {
     return { success: false, error: 'Moderator permissions required.', errorCode: 'FORBIDDEN' };
   }
 
@@ -99,7 +99,7 @@ export async function unpinSpaceMessage(
   if (!perms.isMember) {
     return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
   }
-  if (!memberHasPermission(perms, 'manageChannels') && !perms.isAdmin) {
+  if (!memberHasPermission(perms, 'pinMessages')) {
     return { success: false, error: 'Moderator permissions required.', errorCode: 'FORBIDDEN' };
   }
 

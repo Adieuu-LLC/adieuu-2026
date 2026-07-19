@@ -20,6 +20,7 @@ export {
 export {
   resolveMemberPermissions,
   memberHasPermission,
+  memberCanAccessManageUi,
   type SpaceMemberPermissions,
 } from './permissions';
 export {
@@ -31,6 +32,16 @@ export {
   addSpaceMembership,
   resolveEffectiveTier,
 } from './members';
+export {
+  createSpaceRole,
+  updateSpaceRole,
+  deleteSpaceRole,
+  setMemberRoles,
+  listRoleMembers,
+  type SpaceRoleResult,
+  type CreateSpaceRoleParams,
+  type UpdateSpaceRoleParams,
+} from './roles';
 export {
   createSpaceInvite,
   acceptSpaceInvite,

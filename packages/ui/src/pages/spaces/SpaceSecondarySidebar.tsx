@@ -1,10 +1,8 @@
 /**
  * Discord-style secondary sidebar for a Space.
  *
- * Rendered inside the main content pane (to the right of the app sidebar).
- * Contains a banner with the Space name, a stub "Manage" link for admins, a
- * Home entry that links to the landing page, and a channel list grouped under
- * a single "Text Channels" header.
+ * On desktop: persistent channel rail. On mobile: off-canvas drawer inside
+ * `.space-page` (opened from SpaceMobileChrome).
  */
 
 import { NavLink, useParams } from 'react-router-dom';
@@ -17,10 +15,18 @@ import {
   resolveSpaceDisplayName,
 } from './spaceMetadataCipher';
 
-export function SpaceSecondarySidebar() {
+interface SpaceSecondarySidebarProps {
+  mobileOpen?: boolean;
+  onNavigate?: () => void;
+}
+
+export function SpaceSecondarySidebar({
+  mobileOpen = false,
+  onNavigate,
+}: SpaceSecondarySidebarProps) {
   const { t } = useTranslation();
   const { slug } = useParams<{ slug: string }>();
-  const { activeSpace, channels, unreadByChannel, isActiveSpaceAdmin } = useSpaces();
+  const { activeSpace, channels, unreadByChannel, canAccessSpaceManage } = useSpaces();
   const { spaceCipher } = useSpaceCipher(activeSpace?.id);
 
   if (!activeSpace) return null;
@@ -32,9 +38,15 @@ export function SpaceSecondarySidebar() {
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `space-sidebar-link${isActive ? ' space-sidebar-link-active' : ''}`;
 
+  const handleNav = () => {
+    onNavigate?.();
+  };
+
   return (
-    <aside className="space-secondary-sidebar" aria-label={spaceName}>
-      {/* Banner */}
+    <aside
+      className={`space-secondary-sidebar${mobileOpen ? ' space-secondary-sidebar--mobile-open' : ''}`}
+      aria-label={spaceName}
+    >
       <div className="space-sidebar-banner">
         <span className="space-sidebar-banner-name">{spaceName}</span>
         {activeSpace.e2ee && (
@@ -44,25 +56,35 @@ export function SpaceSecondarySidebar() {
         )}
       </div>
 
-      {isActiveSpaceAdmin && (
-        <NavLink to={`/s/${slug}/manage`} className={navLinkClass}>
+      {canAccessSpaceManage && (
+        <NavLink
+          to={`/s/${slug}/manage`}
+          className={navLinkClass}
+          onClick={handleNav}
+        >
           <Icon name="settings" size="sm" />
           <span>{t('spaces.sidebar.manage')}</span>
         </NavLink>
       )}
 
-      {/* Home */}
-      <NavLink to={`/s/${slug}`} end className={navLinkClass}>
+      <NavLink
+        to={`/s/${slug}`}
+        end
+        className={navLinkClass}
+        onClick={handleNav}
+      >
         <Icon name="home" size="sm" />
         <span>{t('spaces.sidebar.home')}</span>
       </NavLink>
 
-      {/* Channel list */}
       <div className="space-sidebar-group">
         <div className="space-sidebar-group-header">
           {t('spaces.sidebar.textChannels')}
         </div>
-        <nav className="space-sidebar-channels" aria-label={t('spaces.sidebar.textChannels')}>
+        <nav
+          className="space-sidebar-channels"
+          aria-label={t('spaces.sidebar.textChannels')}
+        >
           {channels.map((ch) => {
             const unread = unreadByChannel[ch.id];
             const channelName = resolveChannelDisplayName(ch, spaceCipher, {
@@ -73,6 +95,7 @@ export function SpaceSecondarySidebar() {
                 key={ch.id}
                 to={`/s/${slug}/c/${ch.id}`}
                 className={navLinkClass}
+                onClick={handleNav}
               >
                 <span className="space-sidebar-channel-hash">#</span>
                 <span className="space-sidebar-channel-name">{channelName}</span>
