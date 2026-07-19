@@ -44,11 +44,16 @@ import {
   unregisterConnection,
   getConnectionsForSpace,
   getConnectionsForIdentity,
+  getSubscriptionCount,
 } from './connections';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-function makeSocket() {
-  return { send: vi.fn(() => 1) } as any;
+function makeSocket(spaceIds: string[] = []) {
+  const userData = { identityId: '', spaceIds: [...spaceIds] };
+  return {
+    send: vi.fn(() => 1),
+    getUserData: () => userData,
+  } as any;
 }
 
 /** Delivers a Redis message through the captured pub/sub message handler. */
@@ -146,5 +151,45 @@ describe('chat connections - space fan-out', () => {
     expect(getConnectionsForIdentity('invitee')?.has(ws)).toBe(true);
 
     await unregisterConnection('invitee', ws, []);
+  });
+
+  it('records a space subscription even when Redis is down', async () => {
+    redisConnected = false;
+    const ws = makeSocket(['space-outage']);
+    await registerConnection('outage', ws, ['space-outage']);
+
+    expect(mockSubscribe).not.toHaveBeenCalledWith('adieuu:space:space-outage');
+    expect(getConnectionsForSpace('space-outage')?.has(ws)).toBe(true);
+    // Desired channel is tracked so the ready handler can restore it.
+    expect(getSubscriptionCount()).toBeGreaterThan(0);
+
+    redisConnected = true;
+    await unregisterConnection('outage', ws, ['space-outage']);
+  });
+
+  it('revokes space fan-out after space_member_left while delivering the leave event', async () => {
+    const kicked = makeSocket(['space-kick']);
+    const remaining = makeSocket(['space-kick']);
+    await registerConnection('kicked', kicked, ['space-kick']);
+    await registerConnection('stayer', remaining, ['space-kick']);
+
+    deliver('space:space-kick', {
+      type: 'space_member_left',
+      data: { spaceId: 'space-kick', identityId: 'kicked' },
+    });
+
+    // Leave event is delivered to both, then kicked is removed from fan-out.
+    expect(kicked.send).toHaveBeenCalledTimes(1);
+    expect(remaining.send).toHaveBeenCalledTimes(1);
+    expect(getConnectionsForSpace('space-kick')?.has(kicked)).toBe(false);
+    expect(getConnectionsForSpace('space-kick')?.has(remaining)).toBe(true);
+    expect(kicked.getUserData().spaceIds).not.toContain('space-kick');
+
+    deliver('space:space-kick', { type: 'space_message', data: {} });
+    expect(kicked.send).toHaveBeenCalledTimes(1);
+    expect(remaining.send).toHaveBeenCalledTimes(2);
+
+    await unregisterConnection('kicked', kicked, kicked.getUserData().spaceIds);
+    await unregisterConnection('stayer', remaining, ['space-kick']);
   });
 });

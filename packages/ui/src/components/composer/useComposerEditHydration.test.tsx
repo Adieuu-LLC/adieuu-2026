@@ -89,12 +89,18 @@ describe('useComposerEditHydration', () => {
       { initialProps: enter },
     );
 
-    const leave = makeParams({ editContext: null, editingMessageKey: null });
+    enter.pageTagEntriesRef.current = [{ pageId: 'p', offset: 0, length: 1 }];
+    const leave: UseComposerEditHydrationParams = {
+      ...enter,
+      editContext: null,
+      editingMessageKey: null,
+    };
     await act(async () => {
       await rerender(leave);
     });
 
     expect(leave.setMessageText).toHaveBeenCalledWith('', 0);
     expect(leave.setAttachments).toHaveBeenCalled();
+    expect(leave.pageTagEntriesRef.current).toEqual([]);
   });
 });

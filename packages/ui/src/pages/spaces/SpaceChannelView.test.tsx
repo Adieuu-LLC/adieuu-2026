@@ -299,7 +299,7 @@ describe('SpaceChannelView', () => {
     container.remove();
   });
 
-  it('shows no-cipher message when E2EE channel has no matching cipher', async () => {
+  it('shows cipher recovery UI when E2EE channel has no matching cipher', async () => {
     mockSpacesContext = makeDefaultCtx({
       channels: [
         {
@@ -315,6 +315,8 @@ describe('SpaceChannelView', () => {
 
     const { root, container } = await render();
     expect(happy.document.body.textContent).toContain('spaces.channel.noCipher');
+    expect(happy.document.body.textContent).toContain('spaces.channel.checkCiphers');
+    expect(happy.document.body.textContent).toContain('spaces.channel.addCipher');
     const composer = happy.document.querySelector('[data-testid="composer"]');
     expect(composer).toBeNull();
 

@@ -125,9 +125,14 @@ export function initializeMessageHandler(): void {
       : channel;
 
     let eventType: string | undefined;
+    let leftIdentityId: string | undefined;
     try {
-      const parsed = JSON.parse(message);
+      const parsed = JSON.parse(message) as {
+        type?: string;
+        data?: { identityId?: string };
+      };
       eventType = parsed?.type;
+      leftIdentityId = parsed?.data?.identityId;
     } catch {
       // Best-effort parse for logging; forward the raw message regardless
     }
@@ -141,6 +146,10 @@ export function initializeMessageHandler(): void {
         key: spaceId,
         eventType,
       });
+      // After delivery, drop revoked members so they stop receiving further broadcasts.
+      if (eventType === 'space_member_left' && leftIdentityId) {
+        void revokeSpaceMembership(spaceId, leftIdentityId);
+      }
       return;
     }
 
@@ -232,6 +241,10 @@ async function subscribeToSpace(spaceId: string): Promise<void> {
     return;
   }
 
+  // Record desired subscription before the Redis guard so the ready handler
+  // can restore channels for sockets opened during an outage.
+  subscriptions.add(channel);
+
   if (!isRedisConnected()) {
     logger.warn('Cannot subscribe to space - Redis not connected', { spaceId });
     return;
@@ -240,10 +253,39 @@ async function subscribeToSpace(spaceId: string): Promise<void> {
   try {
     const subscriber = getSubscriber();
     await subscriber.subscribe(`${config.redis.keyPrefix}${channel}`);
-    subscriptions.add(channel);
     logger.info('Subscribed to space channel', { channel });
   } catch (error) {
     logger.error('Failed to subscribe to space channel', { error, channel });
+  }
+}
+
+/**
+ * Removes an identity's sockets from a Space's local fan-out set after membership
+ * is revoked (leave/kick). Unsubscribes the Redis channel when no local sockets remain.
+ */
+async function revokeSpaceMembership(spaceId: string, identityId: string): Promise<void> {
+  const spaceSockets = spaceConnections.get(spaceId);
+  if (!spaceSockets || spaceSockets.size === 0) {
+    return;
+  }
+
+  const identitySockets = connections.get(identityId);
+  if (!identitySockets) {
+    return;
+  }
+
+  for (const ws of identitySockets) {
+    if (!spaceSockets.has(ws)) continue;
+    spaceSockets.delete(ws);
+    const userData = ws.getUserData();
+    if (userData.spaceIds?.length) {
+      userData.spaceIds = userData.spaceIds.filter((id) => id !== spaceId);
+    }
+  }
+
+  if (spaceSockets.size === 0) {
+    spaceConnections.delete(spaceId);
+    await unsubscribeFromSpace(spaceId);
   }
 }
 

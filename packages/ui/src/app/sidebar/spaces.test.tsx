@@ -52,6 +52,12 @@ mock.module('../../hooks/useSpaces', () => ({
   useSpaces: () => mockSpacesValue,
 }));
 
+mock.module('../../hooks/useCipherStore', () => ({
+  useCipherStore: () => ({
+    getCipherKey: () => null,
+  }),
+}));
+
 const { SpacesSidebarSection } = await import('./spaces');
 
 type G = typeof globalThis & {

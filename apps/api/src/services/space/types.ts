@@ -31,6 +31,7 @@ export type SpaceErrorCode =
   | 'TIER_REQUIRED'
   | 'SLUG_RESERVED'
   | 'SLUG_TAKEN'
+  | 'SLUG_REQUIRED'
   | 'INVALID_ENCRYPTION'
   | 'INVALID_ID'
   | 'SPACE_NOT_FOUND'

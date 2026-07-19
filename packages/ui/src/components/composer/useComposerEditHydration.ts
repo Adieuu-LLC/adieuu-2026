@@ -72,6 +72,7 @@ export function useComposerEditHydration(params: UseComposerEditHydrationParams)
     } else if (prevEditKey.current !== null) {
       setMessageText('', 0);
       mentionEntriesRef.current = [];
+      pageTagEntriesRef.current = [];
       setAttachments((prev) => {
         for (const a of prev) {
           if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);

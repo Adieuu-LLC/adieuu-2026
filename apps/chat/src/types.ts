@@ -13,10 +13,10 @@ export interface WsUserData {
   deviceId?: string;
   connectedAt: number;
   /**
-   * Space ids the identity was an active member of at WS upgrade. The
+   * Space ids the identity is (or was at upgrade) an active member of. The
    * connection subscribes to each `space:{spaceId}` channel so Space broadcasts
-   * are delivered. Resolved once at upgrade (membership changes take effect on
-   * the next reconnect).
+   * are delivered. Seeded at upgrade; live leave/kick events remove ids while
+   * the socket stays connected.
    */
   spaceIds?: string[];
 }

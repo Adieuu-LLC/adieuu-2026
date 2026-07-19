@@ -78,6 +78,7 @@ export function mapSpaceError(
     case 'SLUG_TAKEN':
       return { kind: 'conflict', code: 'SLUG_TAKEN', message };
     case 'SLUG_RESERVED':
+    case 'SLUG_REQUIRED':
       return { kind: 'bad_request', message };
     case 'ALREADY_MEMBER':
       return { kind: 'conflict', code: 'ALREADY_MEMBER', message };

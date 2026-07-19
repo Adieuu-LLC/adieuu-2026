@@ -152,7 +152,7 @@ export async function createSpace(
   const slug = isHidden ? spaceObjId.toHexString() : (params.slug ?? '');
   if (!isHidden) {
     if (!slug) {
-      return { success: false, error: 'A URL slug is required.', errorCode: 'SLUG_TAKEN' };
+      return { success: false, error: 'A URL slug is required.', errorCode: 'SLUG_REQUIRED' };
     }
     if (isReservedSpaceSlug(slug)) {
       return { success: false, error: 'That URL is reserved.', errorCode: 'SLUG_RESERVED' };

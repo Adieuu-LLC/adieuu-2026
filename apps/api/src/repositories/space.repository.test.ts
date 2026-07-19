@@ -14,7 +14,7 @@ const findResult = {
 const mockCollection = {
   insertOne: mock((doc: any) => Promise.resolve({ insertedId: doc._id ?? new ObjectId() })) as AnyMock,
   findOne: mock(() => Promise.resolve(null)) as AnyMock,
-  updateOne: mock(() => Promise.resolve({ modifiedCount: 1 })) as AnyMock,
+  updateOne: mock(() => Promise.resolve({ matchedCount: 1, modifiedCount: 1 })) as AnyMock,
   find: mock((filter: any) => {
     lastFindFilter = filter;
     return findResult;
@@ -139,11 +139,21 @@ describe('SpaceRepository', () => {
     expect(update.$inc).toEqual({ memberCount: 1 });
   });
 
-  test('incrementMemberCount respects a negative delta', async () => {
+  test('incrementMemberCount respects a negative delta with a floor guard', async () => {
     const repo = new SpaceRepository();
     const spaceId = new ObjectId();
     await repo.incrementMemberCount(spaceId, -1);
-    const [, update] = mockCollection.updateOne.mock.calls[0]!;
+    const [filter, update] = mockCollection.updateOne.mock.calls[0]!;
+    expect(filter).toEqual({ _id: spaceId, memberCount: { $gte: 1 } });
     expect(update.$inc).toEqual({ memberCount: -1 });
+  });
+
+  test('incrementMemberCount throws when a decrement matches no document', async () => {
+    mockCollection.updateOne.mockResolvedValueOnce({ matchedCount: 0, modifiedCount: 0 });
+    const repo = new SpaceRepository();
+    const spaceId = new ObjectId();
+    await expect(repo.incrementMemberCount(spaceId, -1)).rejects.toThrow(
+      'Space memberCount cannot be decremented below zero',
+    );
   });
 });

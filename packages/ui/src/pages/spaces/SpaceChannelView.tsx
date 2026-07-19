@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { CommunityCipher } from '@adieuu/crypto';
-import { createApiClient } from '@adieuu/shared';
+import { createApiClient, type PublicSpaceRole } from '@adieuu/shared';
 import { useSpaces } from '../../hooks/useSpaces';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useAppConfig } from '../../config';
@@ -76,6 +76,7 @@ export function SpaceChannelView() {
   const { identity } = useIdentity();
   const { getCipherKey } = useCipherStore();
   const [cipherLinkVersion, setCipherLinkVersion] = useState(0);
+  const [memberRoles, setMemberRoles] = useState<PublicSpaceRole[]>([]);
 
   const api = useMemo(
     () => createApiClient({ baseUrl: apiBaseUrl }),
@@ -411,6 +412,25 @@ export function SpaceChannelView() {
   const [showMembers, setShowMembers] = useState(false);
   const toggleMembers = useCallback(() => setShowMembers((v) => !v), []);
 
+  useEffect(() => {
+    if (!showMembers || !spaceId) {
+      setMemberRoles([]);
+      return;
+    }
+    let cancelled = false;
+    void api.spaces.listRoles(spaceId).then((res) => {
+      if (cancelled) return;
+      if (res.success && res.data) {
+        setMemberRoles(res.data.roles);
+      } else {
+        setMemberRoles([]);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [showMembers, spaceId, api]);
+
   // ---------------------------------------------------------------------------
   // Pin preview for toolbar subtitle
   // ---------------------------------------------------------------------------
@@ -519,10 +539,10 @@ export function SpaceChannelView() {
           isEncrypted={isEncrypted}
           spaceCipher={spaceCipher}
           cipherGate={
-            isEncrypted && activeSpace?.cipherCheck
+            isEncrypted && activeSpace && (activeSpace.cipherCheck ?? activeChannel?.cipherCheck)
               ? {
                   spaceId: activeSpace.id,
-                  cipherCheck: activeSpace.cipherCheck,
+                  cipherCheck: (activeSpace.cipherCheck ?? activeChannel!.cipherCheck)!,
                   onCipherLinked: () => setCipherLinkVersion((v) => v + 1),
                 }
               : null
@@ -542,7 +562,7 @@ export function SpaceChannelView() {
       {showMembers && (
         <SpaceMembersSidebar
           spaceId={spaceId}
-          roles={[]}
+          roles={memberRoles}
           selfId={identity?.id}
           listMembers={(sid, opts) => api.spaces.listMembers(sid, opts)}
           resolveProfile={(id) => participantProfiles[id]}

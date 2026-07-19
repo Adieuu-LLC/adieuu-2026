@@ -127,7 +127,13 @@ export const MediaMessage = memo(function MediaMessage({
       ? { width: placeholderSizeStyle.width, height: placeholderSizeStyle.height, maxWidth: '100%' }
       : aspectRatio
         ? { aspectRatio }
-        : undefined;
+        : placeholderSizeStyle
+          ? {
+              width: placeholderSizeStyle.width,
+              maxWidth: '100%',
+              aspectRatio: '4 / 3',
+            }
+          : undefined;
 
   return (
     <div

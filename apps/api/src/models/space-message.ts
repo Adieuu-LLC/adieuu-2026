@@ -70,18 +70,21 @@ export function toPublicSpaceMessage(
   doc: SpaceMessageDocument,
   opts?: { hasReactions?: boolean },
 ): PublicSpaceMessage {
+  const deleted = doc.deleted ?? false;
   return {
     id: doc._id.toHexString(),
     spaceId: doc.spaceId.toHexString(),
     channelId: doc.channelId.toHexString(),
     fromIdentityId: doc.fromIdentityId.toHexString(),
-    ...(doc.content !== undefined ? { content: doc.content } : {}),
-    ...(doc.ciphertext ? { ciphertext: doc.ciphertext, nonce: doc.nonce, cipherId: doc.cipherId } : {}),
+    ...(!deleted && doc.content !== undefined ? { content: doc.content } : {}),
+    ...(!deleted && doc.ciphertext
+      ? { ciphertext: doc.ciphertext, nonce: doc.nonce, cipherId: doc.cipherId }
+      : {}),
     clientMessageId: doc.clientMessageId,
-    deleted: doc.deleted ?? false,
+    deleted,
     revisionCount: doc.revisionCount ?? 0,
     ...(doc.lastEditedAt ? { lastEditedAt: doc.lastEditedAt.toISOString() } : {}),
-    ...(!doc.deleted && doc.revisionHistory?.length
+    ...(!deleted && doc.revisionHistory?.length
       ? { revisionHistory: doc.revisionHistory.map(serializeRevision) }
       : {}),
     ...(doc.replyToMessageId ? { replyToMessageId: doc.replyToMessageId.toHexString() } : {}),

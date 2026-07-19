@@ -23,22 +23,7 @@ import { useCallSession } from '../../hooks/useCallSession';
 import { getSidebarListAvatarMemberIds } from '../../pages/conversations/conversationViewModel';
 import { useSidebarPanelDismiss } from './useSidebarPanelDismiss';
 import type { ConversationFolder } from '@adieuu/shared';
-
-function resolveDisplayName(
-  conversation: DecryptedConversation,
-  selfId: string | undefined,
-  profiles: Record<string, { displayName?: string; username?: string }>,
-): string {
-  if (conversation.type === 'group') return conversation.decryptedName ?? 'Group';
-  if (conversation.decryptedName?.trim()) return conversation.decryptedName.trim();
-  const others = conversation.participants.filter((p) => p !== selfId);
-  return others
-    .map((pid) => {
-      const p = profiles[pid];
-      return p?.displayName ?? p?.username ?? pid;
-    })
-    .join(', ');
-}
+import { resolveConversationDisplayName } from './resolveConversationDisplayName';
 
 function FolderConversationItem({
   conversation,
@@ -285,7 +270,7 @@ export function FolderPanel({
       <div className="sidebar-folder-panel-list">
         {folderConversations.length > 0 ? (
           folderConversations.map((conv) => {
-            const displayName = resolveDisplayName(conv, identity?.id, participantProfiles);
+            const displayName = resolveConversationDisplayName(conv, identity?.id, participantProfiles);
             const pref = preferences[conv.id];
             return (
               <FolderConversationItem

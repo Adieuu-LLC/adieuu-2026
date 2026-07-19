@@ -40,14 +40,23 @@ export const ComposerBanners = memo(function ComposerBanners({
       {!editContext && replyContext && (
         <div className="conversation-composer-reply">
           <Icon name="reply" className="conversation-composer-reply-icon" />
-          <button
-            type="button"
-            className="conversation-composer-reply-text"
-            title={`${replyContext.authorName}: ${replyContext.snippet}`}
-            onClick={replyContext.onClick}
-          >
-            {replyContext.authorName}: {replyContext.snippet}
-          </button>
+          {replyContext.onClick ? (
+            <button
+              type="button"
+              className="conversation-composer-reply-text"
+              title={`${replyContext.authorName}: ${replyContext.snippet}`}
+              onClick={replyContext.onClick}
+            >
+              {replyContext.authorName}: {replyContext.snippet}
+            </button>
+          ) : (
+            <span
+              className="conversation-composer-reply-text"
+              title={`${replyContext.authorName}: ${replyContext.snippet}`}
+            >
+              {replyContext.authorName}: {replyContext.snippet}
+            </span>
+          )}
           <button
             type="button"
             className="conversation-composer-reply-cancel"

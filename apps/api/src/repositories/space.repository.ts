@@ -79,10 +79,17 @@ export class SpaceRepository extends BaseRepository<SpaceDocument> {
   }
 
   async incrementMemberCount(spaceId: ObjectId, delta = 1): Promise<void> {
-    await this.collection.updateOne(
-      { _id: spaceId } as Filter<SpaceDocument>,
-      { $inc: { memberCount: delta }, $set: { updatedAt: new Date() } }
-    );
+    const filter: Filter<SpaceDocument> =
+      delta < 0
+        ? ({ _id: spaceId, memberCount: { $gte: Math.abs(delta) } } as Filter<SpaceDocument>)
+        : ({ _id: spaceId } as Filter<SpaceDocument>);
+    const result = await this.collection.updateOne(filter, {
+      $inc: { memberCount: delta },
+      $set: { updatedAt: new Date() },
+    });
+    if (delta < 0 && result.matchedCount === 0) {
+      throw new Error('Space memberCount cannot be decremented below zero');
+    }
   }
 }
 
