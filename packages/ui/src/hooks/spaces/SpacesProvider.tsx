@@ -385,6 +385,14 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
 
   const activeChannelState = activeChannelId ? messagesByChannel[activeChannelId] : undefined;
 
+  // While listMine is in flight, treat as member so the join CTA / interstitial
+  // path does not flash for Spaces the user already belongs to.
+  const isActiveSpaceMember = useMemo(() => {
+    if (!activeSpaceInternal) return false;
+    if (spaces.some((s) => s.id === activeSpaceInternal.id)) return true;
+    return spacesLoading;
+  }, [activeSpaceInternal, spaces, spacesLoading]);
+
   const value = useMemo<SpacesContextValue>(
     () => ({
       spaces,
@@ -392,6 +400,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       activeSpace: activeSpaceInternal,
       activeSpaceLoading,
       activeSpaceError,
+      isActiveSpaceMember,
       channels,
       activeChannelId,
       activeMessages: activeChannelState?.messages ?? [],
@@ -421,6 +430,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       activeSpaceInternal,
       activeSpaceLoading,
       activeSpaceError,
+      isActiveSpaceMember,
       channels,
       activeChannelId,
       activeChannelState,

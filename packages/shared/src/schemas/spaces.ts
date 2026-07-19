@@ -46,9 +46,15 @@ export const CreateSpaceSchema = z
     visibility: SpaceVisibilitySchema,
     allowFreeMembers: z.boolean().optional(),
     cipherCheck: CipherCheckSchema.optional(),
+    e2ee: z.boolean().optional(),
+    cipherRequired: z.boolean().optional(),
   })
-  .refine((v) => !(v.visibility === 'public' && v.cipherCheck), {
-    message: 'Public spaces cannot have Space-wide E2EE',
+  .refine((v) => !(v.visibility === 'public' && (v.cipherCheck || v.e2ee || v.cipherRequired)), {
+    message: 'Public spaces cannot use Cipher gates or E2EE',
+    path: ['cipherCheck'],
+  })
+  .refine((v) => !((v.e2ee || v.cipherRequired) && !v.cipherCheck), {
+    message: 'cipherCheck is required when e2ee or cipherRequired is enabled',
     path: ['cipherCheck'],
   });
 
@@ -58,6 +64,7 @@ export const UpdateSpaceSchema = z
     description: z.string().max(SPACE_DESCRIPTION_MAX_LENGTH).optional(),
     visibility: SpaceVisibilitySchema.optional(),
     allowFreeMembers: z.boolean().optional(),
+    cipherRequired: z.boolean().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, {
     message: 'At least one field is required',

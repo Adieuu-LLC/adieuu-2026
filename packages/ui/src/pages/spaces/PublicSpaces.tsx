@@ -3,20 +3,21 @@
  *
  * Browsable list of discoverable (public/listed) Spaces. Discovery and joining
  * require an active Alias (identity) session, so guests see a sign-in prompt.
- * Joining a Space navigates to `/s/:slug`.
+ * Join opens an interstitial (info, rules placeholder, Cipher detect) before
+ * calling the join API; Browse navigates without joining for non-E2EE Spaces.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { createApiClient, type PublicSpace } from '@adieuu/shared';
 import { useAppConfig } from '../../config';
 import { useIdentity } from '../../hooks/useIdentity';
-import { emitSpacesChanged } from '../../services/spacesMembershipEvents';
 import { useToast } from '../../components/Toast';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { Spinner } from '../../components/Spinner';
+import { JoinSpaceInterstitial } from './JoinSpaceInterstitial';
 import '../../styles/_spaces.scss';
 
 const SEARCH_DEBOUNCE_MS = 400;
@@ -25,7 +26,6 @@ const PAGE_SIZE = 30;
 export function PublicSpaces() {
   const { t } = useTranslation();
   const toast = useToast();
-  const navigate = useNavigate();
   const { apiBaseUrl } = useAppConfig();
   const { status: identityStatus } = useIdentity();
   const isLoggedIn = identityStatus === 'logged_in';
@@ -38,11 +38,9 @@ export function PublicSpaces() {
   const [error, setError] = useState(false);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [joiningId, setJoiningId] = useState<string | null>(null);
+  const [joinTarget, setJoinTarget] = useState<PublicSpace | null>(null);
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Sequences discovery requests so a slower earlier search can't overwrite the
-  // results/state of a newer one.
   const fetchSeq = useRef(0);
 
   const handleSearchInput = useCallback((value: string) => {
@@ -112,30 +110,6 @@ export function PublicSpaces() {
       setLoadingMore(false);
     }
   }, [api, cursor, debouncedSearch, loadingMore, toast, t]);
-
-  const handleJoin = useCallback(
-    async (space: PublicSpace) => {
-      if (joiningId) return;
-      setJoiningId(space.id);
-      try {
-        const res = await api.spaces.join(space.id);
-        if (res.success || res.error?.code === 'ALREADY_MEMBER') {
-          if (res.success) {
-            toast.success(t('spaces.joinSuccess', { name: space.name }));
-            emitSpacesChanged();
-          }
-          navigate(`/s/${space.slug}`);
-          return;
-        }
-        toast.error(res.error?.message ?? t('spaces.joinError'));
-      } catch {
-        toast.error(t('spaces.joinError'));
-      } finally {
-        setJoiningId(null);
-      }
-    },
-    [api, joiningId, navigate, t, toast],
-  );
 
   const renderHeader = () => (
     <div className="page-header">
@@ -211,9 +185,14 @@ export function PublicSpaces() {
                       <span className="spaces-badge">
                         {t(`spaces.visibility.${space.visibility}`)}
                       </span>
-                      {space.cipherCheck && (
+                      {space.e2ee && (
                         <span className="spaces-badge spaces-badge--encrypted">
                           {t('spaces.encrypted')}
+                        </span>
+                      )}
+                      {space.cipherRequired && (
+                        <span className="spaces-badge">
+                          {t('spaces.joinModal.cipherRequiredBadge')}
                         </span>
                       )}
                     </div>
@@ -230,10 +209,9 @@ export function PublicSpaces() {
                     <Button
                       variant="primary"
                       size="sm"
-                      onClick={() => void handleJoin(space)}
-                      disabled={joiningId !== null}
+                      onClick={() => setJoinTarget(space)}
                     >
-                      {joiningId === space.id ? t('spaces.joining') : t('spaces.join')}
+                      {t('spaces.join')}
                     </Button>
                   </div>
                 </Card>
@@ -254,6 +232,14 @@ export function PublicSpaces() {
           </>
         )}
       </div>
+
+      <JoinSpaceInterstitial
+        space={joinTarget}
+        open={!!joinTarget}
+        onOpenChange={(open) => {
+          if (!open) setJoinTarget(null);
+        }}
+      />
     </div>
   );
 }

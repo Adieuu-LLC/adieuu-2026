@@ -64,11 +64,22 @@ export async function createSpace(
     return { success: false, error: 'That URL is reserved.', errorCode: 'SLUG_RESERVED' };
   }
 
-  // Defense-in-depth: public Spaces never carry Space-wide E2EE (also enforced by schema).
-  if (visibility === 'public' && params.cipherCheck) {
+  const e2ee = params.e2ee ?? false;
+  const cipherRequired = params.cipherRequired ?? false;
+
+  // Defense-in-depth: public Spaces never carry Cipher gates or E2EE (also enforced by schema).
+  if (visibility === 'public' && (params.cipherCheck || e2ee || cipherRequired)) {
     return {
       success: false,
-      error: 'Public Spaces cannot have Space-wide encryption.',
+      error: 'Public Spaces cannot use Cipher gates or encryption.',
+      errorCode: 'INVALID_ENCRYPTION',
+    };
+  }
+
+  if ((e2ee || cipherRequired) && !params.cipherCheck) {
+    return {
+      success: false,
+      error: 'A Cipher challenge is required when E2EE or cipherRequired is enabled.',
       errorCode: 'INVALID_ENCRYPTION',
     };
   }
@@ -104,6 +115,8 @@ export async function createSpace(
       ...(description !== undefined ? { description } : {}),
       visibility,
       ...(params.cipherCheck ? { cipherCheck: params.cipherCheck } : {}),
+      e2ee,
+      cipherRequired,
       createdBy: creatorObjId,
       ownerIdentityId: creatorObjId,
       allowFreeMembers: params.allowFreeMembers ?? false,
@@ -249,9 +262,10 @@ export async function getSpaceById(
 }
 
 /**
- * Update a Space's settings (name/description/visibility/allowFreeMembers).
- * Requires the acting identity to hold the `admin` permission. A Space carrying
- * a cipher challenge (Space-wide E2EE) can never be switched to `public`.
+ * Update a Space's settings (name/description/visibility/allowFreeMembers/
+ * cipherRequired). Requires the acting identity to hold the `admin` permission.
+ * A Space with a cipher challenge or E2EE can never be switched to `public`.
+ * `cipherCheck` / `e2ee` are immutable after create.
  */
 export async function updateSpace(
   spaceIdRaw: string | ObjectId,
@@ -261,6 +275,7 @@ export async function updateSpace(
     description?: string;
     visibility?: SpaceVisibility;
     allowFreeMembers?: boolean;
+    cipherRequired?: boolean;
   },
 ): Promise<SpaceResult> {
   const spaceId =
@@ -297,12 +312,19 @@ export async function updateSpace(
     };
   }
 
-  // Defense-in-depth: an E2EE Space cannot become public (public Spaces never
-  // carry a Space-wide cipher challenge).
-  if (updates.visibility === 'public' && space.cipherCheck) {
+  // Defense-in-depth: a Space with a Cipher association cannot become public.
+  if (updates.visibility === 'public' && (space.cipherCheck || space.e2ee || space.cipherRequired)) {
     return {
       success: false,
-      error: 'An encrypted Space cannot be made public.',
+      error: 'A Space with Cipher gates or encryption cannot be made public.',
+      errorCode: 'INVALID_ENCRYPTION',
+    };
+  }
+
+  if (updates.cipherRequired === true && !space.cipherCheck) {
+    return {
+      success: false,
+      error: 'A Cipher challenge is required before enabling cipherRequired.',
       errorCode: 'INVALID_ENCRYPTION',
     };
   }
@@ -312,6 +334,7 @@ export async function updateSpace(
   if (updates.description !== undefined) patch.description = updates.description;
   if (updates.visibility !== undefined) patch.visibility = updates.visibility;
   if (updates.allowFreeMembers !== undefined) patch.allowFreeMembers = updates.allowFreeMembers;
+  if (updates.cipherRequired !== undefined) patch.cipherRequired = updates.cipherRequired;
 
   const updated = await spaceRepo.updateById(spaceId, patch as never);
   if (!updated) {

@@ -68,6 +68,7 @@ function makeSpaceDoc(overrides: Record<string, unknown> = {}) {
   const now = new Date();
   return {
     _id: new ObjectId(), slug: 'a-space', name: 'A Space', visibility: 'public',
+    e2ee: false, cipherRequired: false,
     createdBy: OWNER, ownerIdentityId: OWNER, allowFreeMembers: false, memberCount: 1,
     createdAt: now, updatedAt: now, ...overrides,
   };
@@ -128,8 +129,19 @@ describe('space/channels', () => {
       expect(memberRepo.findMember).not.toHaveBeenCalled();
     });
 
-    test('requires membership for a listed space', async () => {
+    test('lets non-members browse a listed non-E2EE space', async () => {
       const space = makeSpaceDoc({ visibility: 'listed' });
+      spaceRepo.findById.mockResolvedValue(space);
+      channelRepo.findBySpace.mockResolvedValue([makeChannelDoc(space._id)]);
+      const r = await listSpaceChannels(space._id, new ObjectId());
+      expect(r.success).toBe(true);
+      expect(r.channels).toHaveLength(1);
+    });
+
+    test('requires membership for a listed E2EE space', async () => {
+      const space = makeSpaceDoc({
+        visibility: 'listed', e2ee: true, cipherCheck: CIPHER_CHECK,
+      });
       spaceRepo.findById.mockResolvedValue(space);
       const r = await listSpaceChannels(space._id, new ObjectId());
       expect(r).toMatchObject({ success: false, errorCode: 'NOT_MEMBER' });
@@ -192,7 +204,9 @@ describe('space/channels', () => {
     });
 
     test('rejects plaintext send to an E2EE space', async () => {
-      const space = makeSpaceDoc({ visibility: 'listed', cipherCheck: CIPHER_CHECK });
+      const space = makeSpaceDoc({
+        visibility: 'listed', e2ee: true, cipherCheck: CIPHER_CHECK,
+      });
       spaceRepo.findById.mockResolvedValue(space);
       const sender = new ObjectId();
       grantPermissions(space._id, sender, ['post']);
@@ -200,6 +214,22 @@ describe('space/channels', () => {
       const r = await sendSpaceMessage(space._id, new ObjectId(), sender, { content: 'hi', clientMessageId: 'c1' });
       expect(r).toMatchObject({ success: false, errorCode: 'INVALID_CONTENT' });
       expect(messageRepo.createMessage).not.toHaveBeenCalled();
+    });
+
+    test('allows plaintext send when cipherCheck is gate-only (e2ee false)', async () => {
+      const space = makeSpaceDoc({
+        visibility: 'listed', e2ee: false, cipherRequired: true, cipherCheck: CIPHER_CHECK,
+      });
+      spaceRepo.findById.mockResolvedValue(space);
+      const sender = new ObjectId();
+      grantPermissions(space._id, sender, ['post']);
+      const channel = makeChannelDoc(space._id);
+      channelRepo.findByIdInSpace.mockResolvedValue(channel);
+      const r = await sendSpaceMessage(space._id, channel._id, sender, {
+        content: 'hi', clientMessageId: 'c1',
+      });
+      expect(r.success).toBe(true);
+      expect(r.message?.content).toBe('hi');
     });
 
     test('rejects plaintext send to an E2EE channel', async () => {
@@ -241,7 +271,9 @@ describe('space/channels', () => {
     });
 
     test('sends an encrypted message to an E2EE space', async () => {
-      const space = makeSpaceDoc({ visibility: 'listed', cipherCheck: CIPHER_CHECK });
+      const space = makeSpaceDoc({
+        visibility: 'listed', e2ee: true, cipherCheck: CIPHER_CHECK,
+      });
       spaceRepo.findById.mockResolvedValue(space);
       const sender = new ObjectId();
       grantPermissions(space._id, sender, ['post']);

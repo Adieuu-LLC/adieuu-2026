@@ -48,6 +48,35 @@ mock.module('../../hooks/useIdentity', () => ({
   useIdentity: () => ({ status: mockIdentityStatus }),
 }));
 
+mock.module('../../hooks/useCipherStore', () => ({
+  useCipherStore: () => ({
+    ciphers: [],
+    getCipherKey: () => null,
+    createCipher: async () => ({ success: false }),
+    bookmarkSpaceCipher: async () => ({ success: true }),
+    findLocalIdByCipherId: () => undefined,
+    encryptionAvailable: false,
+  }),
+}));
+
+mock.module('./JoinSpaceInterstitial', () => ({
+  JoinSpaceInterstitial: ({
+    space,
+    open,
+  }: {
+    space: { name: string } | null;
+    open: boolean;
+  }) =>
+    open && space
+      ? createElement(
+          'div',
+          { 'data-testid': 'join-interstitial' },
+          createElement('span', null, 'spaces.joinModal.rulesTitle'),
+          createElement('span', null, space.name),
+        )
+      : null,
+}));
+
 const toastSuccess = mock((_title: string) => {});
 const toastError = mock((_title: string) => {});
 
@@ -81,6 +110,8 @@ function makeSpace(overrides: Record<string, unknown> = {}) {
     name: 'Test Space',
     description: 'A lovely place',
     visibility: 'public',
+    e2ee: false,
+    cipherRequired: false,
     createdBy: 'id-owner',
     ownerIdentityId: 'id-owner',
     allowFreeMembers: true,
@@ -204,7 +235,7 @@ describe('PublicSpaces directory', () => {
     container.remove();
   });
 
-  it('joins a space and navigates to /s/:slug on success', async () => {
+  it('opens the join interstitial instead of joining immediately', async () => {
     mockDiscover.mockImplementation(() =>
       Promise.resolve({ success: true, data: { spaces: [makeSpace()], cursor: null } }),
     );
@@ -221,38 +252,9 @@ describe('PublicSpaces directory', () => {
       await new Promise((r) => setTimeout(r, 0));
     });
 
-    expect(mockJoin).toHaveBeenCalledWith('space-1');
-    expect(mockNavigate).toHaveBeenCalledWith('/s/test-space');
-    expect(toastSuccess).toHaveBeenCalled();
-
-    await act(async () => {
-      root.unmount();
-    });
-    container.remove();
-  });
-
-  it('surfaces a join error without navigating', async () => {
-    mockDiscover.mockImplementation(() =>
-      Promise.resolve({ success: true, data: { spaces: [makeSpace()], cursor: null } }),
-    );
-    mockJoin.mockImplementation(() =>
-      Promise.resolve({ success: false, error: { code: 'TIER_REQUIRED', message: 'paid only' } }),
-    );
-
-    const { root, container } = await renderDirectory();
-
-    const joinButton = [...happy.document.querySelectorAll('button')].find((b) =>
-      b.textContent?.includes('spaces.join'),
-    );
-
-    await act(async () => {
-      joinButton?.click();
-      await new Promise((r) => setTimeout(r, 0));
-    });
-
-    expect(mockJoin).toHaveBeenCalledWith('space-1');
-    expect(mockNavigate).not.toHaveBeenCalled();
-    expect(toastError).toHaveBeenCalledWith('paid only');
+    expect(mockJoin).not.toHaveBeenCalled();
+    expect(happy.document.body.textContent).toContain('spaces.joinModal.rulesTitle');
+    expect(happy.document.body.textContent).toContain('Test Space');
 
     await act(async () => {
       root.unmount();

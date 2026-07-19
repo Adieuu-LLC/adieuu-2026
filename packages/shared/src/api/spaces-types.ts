@@ -5,8 +5,9 @@
  * conversations) so they can scale to arbitrary member counts. E2EE uses
  * Community Ciphers via a blind-relay verification challenge: the server
  * never stores Cipher entropy, derived keys, or cipherIds — only a
- * `CipherCheck` challenge whose presence is the sole signal a Space (or
- * channel) is encrypted.
+ * `CipherCheck` challenge. Content encryption is signaled by `e2ee`;
+ * `cipherRequired` is a client-side join gate (may use the same challenge
+ * without encrypting messages).
  *
  * @module api/spaces-types
  */
@@ -114,8 +115,18 @@ export interface PublicSpace {
   name: string;
   description?: string;
   visibility: SpaceVisibility;
-  /** Present only when the Space has Space-wide E2EE. Its presence is the only encryption signal. */
+  /**
+   * Blind-relay challenge when a Community Cipher is associated (for join-gate
+   * verification and/or message E2EE). Opaque to the server.
+   */
   cipherCheck?: CipherCheck;
+  /** When true, channel messages must use ciphertext/nonce/cipherId. */
+  e2ee: boolean;
+  /**
+   * Client-side join gate: the join interstitial should require a matching
+   * Cipher before enabling Join. Not enforced by the API.
+   */
+  cipherRequired: boolean;
   createdBy: string;
   ownerIdentityId: string;
   /** When true, free-tier identities may join/post despite the default tier gate. */
@@ -242,8 +253,15 @@ export interface CreateSpaceParams {
   description?: string;
   visibility: SpaceVisibility;
   allowFreeMembers?: boolean;
-  /** Provided only for E2EE Spaces (never for `public`). */
+  /**
+   * Blind-relay challenge when associating a Community Cipher (E2EE and/or
+   * cipher-required join). Never for `public`.
+   */
   cipherCheck?: CipherCheck;
+  /** Content encryption; requires `cipherCheck`. Default false. */
+  e2ee?: boolean;
+  /** Client join gate; requires `cipherCheck`. Default false. */
+  cipherRequired?: boolean;
 }
 
 export interface UpdateSpaceParams {
@@ -251,6 +269,8 @@ export interface UpdateSpaceParams {
   description?: string;
   visibility?: SpaceVisibility;
   allowFreeMembers?: boolean;
+  /** Client join gate; may be toggled after create. */
+  cipherRequired?: boolean;
 }
 
 /** Common fields for both plaintext and encrypted message sends. */

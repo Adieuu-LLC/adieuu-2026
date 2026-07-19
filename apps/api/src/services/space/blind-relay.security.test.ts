@@ -185,6 +185,7 @@ describe('spaces blind-relay: public serializers echo only the challenge', () =>
       cipherCheck: POLLUTED_CIPHER_CHECK as never,
       entropy: 'leaked' as never,
       cipherId: new ObjectId() as never,
+      e2ee: true, cipherRequired: true,
       createdBy: new ObjectId(), ownerIdentityId: new ObjectId(),
       allowFreeMembers: false, memberCount: 1,
       createdAt: new Date(), updatedAt: new Date(),

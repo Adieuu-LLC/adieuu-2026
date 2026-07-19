@@ -32,8 +32,44 @@ describe('CreateSpaceSchema', () => {
       visibility: 'listed',
       allowFreeMembers: true,
       cipherCheck: validCipherCheck,
+      e2ee: true,
+      cipherRequired: true,
     });
     expect(result.success).toBe(true);
+  });
+
+  test('accepts gate-only cipherRequired without e2ee', () => {
+    const result = CreateSpaceSchema.safeParse({
+      id: 'a'.repeat(24),
+      slug: 'gated-club',
+      name: 'Gated Club',
+      visibility: 'listed',
+      cipherCheck: validCipherCheck,
+      e2ee: false,
+      cipherRequired: true,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test('rejects e2ee without cipherCheck', () => {
+    const result = CreateSpaceSchema.safeParse({
+      slug: 'broken',
+      name: 'Broken',
+      visibility: 'listed',
+      e2ee: true,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test('rejects public with cipherRequired', () => {
+    const result = CreateSpaceSchema.safeParse({
+      slug: 'my-space',
+      name: 'My Space',
+      visibility: 'public',
+      cipherRequired: true,
+      cipherCheck: validCipherCheck,
+    });
+    expect(result.success).toBe(false);
   });
 
   test.each([
@@ -110,6 +146,19 @@ describe('CreateSpaceSchema', () => {
 describe('UpdateSpaceSchema', () => {
   test('accepts a single-field patch', () => {
     expect(UpdateSpaceSchema.safeParse({ allowFreeMembers: true }).success).toBe(true);
+  });
+
+  test('accepts cipherRequired patch', () => {
+    expect(UpdateSpaceSchema.safeParse({ cipherRequired: false }).success).toBe(true);
+  });
+
+  test('strips immutable cipherCheck / e2ee from updates', () => {
+    const parsed = UpdateSpaceSchema.parse({
+      name: 'X',
+      cipherCheck: validCipherCheck,
+      e2ee: true,
+    } as never);
+    expect(parsed).toEqual({ name: 'X' });
   });
 
   test('rejects an empty patch', () => {

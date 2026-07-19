@@ -5,9 +5,10 @@
  * PRIVACY / E2EE NOTES:
  * - Membership, channels, and roles live in their own collections (not an
  *   embedded array) so a Space can scale to any number of members.
- * - E2EE Spaces use Community Ciphers via a blind-relay verification challenge
- *   (`cipherCheck`). The server stores no Cipher entropy, keys, or cipherIds —
- *   the presence of `cipherCheck` is the only server-side signal of encryption.
+ * - Community Ciphers use a blind-relay verification challenge (`cipherCheck`).
+ *   The server stores no Cipher entropy, keys, or cipherIds.
+ * - `e2ee` is the content-encryption signal; `cipherRequired` is a client-side
+ *   join gate that may reuse the same challenge without encrypting messages.
  */
 
 import type { ObjectId } from 'mongodb';
@@ -32,10 +33,20 @@ export interface SpaceDocument extends BaseDocument {
   visibility: SpaceVisibility;
 
   /**
-   * Blind-relay cipher verification challenge. Present only for Space-wide
-   * E2EE Spaces. Opaque to the server.
+   * Blind-relay cipher verification challenge. Present when a Community Cipher
+   * is associated (for join-gate verification and/or message E2EE). Opaque to
+   * the server.
    */
   cipherCheck?: CipherCheck;
+
+  /** When true, channel messages must use ciphertext/nonce/cipherId. */
+  e2ee: boolean;
+
+  /**
+   * Client-side join gate (not enforced by the API). When true, clients should
+   * require a matching Cipher before enabling Join.
+   */
+  cipherRequired: boolean;
 
   /** Identity that created the Space. */
   createdBy: ObjectId;
@@ -61,6 +72,8 @@ export interface CreateSpaceInput {
   description?: string;
   visibility: SpaceVisibility;
   cipherCheck?: CipherCheck;
+  e2ee: boolean;
+  cipherRequired: boolean;
   createdBy: ObjectId;
   ownerIdentityId: ObjectId;
   allowFreeMembers: boolean;
@@ -78,6 +91,8 @@ export function toPublicSpace(doc: SpaceDocument): PublicSpace {
     ...(doc.description ? { description: doc.description } : {}),
     visibility: doc.visibility,
     ...(doc.cipherCheck ? { cipherCheck: toPublicCipherCheck(doc.cipherCheck) } : {}),
+    e2ee: doc.e2ee ?? false,
+    cipherRequired: doc.cipherRequired ?? false,
     createdBy: doc.createdBy.toHexString(),
     ownerIdentityId: doc.ownerIdentityId.toHexString(),
     allowFreeMembers: doc.allowFreeMembers,

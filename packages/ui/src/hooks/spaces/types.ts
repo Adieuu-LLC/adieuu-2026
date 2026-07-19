@@ -24,6 +24,8 @@ export interface SpacesContextValue {
   activeSpace: PublicSpace | null;
   activeSpaceLoading: boolean;
   activeSpaceError: 'not_found' | 'error' | null;
+  /** Whether the current identity is a member of the active Space. */
+  isActiveSpaceMember: boolean;
 
   /** Channels for the active Space (sorted by position). */
   channels: PublicSpaceChannel[];

@@ -116,7 +116,9 @@ export async function sendSpaceMessage(
     return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
   }
 
-  const isEncrypted = !!(space.cipherCheck || channel.cipherCheck);
+  // Content encryption is signaled by `e2ee` (or a per-channel cipherCheck).
+  // A Space-level cipherCheck alone may be gate-only and still accepts plaintext.
+  const isEncrypted = !!(space.e2ee || channel.cipherCheck);
   const hasAnyCipherField = !!(params.ciphertext || params.nonce || params.cipherId);
   const hasCipherFields = !!(params.ciphertext && params.nonce && params.cipherId);
 
@@ -394,7 +396,7 @@ export async function editSpaceMessage(
     return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
   }
 
-  const isEncrypted = !!(space.cipherCheck || channel.cipherCheck);
+  const isEncrypted = !!(space.e2ee || channel.cipherCheck);
   if (hasAnyCipherField && !hasCipherFields) {
     return { success: false, error: 'Cipher fields must include ciphertext, nonce, and cipherId.', errorCode: 'INVALID_CONTENT' };
   }

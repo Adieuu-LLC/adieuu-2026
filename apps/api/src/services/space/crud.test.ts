@@ -98,6 +98,8 @@ function makeSpaceDoc(overrides: Record<string, unknown> = {}) {
     slug: 'a-space',
     name: 'A Space',
     visibility: 'public',
+    e2ee: false,
+    cipherRequired: false,
     createdBy: CREATOR,
     ownerIdentityId: CREATOR,
     allowFreeMembers: false,
@@ -234,13 +236,38 @@ describe('space/crud', () => {
       const clientId = new ObjectId().toHexString();
       const cipherCheck = { knownValue: 'kv', encryptedKnownValue: 'enc', nonce: 'n' };
       const r = await createSpace(CREATOR, {
-        slug: 'secret', name: 'Secret', visibility: 'hidden', id: clientId, cipherCheck,
+        slug: 'secret', name: 'Secret', visibility: 'hidden', id: clientId,
+        cipherCheck, e2ee: true, cipherRequired: true,
       }, PAID);
 
       expect(r.success).toBe(true);
       const createArg = spaceRepo.createSpace.mock.calls[0]![0];
       expect(createArg._id.toHexString()).toBe(clientId);
       expect(createArg.cipherCheck).toEqual(cipherCheck);
+      expect(createArg.e2ee).toBe(true);
+      expect(createArg.cipherRequired).toBe(true);
+    });
+
+    test('persists gate-only cipherCheck without e2ee', async () => {
+      const clientId = new ObjectId().toHexString();
+      const cipherCheck = { knownValue: 'kv', encryptedKnownValue: 'enc', nonce: 'n' };
+      const r = await createSpace(CREATOR, {
+        slug: 'gated', name: 'Gated', visibility: 'listed', id: clientId,
+        cipherCheck, e2ee: false, cipherRequired: true,
+      }, PAID);
+
+      expect(r.success).toBe(true);
+      const createArg = spaceRepo.createSpace.mock.calls[0]![0];
+      expect(createArg.cipherCheck).toEqual(cipherCheck);
+      expect(createArg.e2ee).toBe(false);
+      expect(createArg.cipherRequired).toBe(true);
+    });
+
+    test('rejects e2ee without cipherCheck', async () => {
+      const r = await createSpace(CREATOR, {
+        slug: 'broken', name: 'Broken', visibility: 'listed', e2ee: true,
+      }, PAID);
+      expect(r).toMatchObject({ success: false, errorCode: 'INVALID_ENCRYPTION' });
     });
 
     test('rolls back seeded documents when membership seeding fails', async () => {
@@ -349,6 +376,29 @@ describe('space/crud', () => {
       // Broadcasts the update to the Space channel.
       expect(publishSpaceEvent).toHaveBeenCalledTimes(1);
       expect(publishSpaceEvent.mock.calls[0]![1].type).toBe('space_updated');
+    });
+
+    test('allows toggling cipherRequired when a cipherCheck exists', async () => {
+      const spaceId = new ObjectId();
+      spaceRepo.findById.mockResolvedValue(makeSpaceDoc({
+        _id: spaceId,
+        cipherCheck: { knownValue: 'k', encryptedKnownValue: 'e', nonce: 'n' },
+        e2ee: true,
+        cipherRequired: true,
+      }));
+      seedAdminMembership(spaceId);
+      const r = await updateSpace(spaceId, CREATOR, { cipherRequired: false });
+      expect(r.success).toBe(true);
+      const [, patch] = spaceRepo.updateById.mock.calls[0]!;
+      expect(patch).toEqual({ cipherRequired: false });
+    });
+
+    test('rejects enabling cipherRequired without cipherCheck', async () => {
+      const spaceId = new ObjectId();
+      spaceRepo.findById.mockResolvedValue(makeSpaceDoc({ _id: spaceId }));
+      seedAdminMembership(spaceId);
+      const r = await updateSpace(spaceId, CREATOR, { cipherRequired: true });
+      expect(r).toMatchObject({ success: false, errorCode: 'INVALID_ENCRYPTION' });
     });
 
     test('refuses to make an encrypted Space public', async () => {

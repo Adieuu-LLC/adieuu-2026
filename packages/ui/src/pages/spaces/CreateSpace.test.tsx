@@ -11,6 +11,7 @@ import {
   verifySpaceCipherCheck,
   getSpaceCipherLink,
   clearSpaceCipherState,
+  registerSpaceCipherLink,
 } from '../../services/spaceCipherService';
 
 setMockTranslate((key) => key);
@@ -61,9 +62,10 @@ const mockCreateCipher = mock(
       error?: string;
     }>,
 );
-const mockUpdateCipher = mock(
-  (_id: string, _input: unknown) => Promise.resolve({ success: true }),
-);
+const mockBookmarkSpaceCipher = mock(async (id: string, spaceId: string) => {
+  registerSpaceCipherLink(spaceId, id);
+  return { success: true };
+});
 let mockEncryptionAvailable = true;
 
 mock.module('../../hooks/useCipherStore', () => ({
@@ -71,7 +73,7 @@ mock.module('../../hooks/useCipherStore', () => ({
     ciphers: mockCiphers,
     getCipherKey: (id: string) => mockCipherKeys[id] ?? null,
     createCipher: mockCreateCipher,
-    updateCipher: mockUpdateCipher,
+    bookmarkSpaceCipher: mockBookmarkSpaceCipher,
     encryptionAvailable: mockEncryptionAvailable,
   }),
 }));
@@ -111,7 +113,7 @@ beforeEach(() => {
   mockCreate.mockClear();
   mockCheckSlug.mockClear();
   mockCreateCipher.mockClear();
-  mockUpdateCipher.mockClear();
+  mockBookmarkSpaceCipher.mockClear();
   toastSuccess.mockClear();
   toastError.mockClear();
   mockCiphers = [];
@@ -407,7 +409,7 @@ describe('CreateSpace flow', () => {
 
     await check(happy.document.querySelector('input[type=radio][value=listed]')!);
     await check(byId<HTMLInputElement>('space-encrypt'));
-    await selectValue(byId<HTMLSelectElement>('space-cipher-select'), 'c1');
+    await selectValue(byId<HTMLSelectElement>('create-cipher-select'), 'c1');
 
     await submitForm();
     await waitFor(() => mockNavigate.mock.calls.length > 0);
@@ -418,14 +420,16 @@ describe('CreateSpace flow', () => {
     expect(typeof params.id).toBe('string');
     expect((params.id as string).length).toBe(24);
     expect(params.cipherCheck).toBeDefined();
+    expect(params.e2ee).toBe(true);
+    expect(params.cipherRequired).toBe(true);
 
     // The uploaded challenge must decrypt with the bound Cipher.
     const valid = await verifySpaceCipherCheck(cipher, params.id as string, params.cipherCheck as never);
     expect(valid).toBe(true);
 
-    // Local spaceId -> cipher link is registered + persisted.
+    // Local spaceId -> cipher bookmark is registered + persisted.
     expect(getSpaceCipherLink(params.id as string)).toBe('c1');
-    expect(mockUpdateCipher).toHaveBeenCalledWith('c1', { spaceId: params.id });
+    expect(mockBookmarkSpaceCipher).toHaveBeenCalledWith('c1', params.id);
     expect(mockNavigate).toHaveBeenCalledWith('/s/secret-space');
 
     await act(async () => root.unmount());
@@ -446,11 +450,13 @@ describe('CreateSpace flow', () => {
 
     await check(happy.document.querySelector('input[type=radio][value=listed]')!);
     await check(byId<HTMLInputElement>('space-encrypt'));
-    await check(happy.document.querySelector('input[type=radio][name=cipher-source][value=new]')!);
+    await check(
+      happy.document.querySelector('input[type=radio][name=create-cipher-source][value=new]')!,
+    );
 
-    await typeInput(byId<HTMLInputElement>('space-new-cipher-name'), 'Fresh Key');
+    await typeInput(byId<HTMLInputElement>('create-cipher-new-name'), 'Fresh Key');
     const entropyInput = happy.document.querySelector(
-      'input[id^="space-entropy-"]',
+      'input[id^="create-cipher-entropy-"]',
     ) as HTMLInputElement;
     await typeInput(entropyInput, 'a secret phrase');
 
@@ -461,12 +467,42 @@ describe('CreateSpace flow', () => {
     expect(mockCreate).toHaveBeenCalledTimes(1);
     const params = mockCreate.mock.calls[0]![0] as Record<string, unknown>;
     expect(params.cipherCheck).toBeDefined();
+    expect(params.e2ee).toBe(true);
+    expect(params.cipherRequired).toBe(true);
 
     const valid = await verifySpaceCipherCheck(cipher, params.id as string, params.cipherCheck as never);
     expect(valid).toBe(true);
 
     expect(getSpaceCipherLink(params.id as string)).toBe('new-cipher');
+    expect(mockBookmarkSpaceCipher).toHaveBeenCalledWith('new-cipher', params.id);
     expect(mockNavigate).toHaveBeenCalledWith('/s/fresh-space');
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  it('creates a gate-only Space (cipherRequired without e2ee)', async () => {
+    const cipher = deriveCommunityCipher([createTextEntropy('gate only secret')]);
+    mockCiphers = [{ id: 'c1', name: 'My Key', shortId: 'abc123' }];
+    mockCipherKeys = { c1: cipher };
+
+    const { root, container } = await renderCreate();
+
+    await typeInput(byId<HTMLInputElement>('space-name'), 'Gated Space');
+    await waitFor(() => happy.document.body.textContent?.includes('spaces.create.slugAvailable') ?? false);
+
+    await check(happy.document.querySelector('input[type=radio][value=listed]')!);
+    await check(byId<HTMLInputElement>('space-cipher-required'));
+    await selectValue(byId<HTMLSelectElement>('create-cipher-select'), 'c1');
+
+    await submitForm();
+    await waitFor(() => mockNavigate.mock.calls.length > 0);
+
+    const params = mockCreate.mock.calls[0]![0] as Record<string, unknown>;
+    expect(params.cipherCheck).toBeDefined();
+    expect(params.e2ee).toBe(false);
+    expect(params.cipherRequired).toBe(true);
+    expect(mockBookmarkSpaceCipher).toHaveBeenCalledWith('c1', params.id);
 
     await act(async () => root.unmount());
     container.remove();

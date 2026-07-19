@@ -26,6 +26,17 @@ mock.module('../../config', () => ({
   useAppConfig: () => ({ apiBaseUrl: 'http://localhost:3000' }),
 }));
 
+mock.module('../../components/Toast', () => ({
+  useToast: () => ({
+    success: mock(() => {}),
+    error: mock(() => {}),
+    info: mock(() => {}),
+    warning: mock(() => {}),
+    toast: mock(() => {}),
+    message: mock(() => {}),
+  }),
+}));
+
 mock.module('../../components/IdentityHoverCard', () => ({
   IdentityHoverCard: ({ children }: { children: import('react').ReactElement }) => children,
 }));
@@ -44,8 +55,14 @@ mock.module('../../hooks/useCipherStore', () => ({
   useCipherStore: () => mockCipherStoreCtx,
 }));
 
+const spaceCipherActual = await import('../../services/spaceCipherService');
 mock.module('../../services/spaceCipherService', () => ({
+  ...spaceCipherActual,
   getSpaceCipherLink: () => null,
+}));
+
+mock.module('./JoinSpaceInterstitial', () => ({
+  JoinSpaceInterstitial: () => null,
 }));
 
 const mockSpacesApi = {
@@ -149,12 +166,16 @@ let prevRaf: typeof globalThis.requestAnimationFrame;
 
 function makeDefaultCtx(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    activeSpace: { id: 'space-1', slug: 'test', name: 'Test', memberCount: 1 },
+    activeSpace: {
+      id: 'space-1', slug: 'test', name: 'Test', memberCount: 1,
+      e2ee: false, cipherRequired: false, visibility: 'public',
+    },
     channels: [{ id: 'ch-1', spaceId: 'space-1', type: 'text', name: 'general', position: 0 }],
     activeChannelId: 'ch-1',
     activeMessages: [],
     activeMessagesLoading: false,
     activeMessagesOlderCursor: null,
+    isActiveSpaceMember: true,
     sending: false,
     participantProfiles: {},
     unreadByChannel: {},
@@ -188,7 +209,14 @@ beforeEach(() => {
   resetReactRouterDomMock();
   setMockParams({ channelId: 'ch-1' });
   mockSpacesContext = makeDefaultCtx();
-  mockCipherStoreCtx = { getCipherKey: () => null };
+  mockCipherStoreCtx = {
+    getCipherKey: () => null,
+    ciphers: [],
+    createCipher: async () => ({ success: false }),
+    bookmarkSpaceCipher: async () => ({ success: true }),
+    findLocalIdByCipherId: () => undefined,
+    encryptionAvailable: false,
+  };
 
   const g = globalThis as G;
   prevWindow = g.window;
@@ -251,6 +279,9 @@ describe('SpaceChannelView', () => {
         slug: 'test',
         name: 'Encrypted Space',
         memberCount: 1,
+        e2ee: true,
+        cipherRequired: true,
+        visibility: 'listed',
         cipherCheck: { knownValue: 'x', encryptedKnownValue: 'y', nonce: 'z' },
       },
     });
@@ -294,6 +325,9 @@ describe('SpaceChannelView', () => {
         slug: 'test',
         name: 'Encrypted Space',
         memberCount: 1,
+        e2ee: true,
+        cipherRequired: true,
+        visibility: 'listed',
         cipherCheck: { knownValue: 'x', encryptedKnownValue: 'y', nonce: 'z' },
       },
     });

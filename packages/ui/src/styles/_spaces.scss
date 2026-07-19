@@ -711,3 +711,108 @@ button.space-message-author:hover {
   gap: var(--spacing-sm);
   margin-top: var(--spacing-sm);
 }
+
+.join-space-dialog-content {
+  max-width: 32rem;
+  width: min(32rem, calc(100vw - 2rem));
+  max-height: min(90vh, 40rem);
+  overflow-y: auto;
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+
+  // Author `display: flex` overrides the UA [hidden] rule (same gotcha as
+  // conversation settings tabs). Keep closed dialogs invisible if Presence
+  // leaves the node mounted without lazyMount/unmountOnExit.
+  &[hidden] {
+    display: none !important;
+  }
+}
+
+.join-space-dialog-title {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+}
+
+.join-space-dialog-slug {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.join-space-dialog-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+}
+
+.join-space-dialog-description,
+.join-space-dialog-meta,
+.join-space-dialog-section-body {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.join-space-dialog-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--color-border);
+}
+
+.join-space-dialog-section-title {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.join-space-dialog-detecting {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: var(--font-size-sm);
+}
+
+.join-space-dialog-ok {
+  color: var(--color-success, var(--color-text-primary));
+}
+
+.join-space-dialog-error {
+  margin: 0;
+  color: var(--color-danger, #c44);
+  font-size: var(--font-size-sm);
+}
+
+.join-space-dialog-cipher-actions,
+.join-space-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
+.join-space-dialog-actions {
+  justify-content: flex-end;
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--color-border);
+}
+
+.join-space-dialog-add-cipher {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.space-channel-no-cipher {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+}

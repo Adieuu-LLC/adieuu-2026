@@ -1,12 +1,10 @@
 /**
  * Create-a-Space flow.
  *
- * Walks the owner through name → URL (live availability) → visibility → an
- * optional end-to-end-encryption step. When E2EE is enabled the client picks
- * (or creates) a Community Cipher, generates the Space `_id` up front, builds a
- * blind-relay `cipherCheck` bound to that id, and submits it with the create
- * call — the server never sees Cipher entropy or keys. On success the local
- * `spaceId → cipherId` link is persisted so the Space view can find its Cipher.
+ * Walks the owner through name → URL (live availability) → visibility → optional
+ * Cipher association (content E2EE and/or cipher-required join). When a Cipher
+ * is associated the client builds a blind-relay `cipherCheck` bound to a
+ * client-generated Space id. On success the Space is bookmarked on the Cipher.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -24,32 +22,27 @@ import {
   type SpaceVisibility,
   type CipherCheck,
 } from '@adieuu/shared';
-import { createTextEntropy } from '@adieuu/crypto';
 import { useAppConfig } from '../../config';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useCipherStore } from '../../hooks/useCipherStore';
-import {
-  generateSpaceId,
-  createSpaceCipherCheck,
-  registerSpaceCipherLink,
-} from '../../services/spaceCipherService';
+import { generateSpaceId, createSpaceCipherCheck } from '../../services/spaceCipherService';
 import { emitSpacesChanged } from '../../services/spacesMembershipEvents';
 import { useToast } from '../../components/Toast';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { Input } from '../../components/Input';
 import { Alert } from '../../components/Alert';
+import {
+  SpaceCipherFormFields,
+  type CipherSource,
+  type EntropyRow,
+} from './SpaceCipherFormFields';
+import { resolveSpaceCipherSelection } from './resolveSpaceCipherSelection';
 import '../../styles/_spaces.scss';
 
 const SLUG_DEBOUNCE_MS = 400;
 
 type SlugState = 'idle' | 'invalid' | 'checking' | 'available' | 'taken';
-type CipherSource = 'existing' | 'new';
-
-interface EntropyRow {
-  id: string;
-  value: string;
-}
 
 /** Normalizes free text into a candidate slug (lowercase, hyphenated). */
 function slugify(input: string): string {
@@ -63,10 +56,7 @@ function slugify(input: string): string {
 
 /**
  * Normalizes what the user types directly into the URL field. Unlike `slugify`,
- * this preserves a single trailing hyphen so a hyphen can be typed mid-word
- * (e.g. "1-2"): stripping the trailing hyphen on every keystroke would make it
- * impossible to type one. Leading and repeated hyphens are still collapsed since
- * they can never form a valid slug.
+ * this preserves a single trailing hyphen so a hyphen can be typed mid-word.
  */
 function normalizeSlugInput(input: string): string {
   return input
@@ -77,7 +67,6 @@ function normalizeSlugInput(input: string): string {
     .slice(0, SPACE_SLUG_MAX_LENGTH);
 }
 
-/** Whether a slug satisfies the shared length + pattern constraints. */
 function isSlugShapeValid(slug: string): boolean {
   return (
     slug.length >= SPACE_SLUG_MIN_LENGTH &&
@@ -95,7 +84,7 @@ export function CreateSpace() {
   const isLoggedIn = identityStatus === 'logged_in';
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
 
-  const { ciphers, getCipherKey, createCipher, updateCipher, encryptionAvailable } =
+  const { ciphers, getCipherKey, createCipher, bookmarkSpaceCipher, encryptionAvailable } =
     useCipherStore();
 
   const [name, setName] = useState('');
@@ -107,6 +96,7 @@ export function CreateSpace() {
   const [allowFreeMembers, setAllowFreeMembers] = useState(false);
 
   const [encrypt, setEncrypt] = useState(false);
+  const [cipherRequired, setCipherRequired] = useState(false);
   const [cipherSource, setCipherSource] = useState<CipherSource>('existing');
   const [selectedCipherId, setSelectedCipherId] = useState('');
   const [newCipherName, setNewCipherName] = useState('');
@@ -117,27 +107,27 @@ export function CreateSpace() {
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const slugCheckSeq = useRef(0);
-  // Tracks the latest slug so an async create response can tell whether the slug
-  // it was submitted with is still the one shown before flagging it taken.
   const slugRef = useRef(slug);
   useEffect(() => {
     slugRef.current = slug;
   }, [slug]);
 
-  // Public Spaces can never be encrypted; drop the encryption step when public.
-  const canEncrypt = visibility !== 'public';
-  const wantsEncryption = encrypt && canEncrypt;
+  const canUseCipher = visibility !== 'public';
+  const wantsE2ee = encrypt && canUseCipher;
+  const wantsCipherRequired = cipherRequired && canUseCipher;
+  const needsCipher = wantsE2ee || wantsCipherRequired;
 
   useEffect(() => {
-    if (!canEncrypt && encrypt) setEncrypt(false);
-  }, [canEncrypt, encrypt]);
+    if (!canUseCipher) {
+      if (encrypt) setEncrypt(false);
+      if (cipherRequired) setCipherRequired(false);
+    }
+  }, [canUseCipher, encrypt, cipherRequired]);
 
-  // Keep the slug in sync with the name until the user edits the slug directly.
   useEffect(() => {
     if (!slugTouched) setSlug(slugify(name));
   }, [name, slugTouched]);
 
-  // Live slug availability: local shape/reserved checks first, then the API.
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
@@ -149,8 +139,6 @@ export function CreateSpace() {
       setSlugState('invalid');
       return;
     }
-    // Reserved slugs are surfaced as simply unavailable — no reason to explain
-    // the distinction to the user or spend an API round-trip on them.
     if (isReservedSpaceSlug(slug)) {
       setSlugState('taken');
       return;
@@ -162,7 +150,7 @@ export function CreateSpace() {
       void api.spaces
         .checkSlugAvailability(slug)
         .then((res) => {
-          if (seq !== slugCheckSeq.current) return; // stale
+          if (seq !== slugCheckSeq.current) return;
           if (res.success && res.data) {
             setSlugState(res.data.available ? 'available' : 'taken');
           } else {
@@ -179,18 +167,6 @@ export function CreateSpace() {
     };
   }, [api, slug]);
 
-  const addEntropyRow = useCallback(() => {
-    setEntropyRows((prev) => [...prev, { id: `${Date.now()}-${prev.length}`, value: '' }]);
-  }, []);
-
-  const removeEntropyRow = useCallback((id: string) => {
-    setEntropyRows((prev) => (prev.length <= 1 ? prev : prev.filter((r) => r.id !== id)));
-  }, []);
-
-  const updateEntropyRow = useCallback((id: string, value: string) => {
-    setEntropyRows((prev) => prev.map((r) => (r.id === id ? { ...r, value } : r)));
-  }, []);
-
   const slugStatusMessage = (): { text: string; tone: 'ok' | 'error' | 'muted' } | null => {
     switch (slugState) {
       case 'checking':
@@ -206,44 +182,6 @@ export function CreateSpace() {
     }
   };
 
-  /** Resolves the Cipher (and its local id) to bind to an E2EE Space. */
-  const resolveCipher = useCallback(async (): Promise<
-    { localId: string; cipher: NonNullable<ReturnType<typeof getCipherKey>> } | { error: string }
-  > => {
-    if (cipherSource === 'existing') {
-      if (!selectedCipherId) return { error: t('spaces.create.errors.cipherRequired') };
-      const cipher = getCipherKey(selectedCipherId);
-      if (!cipher) return { error: t('spaces.create.errors.cipherRequired') };
-      return { localId: selectedCipherId, cipher };
-    }
-
-    // New Cipher: derive from the entered secret phrases.
-    const pieces = entropyRows
-      .filter((r) => r.value.trim().length > 0)
-      .map((r, idx) => createTextEntropy(r.value.trim(), `Phrase ${idx + 1}`));
-    if (pieces.length === 0) return { error: t('spaces.create.errors.entropyRequired') };
-
-    const result = await createCipher({
-      name: newCipherName.trim() || name.trim() || 'Space Cipher',
-      entropyPieces: pieces,
-    });
-    if (!result.success || !result.cipher) {
-      return { error: result.error ?? t('spaces.create.errors.createFailed') };
-    }
-    const cipher = getCipherKey(result.cipher.id);
-    if (!cipher) return { error: t('spaces.create.errors.createFailed') };
-    return { localId: result.cipher.id, cipher };
-  }, [
-    cipherSource,
-    selectedCipherId,
-    getCipherKey,
-    entropyRows,
-    createCipher,
-    newCipherName,
-    name,
-    t,
-  ]);
-
   const mapCreateError = useCallback(
     (code: string | undefined, message: string | undefined, submittedSlug: string): string => {
       switch (code) {
@@ -251,7 +189,6 @@ export function CreateSpace() {
           return t('spaces.create.errors.tierRequired');
         case 'SLUG_TAKEN':
         case 'SLUG_RESERVED':
-          // Only mark the field taken if the user hasn't since edited the slug.
           if (submittedSlug === slugRef.current) setSlugState('taken');
           return t('spaces.create.errors.slugUnavailable');
         default:
@@ -276,21 +213,31 @@ export function CreateSpace() {
         return;
       }
 
-      // Snapshot the slug this request is for; the E2EE flow awaits, during which
-      // the user could edit the slug.
       const submittedSlug = slug;
-
       let cipherCheck: CipherCheck | undefined;
       let spaceId: string | undefined;
       let cipherLocalId: string | undefined;
 
-      if (wantsEncryption) {
+      if (needsCipher) {
         if (!encryptionAvailable) {
           setFormError(t('spaces.create.errors.cipherRequired'));
           return;
         }
         setSubmitting(true);
-        const resolved = await resolveCipher();
+        const resolved = await resolveSpaceCipherSelection({
+          cipherSource,
+          selectedCipherId,
+          getCipherKey,
+          entropyRows,
+          createCipher,
+          newCipherName,
+          fallbackName: name.trim(),
+          errors: {
+            cipherRequired: t('spaces.create.errors.cipherRequired'),
+            entropyRequired: t('spaces.create.errors.entropyRequired'),
+            createFailed: t('spaces.create.errors.createFailed'),
+          },
+        });
         if ('error' in resolved) {
           setFormError(resolved.error);
           setSubmitting(false);
@@ -318,16 +265,15 @@ export function CreateSpace() {
           allowFreeMembers,
           ...(spaceId ? { id: spaceId } : {}),
           ...(cipherCheck ? { cipherCheck } : {}),
+          e2ee: wantsE2ee,
+          cipherRequired: wantsCipherRequired,
         });
 
         if (res.success && res.data) {
           const created = res.data;
           if (cipherLocalId) {
-            // Persist + hydrate the local spaceId → cipher link.
-            registerSpaceCipherLink(created.id, cipherLocalId);
-            await updateCipher(cipherLocalId, { spaceId: created.id });
+            await bookmarkSpaceCipher(cipherLocalId, created.id);
           }
-          // Let the sidebar (and any membership-aware view) show it immediately.
           emitSpacesChanged();
           toast.success(t('spaces.joinSuccess', { name: created.name }));
           navigate(`/s/${created.slug}`);
@@ -345,15 +291,22 @@ export function CreateSpace() {
       submitting,
       name,
       slugState,
-      wantsEncryption,
+      needsCipher,
       encryptionAvailable,
-      resolveCipher,
+      cipherSource,
+      selectedCipherId,
+      getCipherKey,
+      entropyRows,
+      createCipher,
+      newCipherName,
       api,
       slug,
       description,
       visibility,
       allowFreeMembers,
-      updateCipher,
+      wantsE2ee,
+      wantsCipherRequired,
+      bookmarkSpaceCipher,
       toast,
       navigate,
       mapCreateError,
@@ -503,136 +456,81 @@ export function CreateSpace() {
                 <input
                   id="space-encrypt"
                   type="checkbox"
-                  checked={wantsEncryption}
-                  onChange={(e) => setEncrypt(e.target.checked)}
-                  disabled={submitting || !canEncrypt}
+                  checked={encrypt}
+                  onChange={(e) => {
+                    const on = e.target.checked;
+                    setEncrypt(on);
+                    if (on) setCipherRequired(true);
+                  }}
+                  disabled={submitting || !canUseCipher}
                 />
                 <span className="space-create-checkbox-body">
                   <span className="space-create-radio-title">
                     {t('spaces.create.encryptionToggle')}
                   </span>
                   <span className="space-create-radio-desc">
-                    {canEncrypt
+                    {canUseCipher
                       ? t('spaces.create.encryptionHint')
                       : t('spaces.create.encryptionPublicNote')}
                   </span>
                 </span>
               </label>
 
-              {wantsEncryption && !encryptionAvailable && (
+              <label className="space-create-checkbox">
+                <input
+                  id="space-cipher-required"
+                  type="checkbox"
+                  checked={cipherRequired}
+                  onChange={(e) => setCipherRequired(e.target.checked)}
+                  disabled={submitting || !canUseCipher}
+                />
+                <span className="space-create-checkbox-body">
+                  <span className="space-create-radio-title">
+                    {t('spaces.create.cipherRequiredToggle')}
+                  </span>
+                  <span className="space-create-radio-desc">
+                    {canUseCipher
+                      ? t('spaces.create.cipherRequiredHint')
+                      : t('spaces.create.encryptionPublicNote')}
+                  </span>
+                </span>
+              </label>
+
+              {needsCipher && !encryptionAvailable && (
                 <Alert variant="warning" className="space-create-encryption-warning">
                   {t('spaces.create.encryptionUnavailable')}
                 </Alert>
               )}
 
-              {wantsEncryption && encryptionAvailable && (
-                <div className="space-create-cipher">
-                  <fieldset className="form-group space-create-fieldset" disabled={submitting}>
-                    <legend className="input-label sr-only">
-                      {t('spaces.create.cipherSelectLabel')}
-                    </legend>
-                    <label className="space-create-radio-inline">
-                      <input
-                        type="radio"
-                        name="cipher-source"
-                        value="existing"
-                        checked={cipherSource === 'existing'}
-                        onChange={() => setCipherSource('existing')}
-                      />
-                      <span>{t('spaces.create.cipherSourceExisting')}</span>
-                    </label>
-                    <label className="space-create-radio-inline">
-                      <input
-                        type="radio"
-                        name="cipher-source"
-                        value="new"
-                        checked={cipherSource === 'new'}
-                        onChange={() => setCipherSource('new')}
-                      />
-                      <span>{t('spaces.create.cipherSourceNew')}</span>
-                    </label>
-                  </fieldset>
-
-                  {cipherSource === 'existing' &&
-                    (ciphers.length === 0 ? (
-                      <p className="space-create-hint">{t('spaces.create.noCiphers')}</p>
-                    ) : (
-                      <div className="form-group">
-                        <label htmlFor="space-cipher-select" className="input-label">
-                          {t('spaces.create.cipherSelectLabel')}
-                        </label>
-                        <select
-                          id="space-cipher-select"
-                          className="input"
-                          value={selectedCipherId}
-                          onChange={(e) => setSelectedCipherId(e.target.value)}
-                          disabled={submitting}
-                        >
-                          <option value="">
-                            {t('spaces.create.cipherSelectPlaceholder')}
-                          </option>
-                          {ciphers.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name} ({c.shortId})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    ))}
-
-                  {cipherSource === 'new' && (
-                    <>
-                      <Input
-                        id="space-new-cipher-name"
-                        label={t('spaces.create.newCipherNameLabel')}
-                        value={newCipherName}
-                        placeholder={t('spaces.create.newCipherNamePlaceholder')}
-                        onChange={(e) => setNewCipherName(e.target.value)}
-                        disabled={submitting}
-                      />
-                      <div className="form-group">
-                        <span className="input-label">{t('spaces.create.entropyLabel')}</span>
-                        <p className="space-create-hint">{t('spaces.create.entropyHint')}</p>
-                        <div className="space-create-entropy-rows">
-                          {entropyRows.map((row, index) => (
-                            <div key={row.id} className="space-create-entropy-row">
-                              <Input
-                                id={`space-entropy-${row.id}`}
-                                label={`${t('spaces.create.entropyLabel')} ${index + 1}`}
-                                hideLabel
-                                value={row.value}
-                                placeholder={t('spaces.create.entropyPlaceholder')}
-                                onChange={(e) => updateEntropyRow(row.id, e.target.value)}
-                                disabled={submitting}
-                              />
-                              {entropyRows.length > 1 && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  aria-label={t('spaces.create.removePhrase')}
-                                  onClick={() => removeEntropyRow(row.id)}
-                                  disabled={submitting}
-                                >
-                                  &times;
-                                </Button>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          onClick={addEntropyRow}
-                          disabled={submitting}
-                        >
-                          {t('spaces.create.addPhrase')}
-                        </Button>
-                      </div>
-                    </>
-                  )}
-                </div>
+              {needsCipher && encryptionAvailable && (
+                <SpaceCipherFormFields
+                  idPrefix="create-cipher"
+                  cipherSource={cipherSource}
+                  onCipherSourceChange={setCipherSource}
+                  ciphers={ciphers}
+                  selectedCipherId={selectedCipherId}
+                  onSelectedCipherIdChange={setSelectedCipherId}
+                  newCipherName={newCipherName}
+                  onNewCipherNameChange={setNewCipherName}
+                  entropyRows={entropyRows}
+                  onEntropyRowChange={(id, value) =>
+                    setEntropyRows((rows) =>
+                      rows.map((r) => (r.id === id ? { ...r, value } : r)),
+                    )
+                  }
+                  onAddEntropyRow={() =>
+                    setEntropyRows((rows) => [
+                      ...rows,
+                      { id: `${Date.now()}-${rows.length}`, value: '' },
+                    ])
+                  }
+                  onRemoveEntropyRow={(id) =>
+                    setEntropyRows((rows) =>
+                      rows.length <= 1 ? rows : rows.filter((r) => r.id !== id),
+                    )
+                  }
+                  disabled={submitting}
+                />
               )}
             </div>
 

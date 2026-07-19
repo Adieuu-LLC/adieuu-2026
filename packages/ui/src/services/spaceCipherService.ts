@@ -10,8 +10,8 @@
  *    crypto reuses the fast AEAD key.
  * 2. **Local `spaceId -> cipherId` link** — an in-memory map of which Cipher a
  *    Space is bound to, so we never iterate every Cipher for every message.
- *    Durable persistence of the link lives on `StoredCipher.spaceId` in the
- *    cipher store; call {@link registerSpaceCipherLink} after persisting it, and
+ *    Durable persistence lives on `StoredCipher.spaceIds` (bookmarks) in the
+ *    cipher store; call {@link registerSpaceCipherLink} after persisting, and
  *    hydrate this map from the store on load.
  *
  * All state here is in-memory only and holds derived key material, so it MUST be

@@ -8,10 +8,7 @@ import {
   verifyCipherEntropy,
   shortCipherId,
   wrapEntropy,
-  type EntropyPiece,
   type CommunityCipher,
-  type CryptoProfile,
-  type WrappedEntropy,
 } from '@adieuu/crypto';
 import { useIdentity } from './useIdentity';
 import {
@@ -22,124 +19,29 @@ import {
 } from '../services/cipherStoreDb';
 import { decryptStoredEntropy } from '../services/cipherStoreOperations';
 import {
+  getSpaceCipherLink,
   registerSpaceCipherLink,
   removeSpaceCipherLink,
 } from '../services/spaceCipherService';
+import {
+  normalizeCipherSpaceIds,
+  type StoredCipher,
+  type DecryptedCipher,
+  type CreateCipherInput,
+  type UpdateCipherInput,
+  type CipherStoreContextValue,
+  type CipherStoreState,
+} from './cipherStoreTypes';
 
-// ============================================================================
-// Cipher Store Types
-// ============================================================================
-
-/**
- * Stored cipher record with all metadata.
- *
- * Entropy is always stored encrypted with identity passphrase-derived key.
- */
-export interface StoredCipher {
-  /** Unique local ID */
-  id: string;
-  /** User-friendly name */
-  name: string;
-  /** Associated identity ID */
-  identityId: string;
-  /** Associated Space ID (if known) */
-  spaceId?: string;
-  /** Epoch identifier */
-  epochId?: string;
-  /**
-   * Encrypted entropy pieces (wrapped with identity passphrase-derived key).
-   * Protects entropy from XSS exfiltration.
-   */
-  encryptedEntropy: WrappedEntropy;
-  /** Cipher ID (derived from key, safe to store) */
-  cipherId: string;
-  /** Short cipher ID for display */
-  shortId: string;
-  /** Crypto profile used */
-  profile: CryptoProfile;
-  /** When this cipher was created */
-  createdAt: string;
-  /** When this cipher was last used */
-  lastUsedAt: string;
-}
-
-/**
- * Runtime cipher data with decrypted entropy (never persisted).
- */
-export interface DecryptedCipher extends Omit<StoredCipher, 'entropyPieces' | 'encryptedEntropy'> {
-  /** Decrypted entropy pieces (in memory only) */
-  entropyPieces: EntropyPiece[];
-}
-
-/**
- * Input for creating a new cipher.
- */
-export interface CreateCipherInput {
-  name: string;
-  entropyPieces: EntropyPiece[];
-  spaceId?: string;
-  epochId?: string;
-  profile?: CryptoProfile;
-}
-
-/**
- * Input for updating a cipher.
- *
- * When entropy pieces are changed, the cipher key and cipherId will be
- * re-derived. This is expected for epoch rotation use cases. The UI should
- * warn users that changing entropy will change the cipher.
- */
-export interface UpdateCipherInput {
-  /** New name (optional) */
-  name?: string;
-  /**
-   * Updated entropy pieces (optional).
-   * WARNING: Changing entropy re-derives the cipher key and cipherId.
-   * Content encrypted with the old cipher will NOT decrypt with the new one.
-   */
-  entropyPieces?: EntropyPiece[];
-  /** Associated Space ID (optional, use null to clear) */
-  spaceId?: string | null;
-  /** Epoch identifier (optional, use null to clear) */
-  epochId?: string | null;
-}
-
-/**
- * Cipher store state.
- */
-export interface CipherStoreState {
-  /** Loading state */
-  loading: boolean;
-  /** All stored ciphers for the current identity (with decrypted entropy) */
-  ciphers: DecryptedCipher[];
-  /** Error message if any */
-  error: string | null;
-}
-
-export interface CipherStoreContextValue extends CipherStoreState {
-  /** Create a new cipher from entropy */
-  createCipher: (input: CreateCipherInput) => Promise<{ success: boolean; cipher?: DecryptedCipher; error?: string }>;
-  /** Delete a cipher by ID */
-  deleteCipher: (id: string) => Promise<{ success: boolean; error?: string }>;
-  /** Rename a cipher */
-  renameCipher: (id: string, newName: string) => Promise<{ success: boolean; error?: string }>;
-  /** Update cipher (name, entropy, spaceId, epochId). Changing entropy re-derives the cipher. */
-  updateCipher: (id: string, input: UpdateCipherInput) => Promise<{ success: boolean; error?: string }>;
-  /** Duplicate a cipher with a new name */
-  duplicateCipher: (id: string, newName: string) => Promise<{ success: boolean; cipher?: DecryptedCipher; error?: string }>;
-  /** Get a cipher by ID */
-  getCipherById: (id: string) => DecryptedCipher | undefined;
-  /** Get a derived cipher key by ID (for encryption/decryption) */
-  getCipherKey: (id: string) => CommunityCipher | null;
-  /** Update last used timestamp */
-  touchCipher: (id: string) => Promise<void>;
-  /** Verify entropy matches an existing cipher */
-  verifyCipherById: (id: string, entropyPieces: EntropyPiece[]) => boolean;
-  /** Refresh ciphers from storage */
-  refresh: () => Promise<void>;
-  /** Whether entropy encryption is available (wrapping key is present) */
-  encryptionAvailable: boolean;
-}
+export type {
+  StoredCipher,
+  DecryptedCipher,
+  CreateCipherInput,
+  UpdateCipherInput,
+  CipherStoreContextValue,
+  CipherStoreState,
+} from './cipherStoreTypes';
+export { normalizeCipherSpaceIds } from './cipherStoreTypes';
 
 // ============================================================================
 // Cipher Store Context
@@ -221,12 +123,26 @@ function useCipherStoreState(): CipherStoreContextValue {
           const derived = deriveCommunityCipher(entropy, stored.profile);
           cipherKeysRef.set(stored.id, derived);
 
+          const spaceIds = normalizeCipherSpaceIds(stored);
+
+          // Migrate legacy singular spaceId → spaceIds on read (best-effort rewrite).
+          if (stored.spaceId && (!stored.spaceIds || stored.spaceIds.length === 0)) {
+            const migrated: StoredCipher = {
+              ...stored,
+              spaceIds,
+            };
+            delete migrated.spaceId;
+            void saveStoredCipher(migrated).catch(() => {
+              /* best-effort */
+            });
+          }
+
           // Create decrypted cipher for state
           const decrypted: DecryptedCipher = {
             id: stored.id,
             name: stored.name,
             identityId: stored.identityId,
-            spaceId: stored.spaceId,
+            ...(spaceIds.length > 0 ? { spaceIds } : {}),
             epochId: stored.epochId,
             entropyPieces: entropy,
             cipherId: stored.cipherId,
@@ -237,10 +153,9 @@ function useCipherStoreState(): CipherStoreContextValue {
           };
           decryptedCiphers.push(decrypted);
 
-          // Hydrate the in-memory spaceId -> local cipher link from the durable
-          // `StoredCipher.spaceId` so per-Space crypto can find its Cipher.
-          if (stored.spaceId) {
-            registerSpaceCipherLink(stored.spaceId, stored.id);
+          // Hydrate in-memory spaceId → local cipher links from durable bookmarks.
+          for (const sid of spaceIds) {
+            registerSpaceCipherLink(sid, stored.id);
           }
         } catch (err) {
           console.warn(`Failed to load cipher ${stored.id}:`, err);
@@ -296,6 +211,9 @@ function useCipherStoreState(): CipherStoreContextValue {
 
         const now = new Date().toISOString();
         const id = generateId();
+        const spaceIds = input.spaceIds?.length
+          ? [...new Set(input.spaceIds.filter(Boolean))]
+          : [];
 
         // Encrypt entropy
         const encryptedEntropy = await wrapEntropy(input.entropyPieces, wrappingKey, salt);
@@ -304,7 +222,7 @@ function useCipherStoreState(): CipherStoreContextValue {
           id,
           name: input.name.trim(),
           identityId,
-          spaceId: input.spaceId,
+          ...(spaceIds.length > 0 ? { spaceIds } : {}),
           epochId: input.epochId,
           encryptedEntropy,
           cipherId: derived.cipherId,
@@ -320,9 +238,8 @@ function useCipherStoreState(): CipherStoreContextValue {
         // Cache the derived key
         cipherKeysRef.set(id, derived);
 
-        // Keep the in-memory Space link in sync with the persisted spaceId.
-        if (input.spaceId) {
-          registerSpaceCipherLink(input.spaceId, id);
+        for (const sid of spaceIds) {
+          registerSpaceCipherLink(sid, id);
         }
 
         // Create decrypted cipher for state
@@ -330,7 +247,7 @@ function useCipherStoreState(): CipherStoreContextValue {
           id,
           name: input.name.trim(),
           identityId,
-          spaceId: input.spaceId,
+          ...(spaceIds.length > 0 ? { spaceIds } : {}),
           epochId: input.epochId,
           entropyPieces: input.entropyPieces,
           cipherId: derived.cipherId,
@@ -459,25 +376,39 @@ function useCipherStoreState(): CipherStoreContextValue {
         // Encrypt entropy
         const encryptedEntropy = await wrapEntropy(updatedEntropyPieces, wrappingKey, salt);
 
-        // Build updated stored cipher
+        const prevSpaceIds = normalizeCipherSpaceIds(storedCipher);
+        let nextSpaceIds = prevSpaceIds;
+        if (input.spaceIds === null) {
+          nextSpaceIds = [];
+        } else if (input.spaceIds !== undefined) {
+          nextSpaceIds = [...new Set(input.spaceIds.filter(Boolean))];
+        }
+
+        // Build updated stored cipher (drop legacy singular spaceId).
         const updatedStored: StoredCipher = {
           ...storedCipher,
           name: input.name !== undefined ? input.name.trim() : storedCipher.name,
-          spaceId: input.spaceId === null ? undefined : (input.spaceId ?? storedCipher.spaceId),
+          ...(nextSpaceIds.length > 0 ? { spaceIds: nextSpaceIds } : {}),
           epochId: input.epochId === null ? undefined : (input.epochId ?? storedCipher.epochId),
           encryptedEntropy,
           cipherId: newCipherId,
           shortId: newShortId,
         };
+        delete updatedStored.spaceId;
+        if (nextSpaceIds.length === 0) {
+          delete updatedStored.spaceIds;
+        }
 
         await saveStoredCipher(updatedStored);
 
-        // Keep the in-memory Space link in sync: clearing spaceId (null) removes
-        // it, setting a spaceId (re)registers it against this local cipher.
-        if (input.spaceId === null) {
-          removeSpaceCipherLink(storedCipher.spaceId ?? '');
-        } else if (updatedStored.spaceId) {
-          registerSpaceCipherLink(updatedStored.spaceId, id);
+        // Sync in-memory links for removed / added bookmarks.
+        for (const sid of prevSpaceIds) {
+          if (!nextSpaceIds.includes(sid) && getSpaceCipherLink(sid) === id) {
+            removeSpaceCipherLink(sid);
+          }
+        }
+        for (const sid of nextSpaceIds) {
+          registerSpaceCipherLink(sid, id);
         }
 
         // Update state
@@ -488,7 +419,7 @@ function useCipherStoreState(): CipherStoreContextValue {
               ? {
                   ...c,
                   name: updatedStored.name,
-                  spaceId: updatedStored.spaceId,
+                  spaceIds: nextSpaceIds.length > 0 ? nextSpaceIds : undefined,
                   epochId: updatedStored.epochId,
                   entropyPieces: updatedEntropyPieces,
                   cipherId: newCipherId,
@@ -507,6 +438,25 @@ function useCipherStoreState(): CipherStoreContextValue {
       }
     },
     [state.ciphers, getWrappingKey, getWrappingSalt, cipherKeysRef]
+  );
+
+  const bookmarkSpaceCipher = useCallback(
+    async (localCipherId: string, spaceId: string) => {
+      if (!spaceId) {
+        return { success: false, error: 'Space id is required' };
+      }
+      const current = state.ciphers.find((c) => c.id === localCipherId);
+      if (!current) {
+        return { success: false, error: 'Cipher not found' };
+      }
+      const existing = current.spaceIds ?? [];
+      if (existing.includes(spaceId)) {
+        registerSpaceCipherLink(spaceId, localCipherId);
+        return { success: true };
+      }
+      return updateCipher(localCipherId, { spaceIds: [...existing, spaceId] });
+    },
+    [state.ciphers, updateCipher],
   );
 
   const duplicateCipher = useCallback(
@@ -529,7 +479,7 @@ function useCipherStoreState(): CipherStoreContextValue {
       return createCipher({
         name: newName.trim(),
         entropyPieces: sourceCipher.entropyPieces,
-        spaceId: sourceCipher.spaceId,
+        spaceIds: sourceCipher.spaceIds,
         epochId: sourceCipher.epochId,
         profile: sourceCipher.profile,
       });
@@ -542,6 +492,13 @@ function useCipherStoreState(): CipherStoreContextValue {
       return state.ciphers.find((c) => c.id === id);
     },
     [state.ciphers]
+  );
+
+  const findLocalIdByCipherId = useCallback(
+    (cipherId: string): string | undefined => {
+      return state.ciphers.find((c) => c.cipherId === cipherId)?.id;
+    },
+    [state.ciphers],
   );
 
   const getCipherKey = useCallback(
@@ -588,8 +545,10 @@ function useCipherStoreState(): CipherStoreContextValue {
       deleteCipher: deleteCipherAction,
       renameCipher,
       updateCipher,
+      bookmarkSpaceCipher,
       duplicateCipher,
       getCipherById: getCipherByIdFromState,
+      findLocalIdByCipherId,
       getCipherKey,
       touchCipher,
       verifyCipherById,
@@ -602,8 +561,10 @@ function useCipherStoreState(): CipherStoreContextValue {
       deleteCipherAction,
       renameCipher,
       updateCipher,
+      bookmarkSpaceCipher,
       duplicateCipher,
       getCipherByIdFromState,
+      findLocalIdByCipherId,
       getCipherKey,
       touchCipher,
       verifyCipherById,

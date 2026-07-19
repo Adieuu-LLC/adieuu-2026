@@ -27,7 +27,7 @@ export function SpaceSecondarySidebar() {
       {/* Banner */}
       <div className="space-sidebar-banner">
         <span className="space-sidebar-banner-name">{activeSpace.name}</span>
-        {activeSpace.cipherCheck && (
+        {activeSpace.e2ee && (
           <span className="spaces-badge spaces-badge--encrypted">
             {t('spaces.encrypted')}
           </span>

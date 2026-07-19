@@ -41,6 +41,7 @@ import { useSpaceChannelMessageActions } from '../../hooks/spaces/useSpaceChanne
 import { useSpaceChannelComposer } from '../../hooks/spaces/useSpaceChannelComposer';
 import { SpaceChannelToolbar } from './SpaceChannelToolbar';
 import { SpaceChannelMainPanel } from './SpaceChannelMainPanel';
+import { JoinSpaceInterstitial } from './JoinSpaceInterstitial';
 
 const EMPTY_MEMBER_SETTINGS: MemberSettingsMap = {};
 
@@ -68,10 +69,13 @@ export function SpaceChannelView() {
     fetchMessagesAround,
     trimActiveChannelBuffer,
     registerSocketCallbacks,
+    isActiveSpaceMember,
   } = useSpaces();
 
   const { identity } = useIdentity();
   const { getCipherKey } = useCipherStore();
+  const [cipherLinkVersion, setCipherLinkVersion] = useState(0);
+  const [joinOpen, setJoinOpen] = useState(false);
 
   const api = useMemo(
     () => createApiClient({ baseUrl: apiBaseUrl }),
@@ -100,14 +104,16 @@ export function SpaceChannelView() {
   // Cipher
   // ---------------------------------------------------------------------------
 
-  const isEncrypted = !!(activeSpace?.cipherCheck || activeChannel?.cipherCheck);
+  const isEncrypted = !!(activeSpace?.e2ee || activeChannel?.cipherCheck);
 
   const spaceCipher: CommunityCipher | null = useMemo(() => {
     if (!isEncrypted || !activeSpace) return null;
     const localCipherId = getSpaceCipherLink(activeSpace.id);
     if (!localCipherId) return null;
     return getCipherKey(localCipherId);
-  }, [isEncrypted, activeSpace, getCipherKey]);
+    // cipherLinkVersion forces re-resolve after bookmark/detect recovery.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional bump
+  }, [isEncrypted, activeSpace, getCipherKey, cipherLinkVersion]);
 
   const encryptedFallback = t('spaces.channel.encryptedUnavailable', '[Encrypted message]');
 
@@ -511,6 +517,17 @@ export function SpaceChannelView() {
           loadEditHistory={loadEditHistory}
           isEncrypted={isEncrypted}
           spaceCipher={spaceCipher}
+          cipherGate={
+            isEncrypted && activeSpace?.cipherCheck
+              ? {
+                  spaceId: activeSpace.id,
+                  cipherCheck: activeSpace.cipherCheck,
+                  onCipherLinked: () => setCipherLinkVersion((v) => v + 1),
+                }
+              : null
+          }
+          isMember={isActiveSpaceMember}
+          onRequestJoin={() => setJoinOpen(true)}
           sending={sending}
           wrappedSend={wrappedSend}
           replyContext={replyContext}
@@ -533,6 +550,14 @@ export function SpaceChannelView() {
         />
       )}
       </div>
+
+      {joinOpen && (
+        <JoinSpaceInterstitial
+          space={activeSpace}
+          open={joinOpen}
+          onOpenChange={setJoinOpen}
+        />
+      )}
     </div>
   );
 }

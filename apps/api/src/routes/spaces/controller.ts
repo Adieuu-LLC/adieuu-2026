@@ -97,6 +97,10 @@ export async function createSpaceCtrl(ctx: RouteContext): Promise<SpaceRouteResu
         ? { allowFreeMembers: parsed.data.allowFreeMembers }
         : {}),
       ...(parsed.data.cipherCheck ? { cipherCheck: parsed.data.cipherCheck } : {}),
+      ...(parsed.data.e2ee !== undefined ? { e2ee: parsed.data.e2ee } : {}),
+      ...(parsed.data.cipherRequired !== undefined
+        ? { cipherRequired: parsed.data.cipherRequired }
+        : {}),
       ...(id !== undefined ? { id } : {}),
     },
     billingFromSession(ctx.identitySession),
@@ -193,6 +197,7 @@ export async function updateSpaceCtrl(ctx: RouteContext): Promise<SpaceRouteResu
     description?: string;
     visibility?: (typeof parsed.data)['visibility'];
     allowFreeMembers?: boolean;
+    cipherRequired?: boolean;
   } = {};
 
   if (parsed.data.name !== undefined) {
@@ -208,6 +213,9 @@ export async function updateSpaceCtrl(ctx: RouteContext): Promise<SpaceRouteResu
   if (parsed.data.visibility !== undefined) updates.visibility = parsed.data.visibility;
   if (parsed.data.allowFreeMembers !== undefined) {
     updates.allowFreeMembers = parsed.data.allowFreeMembers;
+  }
+  if (parsed.data.cipherRequired !== undefined) {
+    updates.cipherRequired = parsed.data.cipherRequired;
   }
 
   const result = await updateSpace(id.id, identity._id, updates);

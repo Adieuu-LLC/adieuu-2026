@@ -65,6 +65,8 @@ function makeSpaceDoc(overrides: Record<string, unknown> = {}) {
     slug: 'a-space',
     name: 'A Space',
     visibility: 'public',
+    e2ee: false,
+    cipherRequired: false,
     createdBy: OWNER,
     ownerIdentityId: OWNER,
     allowFreeMembers: false,
@@ -305,8 +307,23 @@ describe('space/members', () => {
       expect(memberRepo.findMember).not.toHaveBeenCalled();
     });
 
-    test('requires membership for a listed space', async () => {
+    test('lets non-members browse members of a listed non-E2EE space', async () => {
       const space = makeSpaceDoc({ visibility: 'listed' });
+      spaceRepo.findById.mockResolvedValue(space);
+      memberRepo.listBySpace.mockResolvedValue([
+        { _id: new ObjectId(), spaceId: space._id, identityId: new ObjectId(), roleIds: [], status: 'active', joinedAt: new Date() },
+      ]);
+      const r = await listSpaceMembers(space._id, new ObjectId());
+      expect(r.success).toBe(true);
+      expect(r.members).toHaveLength(1);
+    });
+
+    test('requires membership for a listed E2EE space', async () => {
+      const space = makeSpaceDoc({
+        visibility: 'listed',
+        e2ee: true,
+        cipherCheck: { knownValue: 'k', encryptedKnownValue: 'e', nonce: 'n' },
+      });
       spaceRepo.findById.mockResolvedValue(space);
       memberRepo.findMember.mockResolvedValue(null);
       const r = await listSpaceMembers(space._id, new ObjectId());

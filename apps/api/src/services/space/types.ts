@@ -148,8 +148,15 @@ export interface CreateSpaceServiceParams {
   description?: string;
   visibility: SpaceVisibility;
   allowFreeMembers?: boolean;
-  /** Present only for E2EE Spaces (never for `public`). */
+  /**
+   * Blind-relay challenge when associating a Community Cipher (E2EE and/or
+   * cipher-required join). Never for `public`.
+   */
   cipherCheck?: CipherCheck;
+  /** Content encryption; requires `cipherCheck`. */
+  e2ee?: boolean;
+  /** Client join gate; requires `cipherCheck`. */
+  cipherRequired?: boolean;
   /** Optional client-generated ObjectId (24 hex) so the cipher challenge binds the final id. */
   id?: string;
 }
