@@ -261,19 +261,29 @@ export function useSpaceDataFetching(params: SpaceDataFetchingParams) {
         const aroundHasNewerPages = res.data.hasNewerPages ?? false;
         setMessagesByChannel((prev) => {
           const existing = prev[channelId];
-          const merged = mergeMessagesNewestFirst(existing?.messages ?? [], fetched);
+          let merged = mergeMessagesNewestFirst(existing?.messages ?? [], fetched);
           // Take hasNewerPages from the API for the fetched window. Jumping to a
           // target in history means newer messages exist beyond the buffer, so
           // this must reflect the around response rather than a stale flag —
           // otherwise jump-to-latest would treat the detached window as the tip.
           // OR with the existing flag so a previously-detached buffer stays
           // detached even when the around window happens to reach the tip.
-          const hasNewerPages = aroundHasNewerPages || (existing?.hasNewerPages ?? false);
+          let hasNewerPages = aroundHasNewerPages || (existing?.hasNewerPages ?? false);
+          let olderCursor = existing?.olderCursor ?? null;
+          if (merged.length > MAX_SPACE_LOADED_MESSAGES) {
+            if (hasNewerPages) {
+              merged = trimSpaceMessages(merged, 'oldest');
+            } else {
+              merged = trimSpaceMessages(merged, 'newest');
+              const newOldest = merged[merged.length - 1];
+              if (newOldest) olderCursor = newOldest.id;
+            }
+          }
           return {
             ...prev,
             [channelId]: {
               messages: merged,
-              olderCursor: existing?.olderCursor ?? null,
+              olderCursor,
               hasNewerPages,
               loading: existing?.loading ?? false,
             },

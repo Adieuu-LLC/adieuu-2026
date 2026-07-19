@@ -41,7 +41,9 @@ export function SpaceRolePermissionsTab({
 
   useEffect(() => {
     setPermissions(role.permissions);
-  }, [role]);
+    // Intentionally depend only on role.id so parent object churn does not wipe unsaved edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- role.permissions read on identity change
+  }, [role.id]);
 
   const dirty = useMemo(() => {
     if (permissions.length !== role.permissions.length) return true;

@@ -184,6 +184,7 @@ export const core = {
   // Spaces
   spaces: {
     title: 'Spaces',
+    spaceTitle: 'Space',
     subtitle: 'Discover and join public communities.',
     comingSoon: 'Spaces are on the way. Check back soon.',
     searchPlaceholder: 'Search Spaces',

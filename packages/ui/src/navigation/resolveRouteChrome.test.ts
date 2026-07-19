@@ -34,6 +34,19 @@ describe('resolveRouteChrome', () => {
     });
   });
 
+  test('maps space routes with singular title', () => {
+    expect(resolveRouteChrome('/s/my-space')).toMatchObject({
+      icon: 'spaces',
+      titleKey: 'spaces.spaceTitle',
+      titleDefault: 'Space',
+    });
+    expect(resolveRouteChrome('/spaces')).toMatchObject({
+      icon: 'spaces',
+      titleKey: 'spaces.title',
+      titleDefault: 'Spaces',
+    });
+  });
+
   test('maps admin sub-routes', () => {
     expect(resolveRouteChrome('/admin/users')).toMatchObject({
       icon: 'shield',

@@ -222,6 +222,8 @@ export interface PublicMessage {
   lastEditedAt?: string;
   /** Omitted in list views unless the client asked for full history. */
   encryptedRevisionHistory?: PublicMessageRevision[];
+  /** Present when the serializer was asked to flag that this message has reactions. */
+  hasReactions?: boolean;
 }
 
 function toPublicMessageRevisions(

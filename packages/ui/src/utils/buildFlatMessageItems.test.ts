@@ -132,6 +132,28 @@ describe('buildFlatMessageItems', () => {
     }
   });
 
+  it('places unread marker on retained messages after excluding expired', () => {
+    const now = new Date('2024-06-15T12:00:00Z').getTime();
+    // Retained: m1, m3, m4. unreadCount=2 → first unread should be m3 (not m4 via expired m2).
+    const items = buildFlatMessageItems(
+      [
+        msg('m1', '2024-06-15T10:00:00Z'),
+        msg('m2', '2024-06-15T10:30:00Z', '2024-06-15T11:00:00Z'), // expired in unread window
+        msg('m3', '2024-06-15T11:00:00Z'),
+        msg('m4', '2024-06-15T11:30:00Z'),
+      ],
+      2,
+      now,
+    );
+    const unreadItems = items.filter(
+      (i) => i.type === 'message' && i.isFirstUnread,
+    );
+    expect(unreadItems).toHaveLength(1);
+    if (unreadItems[0]!.type === 'message') {
+      expect(unreadItems[0]!.msg.id).toBe('m3');
+    }
+  });
+
   it('keeps messages when nowMs is 0 even if expiresAt is set', () => {
     const items = buildFlatMessageItems(
       [msg('m1', '2024-06-15T10:00:00Z', '2024-06-15T11:00:00Z')],

@@ -98,6 +98,7 @@ export function PublicSpaces() {
 
   const handleLoadMore = useCallback(async () => {
     if (loadingMore || !cursor) return;
+    const seq = fetchSeq.current;
     setLoadingMore(true);
     try {
       const res = await api.spaces.discover({
@@ -105,6 +106,7 @@ export function PublicSpaces() {
         cursor,
         ...(debouncedSearch ? { q: debouncedSearch } : {}),
       });
+      if (seq !== fetchSeq.current) return;
       if (res.success && res.data) {
         const { spaces: nextSpaces, cursor: nextCursor } = res.data;
         setSpaces((prev) => [...prev, ...nextSpaces]);
@@ -113,9 +115,9 @@ export function PublicSpaces() {
         toast.error(t('spaces.loadMoreError'));
       }
     } catch {
-      toast.error(t('spaces.loadMoreError'));
+      if (seq === fetchSeq.current) toast.error(t('spaces.loadMoreError'));
     } finally {
-      setLoadingMore(false);
+      if (seq === fetchSeq.current) setLoadingMore(false);
     }
   }, [api, cursor, debouncedSearch, loadingMore, toast, t]);
 

@@ -61,7 +61,7 @@ export function useConversationSecurityState(params: {
         if (cancelled || !res.success || !res.data) return;
         setPeerPublicKeysById((prev) => ({ ...prev, [pid]: res.data! }));
       }),
-    );
+    ).catch(() => {});
     return () => {
       cancelled = true;
     };

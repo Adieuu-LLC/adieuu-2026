@@ -73,6 +73,8 @@ export function SpaceChannelCipherGate({
       await bookmarkSpaceCipher(localId, spaceId);
       setStatusMsg(t('spaces.channel.cipherFound'));
       onCipherLinked();
+    } catch {
+      setStatusMsg(t('spaces.channel.cipherStillMissing'));
     } finally {
       setChecking(false);
     }
@@ -120,6 +122,8 @@ export function SpaceChannelCipherGate({
       await bookmarkSpaceCipher(resolved.localId, spaceId);
       setStatusMsg(t('spaces.channel.cipherFound'));
       onCipherLinked();
+    } catch {
+      setAddError(t('spaces.create.errors.createFailed'));
     } finally {
       setAdding(false);
     }

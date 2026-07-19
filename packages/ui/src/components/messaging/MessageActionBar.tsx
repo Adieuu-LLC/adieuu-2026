@@ -95,7 +95,7 @@ export function MessageActionBar({
       const ceId = customEmojiFavoriteId(fav);
       const ce = customEmojiLookup.get(ceId);
       if (!ce) return null;
-      const tooltipLabel = `${ce.name} \u00b7 React \u00b7 Shift+click to remove`;
+      const tooltipLabel = `${ce.name} ${t('conversations.reactFavoriteHint', '· React · Shift+click to remove')}`;
       return (
         <Tooltip key={fav} content={tooltipLabel} position="top">
           <button
@@ -131,7 +131,7 @@ export function MessageActionBar({
     return (
       <Tooltip
         key={fav}
-        content={`${getEmojiMartShortcodeLabel(fav)} \u00b7 React \u00b7 Shift+click to remove`}
+        content={`${getEmojiMartShortcodeLabel(fav)} ${t('conversations.reactFavoriteHint', '· React · Shift+click to remove')}`}
         position="top"
       >
         <button
@@ -272,7 +272,7 @@ export function MessageActionBar({
         positioning={MESSAGE_ACTION_BAR_POPOVER_POSITIONING}
       >
         <Popover.Trigger asChild>
-          <button type="button" className="message-action-bar-btn" title="React">
+          <button type="button" className="message-action-bar-btn" title={t('conversations.react', 'React')}>
             <Icon name="smilePlus" className="message-action-bar-icon" />
           </button>
         </Popover.Trigger>
@@ -287,23 +287,23 @@ export function MessageActionBar({
           </Popover.Positioner>
         </Portal>
       </Popover.Root>
-      <Tooltip content="Delete for me" position="top">
+      <Tooltip content={t('conversations.deleteForMe', 'Delete for me')} position="top">
         <button
           type="button"
           className="message-action-bar-btn"
           onClick={onDeleteForSelf}
-          aria-label="Delete for me"
+          aria-label={t('conversations.deleteForMe', 'Delete for me')}
         >
           <Icon name="trash" className="message-action-bar-icon" />
         </button>
       </Tooltip>
       {isOwn && (
-        <Tooltip content="Delete for everyone" position="top">
+        <Tooltip content={t('conversations.deleteForEveryone', 'Delete for everyone')} position="top">
           <button
             type="button"
             className="message-action-bar-btn"
             onClick={onDeleteForEveryone}
-            aria-label="Delete for everyone"
+            aria-label={t('conversations.deleteForEveryone', 'Delete for everyone')}
           >
             <Icon name="trash" className="message-action-bar-icon" style={{ color: 'var(--color-error)' }} />
           </button>
@@ -312,7 +312,7 @@ export function MessageActionBar({
       {(onReport || onBlock) && (
         <Menu.Root>
           <Menu.Trigger asChild>
-            <button type="button" className="message-action-bar-btn" aria-label="More actions">
+            <button type="button" className="message-action-bar-btn" aria-label={t('conversations.moreActions', 'More actions')}>
               <Icon name="ellipsis" className="message-action-bar-icon" />
             </button>
           </Menu.Trigger>

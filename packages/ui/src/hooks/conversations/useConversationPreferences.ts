@@ -35,6 +35,9 @@ export function useConversationPreferences(params: {
       const override = loadConversationFsDefault(conversationId);
       setConvFsOverride(override);
       setUseFs(override ?? fsConfigEnabled);
+    } else {
+      setConvFsOverride(null);
+      setUseFs(fsConfigEnabled);
     }
   }, [conversationId, fsConfigEnabled]);
 

@@ -53,16 +53,22 @@ export function buildFlatMessageItems<
   unreadCount: number,
   nowMs: number,
 ): ChannelListItem<M>[] {
+  const retained =
+    nowMs > 0
+      ? messages.filter(
+          (m) => !(m.expiresAt && new Date(m.expiresAt).getTime() <= nowMs),
+        )
+      : messages;
+
   const items: ChannelListItem<M>[] = [];
   const unreadIdx =
-    unreadCount > 0 && unreadCount < messages.length
-      ? messages.length - unreadCount
+    unreadCount > 0 && unreadCount < retained.length
+      ? retained.length - unreadCount
       : -1;
   let unreadMarkerPlaced = false;
 
-  for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i]!;
-    if (nowMs > 0 && msg.expiresAt && new Date(msg.expiresAt).getTime() <= nowMs) continue;
+  for (let i = 0; i < retained.length; i++) {
+    const msg = retained[i]!;
 
     const currDate = new Date(msg.createdAt);
     const prevItem = items.length > 0 ? items[items.length - 1] : null;

@@ -29,7 +29,11 @@ export function useSpaceSend(params: SpaceSendParams) {
     ): Promise<PublicSpaceMessage | null> => {
       const spaceId = activeSpaceIdRef.current;
       const channelId = activeChannelIdRef.current;
-      if (!spaceId || !channelId || sendingRef.current) return null;
+      if (!spaceId || !channelId) return null;
+      if (sendingRef.current) {
+        showError?.('A message is already sending.');
+        return null;
+      }
 
       sendingRef.current = true;
       setSending(true);

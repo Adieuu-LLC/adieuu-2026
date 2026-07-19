@@ -137,6 +137,7 @@ export function useChannelReactions(
   const channelIdRef = useRef(channelId);
   channelIdRef.current = channelId;
   const mountedRef = useRef(true);
+  const cancelledOptimistic = useRef(new Set<string>());
 
   useEffect(() => {
     mountedRef.current = true;
@@ -222,6 +223,22 @@ export function useChannelReactions(
       try {
         const result = await adapterRef.current.addReaction(cId, messageId, emoji, customEmoji);
         if (!mountedRef.current || channelIdRef.current !== cId) return;
+        if (cancelledOptimistic.current.has(optimisticId)) {
+          cancelledOptimistic.current.delete(optimisticId);
+          if (result) {
+            void adapterRef.current.removeReaction(cId, messageId, result.id);
+          }
+          setState((prev) => ({
+            ...prev,
+            byMessage: {
+              ...prev.byMessage,
+              [messageId]: (prev.byMessage[messageId] ?? []).filter(
+                (r) => r.id !== optimisticId,
+              ),
+            },
+          }));
+          return;
+        }
         setState((prev) => {
           const existing = prev.byMessage[messageId] ?? [];
           const withoutOptimistic = existing.filter((r) => r.id !== optimisticId);
@@ -246,6 +263,7 @@ export function useChannelReactions(
           };
         });
       } catch {
+        cancelledOptimistic.current.delete(optimisticId);
         if (!mountedRef.current || channelIdRef.current !== cId) return;
         setState((prev) => ({
           ...prev,
@@ -267,6 +285,7 @@ export function useChannelReactions(
       if (!cId) return;
 
       if (isOptimistic(reactionId)) {
+        cancelledOptimistic.current.add(reactionId);
         setState((prev) => ({
           ...prev,
           byMessage: {

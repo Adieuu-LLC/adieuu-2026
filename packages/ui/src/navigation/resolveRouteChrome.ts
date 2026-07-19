@@ -63,7 +63,7 @@ export function resolveRouteChrome(pathname: string): RouteChromeDescriptor {
     return { icon: 'spaces', titleKey: 'spaces.title', titleDefault: 'Spaces' };
   }
   if (pathname.startsWith('/s/')) {
-    return { icon: 'spaces', titleKey: 'spaces.title', titleDefault: 'Space' };
+    return { icon: 'spaces', titleKey: 'spaces.spaceTitle', titleDefault: 'Space' };
   }
   if (pathname === '/download') {
     return { icon: 'download', titleKey: 'download.title', titleDefault: 'Download the desktop app' };

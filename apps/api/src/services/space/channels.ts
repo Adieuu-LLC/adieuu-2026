@@ -396,6 +396,11 @@ export async function editSpaceMessage(
     return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
   }
 
+  const perms = await resolveMemberPermissions(spaceId, callerId);
+  if (!perms.isMember) {
+    return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
+  }
+
   const isEncrypted = !!(space.e2ee || channel.cipherCheck);
   if (hasAnyCipherField && !hasCipherFields) {
     return { success: false, error: 'Cipher fields must include ciphertext, nonce, and cipherId.', errorCode: 'INVALID_CONTENT' };
@@ -484,6 +489,11 @@ export async function deleteSpaceMessage(
   const channel = await getSpaceChannelRepository().findByIdInSpace(spaceId, channelId);
   if (!channel) {
     return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
+  }
+
+  const perms = await resolveMemberPermissions(spaceId, callerId);
+  if (!perms.isMember) {
+    return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
   }
 
   const messageRepo = getSpaceMessageRepository();

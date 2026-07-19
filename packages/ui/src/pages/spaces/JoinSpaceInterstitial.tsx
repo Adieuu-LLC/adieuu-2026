@@ -251,6 +251,8 @@ export function JoinSpaceInterstitial({
       setMatchedLocalId(resolved.localId);
       setDetectStatus('matched');
       setShowAddCipher(false);
+    } catch {
+      setAddError(t('spaces.create.errors.createFailed'));
     } finally {
       setAdding(false);
     }
