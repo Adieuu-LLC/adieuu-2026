@@ -1,4 +1,11 @@
-import type { PublicIdentity, PublicSpace, PublicSpaceChannel, PublicSpaceMessage, SendSpaceMessageParams } from '@adieuu/shared';
+import type {
+  PublicIdentity,
+  PublicSpace,
+  PublicSpaceChannel,
+  PublicSpaceMessage,
+  SendSpaceMessageParams,
+  SpacePermission,
+} from '@adieuu/shared';
 import type { SpaceChannelUnreadState } from '../../services/spaceSocketHandlers';
 
 export interface SpaceChannelMessagesState {
@@ -26,6 +33,18 @@ export interface SpacesContextValue {
   activeSpaceError: 'not_found' | 'error' | null;
   /** Whether the current identity is a member of the active Space. */
   isActiveSpaceMember: boolean;
+
+  /** Effective permissions for the current identity in the active Space. */
+  activeSpacePermissions: SpacePermission[];
+  /** True when the viewer holds the `admin` super-permission. */
+  isActiveSpaceAdmin: boolean;
+  /** Whether `admin` or the given permission is held in the active Space. */
+  hasActiveSpacePermission: (permission: SpacePermission) => boolean;
+  /**
+   * True while viewer permissions for the active Space are loading (or unknown).
+   * Manage gates should wait for this before redirecting non-admins.
+   */
+  activeSpacePermissionsLoading: boolean;
 
   /** Channels for the active Space (sorted by position). */
   channels: PublicSpaceChannel[];
@@ -101,6 +120,8 @@ export interface SpacesContextValue {
    */
   trimActiveChannelBuffer: (atBottom: boolean) => void;
   refresh: () => Promise<void>;
+  /** Drop a Space from the local membership list (e.g. after delete). */
+  removeSpaceLocally: (spaceId: string) => void;
   clearChannelUnread: (channelId: string) => void;
   registerSocketCallbacks: (callbacks: {
     onReactionAdded?: SpacesContextValue['onSocketReactionAdded'];

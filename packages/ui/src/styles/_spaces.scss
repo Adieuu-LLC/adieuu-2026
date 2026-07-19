@@ -1025,3 +1025,82 @@ button.space-message-author:hover {
   gap: var(--spacing-sm);
 }
 
+// ---------------------------------------------------------------------------
+// Space Manage overview
+// ---------------------------------------------------------------------------
+
+.space-manage-page {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.admin-stat-value--sm {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+}
+
+.space-manage-recent-joins,
+.space-manage-danger {
+  margin-top: var(--spacing-lg);
+}
+
+.space-manage-empty {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.space-manage-join-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.space-manage-join-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  padding: var(--spacing-xs) 0;
+  border-bottom: 1px solid var(--color-border-subtle, var(--color-border));
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.space-manage-join-name {
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.space-manage-join-when {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.space-manage-danger-body {
+  margin: 0 0 var(--spacing-md);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.space-manage-delete-label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  margin-top: var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.space-manage-delete-input {
+  font-family: var(--font-mono, monospace);
+  letter-spacing: 0.04em;
+}
+

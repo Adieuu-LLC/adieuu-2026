@@ -46,6 +46,7 @@ export type ChatMessageType =
   | 'call_media_state_changed'
   | 'space_created'
   | 'space_updated'
+  | 'space_deleted'
   | 'space_message'
   | 'space_member_joined'
   | 'space_member_left'
@@ -399,6 +400,12 @@ export interface ChatSpaceUpdatedMessage extends ChatMessageBase {
   data: { space: PublicSpace };
 }
 
+/** A Space was permanently deleted. Fanned out on the `space:{spaceId}` channel. */
+export interface ChatSpaceDeletedMessage extends ChatMessageBase {
+  type: 'space_deleted';
+  data: { spaceId: string };
+}
+
 /**
  * A new (non-E2EE) channel message. Fanned out on the `space:{spaceId}`
  * channel to active members.
@@ -521,6 +528,7 @@ export type ChatIncomingMessage =
   | ChatCallMediaStateChangedMessage
   | ChatSpaceCreatedMessage
   | ChatSpaceUpdatedMessage
+  | ChatSpaceDeletedMessage
   | ChatSpaceMessageMessage
   | ChatSpaceMemberJoinedMessage
   | ChatSpaceMemberLeftMessage

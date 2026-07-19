@@ -20,7 +20,7 @@ import {
 export function SpaceSecondarySidebar() {
   const { t } = useTranslation();
   const { slug } = useParams<{ slug: string }>();
-  const { activeSpace, channels, unreadByChannel } = useSpaces();
+  const { activeSpace, channels, unreadByChannel, isActiveSpaceAdmin } = useSpaces();
   const { spaceCipher } = useSpaceCipher(activeSpace?.id);
 
   if (!activeSpace) return null;
@@ -44,16 +44,12 @@ export function SpaceSecondarySidebar() {
         )}
       </div>
 
-      {/* Manage stub */}
-      <button
-        type="button"
-        className="space-sidebar-link space-sidebar-manage"
-        disabled
-        title={t('spaces.sidebar.manageTooltip')}
-      >
-        <Icon name="settings" size="sm" />
-        <span>{t('spaces.sidebar.manage')}</span>
-      </button>
+      {isActiveSpaceAdmin && (
+        <NavLink to={`/s/${slug}/manage`} className={navLinkClass}>
+          <Icon name="settings" size="sm" />
+          <span>{t('spaces.sidebar.manage')}</span>
+        </NavLink>
+      )}
 
       {/* Home */}
       <NavLink to={`/s/${slug}`} end className={navLinkClass}>

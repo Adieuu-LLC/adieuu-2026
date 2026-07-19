@@ -55,6 +55,15 @@ export class SpacePinRepository extends BaseRepository<SpacePinDocument> {
     } as Filter<SpacePinDocument>);
     return result.deletedCount === 1;
   }
+
+  /** Pins are keyed by channel; cascade-delete when removing a Space. */
+  async deleteByChannelIds(channelIds: ObjectId[]): Promise<number> {
+    if (channelIds.length === 0) return 0;
+    const result = await this.collection.deleteMany({
+      channelId: { $in: channelIds },
+    } as Filter<SpacePinDocument>);
+    return result.deletedCount;
+  }
 }
 
 let spacePinRepository: SpacePinRepository | null = null;

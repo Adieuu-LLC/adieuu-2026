@@ -70,6 +70,7 @@ export function SpaceChannelView() {
     trimActiveChannelBuffer,
     registerSocketCallbacks,
     isActiveSpaceMember,
+    hasActiveSpacePermission,
   } = useSpaces();
 
   const { identity } = useIdentity();
@@ -157,8 +158,7 @@ export function SpaceChannelView() {
     [api, spaceId, decryptContent],
   );
 
-  // TODO: determine canManagePins from member role
-  const canManagePins = true;
+  const canManagePins = hasActiveSpacePermission('manageChannels');
 
   const {
     pinnedMessageIds,

@@ -47,6 +47,18 @@ export class SpaceMemberRepository extends BaseRepository<SpaceMemberDocument> {
       .toArray()) as SpaceMemberDocument[];
   }
 
+  /** Most recently joined members of a Space (by joinedAt, then _id). */
+  async listRecentBySpace(
+    spaceId: ObjectId,
+    limit = 10,
+  ): Promise<SpaceMemberDocument[]> {
+    return (await this.collection
+      .find({ spaceId } as Filter<SpaceMemberDocument>)
+      .sort({ joinedAt: -1, _id: -1 })
+      .limit(limit)
+      .toArray()) as SpaceMemberDocument[];
+  }
+
   /** Spaces an identity belongs to, most recently joined first. */
   async findForIdentity(
     identityId: ObjectId,

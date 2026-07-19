@@ -228,6 +228,38 @@ export interface PublicSpaceMember {
   joinedAt: string;
 }
 
+/** Viewer membership + effective permissions within a Space. */
+export interface SpaceViewerPermissions {
+  isMember: boolean;
+  isAdmin: boolean;
+  permissions: SpacePermission[];
+  roleIds: string[];
+}
+
+/** Recent join row for the Space Manage overview. */
+export interface SpaceManageRecentJoin {
+  identityId: string;
+  joinedAt: string;
+}
+
+/** Admin-only Space Manage overview payload. */
+export interface SpaceManageOverview {
+  spaceId: string;
+  slug: string;
+  name: string;
+  visibility: SpaceVisibility;
+  e2ee: boolean;
+  encryptIdentity: boolean;
+  memberCount: number;
+  channelCount: number;
+  createdAt: string;
+  /** Present when `encryptIdentity`. */
+  encryptedName?: string;
+  nameNonce?: string;
+  cipherId?: string;
+  recentJoins: SpaceManageRecentJoin[];
+}
+
 /** Public invite representation (mirrors group invites). */
 export interface PublicSpaceInvite {
   id: string;

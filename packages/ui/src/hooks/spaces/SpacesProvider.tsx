@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { createApiClient, type PublicIdentity, type PublicSpace, type PublicSpaceChannel, type PublicSpaceMessage } from '@adieuu/shared';
+import {
+  createApiClient,
+  type PublicIdentity,
+  type PublicSpace,
+  type PublicSpaceChannel,
+  type PublicSpaceMessage,
+  type SpacePermission,
+} from '@adieuu/shared';
 import { useNavigate } from 'react-router-dom';
 import { useAppConfig, usePlatformCapabilities } from '../../config';
 import { useIdentity } from '../useIdentity';
@@ -47,6 +54,9 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   const [participantProfiles, setParticipantProfiles] = useState<Record<string, PublicIdentity>>({});
   const [unreadByChannel, setUnreadByChannel] = useState<Record<string, SpaceChannelUnreadState>>({});
   const [unreadBySpace, setUnreadBySpace] = useState<Record<string, number>>({});
+  const [activeSpacePermissions, setActiveSpacePermissions] = useState<SpacePermission[]>([]);
+  const [isActiveSpaceAdmin, setIsActiveSpaceAdmin] = useState(false);
+  const [activeSpacePermissionsLoading, setActiveSpacePermissionsLoading] = useState(false);
 
   const socketCallbacksRef = useRef<{
     onReactionAdded?: SpacesContextValue['onSocketReactionAdded'];
@@ -128,6 +138,9 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       if (slug === null) {
         clearActiveSpace();
         setActiveChannelIdState(null);
+        setActiveSpacePermissions([]);
+        setIsActiveSpaceAdmin(false);
+        setActiveSpacePermissionsLoading(false);
         return;
       }
       const matchedSpace = spacesRef.current.find((s) => s.slug === slug);
@@ -141,6 +154,60 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       void resolveSpace(slug);
     },
     [resolveSpace, clearActiveSpace],
+  );
+
+  // Resolve viewer permissions whenever the active Space changes.
+  useEffect(() => {
+    const spaceId = activeSpaceInternal?.id;
+    if (!isLoggedIn || !spaceId) {
+      setActiveSpacePermissions([]);
+      setIsActiveSpaceAdmin(false);
+      setActiveSpacePermissionsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setActiveSpacePermissionsLoading(true);
+    void api.spaces.getMyPermissions(spaceId).then((res) => {
+      if (cancelled) return;
+      if (res.success && res.data) {
+        setActiveSpacePermissions(res.data.permissions);
+        setIsActiveSpaceAdmin(res.data.isAdmin);
+      } else {
+        setActiveSpacePermissions([]);
+        setIsActiveSpaceAdmin(false);
+      }
+      setActiveSpacePermissionsLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api, isLoggedIn, activeSpaceInternal?.id]);
+
+  const hasActiveSpacePermission = useCallback(
+    (permission: SpacePermission) =>
+      isActiveSpaceAdmin || activeSpacePermissions.includes(permission),
+    [isActiveSpaceAdmin, activeSpacePermissions],
+  );
+
+  const removeSpaceLocally = useCallback(
+    (spaceId: string) => {
+      setSpaces((prev) => prev.filter((s) => s.id !== spaceId));
+      setUnreadBySpace((prev) => {
+        if (!prev[spaceId]) return prev;
+        const { [spaceId]: _, ...rest } = prev;
+        return rest;
+      });
+      if (activeSpaceIdRef.current === spaceId) {
+        clearActiveSpace();
+        setActiveChannelIdState(null);
+        setActiveSpacePermissions([]);
+        setIsActiveSpaceAdmin(false);
+        setActiveSpacePermissionsLoading(false);
+      }
+    },
+    [clearActiveSpace],
   );
 
   const setActiveChannel = useCallback(
@@ -363,6 +430,20 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     ? messagesByChannel[activeChannelId]?.messages ?? []
     : [];
 
+  const removeSpaceLocallyRef = useRef(removeSpaceLocally);
+  removeSpaceLocallyRef.current = removeSpaceLocally;
+
+  const handleSpaceDeleted = useCallback(
+    (spaceId: string) => {
+      const wasActive = activeSpaceIdRef.current === spaceId;
+      removeSpaceLocallyRef.current(spaceId);
+      if (wasActive) {
+        navigate('/spaces');
+      }
+    },
+    [navigate],
+  );
+
   useSpacesSocketEffects({
     isLoggedIn,
     subscribe,
@@ -381,6 +462,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     channelNamesRef,
     participantProfilesRef,
     activeChannelMessagesRef,
+    onSpaceDeleted: handleSpaceDeleted,
   });
 
   const activeChannelState = activeChannelId ? messagesByChannel[activeChannelId] : undefined;
@@ -401,6 +483,10 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       activeSpaceLoading,
       activeSpaceError,
       isActiveSpaceMember,
+      activeSpacePermissions,
+      isActiveSpaceAdmin,
+      hasActiveSpacePermission,
+      activeSpacePermissionsLoading,
       channels,
       activeChannelId,
       activeMessages: activeChannelState?.messages ?? [],
@@ -421,6 +507,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       fetchMessagesAround,
       trimActiveChannelBuffer,
       refresh: fetchSpaces,
+      removeSpaceLocally,
       clearChannelUnread,
       registerSocketCallbacks,
     }),
@@ -431,6 +518,10 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       activeSpaceLoading,
       activeSpaceError,
       isActiveSpaceMember,
+      activeSpacePermissions,
+      isActiveSpaceAdmin,
+      hasActiveSpacePermission,
+      activeSpacePermissionsLoading,
       channels,
       activeChannelId,
       activeChannelState,
@@ -447,6 +538,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       jumpToLatestMessages,
       fetchMessagesAround,
       trimActiveChannelBuffer,
+      removeSpaceLocally,
       fetchSpaces,
       clearChannelUnread,
       registerSocketCallbacks,

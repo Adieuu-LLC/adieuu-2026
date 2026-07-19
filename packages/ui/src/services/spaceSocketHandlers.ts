@@ -51,6 +51,8 @@ export interface SpaceSocketHandlerContext {
   participantProfiles?: Record<string, PublicIdentity>;
   /** Messages in the active channel, used for reaction author lookup. */
   activeChannelMessages?: PublicSpaceMessage[];
+  /** Called when a Space is permanently deleted (after local list cleanup). */
+  onSpaceDeleted?: (spaceId: string) => void;
 }
 
 /**
@@ -80,6 +82,19 @@ export function handleSpaceSocketMessage(
       ctx.setSpaces((prev) =>
         prev.map((s) => (s.id === space.id ? space : s)),
       );
+      break;
+    }
+
+    case 'space_deleted': {
+      const { spaceId } = message.data;
+      ctx.setSpaces((prev) => prev.filter((s) => s.id !== spaceId));
+      ctx.setUnreadBySpace?.((prev) => {
+        if (!prev[spaceId]) return prev;
+        const { [spaceId]: _, ...rest } = prev;
+        return rest;
+      });
+      emitSpacesChanged();
+      ctx.onSpaceDeleted?.(spaceId);
       break;
     }
 

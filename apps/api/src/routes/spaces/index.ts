@@ -74,6 +74,18 @@ router.patch('/spaces/:id', async (ctx) => {
   return spaceRespond(ctx, await spaceController.updateSpaceCtrl(ctx));
 });
 
+router.delete('/spaces/:id', async (ctx) => {
+  return spaceRespond(ctx, await spaceController.deleteSpaceCtrl(ctx));
+});
+
+router.get('/spaces/:id/me', async (ctx) => {
+  return spaceRespond(ctx, await spaceController.getMyPermissionsCtrl(ctx));
+});
+
+router.get('/spaces/:id/manage/overview', async (ctx) => {
+  return spaceRespond(ctx, await spaceController.getManageOverviewCtrl(ctx));
+});
+
 router.post('/spaces/:id/join', async (ctx) => {
   const { requireCaptchaForFreeTier } = await import('../../middleware/captcha');
   const captchaError = await requireCaptchaForFreeTier(ctx);

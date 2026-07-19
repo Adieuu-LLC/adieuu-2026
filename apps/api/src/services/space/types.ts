@@ -14,6 +14,8 @@ import type {
   PublicSpaceMessage,
   PublicSpaceReaction,
   PublicSpaceRole,
+  SpaceManageOverview,
+  SpaceViewerPermissions,
   SpaceVisibility,
   SubscriptionTierId,
 } from '@adieuu/shared';
@@ -209,6 +211,22 @@ export interface SpacePinnedMessagesResult {
   success: boolean;
   messages?: (PublicSpaceMessage | null)[];
   cursor?: string | null;
+  error?: string;
+  errorCode?: SpaceErrorCode;
+}
+
+/** Result of resolving the viewer's permissions in a Space. */
+export interface SpaceViewerPermissionsResult {
+  success: boolean;
+  viewer?: SpaceViewerPermissions;
+  error?: string;
+  errorCode?: SpaceErrorCode;
+}
+
+/** Result of the admin Manage overview. */
+export interface SpaceManageOverviewResult {
+  success: boolean;
+  overview?: SpaceManageOverview;
   error?: string;
   errorCode?: SpaceErrorCode;
 }

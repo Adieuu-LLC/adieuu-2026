@@ -58,6 +58,10 @@ function makeDefaultCtx(overrides: Record<string, unknown> = {}): Record<string,
     channels: [],
     setActiveSpace: mock(() => {}),
     isActiveSpaceMember: true,
+    isActiveSpaceAdmin: false,
+    activeSpacePermissions: [],
+    activeSpacePermissionsLoading: false,
+    hasActiveSpacePermission: () => false,
     ...overrides,
   };
 }

@@ -1,4 +1,4 @@
-import { useEffect, type MutableRefObject } from 'react';
+import { useEffect, useRef, type MutableRefObject } from 'react';
 import type { ChatIncomingMessage, ChatConnectionState, PublicIdentity, PublicSpace, PublicSpaceMessage } from '@adieuu/shared';
 import { handleSpaceSocketMessage, type SpaceChannelUnreadState } from '../../services/spaceSocketHandlers';
 import type { SpaceChannelMessagesState, SpacesContextValue } from './types';
@@ -27,6 +27,8 @@ export interface SpacesSocketEffectsParams {
   channelNamesRef: MutableRefObject<Record<string, string>>;
   participantProfilesRef: MutableRefObject<Record<string, PublicIdentity>>;
   activeChannelMessagesRef: MutableRefObject<PublicSpaceMessage[]>;
+  /** Called after local state is cleaned up for a deleted Space. */
+  onSpaceDeleted?: (spaceId: string) => void;
 }
 
 export function useSpacesSocketEffects(params: SpacesSocketEffectsParams): void {
@@ -48,7 +50,14 @@ export function useSpacesSocketEffects(params: SpacesSocketEffectsParams): void 
     channelNamesRef,
     participantProfilesRef,
     activeChannelMessagesRef,
+    onSpaceDeleted,
   } = params;
+
+  // Keep the delete callback on a ref so an inline parent identity cannot
+  // re-run this effect. Re-subscribing calls onStateChange which immediately
+  // emits the current state — and when that is `connected`, listMine storms.
+  const onSpaceDeletedRef = useRef(onSpaceDeleted);
+  onSpaceDeletedRef.current = onSpaceDeleted;
 
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -77,6 +86,7 @@ export function useSpacesSocketEffects(params: SpacesSocketEffectsParams): void 
         channelNames: channelNamesRef.current,
         participantProfiles: participantProfilesRef.current,
         activeChannelMessages: activeChannelMessagesRef.current,
+        onSpaceDeleted: (spaceId) => onSpaceDeletedRef.current?.(spaceId),
       });
     });
 

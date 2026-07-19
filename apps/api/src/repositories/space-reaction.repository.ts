@@ -53,6 +53,13 @@ export class SpaceReactionRepository extends BaseRepository<SpaceReactionDocumen
     } as Filter<SpaceReactionDocument>);
     return result.deletedCount;
   }
+
+  async deleteBySpace(spaceId: ObjectId): Promise<number> {
+    const result = await this.collection.deleteMany({
+      spaceId,
+    } as Filter<SpaceReactionDocument>);
+    return result.deletedCount;
+  }
 }
 
 let spaceReactionRepository: SpaceReactionRepository | null = null;

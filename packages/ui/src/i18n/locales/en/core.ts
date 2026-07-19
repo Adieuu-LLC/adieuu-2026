@@ -320,8 +320,36 @@ export const core = {
     sidebar: {
       home: 'Home',
       manage: 'Manage',
-      manageTooltip: 'Space management is coming soon.',
       textChannels: 'Text Channels',
+    },
+    manage: {
+      title: 'Manage Space',
+      subtitle: 'Overview and settings for {{name}}',
+      loadError: "Couldn't load Space management data.",
+      stats: {
+        members: 'Members',
+        channels: 'Channels',
+        visibility: 'Visibility',
+        created: 'Created',
+      },
+      recentJoins: {
+        title: 'Recent joins',
+        empty: 'No recent joins yet.',
+      },
+      danger: {
+        title: 'Danger zone',
+        body: 'Deleting a Space permanently removes channels, messages, roles, and membership. This cannot be undone.',
+        deleteCta: 'Delete Space',
+      },
+      deleteConfirm: {
+        title: 'Delete this Space?',
+        description:
+          'This permanently deletes {{name}} and all of its content. Type DELETE to confirm.',
+        typeLabel: 'Type DELETE to confirm',
+        confirm: 'Delete Space',
+      },
+      deleteSuccess: '{{name}} was deleted.',
+      deleteError: "Couldn't delete this Space. Please try again.",
     },
     channel: {
       noMessages: 'No messages yet. Start the conversation!',

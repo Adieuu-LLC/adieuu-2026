@@ -20,6 +20,15 @@ const svc = {
   getSpaceBySlug: mock(async () => ({ success: true, space: { id: 's1' } })) as AnyMock,
   getSpaceById: mock(async () => ({ success: true, space: { id: 's1' } })) as AnyMock,
   updateSpace: mock(async () => ({ success: true, space: { id: 's1' } })) as AnyMock,
+  deleteSpace: mock(async () => ({ success: true })) as AnyMock,
+  getSpaceViewerPermissions: mock(async () => ({
+    success: true,
+    viewer: { isMember: true, isAdmin: true, permissions: ['admin'], roleIds: [] },
+  })) as AnyMock,
+  getSpaceManageOverview: mock(async () => ({
+    success: true,
+    overview: { spaceId: 's1', slug: 's', name: 'S', memberCount: 1, channelCount: 1, recentJoins: [] },
+  })) as AnyMock,
   listMySpaces: mock(async () => ({ spaces: [], cursor: null })) as AnyMock,
   discoverSpaces: mock(async () => ({ spaces: [], cursor: null })) as AnyMock,
   isSlugAvailable: mock(async () => true) as AnyMock,
@@ -217,6 +226,46 @@ describe('updateSpaceCtrl', () => {
     expect(r).toMatchObject({ kind: 'ok' });
     const [, , updates] = svc.updateSpace.mock.calls[0]!;
     expect(updates).toMatchObject({ name: 'New', allowFreeMembers: true });
+  });
+});
+
+describe('getMyPermissionsCtrl / getManageOverviewCtrl / deleteSpaceCtrl', () => {
+  beforeEach(() => {
+    svc.getSpaceViewerPermissions.mockClear();
+    svc.getSpaceManageOverview.mockClear();
+    svc.deleteSpace.mockClear();
+    svc.getSpaceViewerPermissions.mockResolvedValue({
+      success: true,
+      viewer: { isMember: true, isAdmin: true, permissions: ['admin'], roleIds: [] },
+    });
+    svc.getSpaceManageOverview.mockResolvedValue({
+      success: true,
+      overview: { spaceId: HEX, slug: 's', name: 'S', memberCount: 1, channelCount: 1, recentJoins: [] },
+    });
+    svc.deleteSpace.mockResolvedValue({ success: true });
+  });
+
+  test('permissions returns unauthorized without a session', async () => {
+    expect(await c.getMyPermissionsCtrl(makeCtx({ session: false }))).toEqual({ kind: 'unauthorized' });
+  });
+
+  test('permissions returns ok', async () => {
+    const r = await c.getMyPermissionsCtrl(makeCtx({ params: { id: HEX } }));
+    expect(r).toMatchObject({ kind: 'ok', data: { isAdmin: true } });
+  });
+
+  test('overview maps FORBIDDEN', async () => {
+    svc.getSpaceManageOverview.mockResolvedValueOnce({
+      success: false, errorCode: 'FORBIDDEN', error: 'no',
+    });
+    const r = await c.getManageOverviewCtrl(makeCtx({ params: { id: HEX } }));
+    expect(r).toEqual({ kind: 'forbidden', message: 'no' });
+  });
+
+  test('delete returns ok and message', async () => {
+    const r = await c.deleteSpaceCtrl(makeCtx({ params: { id: HEX } }));
+    expect(r).toMatchObject({ kind: 'ok', message: 'Space deleted.' });
+    expect(svc.deleteSpace).toHaveBeenCalled();
   });
 });
 

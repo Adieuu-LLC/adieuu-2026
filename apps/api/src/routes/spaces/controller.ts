@@ -21,6 +21,9 @@ import {
   getSpaceBySlug,
   getSpaceById,
   updateSpace,
+  deleteSpace,
+  getSpaceViewerPermissions,
+  getSpaceManageOverview,
   listMySpaces,
   discoverSpaces,
   isSlugAvailable,
@@ -206,6 +209,52 @@ export async function getSpaceCtrl(ctx: RouteContext): Promise<SpaceRouteResult<
     return mapSpaceError(result.errorCode, result.error ?? 'Space not found.');
   }
   return { kind: 'ok', data: result.space };
+}
+
+export async function getMyPermissionsCtrl(
+  ctx: RouteContext,
+): Promise<SpaceRouteResult<unknown>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const id = sanitizeSpaceObjectId(ctx.params.id);
+  if (!id.ok) return { kind: 'bad_request', message: 'Invalid Space id.' };
+
+  const result = await getSpaceViewerPermissions(id.id, identity._id);
+  if (!result.success) {
+    return mapSpaceError(result.errorCode, result.error ?? 'Failed to resolve permissions.');
+  }
+  return { kind: 'ok', data: result.viewer };
+}
+
+export async function getManageOverviewCtrl(
+  ctx: RouteContext,
+): Promise<SpaceRouteResult<unknown>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const id = sanitizeSpaceObjectId(ctx.params.id);
+  if (!id.ok) return { kind: 'bad_request', message: 'Invalid Space id.' };
+
+  const result = await getSpaceManageOverview(id.id, identity._id);
+  if (!result.success) {
+    return mapSpaceError(result.errorCode, result.error ?? 'Failed to load overview.');
+  }
+  return { kind: 'ok', data: result.overview };
+}
+
+export async function deleteSpaceCtrl(ctx: RouteContext): Promise<SpaceRouteResult<undefined>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const id = sanitizeSpaceObjectId(ctx.params.id);
+  if (!id.ok) return { kind: 'bad_request', message: 'Invalid Space id.' };
+
+  const result = await deleteSpace(id.id, identity._id);
+  if (!result.success) {
+    return mapSpaceError(result.errorCode, result.error ?? 'Failed to delete Space.');
+  }
+  return { kind: 'ok', data: undefined, message: 'Space deleted.' };
 }
 
 export async function updateSpaceCtrl(ctx: RouteContext): Promise<SpaceRouteResult<unknown>> {

@@ -54,6 +54,7 @@ const memberRepo = {
   })) as AnyMock,
   findMember: mock(async (_s: ObjectId, _i: ObjectId) => null) as AnyMock,
   findForIdentity: mock(async (_i: ObjectId, _l: number, _c?: ObjectId) => [] as any[]) as AnyMock,
+  listRecentBySpace: mock(async (_id: ObjectId, _l: number) => [] as any[]) as AnyMock,
   deleteBySpace: mock(async (_id: ObjectId) => 0) as AnyMock,
 };
 
@@ -64,6 +65,24 @@ const channelRepo = {
     createdAt: new Date(),
     updatedAt: new Date(),
   })) as AnyMock,
+  findBySpace: mock(async (_id: ObjectId) => [] as any[]) as AnyMock,
+  countBySpace: mock(async (_id: ObjectId) => 0) as AnyMock,
+  deleteBySpace: mock(async (_id: ObjectId) => 0) as AnyMock,
+};
+
+const messageRepo = {
+  deleteBySpace: mock(async (_id: ObjectId) => 0) as AnyMock,
+};
+
+const reactionRepo = {
+  deleteBySpace: mock(async (_id: ObjectId) => 0) as AnyMock,
+};
+
+const pinRepo = {
+  deleteByChannelIds: mock(async (_ids: ObjectId[]) => 0) as AnyMock,
+};
+
+const inviteRepo = {
   deleteBySpace: mock(async (_id: ObjectId) => 0) as AnyMock,
 };
 /* eslint-enable @typescript-eslint/no-explicit-any */
@@ -73,6 +92,10 @@ mock.module('../../repositories/space.repository', () => ({ getSpaceRepository: 
 mock.module('../../repositories/space-role.repository', () => ({ getSpaceRoleRepository: () => roleRepo }));
 mock.module('../../repositories/space-member.repository', () => ({ getSpaceMemberRepository: () => memberRepo }));
 mock.module('../../repositories/space-channel.repository', () => ({ getSpaceChannelRepository: () => channelRepo }));
+mock.module('../../repositories/space-message.repository', () => ({ getSpaceMessageRepository: () => messageRepo }));
+mock.module('../../repositories/space-reaction.repository', () => ({ getSpaceReactionRepository: () => reactionRepo }));
+mock.module('../../repositories/space-pin.repository', () => ({ getSpacePinRepository: () => pinRepo }));
+mock.module('../../repositories/space-invite.repository', () => ({ getSpaceInviteRepository: () => inviteRepo }));
 
 const publishSpaceEvent = mock(async () => {}) as AnyMock;
 const publishSpaceEventToIdentity = mock(async () => {}) as AnyMock;
@@ -83,6 +106,9 @@ import {
   getSpaceBySlug,
   getSpaceById,
   updateSpace,
+  getSpaceViewerPermissions,
+  getSpaceManageOverview,
+  deleteSpace,
   listMySpaces,
   discoverSpaces,
   isSlugAvailable,
@@ -139,16 +165,23 @@ describe('space/crud', () => {
   beforeEach(() => {
     mockHasPaidAccess.mockReset();
     mockHasPaidAccess.mockReturnValue(true);
-    for (const repo of [spaceRepo, roleRepo, memberRepo, channelRepo]) {
+    for (const repo of [
+      spaceRepo, roleRepo, memberRepo, channelRepo,
+      messageRepo, reactionRepo, pinRepo, inviteRepo,
+    ]) {
       for (const fn of Object.values(repo)) (fn as AnyMock).mockClear();
     }
     spaceRepo.findBySlug.mockResolvedValue(null);
     spaceRepo.findById.mockResolvedValue(null);
     spaceRepo.findByIds.mockResolvedValue([]);
     spaceRepo.discover.mockResolvedValue([]);
+    spaceRepo.deleteById.mockResolvedValue(true);
     roleRepo.findBySpace.mockResolvedValue([]);
     memberRepo.findMember.mockResolvedValue(null);
     memberRepo.findForIdentity.mockResolvedValue([]);
+    memberRepo.listRecentBySpace.mockResolvedValue([]);
+    channelRepo.findBySpace.mockResolvedValue([]);
+    channelRepo.countBySpace.mockResolvedValue(0);
     publishSpaceEvent.mockClear();
     publishSpaceEventToIdentity.mockClear();
   });
@@ -501,6 +534,105 @@ describe('space/crud', () => {
       spaceRepo.findById.mockResolvedValue(null);
       const r = await updateSpace(new ObjectId(), CREATOR, { name: 'x' });
       expect(r).toMatchObject({ success: false, errorCode: 'SPACE_NOT_FOUND' });
+    });
+  });
+
+  describe('getSpaceViewerPermissions', () => {
+    test('returns empty permissions for a non-member', async () => {
+      const spaceId = new ObjectId();
+      spaceRepo.findById.mockResolvedValue(makeSpaceDoc({ _id: spaceId }));
+      memberRepo.findMember.mockResolvedValue(null);
+      const r = await getSpaceViewerPermissions(spaceId, CREATOR);
+      expect(r).toMatchObject({
+        success: true,
+        viewer: { isMember: false, isAdmin: false, permissions: [], roleIds: [] },
+      });
+    });
+
+    test('returns admin permissions for an admin member', async () => {
+      const spaceId = new ObjectId();
+      spaceRepo.findById.mockResolvedValue(makeSpaceDoc({ _id: spaceId }));
+      seedAdminMembership(spaceId);
+      const r = await getSpaceViewerPermissions(spaceId, CREATOR);
+      expect(r.success).toBe(true);
+      expect(r.viewer).toMatchObject({ isMember: true, isAdmin: true });
+      expect(r.viewer!.permissions).toContain('admin');
+    });
+  });
+
+  describe('getSpaceManageOverview', () => {
+    test('rejects a non-admin member', async () => {
+      const spaceId = new ObjectId();
+      spaceRepo.findById.mockResolvedValue(makeSpaceDoc({ _id: spaceId }));
+      const memberRoleId = new ObjectId();
+      memberRepo.findMember.mockResolvedValue({
+        _id: new ObjectId(), spaceId, identityId: CREATOR, status: 'active', roleIds: [memberRoleId],
+      });
+      roleRepo.findBySpace.mockResolvedValue([
+        { _id: memberRoleId, spaceId, name: 'Member', permissions: ['read', 'post'] },
+      ]);
+      const r = await getSpaceManageOverview(spaceId, CREATOR);
+      expect(r).toMatchObject({ success: false, errorCode: 'FORBIDDEN' });
+    });
+
+    test('returns stats and recent joins for an admin', async () => {
+      const spaceId = new ObjectId();
+      const joinedAt = new Date('2026-01-15T12:00:00.000Z');
+      const joinerId = new ObjectId();
+      spaceRepo.findById.mockResolvedValue(makeSpaceDoc({
+        _id: spaceId, memberCount: 3, slug: 'hq', name: 'HQ',
+      }));
+      seedAdminMembership(spaceId);
+      channelRepo.countBySpace.mockResolvedValue(2);
+      memberRepo.listRecentBySpace.mockResolvedValue([
+        { identityId: joinerId, joinedAt },
+      ]);
+      const r = await getSpaceManageOverview(spaceId, CREATOR);
+      expect(r.success).toBe(true);
+      expect(r.overview).toMatchObject({
+        spaceId: spaceId.toHexString(),
+        slug: 'hq',
+        name: 'HQ',
+        memberCount: 3,
+        channelCount: 2,
+      });
+      expect(r.overview!.recentJoins).toEqual([
+        { identityId: joinerId.toHexString(), joinedAt: joinedAt.toISOString() },
+      ]);
+    });
+  });
+
+  describe('deleteSpace', () => {
+    test('rejects a non-admin', async () => {
+      const spaceId = new ObjectId();
+      spaceRepo.findById.mockResolvedValue(makeSpaceDoc({ _id: spaceId }));
+      memberRepo.findMember.mockResolvedValue(null);
+      const r = await deleteSpace(spaceId, CREATOR);
+      expect(r).toMatchObject({ success: false, errorCode: 'NOT_MEMBER' });
+      expect(spaceRepo.deleteById).not.toHaveBeenCalled();
+    });
+
+    test('cascades deletes and publishes space_deleted for an admin', async () => {
+      const spaceId = new ObjectId();
+      const channelId = new ObjectId();
+      spaceRepo.findById.mockResolvedValue(makeSpaceDoc({ _id: spaceId }));
+      seedAdminMembership(spaceId);
+      channelRepo.findBySpace.mockResolvedValue([{ _id: channelId, spaceId }]);
+      const r = await deleteSpace(spaceId, CREATOR);
+      expect(r.success).toBe(true);
+      expect(messageRepo.deleteBySpace).toHaveBeenCalledWith(spaceId);
+      expect(reactionRepo.deleteBySpace).toHaveBeenCalledWith(spaceId);
+      expect(pinRepo.deleteByChannelIds).toHaveBeenCalledWith([channelId]);
+      expect(inviteRepo.deleteBySpace).toHaveBeenCalledWith(spaceId);
+      expect(channelRepo.deleteBySpace).toHaveBeenCalledWith(spaceId);
+      expect(memberRepo.deleteBySpace).toHaveBeenCalledWith(spaceId);
+      expect(roleRepo.deleteBySpace).toHaveBeenCalledWith(spaceId);
+      expect(spaceRepo.deleteById).toHaveBeenCalledWith(spaceId);
+      expect(publishSpaceEvent).toHaveBeenCalledTimes(1);
+      expect(publishSpaceEvent.mock.calls[0]![1]).toEqual({
+        type: 'space_deleted',
+        data: { spaceId: spaceId.toHexString() },
+      });
     });
   });
 

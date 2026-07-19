@@ -62,6 +62,8 @@ const CreateSpace = lazyRoute(() => import('../pages/spaces'), 'CreateSpace');
 const SpaceLayout = lazyRoute(() => import('../pages/spaces'), 'SpaceLayout');
 const SpaceLanding = lazyRoute(() => import('../pages/spaces'), 'SpaceLanding');
 const SpaceChannelView = lazyRoute(() => import('../pages/spaces'), 'SpaceChannelView');
+const SpaceManageGate = lazyRoute(() => import('../pages/spaces'), 'SpaceManageGate');
+const SpaceManageOverview = lazyRoute(() => import('../pages/spaces'), 'SpaceManageOverview');
 const Login = lazyRoute(() => import('../pages/auth'), 'Login');
 const Verify = lazyRoute(() => import('../pages/auth'), 'Verify');
 const MfaVerify = lazyRoute(() => import('../pages/auth'), 'MfaVerify');
@@ -370,6 +372,9 @@ export function App() {
         <Route path="/s/:slug" element={<SpaceLayout />}>
           <Route index element={<SpaceLanding />} />
           <Route path="c/:channelId" element={<SpaceChannelView />} />
+          <Route path="manage" element={<SpaceManageGate />}>
+            <Route index element={<SpaceManageOverview />} />
+          </Route>
         </Route>
         <Route path="/identity/:id" element={<IdentityProfileView />} />
         <Route path="/legal-policies" element={<LegalPoliciesPage />} />

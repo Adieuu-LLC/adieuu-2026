@@ -15,6 +15,10 @@ import { getSpaceRepository } from '../../repositories/space.repository';
 import { getSpaceRoleRepository } from '../../repositories/space-role.repository';
 import { getSpaceMemberRepository } from '../../repositories/space-member.repository';
 import { getSpaceChannelRepository } from '../../repositories/space-channel.repository';
+import { getSpaceMessageRepository } from '../../repositories/space-message.repository';
+import { getSpaceReactionRepository } from '../../repositories/space-reaction.repository';
+import { getSpacePinRepository } from '../../repositories/space-pin.repository';
+import { getSpaceInviteRepository } from '../../repositories/space-invite.repository';
 import { hasPaidAccess } from '../billing/resolve-access';
 import { isValidObjectId } from '../../utils';
 import elog from '../../utils/adieuuLogger';
@@ -32,10 +36,18 @@ import { isReservedSpaceSlug } from '../../constants/spaces';
 import { DEFAULT_SPACE_CHANNEL_NAME } from '@adieuu/shared';
 import type {
   CreateSpaceServiceParams,
+  SpaceActionResult,
   SpaceBillingContext,
   SpaceListPayload,
+  SpaceManageOverviewResult,
   SpaceResult,
+  SpaceViewerPermissionsResult,
 } from './types';
+
+function parseObjId(raw: string | ObjectId): ObjectId | null {
+  if (raw instanceof ObjectId) return raw;
+  return isValidObjectId(raw) ? new ObjectId(raw) : null;
+}
 
 function isDuplicateKeyError(err: unknown): boolean {
   return typeof err === 'object' && err !== null && (err as { code?: number }).code === 11000;
@@ -451,6 +463,154 @@ export async function updateSpace(
   });
 
   return { success: true, space: publicSpace };
+}
+
+/**
+ * Resolve the current viewer's membership and effective permissions.
+ */
+export async function getSpaceViewerPermissions(
+  spaceIdRaw: string | ObjectId,
+  identityIdRaw: string | ObjectId,
+): Promise<SpaceViewerPermissionsResult> {
+  const spaceId = parseObjId(spaceIdRaw);
+  const identityId = parseObjId(identityIdRaw);
+  if (!spaceId || !identityId) {
+    return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
+  }
+
+  const space = await getSpaceRepository().findById(spaceId);
+  if (!space) {
+    return { success: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' };
+  }
+
+  const perms = await resolveMemberPermissions(spaceId, identityId);
+  return {
+    success: true,
+    viewer: {
+      isMember: perms.isMember,
+      isAdmin: perms.isAdmin,
+      permissions: [...perms.permissions],
+      roleIds: perms.roleIds.map((id) => id.toHexString()),
+    },
+  };
+}
+
+/**
+ * Admin-only Manage overview: counts + recent joins.
+ */
+export async function getSpaceManageOverview(
+  spaceIdRaw: string | ObjectId,
+  actingIdentityIdRaw: string | ObjectId,
+): Promise<SpaceManageOverviewResult> {
+  const spaceId = parseObjId(spaceIdRaw);
+  const actingId = parseObjId(actingIdentityIdRaw);
+  if (!spaceId || !actingId) {
+    return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
+  }
+
+  const space = await getSpaceRepository().findById(spaceId);
+  if (!space) {
+    return { success: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' };
+  }
+
+  const perms = await resolveMemberPermissions(spaceId, actingId);
+  if (!perms.isMember) {
+    return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
+  }
+  if (!memberHasPermission(perms, 'admin')) {
+    return {
+      success: false,
+      error: 'You do not have permission to manage this Space.',
+      errorCode: 'FORBIDDEN',
+    };
+  }
+
+  const [channelCount, recentMembers] = await Promise.all([
+    getSpaceChannelRepository().countBySpace(spaceId),
+    getSpaceMemberRepository().listRecentBySpace(spaceId, 10),
+  ]);
+
+  return {
+    success: true,
+    overview: {
+      spaceId: space._id.toHexString(),
+      slug: space.slug,
+      name: space.name,
+      visibility: space.visibility,
+      e2ee: space.e2ee,
+      encryptIdentity: space.encryptIdentity,
+      memberCount: space.memberCount,
+      channelCount,
+      createdAt: space.createdAt.toISOString(),
+      ...(space.encryptedName ? { encryptedName: space.encryptedName } : {}),
+      ...(space.nameNonce ? { nameNonce: space.nameNonce } : {}),
+      ...(space.cipherId ? { cipherId: space.cipherId } : {}),
+      recentJoins: recentMembers.map((m) => ({
+        identityId: m.identityId.toHexString(),
+        joinedAt: m.joinedAt.toISOString(),
+      })),
+    },
+  };
+}
+
+/**
+ * Permanently delete a Space and all related documents. Admin-only.
+ */
+export async function deleteSpace(
+  spaceIdRaw: string | ObjectId,
+  actingIdentityIdRaw: string | ObjectId,
+): Promise<SpaceActionResult> {
+  const spaceId = parseObjId(spaceIdRaw);
+  const actingId = parseObjId(actingIdentityIdRaw);
+  if (!spaceId || !actingId) {
+    return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
+  }
+
+  const space = await getSpaceRepository().findById(spaceId);
+  if (!space) {
+    return { success: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' };
+  }
+
+  const perms = await resolveMemberPermissions(spaceId, actingId);
+  if (!perms.isMember) {
+    return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
+  }
+  if (!memberHasPermission(perms, 'admin')) {
+    return {
+      success: false,
+      error: 'You do not have permission to manage this Space.',
+      errorCode: 'FORBIDDEN',
+    };
+  }
+
+  const spaceIdHex = spaceId.toHexString();
+  const channels = await getSpaceChannelRepository().findBySpace(spaceId);
+  const channelIds = channels.map((c) => c._id);
+
+  try {
+    await Promise.all([
+      getSpaceMessageRepository().deleteBySpace(spaceId),
+      getSpaceReactionRepository().deleteBySpace(spaceId),
+      getSpacePinRepository().deleteByChannelIds(channelIds),
+      getSpaceInviteRepository().deleteBySpace(spaceId),
+    ]);
+    await Promise.all([
+      getSpaceChannelRepository().deleteBySpace(spaceId),
+      getSpaceMemberRepository().deleteBySpace(spaceId),
+      getSpaceRoleRepository().deleteBySpace(spaceId),
+    ]);
+    await getSpaceRepository().deleteById(spaceId);
+  } catch (err) {
+    elog.error('Failed to delete Space', { spaceId: spaceIdHex, err });
+    throw err;
+  }
+
+  await publishSpaceEvent(spaceIdHex, {
+    type: 'space_deleted',
+    data: { spaceId: spaceIdHex },
+  });
+
+  return { success: true };
 }
 
 /**

@@ -34,6 +34,10 @@ export class SpaceChannelRepository extends BaseRepository<SpaceChannelDocument>
     return await this.findOne({ _id: channelId, spaceId } as Filter<SpaceChannelDocument>);
   }
 
+  async countBySpace(spaceId: ObjectId): Promise<number> {
+    return await this.count({ spaceId } as Filter<SpaceChannelDocument>);
+  }
+
   async deleteBySpace(spaceId: ObjectId): Promise<number> {
     const result = await this.collection.deleteMany({ spaceId } as Filter<SpaceChannelDocument>);
     return result.deletedCount;

@@ -57,8 +57,13 @@ function createContext(
     options: { isMention?: boolean; channelId: string; spaceId?: string; spaceSlug?: string; onClick?: () => void };
   }> = [];
 
+  let spaces: Array<{ id: string }> = [{ id: 'space-1' }, { id: 'space-2' }];
+  const deletedCalls: string[] = [];
+
   const ctx: SpaceSocketHandlerContext = {
-    setSpaces: () => {},
+    setSpaces: (updater) => {
+      spaces = updater(spaces as never) as Array<{ id: string }>;
+    },
     setMessagesByChannel: (updater) => {
       messagesByChannel = updater(messagesByChannel);
     },
@@ -88,6 +93,7 @@ function createContext(
       'user-2': { id: 'user-2', displayName: 'Alice', username: 'alice' } as never,
     },
     activeChannelMessages: messagesByChannel['ch-1']?.messages ?? [],
+    onSpaceDeleted: (spaceId) => deletedCalls.push(spaceId),
     ...overrides,
   };
 
@@ -102,6 +108,10 @@ function createContext(
     get unreadBySpace() {
       return unreadBySpace;
     },
+    get spaces() {
+      return spaces;
+    },
+    deletedCalls,
     reactionAddedCalls,
     reactionRemovedCalls,
     pinsUpdatedCalls,
@@ -159,6 +169,22 @@ describe('spaceSocketHandlers', () => {
   // -------------------------------------------------------------------------
   // space_message — different channel → unread
   // -------------------------------------------------------------------------
+
+  test('space_deleted: removes space from list and notifies', () => {
+    const h = createContext();
+    h.ctx.setUnreadBySpace?.((prev) => ({ ...prev, 'space-1': 3, 'space-2': 1 }));
+    handleSpaceSocketMessage(
+      {
+        type: 'space_deleted',
+        data: { spaceId: 'space-1' },
+      } as ChatIncomingMessage,
+      h.ctx,
+    );
+    expect(h.spaces.map((s) => s.id)).toEqual(['space-2']);
+    expect(h.unreadBySpace['space-1']).toBeUndefined();
+    expect(h.unreadBySpace['space-2']).toBe(1);
+    expect(h.deletedCalls).toEqual(['space-1']);
+  });
 
   test('space_message: increments unread for non-active channel', () => {
     const h = createContext({ activeChannelId: 'ch-other' });

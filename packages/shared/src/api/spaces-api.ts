@@ -11,6 +11,8 @@ import type {
   PublicSpaceReaction,
   PublicSpaceRole,
   SendSpaceMessageParams,
+  SpaceManageOverview,
+  SpaceViewerPermissions,
   UpdateSpaceParams,
 } from './spaces-types';
 
@@ -61,6 +63,20 @@ export class SpacesApi {
 
   async update(spaceId: string, params: UpdateSpaceParams): Promise<ApiResponse<PublicSpace>> {
     return this.client.patch(`/api/spaces/${encodeURIComponent(spaceId)}`, params);
+  }
+
+  async delete(spaceId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(`/api/spaces/${encodeURIComponent(spaceId)}`);
+  }
+
+  /** Current viewer's membership and effective permissions in a Space. */
+  async getMyPermissions(spaceId: string): Promise<ApiResponse<SpaceViewerPermissions>> {
+    return this.client.get(`/api/spaces/${encodeURIComponent(spaceId)}/me`);
+  }
+
+  /** Admin-only Manage overview (stats + recent joins). */
+  async getManageOverview(spaceId: string): Promise<ApiResponse<SpaceManageOverview>> {
+    return this.client.get(`/api/spaces/${encodeURIComponent(spaceId)}/manage/overview`);
   }
 
   // --- Membership ---
