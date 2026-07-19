@@ -9,6 +9,7 @@ import {
   shortCipherId,
   wrapEntropy,
   type CommunityCipher,
+  type EntropyPiece,
 } from '@adieuu/crypto';
 import { useIdentity } from './useIdentity';
 import {

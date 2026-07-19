@@ -111,6 +111,7 @@ function makeSpace(overrides: Record<string, unknown> = {}) {
     description: 'A lovely place',
     visibility: 'public',
     e2ee: false,
+    encryptIdentity: false,
     cipherRequired: false,
     createdBy: 'id-owner',
     ownerIdentityId: 'id-owner',
@@ -255,6 +256,49 @@ describe('PublicSpaces directory', () => {
     expect(mockJoin).not.toHaveBeenCalled();
     expect(happy.document.body.textContent).toContain('spaces.joinModal.rulesTitle');
     expect(happy.document.body.textContent).toContain('Test Space');
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('offers Browse on browsable cards and links name/slug to the space', async () => {
+    mockDiscover.mockImplementation(() =>
+      Promise.resolve({
+        success: true,
+        data: {
+          spaces: [
+            makeSpace(),
+            makeSpace({ id: 'space-e2ee', slug: 'secret', name: 'Secret', e2ee: true }),
+          ],
+          cursor: null,
+        },
+      }),
+    );
+
+    const { root, container } = await renderDirectory();
+
+    const browseLinks = [...happy.document.querySelectorAll('a')].filter((a) =>
+      a.textContent?.includes('spaces.joinModal.browse'),
+    );
+    expect(browseLinks).toHaveLength(1);
+    expect(browseLinks[0]?.getAttribute('href')).toBe('/s/test-space');
+
+    const nameLink = [...happy.document.querySelectorAll('a.spaces-card-name')].find(
+      (a) => a.textContent === 'Test Space',
+    );
+    const slugLink = [...happy.document.querySelectorAll('a.spaces-card-slug')].find((a) =>
+      a.textContent?.includes('/s/test-space'),
+    );
+    expect(nameLink?.getAttribute('href')).toBe('/s/test-space');
+    expect(slugLink?.getAttribute('href')).toBe('/s/test-space');
+
+    expect(
+      [...happy.document.querySelectorAll('a.spaces-card-name')].some(
+        (a) => a.textContent === 'Secret',
+      ),
+    ).toBe(false);
 
     await act(async () => {
       root.unmount();

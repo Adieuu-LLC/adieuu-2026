@@ -34,6 +34,7 @@ import type { ReplyQuotePayload } from '../conversations/conversationUtils';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
 
 import { decryptBody, type DecryptableMessage } from './spaceChannelCipher';
+import { resolveChannelDisplayName } from './spaceMetadataCipher';
 import { resolveLatestPinInfo } from './spaceChannelViewModel';
 import { useSpaceChannelMessages } from '../../hooks/spaces/useSpaceChannelMessages';
 import { useSpaceChannelScrollToMessage } from '../../hooks/spaces/useSpaceChannelScrollToMessage';
@@ -41,7 +42,6 @@ import { useSpaceChannelMessageActions } from '../../hooks/spaces/useSpaceChanne
 import { useSpaceChannelComposer } from '../../hooks/spaces/useSpaceChannelComposer';
 import { SpaceChannelToolbar } from './SpaceChannelToolbar';
 import { SpaceChannelMainPanel } from './SpaceChannelMainPanel';
-import { JoinSpaceInterstitial } from './JoinSpaceInterstitial';
 
 const EMPTY_MEMBER_SETTINGS: MemberSettingsMap = {};
 
@@ -75,7 +75,6 @@ export function SpaceChannelView() {
   const { identity } = useIdentity();
   const { getCipherKey } = useCipherStore();
   const [cipherLinkVersion, setCipherLinkVersion] = useState(0);
-  const [joinOpen, setJoinOpen] = useState(false);
 
   const api = useMemo(
     () => createApiClient({ baseUrl: apiBaseUrl }),
@@ -452,7 +451,9 @@ export function SpaceChannelView() {
   return (
     <div className="space-channel-view">
       <SpaceChannelToolbar
-        channelName={activeChannel.name}
+        channelName={resolveChannelDisplayName(activeChannel, spaceCipher, {
+          encryptedChannel: t('spaces.encryptedChannelPlaceholder'),
+        })}
         isEncrypted={isEncrypted}
         memberCount={activeSpace?.memberCount ?? 0}
         latestPinInfo={latestPinInfo}
@@ -527,7 +528,6 @@ export function SpaceChannelView() {
               : null
           }
           isMember={isActiveSpaceMember}
-          onRequestJoin={() => setJoinOpen(true)}
           sending={sending}
           wrappedSend={wrappedSend}
           replyContext={replyContext}
@@ -550,14 +550,6 @@ export function SpaceChannelView() {
         />
       )}
       </div>
-
-      {joinOpen && (
-        <JoinSpaceInterstitial
-          space={activeSpace}
-          open={joinOpen}
-          onOpenChange={setJoinOpen}
-        />
-      )}
     </div>
   );
 }

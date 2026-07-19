@@ -13,11 +13,18 @@ import { useTranslation } from 'react-i18next';
 import { createApiClient, type PublicSpace } from '@adieuu/shared';
 import { useAppConfig } from '../../config';
 import { useIdentity } from '../../hooks/useIdentity';
+import { useCipherStore } from '../../hooks/useCipherStore';
 import { useToast } from '../../components/Toast';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { Spinner } from '../../components/Spinner';
+import { getSpaceCipherLink } from '../../services/spaceCipherService';
 import { JoinSpaceInterstitial } from './JoinSpaceInterstitial';
+import { canBrowseSpace } from './joinSpaceGate';
+import {
+  resolveSpaceDisplayDescription,
+  resolveSpaceDisplayName,
+} from './spaceMetadataCipher';
 import '../../styles/_spaces.scss';
 
 const SEARCH_DEBOUNCE_MS = 400;
@@ -29,6 +36,7 @@ export function PublicSpaces() {
   const { apiBaseUrl } = useAppConfig();
   const { status: identityStatus } = useIdentity();
   const isLoggedIn = identityStatus === 'logged_in';
+  const { getCipherKey } = useCipherStore();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
 
   const [spaces, setSpaces] = useState<PublicSpace[]>([]);
@@ -174,48 +182,78 @@ export function PublicSpaces() {
         ) : (
           <>
             <div className="spaces-grid">
-              {spaces.map((space) => (
-                <Card key={space.id} variant="elevated" className="spaces-card">
-                  <div className="spaces-card-header">
-                    <div>
-                      <div className="spaces-card-name">{space.name}</div>
-                      <div className="spaces-card-slug">/s/{space.slug}</div>
-                    </div>
-                    <div className="spaces-card-badges">
-                      <span className="spaces-badge">
-                        {t(`spaces.visibility.${space.visibility}`)}
-                      </span>
-                      {space.e2ee && (
-                        <span className="spaces-badge spaces-badge--encrypted">
-                          {t('spaces.encrypted')}
-                        </span>
-                      )}
-                      {space.cipherRequired && (
+              {spaces.map((space) => {
+                const localCipherId = getSpaceCipherLink(space.id);
+                const cipher = localCipherId ? getCipherKey(localCipherId) : null;
+                const displayName = resolveSpaceDisplayName(space, cipher, {
+                  encryptedSpace: t('spaces.encryptedSpacePlaceholder'),
+                });
+                const description = resolveSpaceDisplayDescription(space, cipher);
+                const browsePath = `/s/${space.slug}`;
+                const canBrowse = canBrowseSpace(space);
+                return (
+                  <Card key={space.id} variant="elevated" className="spaces-card">
+                    <div className="spaces-card-header">
+                      <div>
+                        {canBrowse ? (
+                          <>
+                            <Link to={browsePath} className="spaces-card-name">
+                              {displayName}
+                            </Link>
+                            <Link to={browsePath} className="spaces-card-slug">
+                              /s/{space.slug}
+                            </Link>
+                          </>
+                        ) : (
+                          <>
+                            <div className="spaces-card-name">{displayName}</div>
+                            <div className="spaces-card-slug">/s/{space.slug}</div>
+                          </>
+                        )}
+                      </div>
+                      <div className="spaces-card-badges">
                         <span className="spaces-badge">
-                          {t('spaces.joinModal.cipherRequiredBadge')}
+                          {t(`spaces.visibility.${space.visibility}`)}
                         </span>
-                      )}
+                        {space.e2ee && (
+                          <span className="spaces-badge spaces-badge--encrypted">
+                            {t('spaces.encrypted')}
+                          </span>
+                        )}
+                        {space.cipherRequired && (
+                          <span className="spaces-badge">
+                            {t('spaces.joinModal.cipherRequiredBadge')}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
-                  {space.description && (
-                    <p className="spaces-card-description">{space.description}</p>
-                  )}
+                    {description && (
+                      <p className="spaces-card-description">{description}</p>
+                    )}
 
-                  <div className="spaces-card-footer">
-                    <span className="spaces-card-members">
-                      {t('spaces.memberCount', { count: space.memberCount })}
-                    </span>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => setJoinTarget(space)}
-                    >
-                      {t('spaces.join')}
-                    </Button>
-                  </div>
-                </Card>
-              ))}
+                    <div className="spaces-card-footer">
+                      <span className="spaces-card-members">
+                        {t('spaces.memberCount', { count: space.memberCount })}
+                      </span>
+                      <div className="spaces-card-actions">
+                        {canBrowse && (
+                          <Link to={browsePath} className="btn btn-secondary btn-sm">
+                            {t('spaces.joinModal.browse')}
+                          </Link>
+                        )}
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => setJoinTarget(space)}
+                        >
+                          {t('spaces.join')}
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
             </div>
 
             {cursor && (

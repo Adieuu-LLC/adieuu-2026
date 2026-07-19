@@ -13,6 +13,20 @@ const validCipherCheck = {
   nonce: 'bm9uY2U',
 };
 
+const validEncryptedField = {
+  encryptedName: 'ZW5jLW5hbWU',
+  nameNonce: 'bm9uY2U',
+  cipherId: 'cipher-hex',
+};
+
+const validEncryptedSeed = {
+  channel: { ...validEncryptedField },
+  roles: [
+    { system: 'admin' as const, ...validEncryptedField },
+    { system: 'member' as const, ...validEncryptedField },
+  ],
+};
+
 describe('CreateSpaceSchema', () => {
   test('accepts a minimal valid public space', () => {
     const result = CreateSpaceSchema.safeParse({
@@ -34,8 +48,119 @@ describe('CreateSpaceSchema', () => {
       cipherCheck: validCipherCheck,
       e2ee: true,
       cipherRequired: true,
+      encryptedSeed: validEncryptedSeed,
     });
     expect(result.success).toBe(true);
+  });
+
+  test('accepts encryptIdentity with encrypted name fields and no plaintext', () => {
+    const result = CreateSpaceSchema.safeParse({
+      id: 'a'.repeat(24),
+      slug: 'secret-club',
+      visibility: 'listed',
+      cipherCheck: validCipherCheck,
+      e2ee: true,
+      encryptIdentity: true,
+      cipherRequired: true,
+      encryptedSeed: validEncryptedSeed,
+      encryptedName: 'ZW5jLW5hbWU',
+      nameNonce: 'bm9uY2U',
+      cipherId: 'cipher-hex',
+      encryptedDescription: 'ZW5jLWRlc2M',
+      descriptionNonce: 'ZGVzYy1ub25jZQ',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test('rejects encryptIdentity without e2ee', () => {
+    const result = CreateSpaceSchema.safeParse({
+      slug: 'secret-club',
+      name: 'Secret',
+      visibility: 'listed',
+      cipherCheck: validCipherCheck,
+      encryptIdentity: true,
+      cipherRequired: true,
+      encryptedName: 'ZW5jLW5hbWU',
+      nameNonce: 'bm9uY2U',
+      cipherId: 'cipher-hex',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test('rejects e2ee without encryptedSeed', () => {
+    const result = CreateSpaceSchema.safeParse({
+      slug: 'secret-club',
+      name: 'Secret',
+      visibility: 'listed',
+      cipherCheck: validCipherCheck,
+      e2ee: true,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test('accepts a hidden space with id and no vanity slug', () => {
+    const id = 'a'.repeat(24);
+    const result = CreateSpaceSchema.safeParse({
+      id,
+      name: 'Secret Hideout',
+      visibility: 'hidden',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test('accepts a hidden space when slug equals id', () => {
+    const id = 'b'.repeat(24);
+    const result = CreateSpaceSchema.safeParse({
+      id,
+      slug: id,
+      name: 'Secret Hideout',
+      visibility: 'hidden',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test('rejects a hidden space without id', () => {
+    const result = CreateSpaceSchema.safeParse({
+      name: 'Secret Hideout',
+      visibility: 'hidden',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test('rejects a hidden space when slug differs from id', () => {
+    const result = CreateSpaceSchema.safeParse({
+      id: 'a'.repeat(24),
+      slug: 'custom-vanity',
+      name: 'Secret Hideout',
+      visibility: 'hidden',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test('rejects public/listed without slug', () => {
+    expect(
+      CreateSpaceSchema.safeParse({ name: 'X', visibility: 'public' }).success,
+    ).toBe(false);
+    expect(
+      CreateSpaceSchema.safeParse({ name: 'X', visibility: 'listed' }).success,
+    ).toBe(false);
+  });
+
+  test('rejects encryptIdentity with plaintext name', () => {
+    const result = CreateSpaceSchema.safeParse({
+      id: 'a'.repeat(24),
+      slug: 'secret-club',
+      name: 'Secret Club',
+      visibility: 'listed',
+      cipherCheck: validCipherCheck,
+      e2ee: true,
+      encryptIdentity: true,
+      encryptedSeed: validEncryptedSeed,
+      encryptedName: 'ZW5jLW5hbWU',
+      nameNonce: 'bm9uY2U',
+      cipherId: 'cipher-hex',
+    });
+    expect(result.success).toBe(false);
   });
 
   test('accepts gate-only cipherRequired without e2ee', () => {

@@ -62,6 +62,9 @@ describe('SpaceRepository', () => {
       slug: 'my-space',
       name: 'My Space',
       visibility: 'public',
+      e2ee: false,
+      encryptIdentity: false,
+      cipherRequired: false,
       createdBy: new ObjectId(),
       ownerIdentityId: new ObjectId(),
       allowFreeMembers: false,
@@ -82,6 +85,9 @@ describe('SpaceRepository', () => {
       slug: 'auto-id',
       name: 'Auto',
       visibility: 'listed',
+      e2ee: false,
+      encryptIdentity: false,
+      cipherRequired: false,
       createdBy: new ObjectId(),
       ownerIdentityId: new ObjectId(),
       allowFreeMembers: false,
@@ -106,12 +112,15 @@ describe('SpaceRepository', () => {
     expect(findResult.sort).toHaveBeenCalledWith({ _id: -1 });
   });
 
-  test('discover applies a case-insensitive name/description match', async () => {
+  test('discover applies a case-insensitive name/description/slug match', async () => {
     const repo = new SpaceRepository();
     await repo.discover({ q: 'game' });
     expect(Array.isArray(lastFindFilter.$or)).toBe(true);
+    expect(lastFindFilter.$or).toHaveLength(3);
     expect(lastFindFilter.$or[0].name).toBeInstanceOf(RegExp);
     expect(lastFindFilter.$or[0].name.flags).toContain('i');
+    expect(lastFindFilter.$or[0].encryptIdentity).toEqual({ $ne: true });
+    expect(lastFindFilter.$or[2].slug).toBeInstanceOf(RegExp);
   });
 
   test('discover applies the cursor as an _id upper bound', async () => {

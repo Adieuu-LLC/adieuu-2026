@@ -7,8 +7,10 @@
  *   embedded array) so a Space can scale to any number of members.
  * - Community Ciphers use a blind-relay verification challenge (`cipherCheck`).
  *   The server stores no Cipher entropy, keys, or cipherIds.
- * - `e2ee` is the content-encryption signal; `cipherRequired` is a client-side
- *   join gate that may reuse the same challenge without encrypting messages.
+ * - `e2ee` encrypts messages and structural metadata; `encryptIdentity`
+ *   additionally encrypts Space name/description for directory privacy;
+ *   `cipherRequired` is a client-side join gate that may reuse the same
+ *   challenge without encrypting.
  */
 
 import type { ObjectId } from 'mongodb';
@@ -23,10 +25,13 @@ export interface SpaceDocument extends BaseDocument {
   /** Unique URL slug; Space lives at `/s/<slug>`. */
   slug: string;
 
-  /** Display name (plaintext; Spaces are not name-encrypted like group DMs). */
+  /**
+   * Display name. Empty string when `encryptIdentity` (ciphertext in
+   * `encryptedName` / `nameNonce` / `cipherId`).
+   */
   name: string;
 
-  /** Optional description shown in the directory and header. */
+  /** Optional description; omitted when `encryptIdentity`. */
   description?: string;
 
   /** Discoverability + join policy. */
@@ -39,14 +44,27 @@ export interface SpaceDocument extends BaseDocument {
    */
   cipherCheck?: CipherCheck;
 
-  /** When true, channel messages must use ciphertext/nonce/cipherId. */
+  /** When true, messages and structural metadata use ciphertext fields. */
   e2ee: boolean;
+
+  /**
+   * When true (requires `e2ee`), Space name/description are Cipher-encrypted
+   * so directory browsers without the Cipher cannot read them.
+   */
+  encryptIdentity: boolean;
 
   /**
    * Client-side join gate (not enforced by the API). When true, clients should
    * require a matching Cipher before enabling Join.
    */
   cipherRequired: boolean;
+
+  /** Cipher-encrypted Space name when `encryptIdentity`. */
+  encryptedName?: string;
+  nameNonce?: string;
+  encryptedDescription?: string;
+  descriptionNonce?: string;
+  cipherId?: string;
 
   /** Identity that created the Space. */
   createdBy: ObjectId;
@@ -73,7 +91,13 @@ export interface CreateSpaceInput {
   visibility: SpaceVisibility;
   cipherCheck?: CipherCheck;
   e2ee: boolean;
+  encryptIdentity: boolean;
   cipherRequired: boolean;
+  encryptedName?: string;
+  nameNonce?: string;
+  encryptedDescription?: string;
+  descriptionNonce?: string;
+  cipherId?: string;
   createdBy: ObjectId;
   ownerIdentityId: ObjectId;
   allowFreeMembers: boolean;
@@ -92,7 +116,21 @@ export function toPublicSpace(doc: SpaceDocument): PublicSpace {
     visibility: doc.visibility,
     ...(doc.cipherCheck ? { cipherCheck: toPublicCipherCheck(doc.cipherCheck) } : {}),
     e2ee: doc.e2ee ?? false,
+    encryptIdentity: doc.encryptIdentity ?? false,
     cipherRequired: doc.cipherRequired ?? false,
+    ...(doc.encryptedName
+      ? {
+          encryptedName: doc.encryptedName,
+          nameNonce: doc.nameNonce,
+          cipherId: doc.cipherId,
+        }
+      : {}),
+    ...(doc.encryptedDescription
+      ? {
+          encryptedDescription: doc.encryptedDescription,
+          descriptionNonce: doc.descriptionNonce,
+        }
+      : {}),
     createdBy: doc.createdBy.toHexString(),
     ownerIdentityId: doc.ownerIdentityId.toHexString(),
     allowFreeMembers: doc.allowFreeMembers,

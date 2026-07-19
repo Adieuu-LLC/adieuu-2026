@@ -11,22 +11,32 @@ import { NavLink, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useSpaces } from '../../hooks/useSpaces';
 import { Icon } from '../../icons/Icon';
+import { useSpaceCipher } from './useSpaceCipher';
+import {
+  resolveChannelDisplayName,
+  resolveSpaceDisplayName,
+} from './spaceMetadataCipher';
 
 export function SpaceSecondarySidebar() {
   const { t } = useTranslation();
   const { slug } = useParams<{ slug: string }>();
   const { activeSpace, channels, unreadByChannel } = useSpaces();
+  const { spaceCipher } = useSpaceCipher(activeSpace?.id);
 
   if (!activeSpace) return null;
+
+  const spaceName = resolveSpaceDisplayName(activeSpace, spaceCipher, {
+    encryptedSpace: t('spaces.encryptedSpacePlaceholder'),
+  });
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `space-sidebar-link${isActive ? ' space-sidebar-link-active' : ''}`;
 
   return (
-    <aside className="space-secondary-sidebar" aria-label={activeSpace.name}>
+    <aside className="space-secondary-sidebar" aria-label={spaceName}>
       {/* Banner */}
       <div className="space-sidebar-banner">
-        <span className="space-sidebar-banner-name">{activeSpace.name}</span>
+        <span className="space-sidebar-banner-name">{spaceName}</span>
         {activeSpace.e2ee && (
           <span className="spaces-badge spaces-badge--encrypted">
             {t('spaces.encrypted')}
@@ -59,6 +69,9 @@ export function SpaceSecondarySidebar() {
         <nav className="space-sidebar-channels" aria-label={t('spaces.sidebar.textChannels')}>
           {channels.map((ch) => {
             const unread = unreadByChannel[ch.id];
+            const channelName = resolveChannelDisplayName(ch, spaceCipher, {
+              encryptedChannel: t('spaces.encryptedChannelPlaceholder'),
+            });
             return (
               <NavLink
                 key={ch.id}
@@ -66,7 +79,7 @@ export function SpaceSecondarySidebar() {
                 className={navLinkClass}
               >
                 <span className="space-sidebar-channel-hash">#</span>
-                <span className="space-sidebar-channel-name">{ch.name}</span>
+                <span className="space-sidebar-channel-name">{channelName}</span>
                 {unread && unread.unread > 0 && (
                   <span
                     role="status"

@@ -14,6 +14,9 @@ import { SidebarItem, useSidebar } from '../../components/Sidebar';
 import { Icon } from '../../icons/Icon';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useSpaces } from '../../hooks/useSpaces';
+import { useCipherStore } from '../../hooks/useCipherStore';
+import { getSpaceCipherLink } from '../../services/spaceCipherService';
+import { resolveSpaceDisplayName } from '../../pages/spaces/spaceMetadataCipher';
 
 export function SpacesSidebarSection() {
   const { t } = useTranslation();
@@ -23,6 +26,7 @@ export function SpacesSidebarSection() {
   const { status: identityStatus } = useIdentity();
   const isIdentityLoggedIn = identityStatus === 'logged_in';
   const { spaces, spacesLoading, unreadBySpace } = useSpaces();
+  const { getCipherKey } = useCipherStore();
 
   const handleDiscover = useCallback(() => {
     navigate('/spaces');
@@ -73,6 +77,12 @@ export function SpacesSidebarSection() {
         {spaces.map((space) => {
           const isActive = activeSlug === space.slug;
           const unread = unreadBySpace[space.id] ?? 0;
+          const localCipherId = getSpaceCipherLink(space.id);
+          const cipher = localCipherId ? getCipherKey(localCipherId) : null;
+          const displayName = resolveSpaceDisplayName(space, cipher, {
+            encryptedSpace: t('spaces.encryptedSpacePlaceholder'),
+          });
+          const avatarChar = (displayName.charAt(0) || space.slug.charAt(0) || '?').toUpperCase();
           const itemClasses = [
             'conversation-list-item',
             isActive && 'conversation-list-item-active',
@@ -89,11 +99,11 @@ export function SpacesSidebarSection() {
             >
               <div className="conversation-list-item-avatar">
                 <span className="conversation-list-item-avatar-placeholder">
-                  {space.name.charAt(0).toUpperCase()}
+                  {avatarChar}
                 </span>
               </div>
               <div className="conversation-list-item-info">
-                <span className="conversation-list-item-title">{space.name}</span>
+                <span className="conversation-list-item-title">{displayName}</span>
                 <span className="conversation-list-item-members">
                   {t('spaces.memberCount', { count: space.memberCount })}
                 </span>

@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react';
-import type { PublicSpaceMessage, SendSpaceMessageParams } from '@adieuu/shared';
+import type { ApiResponse, PublicSpaceMessage, SendSpaceMessageParams } from '@adieuu/shared';
 import type { SpaceChannelMessagesState } from './types';
 
 type SpacesSendApiLike = {
@@ -7,7 +7,7 @@ type SpacesSendApiLike = {
     spaceId: string,
     channelId: string,
     params: SendSpaceMessageParams,
-  ) => Promise<{ success: boolean; data?: PublicSpaceMessage; error?: string }>;
+  ) => Promise<ApiResponse<PublicSpaceMessage>>;
 };
 
 export interface SpaceSendParams {
@@ -55,7 +55,7 @@ export function useSpaceSend(params: SpaceSendParams) {
           return res.data;
         }
         if (showError) {
-          showError(res.error ?? 'Failed to send message.');
+          showError(res.error?.message ?? 'Failed to send message.');
         }
         return null;
       } finally {

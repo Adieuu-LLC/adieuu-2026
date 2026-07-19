@@ -51,7 +51,8 @@ export class SpaceRepository extends BaseRepository<SpaceDocument> {
 
   /**
    * Discover public/listed Spaces for the directory. Hidden Spaces are never
-   * returned. Optional case-insensitive name/description match.
+   * returned. Optional case-insensitive match on plaintext name/description
+   * or slug. Identity-encrypted Spaces are only matched by slug.
    */
   async discover(options: DiscoverSpacesOptions = {}): Promise<SpaceDocument[]> {
     const { q, limit = 30, cursor } = options;
@@ -61,7 +62,11 @@ export class SpaceRepository extends BaseRepository<SpaceDocument> {
     if (q) {
       const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const rx = new RegExp(escaped, 'i');
-      filter.$or = [{ name: rx }, { description: rx }];
+      filter.$or = [
+        { encryptIdentity: { $ne: true }, name: rx },
+        { encryptIdentity: { $ne: true }, description: rx },
+        { slug: rx },
+      ];
     }
     if (cursor) {
       filter._id = { $lt: cursor };

@@ -27,7 +27,12 @@ import {
   type EntropyRow,
 } from './SpaceCipherFormFields';
 import { resolveSpaceCipherSelection } from './resolveSpaceCipherSelection';
-import { isJoinAllowed, type CipherDetectStatus } from './joinSpaceGate';
+import { canBrowseSpace, isJoinAllowed, type CipherDetectStatus } from './joinSpaceGate';
+import {
+  resolveSpaceDisplayDescription,
+  resolveSpaceDisplayName,
+} from './spaceMetadataCipher';
+import { getSpaceCipherLink } from '../../services/spaceCipherService';
 
 export type { CipherDetectStatus } from './joinSpaceGate';
 export { isJoinAllowed } from './joinSpaceGate';
@@ -75,9 +80,25 @@ export function JoinSpaceInterstitial({
 
   const detectSeq = useRef(0);
 
-  const canBrowse = !!space && !space.e2ee && space.visibility !== 'hidden';
+  const canBrowse = !!space && canBrowseSpace(space);
   const hasCipherCheck = !!space?.cipherCheck;
   const cipherRequired = !!space?.cipherRequired;
+
+  const displayCipher = useMemo(() => {
+    if (!space) return null;
+    if (matchedLocalId) return getCipherKey(matchedLocalId);
+    const linked = getSpaceCipherLink(space.id);
+    return linked ? getCipherKey(linked) : null;
+  }, [space, matchedLocalId, getCipherKey]);
+
+  const displayName = space
+    ? resolveSpaceDisplayName(space, displayCipher, {
+        encryptedSpace: t('spaces.encryptedSpacePlaceholder'),
+      })
+    : '';
+  const displayDescription = space
+    ? resolveSpaceDisplayDescription(space, displayCipher)
+    : undefined;
   const joinAllowed = isJoinAllowed({ hasCipherCheck, cipherRequired, detectStatus });
 
   const runDetect = useCallback(async () => {
@@ -165,7 +186,7 @@ export function JoinSpaceInterstitial({
       const res = await api.spaces.join(space.id);
       if (res.success || res.error?.code === 'ALREADY_MEMBER') {
         if (res.success) {
-          toast.success(t('spaces.joinSuccess', { name: space.name }));
+          toast.success(t('spaces.joinSuccess', { name: displayName }));
           emitSpacesChanged();
         }
         onJoined?.(space);
@@ -179,7 +200,18 @@ export function JoinSpaceInterstitial({
     } finally {
       setJoining(false);
     }
-  }, [space, joining, joinAllowed, api, toast, t, onJoined, onOpenChange, navigate]);
+  }, [
+    space,
+    joining,
+    joinAllowed,
+    api,
+    toast,
+    t,
+    onJoined,
+    onOpenChange,
+    navigate,
+    displayName,
+  ]);
 
   const handleAddCipher = useCallback(async () => {
     if (!space?.cipherCheck || adding) return;
@@ -193,7 +225,7 @@ export function JoinSpaceInterstitial({
         entropyRows,
         createCipher,
         newCipherName,
-        fallbackName: space.name,
+        fallbackName: displayName || space.slug,
         errors: {
           cipherRequired: t('spaces.create.errors.cipherRequired'),
           entropyRequired: t('spaces.create.errors.entropyRequired'),
@@ -232,6 +264,7 @@ export function JoinSpaceInterstitial({
     createCipher,
     newCipherName,
     bookmarkSpaceCipher,
+    displayName,
     t,
   ]);
 
@@ -249,8 +282,10 @@ export function JoinSpaceInterstitial({
         <Dialog.Backdrop className="confirm-dialog-backdrop" />
         <Dialog.Positioner className="confirm-dialog-positioner">
           <Dialog.Content className="join-space-dialog-content">
-            <Dialog.Title className="join-space-dialog-title">{space.name}</Dialog.Title>
-            <p className="join-space-dialog-slug">/s/{space.slug}</p>
+            <Dialog.Title className="join-space-dialog-title">{displayName}</Dialog.Title>
+            {space.visibility !== 'hidden' && (
+              <p className="join-space-dialog-slug">/s/{space.slug}</p>
+            )}
 
             <div className="join-space-dialog-badges">
               <span className="spaces-badge">{t(`spaces.visibility.${space.visibility}`)}</span>
@@ -264,8 +299,8 @@ export function JoinSpaceInterstitial({
               )}
             </div>
 
-            {space.description && (
-              <p className="join-space-dialog-description">{space.description}</p>
+            {displayDescription && (
+              <p className="join-space-dialog-description">{displayDescription}</p>
             )}
 
             <p className="join-space-dialog-meta">
@@ -313,7 +348,7 @@ export function JoinSpaceInterstitial({
                       variant="secondary"
                       size="sm"
                       onClick={() => void runDetect()}
-                      disabled={detectStatus === 'checking' || !encryptionAvailable}
+                      disabled={!encryptionAvailable}
                     >
                       {t('spaces.joinModal.checkCiphers')}
                     </Button>

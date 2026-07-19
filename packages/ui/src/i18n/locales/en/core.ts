@@ -200,6 +200,9 @@ export const core = {
     memberCount: '{{count}} member',
     memberCount_one: '{{count}} member',
     memberCount_other: '{{count}} members',
+    encryptedSpacePlaceholder: 'Encrypted Space',
+    encryptedChannelPlaceholder: 'Encrypted channel',
+    encryptedRolePlaceholder: 'Encrypted role',
     visibility: {
       public: 'Public',
       listed: 'Listed',
@@ -243,16 +246,32 @@ export const core = {
       visibilityLabel: 'Visibility',
       visibilityPublicDesc: 'Anyone can find and join.',
       visibilityListedDesc: 'Listed in the directory; anyone can join.',
-      visibilityHiddenDesc: 'Invite-only and hidden from the directory.',
+      visibilityHiddenDesc:
+        'Invite-only and hidden from the directory. No custom URL — members reach it via invite or an opaque id.',
       allowFreeMembersLabel: 'Allow free members',
       allowFreeMembersHint: 'Let free-tier Aliases join and post.',
+      stepAbout: 'About',
+      stepVisibility: 'Visibility',
+      stepEncryption: 'E2E Encryption',
+      next: 'Next',
+      back: 'Back',
+      hiddenNoSlugHint:
+        'Hidden Spaces do not get a custom URL. The app uses an opaque id in the address bar when needed.',
       encryptionLabel: 'End-to-end encryption',
-      encryptionToggle: 'Encrypt Space content with a Cipher',
-      encryptionHint: 'Messages are encrypted with a Community Cipher. The server never sees your keys.',
-      encryptionPublicNote: 'Public Spaces cannot use Ciphers or encryption.',
+      encryptionToggle: 'E2E Encrypt all metadata with a Cipher',
+      encryptionHint:
+        "By default, all content (including channels, roles, messages and other metadata) is encrypted with a Cipher. If you decide you don't want this, you can change this later Space-wide or for individual channels, categories, etc.",
+      encryptIdentityToggle: 'Also E2E encrypt Space name and description',
+      encryptIdentityHint:
+        'Hides the public name and description from the directory. Only people with the Cipher can read them.',
+      encryptIdentityListedUrlNote:
+        'Space URL is (by its nature) always cleartext. Be careful to avoid leaking information via URL, or use the Hidden Space type to skip the custom URL entirely.',
+      encryptionPublicNote: 'Public Spaces can not use Space-wide Ciphers (due to them being public). You will still be able to add Ciphers to individual categories or channels to E2E encrypt messages, but general Space metadata remains public.',
       encryptionUnavailable: 'Unlock your Alias to create an encrypted Space.',
       cipherRequiredToggle: 'Require a Cipher to join',
       cipherRequiredHint: 'Joining clients must have a matching Cipher. Content encryption is optional.',
+      cipherRequiredPublicNote:
+        "Public Spaces cannot require a Cipher to join — that would make them not public (gasp!). Choose Listed or Hidden to gate membership with a Cipher.",
       cipherRequiredNeedsCipher: 'Select or create a Cipher to gate entry.',
       cipherSourceExisting: 'Use an existing Cipher',
       cipherSourceNew: 'Create a new Cipher',

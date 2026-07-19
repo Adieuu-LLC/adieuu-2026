@@ -72,12 +72,25 @@ export async function createSpaceCtrl(ctx: RouteContext): Promise<SpaceRouteResu
   const parsed = CreateSpaceSchema.safeParse(ctx.body);
   if (!parsed.success) return { kind: 'validation_failed' };
 
-  const slug = sanitizeSpaceSlug(parsed.data.slug);
-  if (!slug.ok) return { kind: 'validation_failed' };
-  const name = sanitizeSpaceName(parsed.data.name);
-  if (!name.ok) return { kind: 'validation_failed' };
-  const description = sanitizeSpaceDescription(parsed.data.description);
-  if (!description.ok) return { kind: 'validation_failed' };
+  const isHidden = parsed.data.visibility === 'hidden';
+  let slug: string | undefined;
+  if (!isHidden) {
+    const sanitizedSlug = sanitizeSpaceSlug(parsed.data.slug);
+    if (!sanitizedSlug.ok) return { kind: 'validation_failed' };
+    slug = sanitizedSlug.slug;
+  }
+
+  const encryptIdentity = parsed.data.encryptIdentity === true;
+  let name: string | undefined;
+  let description: string | undefined;
+  if (!encryptIdentity) {
+    const sanitizedName = sanitizeSpaceName(parsed.data.name);
+    if (!sanitizedName.ok) return { kind: 'validation_failed' };
+    name = sanitizedName.name;
+    const sanitizedDescription = sanitizeSpaceDescription(parsed.data.description);
+    if (!sanitizedDescription.ok) return { kind: 'validation_failed' };
+    description = sanitizedDescription.description;
+  }
 
   let id: string | undefined;
   if (parsed.data.id !== undefined) {
@@ -89,17 +102,30 @@ export async function createSpaceCtrl(ctx: RouteContext): Promise<SpaceRouteResu
   const result = await createSpace(
     identity._id,
     {
-      slug: slug.slug,
-      name: name.name,
-      ...(description.description !== undefined ? { description: description.description } : {}),
+      ...(slug !== undefined ? { slug } : {}),
+      ...(name !== undefined ? { name } : {}),
+      ...(description !== undefined ? { description } : {}),
       visibility: parsed.data.visibility,
       ...(parsed.data.allowFreeMembers !== undefined
         ? { allowFreeMembers: parsed.data.allowFreeMembers }
         : {}),
       ...(parsed.data.cipherCheck ? { cipherCheck: parsed.data.cipherCheck } : {}),
       ...(parsed.data.e2ee !== undefined ? { e2ee: parsed.data.e2ee } : {}),
+      ...(parsed.data.encryptIdentity !== undefined
+        ? { encryptIdentity: parsed.data.encryptIdentity }
+        : {}),
       ...(parsed.data.cipherRequired !== undefined
         ? { cipherRequired: parsed.data.cipherRequired }
+        : {}),
+      ...(parsed.data.encryptedSeed ? { encryptedSeed: parsed.data.encryptedSeed } : {}),
+      ...(parsed.data.encryptedName ? { encryptedName: parsed.data.encryptedName } : {}),
+      ...(parsed.data.nameNonce ? { nameNonce: parsed.data.nameNonce } : {}),
+      ...(parsed.data.cipherId ? { cipherId: parsed.data.cipherId } : {}),
+      ...(parsed.data.encryptedDescription
+        ? { encryptedDescription: parsed.data.encryptedDescription }
+        : {}),
+      ...(parsed.data.descriptionNonce
+        ? { descriptionNonce: parsed.data.descriptionNonce }
         : {}),
       ...(id !== undefined ? { id } : {}),
     },

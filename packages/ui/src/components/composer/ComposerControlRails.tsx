@@ -1,4 +1,4 @@
-import { memo, type RefObject } from 'react';
+import { memo, type Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Popover, Portal } from '@ark-ui/react';
 import type { PublicCustomEmoji } from '@adieuu/shared';
@@ -221,7 +221,7 @@ export const ComposerLeftRail = memo(function ComposerLeftRail({
   ...shared
 }: ComposerRailSharedProps & {
   controls: ComposerControlConfig[];
-  controlsRef: RefObject<HTMLDivElement | null>;
+  controlsRef: Ref<HTMLDivElement>;
 }) {
   const renderControl = useRenderComposerControl(shared);
   return (
@@ -238,7 +238,7 @@ export const ComposerRightRail = memo(function ComposerRightRail({
   ...shared
 }: ComposerRailSharedProps & {
   controls: ComposerControlConfig[];
-  controlsRef: RefObject<HTMLDivElement | null>;
+  controlsRef: Ref<HTMLDivElement>;
   disabled?: boolean;
 }) {
   const renderControl = useRenderComposerControl(shared);

@@ -3,8 +3,9 @@
  *
  * Create seeds the default Admin + Member roles, adds the creator as an Admin
  * member, and creates the default `#general` text channel. When the Space is
- * E2EE, the caller-provided blind-relay cipher challenge is persisted verbatim
- * (the server performs no crypto and stores no keys).
+ * E2EE, the caller-provided blind-relay cipher challenge and encrypted seed
+ * metadata are persisted verbatim (the server performs no crypto and stores
+ * no keys).
  *
  * @module services/space/crud
  */
@@ -58,17 +59,15 @@ export async function createSpace(
     };
   }
 
-  const { slug, name, description, visibility } = params;
-
-  if (isReservedSpaceSlug(slug)) {
-    return { success: false, error: 'That URL is reserved.', errorCode: 'SLUG_RESERVED' };
-  }
+  const { description, visibility } = params;
+  const isHidden = visibility === 'hidden';
 
   const e2ee = params.e2ee ?? false;
+  const encryptIdentity = params.encryptIdentity ?? false;
   const cipherRequired = params.cipherRequired ?? false;
 
   // Defense-in-depth: public Spaces never carry Cipher gates or E2EE (also enforced by schema).
-  if (visibility === 'public' && (params.cipherCheck || e2ee || cipherRequired)) {
+  if (visibility === 'public' && (params.cipherCheck || e2ee || cipherRequired || encryptIdentity)) {
     return {
       success: false,
       error: 'Public Spaces cannot use Cipher gates or encryption.',
@@ -84,15 +83,66 @@ export async function createSpace(
     };
   }
 
-  // Resolve the Space id (client-generated when the cipher challenge is bound to it).
+  if (encryptIdentity && !e2ee) {
+    return {
+      success: false,
+      error: 'encryptIdentity requires e2ee.',
+      errorCode: 'INVALID_ENCRYPTION',
+    };
+  }
+
+  if (e2ee && !params.encryptedSeed) {
+    return {
+      success: false,
+      error: 'encryptedSeed is required when E2EE is enabled.',
+      errorCode: 'INVALID_ENCRYPTION',
+    };
+  }
+
+  if (encryptIdentity && !(params.encryptedName && params.nameNonce && params.cipherId)) {
+    return {
+      success: false,
+      error: 'Encrypted name fields are required when encryptIdentity is enabled.',
+      errorCode: 'INVALID_ENCRYPTION',
+    };
+  }
+
+  if (!encryptIdentity && !params.name) {
+    return {
+      success: false,
+      error: 'Name is required when encryptIdentity is not enabled.',
+      errorCode: 'INVALID_ENCRYPTION',
+    };
+  }
+
+  // Resolve the Space id (client-generated for cipher binding and for Hidden routing).
   let spaceObjId: ObjectId;
   if (params.id !== undefined) {
     if (!isValidObjectId(params.id)) {
       return { success: false, error: 'Invalid Space id.', errorCode: 'INVALID_ID' };
     }
     spaceObjId = new ObjectId(params.id);
+  } else if (isHidden) {
+    // Hidden Spaces always route by ObjectId; require a client id so slug === id.
+    return {
+      success: false,
+      error: 'Hidden Spaces require a client-generated id.',
+      errorCode: 'INVALID_ID',
+    };
   } else {
     spaceObjId = new ObjectId();
+  }
+
+  // Hidden Spaces never get a vanity URL — slug is always the ObjectId hex
+  // (client vanity slugs are ignored).
+  const slug = isHidden ? spaceObjId.toHexString() : (params.slug ?? '');
+  if (!isHidden) {
+    if (!slug) {
+      return { success: false, error: 'A URL slug is required.', errorCode: 'SLUG_TAKEN' };
+    }
+    if (isReservedSpaceSlug(slug)) {
+      return { success: false, error: 'That URL is reserved.', errorCode: 'SLUG_RESERVED' };
+    }
   }
 
   const creatorObjId =
@@ -106,17 +156,33 @@ export async function createSpace(
     return { success: false, error: 'That URL is taken.', errorCode: 'SLUG_TAKEN' };
   }
 
+  const storedName = encryptIdentity ? '' : (params.name ?? '');
+
   let space;
   try {
     space = await spaceRepo.createSpace({
       _id: spaceObjId,
       slug,
-      name,
-      ...(description !== undefined ? { description } : {}),
+      name: storedName,
+      ...(!encryptIdentity && description !== undefined ? { description } : {}),
       visibility,
       ...(params.cipherCheck ? { cipherCheck: params.cipherCheck } : {}),
       e2ee,
+      encryptIdentity,
       cipherRequired,
+      ...(encryptIdentity
+        ? {
+            encryptedName: params.encryptedName,
+            nameNonce: params.nameNonce,
+            cipherId: params.cipherId,
+            ...(params.encryptedDescription && params.descriptionNonce
+              ? {
+                  encryptedDescription: params.encryptedDescription,
+                  descriptionNonce: params.descriptionNonce,
+                }
+              : {}),
+          }
+        : {}),
       createdBy: creatorObjId,
       ownerIdentityId: creatorObjId,
       allowFreeMembers: params.allowFreeMembers ?? false,
@@ -133,18 +199,36 @@ export async function createSpace(
   // back the orphaned documents (no multi-doc transaction requirement).
   try {
     const roleRepo = getSpaceRoleRepository();
+    const seed = params.encryptedSeed;
+    const adminSeed = seed?.roles.find((r) => r.system === 'admin');
+    const memberSeed = seed?.roles.find((r) => r.system === 'member');
+
     const adminRole = await roleRepo.createRole({
       spaceId: spaceObjId,
-      name: DEFAULT_ADMIN_ROLE_NAME,
+      name: e2ee ? '' : DEFAULT_ADMIN_ROLE_NAME,
       permissions: [...DEFAULT_ADMIN_PERMISSIONS],
       isSystem: true,
+      ...(adminSeed
+        ? {
+            encryptedName: adminSeed.encryptedName,
+            nameNonce: adminSeed.nameNonce,
+            cipherId: adminSeed.cipherId,
+          }
+        : {}),
     });
     await roleRepo.createRole({
       spaceId: spaceObjId,
-      name: DEFAULT_MEMBER_ROLE_NAME,
+      name: e2ee ? '' : DEFAULT_MEMBER_ROLE_NAME,
       permissions: [...DEFAULT_MEMBER_PERMISSIONS],
       isDefaultMember: true,
       isSystem: true,
+      ...(memberSeed
+        ? {
+            encryptedName: memberSeed.encryptedName,
+            nameNonce: memberSeed.nameNonce,
+            cipherId: memberSeed.cipherId,
+          }
+        : {}),
     });
 
     await getSpaceMemberRepository().createMember({
@@ -156,8 +240,15 @@ export async function createSpace(
     await getSpaceChannelRepository().createChannel({
       spaceId: spaceObjId,
       type: 'text',
-      name: DEFAULT_SPACE_CHANNEL_NAME,
+      name: e2ee ? '' : DEFAULT_SPACE_CHANNEL_NAME,
       position: 0,
+      ...(seed?.channel
+        ? {
+            encryptedName: seed.channel.encryptedName,
+            nameNonce: seed.channel.nameNonce,
+            cipherId: seed.channel.cipherId,
+          }
+        : {}),
     });
   } catch (err) {
     elog.error('Failed to seed Space after create; rolling back', { spaceId: spaceObjId.toHexString(), err });
@@ -313,10 +404,22 @@ export async function updateSpace(
   }
 
   // Defense-in-depth: a Space with a Cipher association cannot become public.
-  if (updates.visibility === 'public' && (space.cipherCheck || space.e2ee || space.cipherRequired)) {
+  if (
+    updates.visibility === 'public' &&
+    (space.cipherCheck || space.e2ee || space.cipherRequired || space.encryptIdentity)
+  ) {
     return {
       success: false,
       error: 'A Space with Cipher gates or encryption cannot be made public.',
+      errorCode: 'INVALID_ENCRYPTION',
+    };
+  }
+
+  // Identity-encrypted Spaces cannot receive plaintext name/description patches.
+  if (space.encryptIdentity && (updates.name !== undefined || updates.description !== undefined)) {
+    return {
+      success: false,
+      error: 'This Space encrypts its name and description; plaintext updates are not accepted.',
       errorCode: 'INVALID_ENCRYPTION',
     };
   }

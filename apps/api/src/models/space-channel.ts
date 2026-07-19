@@ -12,9 +12,14 @@ import { toPublicCipherCheck } from './cipher-check';
 export interface SpaceChannelDocument extends BaseDocument {
   spaceId: ObjectId;
   type: SpaceChannelType;
+  /** Plaintext name; empty when the Space is e2ee. */
   name: string;
   /** Ordering within the Space channel list (ascending). */
   position: number;
+  /** Cipher-encrypted name when the Space is e2ee. */
+  encryptedName?: string;
+  nameNonce?: string;
+  cipherId?: string;
   /**
    * Blind-relay cipher verification challenge for per-channel E2EE. Schema-only
    * in the first pass (per-channel encrypted messaging is deferred).
@@ -27,6 +32,9 @@ export interface CreateSpaceChannelInput {
   type: SpaceChannelType;
   name: string;
   position: number;
+  encryptedName?: string;
+  nameNonce?: string;
+  cipherId?: string;
   cipherCheck?: CipherCheck;
 }
 
@@ -37,6 +45,13 @@ export function toPublicSpaceChannel(doc: SpaceChannelDocument): PublicSpaceChan
     type: doc.type,
     name: doc.name,
     position: doc.position,
+    ...(doc.encryptedName
+      ? {
+          encryptedName: doc.encryptedName,
+          nameNonce: doc.nameNonce,
+          cipherId: doc.cipherId,
+        }
+      : {}),
     ...(doc.cipherCheck ? { cipherCheck: toPublicCipherCheck(doc.cipherCheck) } : {}),
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString(),

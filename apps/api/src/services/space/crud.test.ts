@@ -91,6 +91,28 @@ import {
 const CREATOR = new ObjectId();
 const PAID = { subscriptions: ['access'] as const };
 
+const VALID_ENCRYPTED_SEED = {
+  channel: {
+    encryptedName: 'ZW5jLWNo',
+    nameNonce: 'bm9uY2U',
+    cipherId: 'cipher-hex',
+  },
+  roles: [
+    {
+      system: 'admin' as const,
+      encryptedName: 'ZW5jLWFkbWlu',
+      nameNonce: 'bm9uY2U',
+      cipherId: 'cipher-hex',
+    },
+    {
+      system: 'member' as const,
+      encryptedName: 'ZW5jLW1lbWJlcg',
+      nameNonce: 'bm9uY2U',
+      cipherId: 'cipher-hex',
+    },
+  ],
+};
+
 function makeSpaceDoc(overrides: Record<string, unknown> = {}) {
   const now = new Date();
   return {
@@ -99,6 +121,7 @@ function makeSpaceDoc(overrides: Record<string, unknown> = {}) {
     name: 'A Space',
     visibility: 'public',
     e2ee: false,
+    encryptIdentity: false,
     cipherRequired: false,
     createdBy: CREATOR,
     ownerIdentityId: CREATOR,
@@ -238,6 +261,7 @@ describe('space/crud', () => {
       const r = await createSpace(CREATOR, {
         slug: 'secret', name: 'Secret', visibility: 'hidden', id: clientId,
         cipherCheck, e2ee: true, cipherRequired: true,
+        encryptedSeed: VALID_ENCRYPTED_SEED,
       }, PAID);
 
       expect(r.success).toBe(true);
@@ -245,7 +269,64 @@ describe('space/crud', () => {
       expect(createArg._id.toHexString()).toBe(clientId);
       expect(createArg.cipherCheck).toEqual(cipherCheck);
       expect(createArg.e2ee).toBe(true);
+      expect(createArg.encryptIdentity).toBe(false);
       expect(createArg.cipherRequired).toBe(true);
+
+      const channelInput = channelRepo.createChannel.mock.calls[0]![0];
+      expect(channelInput.name).toBe('');
+      expect(channelInput.encryptedName).toBe(VALID_ENCRYPTED_SEED.channel.encryptedName);
+
+      const adminArg = roleRepo.createRole.mock.calls[0]![0];
+      expect(adminArg.name).toBe('');
+      expect(adminArg.encryptedName).toBe(VALID_ENCRYPTED_SEED.roles[0]!.encryptedName);
+    });
+
+    test('forces Hidden Space slug to equal the client ObjectId', async () => {
+      const clientId = new ObjectId().toHexString();
+      const r = await createSpace(CREATOR, {
+        visibility: 'hidden',
+        name: 'Secret Hideout',
+        id: clientId,
+        slug: 'ignored-vanity',
+      }, PAID);
+
+      expect(r.success).toBe(true);
+      const createArg = spaceRepo.createSpace.mock.calls[0]![0];
+      expect(createArg._id.toHexString()).toBe(clientId);
+      expect(createArg.slug).toBe(clientId);
+      expect(createArg.visibility).toBe('hidden');
+    });
+
+    test('rejects Hidden Space create without a client id', async () => {
+      const r = await createSpace(CREATOR, {
+        visibility: 'hidden',
+        name: 'No Id',
+      }, PAID);
+      expect(r).toMatchObject({ success: false, errorCode: 'INVALID_ID' });
+      expect(spaceRepo.createSpace).not.toHaveBeenCalled();
+    });
+
+    test('persists encryptIdentity ciphertext and omits plaintext name', async () => {
+      const clientId = new ObjectId().toHexString();
+      const cipherCheck = { knownValue: 'kv', encryptedKnownValue: 'enc', nonce: 'n' };
+      const r = await createSpace(CREATOR, {
+        slug: 'secret', visibility: 'listed', id: clientId,
+        cipherCheck, e2ee: true, encryptIdentity: true, cipherRequired: true,
+        encryptedSeed: VALID_ENCRYPTED_SEED,
+        encryptedName: 'ZW5jLW5hbWU',
+        nameNonce: 'bm9uY2U',
+        cipherId: 'cipher-hex',
+        encryptedDescription: 'ZW5jLWRlc2M',
+        descriptionNonce: 'ZGVzYy1ub25jZQ',
+      }, PAID);
+
+      expect(r.success).toBe(true);
+      const createArg = spaceRepo.createSpace.mock.calls[0]![0];
+      expect(createArg.name).toBe('');
+      expect(createArg.description).toBeUndefined();
+      expect(createArg.encryptIdentity).toBe(true);
+      expect(createArg.encryptedName).toBe('ZW5jLW5hbWU');
+      expect(createArg.encryptedDescription).toBe('ZW5jLWRlc2M');
     });
 
     test('persists gate-only cipherCheck without e2ee', async () => {

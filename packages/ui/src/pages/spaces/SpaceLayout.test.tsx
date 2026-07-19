@@ -19,8 +19,23 @@ mock.module('../../hooks/useSpaces', () => ({
   useSpaces: () => mockSpacesContext,
 }));
 
+mock.module('../../hooks/useCipherStore', () => ({
+  useCipherStore: () => ({
+    ciphers: [],
+    getCipherKey: () => null,
+    createCipher: async () => ({ success: false }),
+    bookmarkSpaceCipher: async () => ({ success: true }),
+    findLocalIdByCipherId: () => undefined,
+    encryptionAvailable: false,
+  }),
+}));
+
 mock.module('../../icons/Icon', () => ({
   Icon: ({ name }: { name: string }) => createElement('span', { 'data-icon': name }),
+}));
+
+mock.module('./JoinSpaceInterstitial', () => ({
+  JoinSpaceInterstitial: () => null,
 }));
 
 const { SpaceLayout } = await import('./SpaceLayout');
@@ -42,6 +57,7 @@ function makeDefaultCtx(overrides: Record<string, unknown> = {}): Record<string,
     activeSpaceError: null,
     channels: [],
     setActiveSpace: mock(() => {}),
+    isActiveSpaceMember: true,
     ...overrides,
   };
 }
@@ -150,6 +166,27 @@ describe('SpaceLayout', () => {
     const shell = happy.document.querySelector('.space-page');
     expect(shell).not.toBeNull();
     expect(happy.document.body.textContent).toContain('Test Space');
+    expect(happy.document.querySelector('.space-join-banner')).toBeNull();
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  it('shows a join banner for non-members browsing the space', async () => {
+    mockSpacesContext = makeDefaultCtx({
+      isActiveSpaceMember: false,
+      activeSpace: {
+        id: 'space-1',
+        slug: 'test-space',
+        name: 'Test Space',
+        memberCount: 5,
+      },
+    });
+
+    const { root, container } = await render();
+    expect(happy.document.querySelector('.space-join-banner')).not.toBeNull();
+    expect(happy.document.body.textContent).toContain('spaces.channel.joinToPost');
+    expect(happy.document.body.textContent).toContain('spaces.channel.joinCta');
 
     await act(async () => root.unmount());
     container.remove();

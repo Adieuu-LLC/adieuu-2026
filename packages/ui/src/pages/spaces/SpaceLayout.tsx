@@ -10,7 +10,7 @@
  * first channel in the list.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, Outlet, useParams, useNavigate, useMatch } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useIdentity } from '../../hooks/useIdentity';
@@ -18,6 +18,8 @@ import { useSpaces } from '../../hooks/useSpaces';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { Spinner } from '../../components/Spinner';
+import { JoinSpaceInterstitial } from './JoinSpaceInterstitial';
+import { SpaceJoinBanner } from './SpaceJoinBanner';
 import { SpaceSecondarySidebar } from './SpaceSecondarySidebar';
 import '../../styles/_spaces.scss';
 
@@ -42,7 +44,9 @@ export function SpaceLayout() {
     activeSpaceError,
     channels,
     setActiveSpace,
+    isActiveSpaceMember,
   } = useSpaces();
+  const [joinOpen, setJoinOpen] = useState(false);
 
   useEffect(() => {
     if (isLoggedIn && slug) {
@@ -135,7 +139,17 @@ export function SpaceLayout() {
       <SpaceSecondarySidebar />
       <div className="space-outlet">
         <Outlet />
+        {!isActiveSpaceMember && (
+          <SpaceJoinBanner onRequestJoin={() => setJoinOpen(true)} />
+        )}
       </div>
+      {joinOpen && (
+        <JoinSpaceInterstitial
+          space={activeSpace}
+          open={joinOpen}
+          onOpenChange={setJoinOpen}
+        />
+      )}
     </div>
   );
 }

@@ -66,6 +66,7 @@ function makeSpaceDoc(overrides: Record<string, unknown> = {}) {
     name: 'A Space',
     visibility: 'public',
     e2ee: false,
+    encryptIdentity: false,
     cipherRequired: false,
     createdBy: OWNER,
     ownerIdentityId: OWNER,

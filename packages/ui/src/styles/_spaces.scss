@@ -48,15 +48,31 @@
 }
 
 .spaces-card-name {
+  display: block;
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
   overflow-wrap: anywhere;
+  text-decoration: none;
+
+  &:is(a):hover,
+  &:is(a):focus-visible {
+    color: var(--color-accent-primary);
+    text-decoration: underline;
+  }
 }
 
 .spaces-card-slug {
+  display: block;
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
+  text-decoration: none;
+
+  &:is(a):hover,
+  &:is(a):focus-visible {
+    color: var(--color-accent-primary);
+    text-decoration: underline;
+  }
 }
 
 .spaces-card-badges {
@@ -94,6 +110,16 @@
   gap: var(--spacing-sm);
   margin-top: auto;
   padding-top: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.spaces-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-xs);
+  margin-left: auto;
 }
 
 .spaces-card-members {
@@ -293,6 +319,30 @@
   overflow: hidden;
 }
 
+.space-join-banner {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm) var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+}
+
+.space-join-banner-text {
+  flex: 1 1 12rem;
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+}
+
+.space-join-banner .btn {
+  flex: 0 0 auto;
+}
+
 // ============================================================================
 // Space landing (index route inside SpaceLayout)
 // ============================================================================
@@ -421,8 +471,10 @@
 }
 
 .space-channel-no-cipher {
-  padding: var(--spacing-sm) var(--spacing-md);
-  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
 }
@@ -580,6 +632,140 @@ button.space-message-author:hover {
   gap: var(--spacing-lg);
 }
 
+.space-create-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  width: 100%;
+  --space-create-steps-size: 2rem;
+  --space-create-steps-thickness: 2px;
+  --space-create-steps-gutter: 0.75rem;
+}
+
+.space-create-steps-list {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.space-create-steps-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex: 1 0 0;
+
+  &:last-of-type {
+    flex: initial;
+
+    .space-create-steps-separator {
+      display: none;
+    }
+  }
+}
+
+.space-create-steps-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: 0;
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  text-align: start;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+
+  &:focus-visible {
+    outline: 2px solid var(--color-accent-primary);
+    outline-offset: 2px;
+  }
+
+  &[data-complete] {
+    cursor: pointer;
+  }
+
+  &[data-incomplete]:not([data-current]) {
+    cursor: default;
+    opacity: 0.55;
+  }
+
+  &[data-disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.space-create-steps-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--space-create-steps-size);
+  height: var(--space-create-steps-size);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold, 600);
+  border-radius: 9999px;
+
+  &[data-incomplete] {
+    border: var(--space-create-steps-thickness) solid var(--color-border);
+    background: transparent;
+    color: var(--color-text-secondary);
+  }
+
+  &[data-current] {
+    border: var(--space-create-steps-thickness) solid var(--color-accent-primary);
+    background: color-mix(in srgb, var(--color-accent-primary) 16%, transparent);
+    color: var(--color-accent-primary);
+  }
+
+  &[data-complete] {
+    border: var(--space-create-steps-thickness) solid var(--color-accent-primary);
+    background: var(--color-accent-primary);
+    color: var(--color-bg-primary);
+  }
+}
+
+.space-create-steps-separator {
+  flex: 1;
+  height: var(--space-create-steps-thickness);
+  background: var(--color-border);
+  margin-inline: var(--space-create-steps-gutter);
+
+  &[data-state='complete'] {
+    background: var(--color-accent-primary);
+  }
+}
+
+.space-create-steps-title {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.space-create-steps-content {
+  min-height: 12rem;
+}
+
+.space-create-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.space-create-checkbox--nested {
+  margin-left: var(--spacing-lg);
+}
+
+.space-create-actions-nav {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-left: auto;
+}
+
 .space-create-textarea {
   width: 100%;
   resize: vertical;
@@ -628,6 +814,11 @@ button.space-message-author:hover {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   cursor: pointer;
+  transition:
+    opacity 120ms ease,
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
 
   input {
     margin-top: 3px;
@@ -637,6 +828,23 @@ button.space-message-author:hover {
   &:has(input:focus-visible) {
     outline: 2px solid var(--color-accent-primary);
     outline-offset: 1px;
+  }
+
+  &:has(input:disabled) {
+    cursor: not-allowed;
+    opacity: 0.55;
+    background: var(--color-bg-secondary);
+    border-color: color-mix(in srgb, var(--color-border) 70%, transparent);
+    color: var(--color-text-muted);
+
+    .space-create-radio-title,
+    .space-create-radio-desc {
+      color: var(--color-text-muted);
+    }
+
+    input:disabled {
+      cursor: not-allowed;
+    }
   }
 }
 
@@ -707,9 +915,16 @@ button.space-message-author:hover {
 
 .space-create-actions {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--spacing-sm);
   margin-top: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.space-create-encryption.space-create-step {
+  border-top: none;
+  padding-top: 0;
 }
 
 .join-space-dialog-content {
@@ -810,9 +1025,3 @@ button.space-message-author:hover {
   gap: var(--spacing-sm);
 }
 
-.space-channel-no-cipher {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-md);
-}

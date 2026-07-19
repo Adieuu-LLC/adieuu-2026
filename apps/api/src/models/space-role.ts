@@ -11,8 +11,13 @@ import type { PublicSpaceRole, SpacePermission } from '@adieuu/shared';
 
 export interface SpaceRoleDocument extends BaseDocument {
   spaceId: ObjectId;
+  /** Plaintext name; empty when the Space is e2ee. */
   name: string;
   permissions: SpacePermission[];
+  /** Cipher-encrypted name when the Space is e2ee. */
+  encryptedName?: string;
+  nameNonce?: string;
+  cipherId?: string;
   /** The role auto-assigned to new members. */
   isDefaultMember: boolean;
   /** System roles (Admin/Member) cannot be deleted. */
@@ -25,6 +30,9 @@ export interface CreateSpaceRoleInput {
   permissions: SpacePermission[];
   isDefaultMember?: boolean;
   isSystem?: boolean;
+  encryptedName?: string;
+  nameNonce?: string;
+  cipherId?: string;
 }
 
 export function toPublicSpaceRole(doc: SpaceRoleDocument): PublicSpaceRole {
@@ -33,6 +41,13 @@ export function toPublicSpaceRole(doc: SpaceRoleDocument): PublicSpaceRole {
     spaceId: doc.spaceId.toHexString(),
     name: doc.name,
     permissions: doc.permissions,
+    ...(doc.encryptedName
+      ? {
+          encryptedName: doc.encryptedName,
+          nameNonce: doc.nameNonce,
+          cipherId: doc.cipherId,
+        }
+      : {}),
     isDefaultMember: doc.isDefaultMember,
     isSystem: doc.isSystem,
     createdAt: doc.createdAt.toISOString(),

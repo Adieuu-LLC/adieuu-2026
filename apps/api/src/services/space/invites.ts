@@ -92,7 +92,8 @@ export async function createSpaceInvite(
     spaceId,
     invitedIdentityId: invitedId,
     invitedByIdentityId: inviterId,
-    spaceName: space.name,
+    // Do not snapshot plaintext name when identity is Cipher-encrypted.
+    ...(!space.encryptIdentity && space.name ? { spaceName: space.name } : {}),
     spaceSlug: space.slug,
     memberCount: space.memberCount,
   });

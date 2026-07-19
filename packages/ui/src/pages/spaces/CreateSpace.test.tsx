@@ -129,7 +129,17 @@ beforeEach(() => {
       data: {
         id: (params.id as string) ?? 'server-id',
         slug: params.slug as string,
-        name: params.name as string,
+        name: (params.name as string) ?? '',
+        encryptIdentity: params.encryptIdentity === true,
+        e2ee: params.e2ee === true,
+        cipherRequired: params.cipherRequired === true,
+        ...(params.encryptedName
+          ? {
+              encryptedName: params.encryptedName,
+              nameNonce: params.nameNonce,
+              cipherId: params.cipherId,
+            }
+          : {}),
       },
     }),
   );
@@ -231,14 +241,58 @@ async function clickButton(el: Element) {
   });
 }
 
-async function submitForm() {
-  const btn = [...happy.document.querySelectorAll('button')].find(
-    (b) => b.getAttribute('type') === 'submit',
-  ) as HTMLButtonElement;
-  await act(async () => {
-    btn.click();
-    await new Promise((r) => setTimeout(r, 0));
-  });
+function findButtonByText(text: string): HTMLButtonElement | undefined {
+  return [...happy.document.querySelectorAll('button')].find(
+    (b) => b.textContent === text,
+  ) as HTMLButtonElement | undefined;
+}
+
+function findStepTrigger(title: string): HTMLButtonElement | undefined {
+  return [...happy.document.querySelectorAll('.space-create-steps-trigger')].find((b) =>
+    b.textContent?.includes(title),
+  ) as HTMLButtonElement | undefined;
+}
+
+async function goNext() {
+  const btn = findButtonByText('spaces.create.next');
+  expect(btn).toBeTruthy();
+  await clickButton(btn!);
+}
+
+/** Visibility → About. */
+async function goToAboutStep() {
+  await goNext();
+}
+
+/**
+ * From Visibility: optionally pick a visibility, advance to About, fill name
+ * (and wait for slug availability when not Hidden), then advance to Encryption.
+ */
+async function reachEncryptionStep(opts: {
+  name: string;
+  visibility?: 'public' | 'listed' | 'hidden';
+  description?: string;
+}) {
+  if (opts.visibility && opts.visibility !== 'public') {
+    await check(happy.document.querySelector(`input[type=radio][value=${opts.visibility}]`)!);
+  }
+  await goToAboutStep();
+  await typeInput(byId<HTMLInputElement>('space-name'), opts.name);
+  if (opts.description) {
+    await typeInput(byId<HTMLTextAreaElement>('space-description'), opts.description);
+  }
+  if (opts.visibility !== 'hidden') {
+    await waitFor(
+      () => happy.document.body.textContent?.includes('spaces.create.slugAvailable') ?? false,
+    );
+  }
+  await goNext();
+}
+
+async function submitCreate() {
+  const btn = findButtonByText('spaces.create.submit');
+  expect(btn).toBeTruthy();
+  await clickButton(btn!);
 }
 
 function byId<T extends Element = HTMLElement>(id: string): T {
@@ -264,12 +318,55 @@ describe('CreateSpace flow', () => {
     container.remove();
   });
 
-  it('renders the create form with name and URL fields', async () => {
+  it('starts on Visibility, then About shows name and URL for public', async () => {
     const { root, container } = await renderCreate();
 
+    expect(happy.document.body.textContent).toContain('spaces.create.visibilityLabel');
+    expect(happy.document.body.textContent).toContain('spaces.create.stepVisibility');
+
+    await goToAboutStep();
     expect(byId('space-name')).toBeTruthy();
     expect(byId('space-slug')).toBeTruthy();
-    expect(happy.document.body.textContent).toContain('spaces.create.title');
+    expect(happy.document.body.textContent).toContain('spaces.create.nameLabel');
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  it('lets you click a completed step header to go back', async () => {
+    const { root, container } = await renderCreate();
+
+    await goToAboutStep();
+    expect(byId('space-name')?.closest('[role="tabpanel"]')?.hasAttribute('hidden')).toBe(false);
+
+    const visibilityTrigger = findStepTrigger('spaces.create.stepVisibility');
+    expect(visibilityTrigger).toBeTruthy();
+    await clickButton(visibilityTrigger!);
+
+    expect(visibilityTrigger?.hasAttribute('data-current')).toBe(true);
+    expect(findStepTrigger('spaces.create.stepAbout')?.hasAttribute('data-current')).toBe(false);
+    expect(byId('space-name')?.closest('[role="tabpanel"]')?.hasAttribute('hidden')).toBe(true);
+    expect(
+      happy.document
+        .querySelector('input[type=radio][value=public]')
+        ?.closest('[role="tabpanel"]')
+        ?.hasAttribute('hidden'),
+    ).toBe(false);
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  it('omits the custom URL field for Hidden Spaces', async () => {
+    const { root, container } = await renderCreate();
+
+    await check(happy.document.querySelector('input[type=radio][value=hidden]')!);
+    await goToAboutStep();
+
+    expect(byId('space-name')).toBeTruthy();
+    expect(byId('space-slug')).toBeFalsy();
+    expect(happy.document.body.textContent).toContain('spaces.create.hiddenNoSlugHint');
+    expect(mockCheckSlug).not.toHaveBeenCalled();
 
     await act(async () => root.unmount());
     container.remove();
@@ -278,6 +375,7 @@ describe('CreateSpace flow', () => {
   it('derives a slug from the name and reports availability', async () => {
     const { root, container } = await renderCreate();
 
+    await goToAboutStep();
     await typeInput(byId<HTMLInputElement>('space-name'), 'My Cool Space');
     expect(byId<HTMLInputElement>('space-slug').value).toBe('my-cool-space');
 
@@ -295,6 +393,7 @@ describe('CreateSpace flow', () => {
     );
     const { root, container } = await renderCreate();
 
+    await goToAboutStep();
     await typeInput(byId<HTMLInputElement>('space-slug'), 'occupied');
     await waitFor(() => happy.document.body.textContent?.includes('spaces.create.slugTaken') ?? false);
     expect(happy.document.body.textContent).toContain('spaces.create.slugTaken');
@@ -306,6 +405,7 @@ describe('CreateSpace flow', () => {
   it('shows a reserved slug as simply unavailable without hitting the API', async () => {
     const { root, container } = await renderCreate();
 
+    await goToAboutStep();
     await typeInput(byId<HTMLInputElement>('space-slug'), 'admin');
     await tick(50);
 
@@ -320,6 +420,7 @@ describe('CreateSpace flow', () => {
   it('flags an invalid (too short) slug', async () => {
     const { root, container } = await renderCreate();
 
+    await goToAboutStep();
     await typeInput(byId<HTMLInputElement>('space-slug'), 'ab');
     await tick(50);
 
@@ -333,6 +434,7 @@ describe('CreateSpace flow', () => {
   it('preserves a trailing hyphen so hyphens can be typed mid-word', async () => {
     const { root, container } = await renderCreate();
 
+    await goToAboutStep();
     // Typing "1-" must keep the hyphen (previously it was stripped, making it
     // impossible to type e.g. "1-2" left-to-right).
     await typeInput(byId<HTMLInputElement>('space-slug'), '1-');
@@ -345,11 +447,12 @@ describe('CreateSpace flow', () => {
     container.remove();
   });
 
-  it('blocks submit with a missing name', async () => {
+  it('blocks advancing from About with a missing name', async () => {
     const { root, container } = await renderCreate();
 
-    await submitForm();
-    expect(happy.document.body.textContent).toContain('spaces.create.errors.nameRequired');
+    await goToAboutStep();
+    const next = findButtonByText('spaces.create.next');
+    expect(next?.disabled).toBe(true);
     expect(mockCreate).not.toHaveBeenCalled();
 
     await act(async () => root.unmount());
@@ -359,10 +462,8 @@ describe('CreateSpace flow', () => {
   it('creates a non-encrypted public Space and navigates to it', async () => {
     const { root, container } = await renderCreate();
 
-    await typeInput(byId<HTMLInputElement>('space-name'), 'Open Space');
-    await waitFor(() => happy.document.body.textContent?.includes('spaces.create.slugAvailable') ?? false);
-
-    await submitForm();
+    await reachEncryptionStep({ name: 'Open Space' });
+    await submitCreate();
     await waitFor(() => mockNavigate.mock.calls.length > 0);
 
     expect(mockCreate).toHaveBeenCalledTimes(1);
@@ -371,8 +472,29 @@ describe('CreateSpace flow', () => {
     expect(params.visibility).toBe('public');
     expect(params.id).toBeUndefined();
     expect(params.cipherCheck).toBeUndefined();
+    expect(params.encryptedSeed).toBeUndefined();
     expect(mockNavigate).toHaveBeenCalledWith('/s/open-space');
     expect(toastSuccess).toHaveBeenCalled();
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  it('creates a Hidden Space with ObjectId as slug and no vanity URL', async () => {
+    const { root, container } = await renderCreate();
+
+    await reachEncryptionStep({ name: 'Secret Hideout', visibility: 'hidden' });
+    await submitCreate();
+    await waitFor(() => mockNavigate.mock.calls.length > 0);
+
+    expect(mockCheckSlug).not.toHaveBeenCalled();
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    const params = mockCreate.mock.calls[0]![0] as Record<string, unknown>;
+    expect(params.visibility).toBe('hidden');
+    expect(typeof params.id).toBe('string');
+    expect((params.id as string).length).toBe(24);
+    expect(params.slug).toBe(params.id);
+    expect(mockNavigate).toHaveBeenCalledWith(`/s/${params.id}`);
 
     await act(async () => root.unmount());
     container.remove();
@@ -384,10 +506,8 @@ describe('CreateSpace flow', () => {
     );
     const { root, container } = await renderCreate();
 
-    await typeInput(byId<HTMLInputElement>('space-name'), 'Paid Space');
-    await waitFor(() => happy.document.body.textContent?.includes('spaces.create.slugAvailable') ?? false);
-
-    await submitForm();
+    await reachEncryptionStep({ name: 'Paid Space' });
+    await submitCreate();
     await waitFor(() => happy.document.body.textContent?.includes('spaces.create.errors.tierRequired') ?? false);
 
     expect(happy.document.body.textContent).toContain('spaces.create.errors.tierRequired');
@@ -404,14 +524,11 @@ describe('CreateSpace flow', () => {
 
     const { root, container } = await renderCreate();
 
-    await typeInput(byId<HTMLInputElement>('space-name'), 'Secret Space');
-    await waitFor(() => happy.document.body.textContent?.includes('spaces.create.slugAvailable') ?? false);
-
-    await check(happy.document.querySelector('input[type=radio][value=listed]')!);
+    await reachEncryptionStep({ name: 'Secret Space', visibility: 'listed' });
     await check(byId<HTMLInputElement>('space-encrypt'));
     await selectValue(byId<HTMLSelectElement>('create-cipher-select'), 'c1');
 
-    await submitForm();
+    await submitCreate();
     await waitFor(() => mockNavigate.mock.calls.length > 0);
 
     expect(mockCreate).toHaveBeenCalledTimes(1);
@@ -421,7 +538,10 @@ describe('CreateSpace flow', () => {
     expect((params.id as string).length).toBe(24);
     expect(params.cipherCheck).toBeDefined();
     expect(params.e2ee).toBe(true);
+    expect(params.encryptIdentity).toBe(false);
     expect(params.cipherRequired).toBe(true);
+    expect(params.encryptedSeed).toBeDefined();
+    expect(params.name).toBe('Secret Space');
 
     // The uploaded challenge must decrypt with the bound Cipher.
     const valid = await verifySpaceCipherCheck(cipher, params.id as string, params.cipherCheck as never);
@@ -436,6 +556,42 @@ describe('CreateSpace flow', () => {
     container.remove();
   });
 
+  it('encrypts Space name/description when encryptIdentity is enabled', async () => {
+    const cipher = deriveCommunityCipher([createTextEntropy('identity secret')]);
+    mockCiphers = [{ id: 'c1', name: 'My Key', shortId: 'abc123' }];
+    mockCipherKeys = { c1: cipher };
+
+    const { root, container } = await renderCreate();
+
+    await reachEncryptionStep({
+      name: 'Hidden Name',
+      description: 'Hidden desc',
+      visibility: 'listed',
+    });
+    expect(happy.document.body.textContent).toContain('spaces.create.encryptIdentityListedUrlNote');
+    await check(byId<HTMLInputElement>('space-encrypt'));
+    await check(byId<HTMLInputElement>('space-encrypt-identity'));
+    await selectValue(byId<HTMLSelectElement>('create-cipher-select'), 'c1');
+
+    await submitCreate();
+    await waitFor(() => mockNavigate.mock.calls.length > 0);
+
+    const params = mockCreate.mock.calls[0]![0] as Record<string, unknown>;
+    expect(params.e2ee).toBe(true);
+    expect(params.encryptIdentity).toBe(true);
+    expect(params.name).toBeUndefined();
+    expect(params.description).toBeUndefined();
+    expect(params.encryptedName).toBeTruthy();
+    expect(params.nameNonce).toBeTruthy();
+    expect(params.cipherId).toBeTruthy();
+    expect(params.encryptedDescription).toBeTruthy();
+    expect(params.descriptionNonce).toBeTruthy();
+    expect(params.encryptedSeed).toBeDefined();
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
   it('creates a new Cipher for an E2EE Space with a valid cipherCheck + local link', async () => {
     const cipher = deriveCommunityCipher([createTextEntropy('brand new secret')]);
     mockCipherKeys = { 'new-cipher': cipher };
@@ -445,10 +601,7 @@ describe('CreateSpace flow', () => {
 
     const { root, container } = await renderCreate();
 
-    await typeInput(byId<HTMLInputElement>('space-name'), 'Fresh Space');
-    await waitFor(() => happy.document.body.textContent?.includes('spaces.create.slugAvailable') ?? false);
-
-    await check(happy.document.querySelector('input[type=radio][value=listed]')!);
+    await reachEncryptionStep({ name: 'Fresh Space', visibility: 'listed' });
     await check(byId<HTMLInputElement>('space-encrypt'));
     await check(
       happy.document.querySelector('input[type=radio][name=create-cipher-source][value=new]')!,
@@ -460,7 +613,7 @@ describe('CreateSpace flow', () => {
     ) as HTMLInputElement;
     await typeInput(entropyInput, 'a secret phrase');
 
-    await submitForm();
+    await submitCreate();
     await waitFor(() => mockNavigate.mock.calls.length > 0);
 
     expect(mockCreateCipher).toHaveBeenCalledTimes(1);
@@ -469,6 +622,7 @@ describe('CreateSpace flow', () => {
     expect(params.cipherCheck).toBeDefined();
     expect(params.e2ee).toBe(true);
     expect(params.cipherRequired).toBe(true);
+    expect(params.encryptedSeed).toBeDefined();
 
     const valid = await verifySpaceCipherCheck(cipher, params.id as string, params.cipherCheck as never);
     expect(valid).toBe(true);
@@ -488,20 +642,18 @@ describe('CreateSpace flow', () => {
 
     const { root, container } = await renderCreate();
 
-    await typeInput(byId<HTMLInputElement>('space-name'), 'Gated Space');
-    await waitFor(() => happy.document.body.textContent?.includes('spaces.create.slugAvailable') ?? false);
-
-    await check(happy.document.querySelector('input[type=radio][value=listed]')!);
+    await reachEncryptionStep({ name: 'Gated Space', visibility: 'listed' });
     await check(byId<HTMLInputElement>('space-cipher-required'));
     await selectValue(byId<HTMLSelectElement>('create-cipher-select'), 'c1');
 
-    await submitForm();
+    await submitCreate();
     await waitFor(() => mockNavigate.mock.calls.length > 0);
 
     const params = mockCreate.mock.calls[0]![0] as Record<string, unknown>;
     expect(params.cipherCheck).toBeDefined();
     expect(params.e2ee).toBe(false);
     expect(params.cipherRequired).toBe(true);
+    expect(params.encryptedSeed).toBeUndefined();
     expect(mockBookmarkSpaceCipher).toHaveBeenCalledWith('c1', params.id);
 
     await act(async () => root.unmount());

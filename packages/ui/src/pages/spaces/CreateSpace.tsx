@@ -1,27 +1,28 @@
 /**
- * Create-a-Space flow.
+ * Create-a-Space wizard (Visibility → About → Encryption).
  *
- * Walks the owner through name → URL (live availability) → visibility → optional
- * Cipher association (content E2EE and/or cipher-required join). When a Cipher
- * is associated the client builds a blind-relay `cipherCheck` bound to a
- * client-generated Space id. On success the Space is bookmarked on the Cipher.
+ * Visibility comes first so About can omit the custom URL for Hidden Spaces
+ * (those route by ObjectId hex). When a Cipher is associated the client builds
+ * a blind-relay `cipherCheck` bound to a client-generated Space id, encrypts
+ * structural metadata seed payloads when e2ee is on, and optionally encrypts
+ * name/description when `encryptIdentity` is on.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { Steps } from '@ark-ui/react/steps';
 import {
   createApiClient,
   isReservedSpaceSlug,
   SPACE_SLUG_PATTERN,
   SPACE_SLUG_MIN_LENGTH,
   SPACE_SLUG_MAX_LENGTH,
-  SPACE_NAME_MAX_LENGTH,
-  SPACE_DESCRIPTION_MAX_LENGTH,
-  SPACE_VISIBILITY_VALUES,
   type SpaceVisibility,
   type CipherCheck,
+  type CreateSpaceParams,
 } from '@adieuu/shared';
+import type { CommunityCipher } from '@adieuu/crypto';
 import { useAppConfig } from '../../config';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useCipherStore } from '../../hooks/useCipherStore';
@@ -30,19 +31,24 @@ import { emitSpacesChanged } from '../../services/spacesMembershipEvents';
 import { useToast } from '../../components/Toast';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
-import { Input } from '../../components/Input';
 import { Alert } from '../../components/Alert';
 import {
-  SpaceCipherFormFields,
   type CipherSource,
   type EntropyRow,
 } from './SpaceCipherFormFields';
 import { resolveSpaceCipherSelection } from './resolveSpaceCipherSelection';
+import { CreateSpaceAboutStep, type SlugState } from './CreateSpaceAboutStep';
+import { CreateSpaceVisibilityStep } from './CreateSpaceVisibilityStep';
+import { CreateSpaceEncryptionStep } from './CreateSpaceEncryptionStep';
+import {
+  buildEncryptedSpaceSeed,
+  encryptSpaceMetadataField,
+  resolveSpaceDisplayName,
+} from './spaceMetadataCipher';
 import '../../styles/_spaces.scss';
 
 const SLUG_DEBOUNCE_MS = 400;
-
-type SlugState = 'idle' | 'invalid' | 'checking' | 'available' | 'taken';
+const STEP_COUNT = 3;
 
 /** Normalizes free text into a candidate slug (lowercase, hyphenated). */
 function slugify(input: string): string {
@@ -87,6 +93,7 @@ export function CreateSpace() {
   const { ciphers, getCipherKey, createCipher, bookmarkSpaceCipher, encryptionAvailable } =
     useCipherStore();
 
+  const [step, setStep] = useState(0);
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [slugTouched, setSlugTouched] = useState(false);
@@ -96,6 +103,7 @@ export function CreateSpace() {
   const [allowFreeMembers, setAllowFreeMembers] = useState(false);
 
   const [encrypt, setEncrypt] = useState(false);
+  const [encryptIdentity, setEncryptIdentity] = useState(false);
   const [cipherRequired, setCipherRequired] = useState(false);
   const [cipherSource, setCipherSource] = useState<CipherSource>('existing');
   const [selectedCipherId, setSelectedCipherId] = useState('');
@@ -112,24 +120,46 @@ export function CreateSpace() {
     slugRef.current = slug;
   }, [slug]);
 
+  const isHidden = visibility === 'hidden';
   const canUseCipher = visibility !== 'public';
   const wantsE2ee = encrypt && canUseCipher;
+  const wantsEncryptIdentity = encryptIdentity && wantsE2ee;
   const wantsCipherRequired = cipherRequired && canUseCipher;
   const needsCipher = wantsE2ee || wantsCipherRequired;
+
+  const stepItems = useMemo(
+    () => [
+      { title: t('spaces.create.stepVisibility') },
+      { title: t('spaces.create.stepAbout') },
+      { title: t('spaces.create.stepEncryption') },
+    ],
+    [t],
+  );
 
   useEffect(() => {
     if (!canUseCipher) {
       if (encrypt) setEncrypt(false);
+      if (encryptIdentity) setEncryptIdentity(false);
       if (cipherRequired) setCipherRequired(false);
     }
-  }, [canUseCipher, encrypt, cipherRequired]);
+  }, [canUseCipher, encrypt, encryptIdentity, cipherRequired]);
 
   useEffect(() => {
+    if (!encrypt && encryptIdentity) setEncryptIdentity(false);
+  }, [encrypt, encryptIdentity]);
+
+  useEffect(() => {
+    if (isHidden) return;
     if (!slugTouched) setSlug(slugify(name));
-  }, [name, slugTouched]);
+  }, [name, slugTouched, isHidden]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (isHidden) {
+      setSlugState('idle');
+      return;
+    }
 
     if (slug.length === 0) {
       setSlugState('idle');
@@ -165,9 +195,10 @@ export function CreateSpace() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [api, slug]);
+  }, [api, slug, isHidden]);
 
   const slugStatusMessage = (): { text: string; tone: 'ok' | 'error' | 'muted' } | null => {
+    if (isHidden) return null;
     switch (slugState) {
       case 'checking':
         return { text: t('spaces.create.slugChecking'), tone: 'muted' };
@@ -181,6 +212,26 @@ export function CreateSpace() {
         return null;
     }
   };
+
+  const isVisibilityValid = true;
+  const isAboutValid =
+    name.trim().length > 0 && (isHidden || slugState === 'available');
+  const isEncryptionValid =
+    !needsCipher ||
+    (encryptionAvailable &&
+      (cipherSource === 'existing'
+        ? !!selectedCipherId
+        : entropyRows.some((r) => r.value.trim().length > 0)));
+
+  const isStepValid = useCallback(
+    (index: number) => {
+      if (index === 0) return isVisibilityValid;
+      if (index === 1) return isAboutValid;
+      if (index === 2) return isEncryptionValid;
+      return true;
+    },
+    [isAboutValid, isVisibilityValid, isEncryptionValid],
+  );
 
   const mapCreateError = useCallback(
     (code: string | undefined, message: string | undefined, submittedSlug: string): string => {
@@ -198,121 +249,154 @@ export function CreateSpace() {
     [t],
   );
 
-  const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (submitting) return;
-      setFormError(null);
+  const handleCreate = useCallback(async () => {
+    if (submitting) return;
+    setFormError(null);
 
-      if (!name.trim()) {
-        setFormError(t('spaces.create.errors.nameRequired'));
+    if (!name.trim()) {
+      setFormError(t('spaces.create.errors.nameRequired'));
+      setStep(1);
+      return;
+    }
+    if (!isHidden && slugState !== 'available') {
+      setFormError(t('spaces.create.errors.slugUnavailable'));
+      setStep(1);
+      return;
+    }
+
+    let cipherCheck: CipherCheck | undefined;
+    let spaceId: string | undefined;
+    let cipherLocalId: string | undefined;
+    let resolvedCipher: CommunityCipher | null = null;
+
+    // Hidden Spaces always bind routing to a client-generated ObjectId.
+    // Cipher-associated Spaces also need a client id for the challenge salt.
+    const needsClientId = isHidden || needsCipher;
+
+    if (needsCipher) {
+      if (!encryptionAvailable) {
+        setFormError(t('spaces.create.errors.cipherRequired'));
         return;
       }
-      if (slugState !== 'available') {
-        setFormError(t('spaces.create.errors.slugUnavailable'));
+      setSubmitting(true);
+      const resolved = await resolveSpaceCipherSelection({
+        cipherSource,
+        selectedCipherId,
+        getCipherKey,
+        entropyRows,
+        createCipher,
+        newCipherName,
+        fallbackName: name.trim(),
+        errors: {
+          cipherRequired: t('spaces.create.errors.cipherRequired'),
+          entropyRequired: t('spaces.create.errors.entropyRequired'),
+          createFailed: t('spaces.create.errors.createFailed'),
+        },
+      });
+      if ('error' in resolved) {
+        setFormError(resolved.error);
+        setSubmitting(false);
         return;
       }
-
-      const submittedSlug = slug;
-      let cipherCheck: CipherCheck | undefined;
-      let spaceId: string | undefined;
-      let cipherLocalId: string | undefined;
-
-      if (needsCipher) {
-        if (!encryptionAvailable) {
-          setFormError(t('spaces.create.errors.cipherRequired'));
-          return;
-        }
-        setSubmitting(true);
-        const resolved = await resolveSpaceCipherSelection({
-          cipherSource,
-          selectedCipherId,
-          getCipherKey,
-          entropyRows,
-          createCipher,
-          newCipherName,
-          fallbackName: name.trim(),
-          errors: {
-            cipherRequired: t('spaces.create.errors.cipherRequired'),
-            entropyRequired: t('spaces.create.errors.entropyRequired'),
-            createFailed: t('spaces.create.errors.createFailed'),
-          },
-        });
-        if ('error' in resolved) {
-          setFormError(resolved.error);
-          setSubmitting(false);
-          return;
-        }
-        spaceId = generateSpaceId();
-        try {
-          cipherCheck = await createSpaceCipherCheck(resolved.cipher, spaceId);
-        } catch {
-          setFormError(t('spaces.create.errors.createFailed'));
-          setSubmitting(false);
-          return;
-        }
-        cipherLocalId = resolved.localId;
-      } else {
-        setSubmitting(true);
-      }
-
+      spaceId = generateSpaceId();
       try {
-        const res = await api.spaces.create({
-          slug: submittedSlug,
-          name: name.trim(),
-          ...(description.trim() ? { description: description.trim() } : {}),
-          visibility,
-          allowFreeMembers,
-          ...(spaceId ? { id: spaceId } : {}),
-          ...(cipherCheck ? { cipherCheck } : {}),
-          e2ee: wantsE2ee,
-          cipherRequired: wantsCipherRequired,
-        });
-
-        if (res.success && res.data) {
-          const created = res.data;
-          if (cipherLocalId) {
-            await bookmarkSpaceCipher(cipherLocalId, created.id);
-          }
-          emitSpacesChanged();
-          toast.success(t('spaces.joinSuccess', { name: created.name }));
-          navigate(`/s/${created.slug}`);
-          return;
-        }
-
-        setFormError(mapCreateError(res.error?.code, res.error?.message, submittedSlug));
+        cipherCheck = await createSpaceCipherCheck(resolved.cipher, spaceId);
       } catch {
         setFormError(t('spaces.create.errors.createFailed'));
-      } finally {
         setSubmitting(false);
+        return;
       }
-    },
-    [
-      submitting,
-      name,
-      slugState,
-      needsCipher,
-      encryptionAvailable,
-      cipherSource,
-      selectedCipherId,
-      getCipherKey,
-      entropyRows,
-      createCipher,
-      newCipherName,
-      api,
-      slug,
-      description,
-      visibility,
-      allowFreeMembers,
-      wantsE2ee,
-      wantsCipherRequired,
-      bookmarkSpaceCipher,
-      toast,
-      navigate,
-      mapCreateError,
-      t,
-    ],
-  );
+      cipherLocalId = resolved.localId;
+      resolvedCipher = resolved.cipher;
+    } else if (needsClientId) {
+      setSubmitting(true);
+      spaceId = generateSpaceId();
+    } else {
+      setSubmitting(true);
+    }
+
+    const submittedSlug = isHidden ? (spaceId as string) : slug;
+
+    try {
+      const params: CreateSpaceParams = {
+        visibility,
+        allowFreeMembers,
+        e2ee: wantsE2ee,
+        encryptIdentity: wantsEncryptIdentity,
+        cipherRequired: wantsCipherRequired,
+        ...(spaceId ? { id: spaceId } : {}),
+        ...(cipherCheck ? { cipherCheck } : {}),
+        ...(!isHidden ? { slug: submittedSlug } : { slug: spaceId }),
+      };
+
+      if (wantsE2ee && resolvedCipher) {
+        params.encryptedSeed = buildEncryptedSpaceSeed(resolvedCipher);
+      }
+
+      if (wantsEncryptIdentity && resolvedCipher) {
+        const encName = encryptSpaceMetadataField(resolvedCipher, name.trim());
+        params.encryptedName = encName.encryptedName;
+        params.nameNonce = encName.nameNonce;
+        params.cipherId = encName.cipherId;
+        if (description.trim()) {
+          const encDesc = encryptSpaceMetadataField(resolvedCipher, description.trim());
+          params.encryptedDescription = encDesc.encryptedName;
+          params.descriptionNonce = encDesc.nameNonce;
+        }
+      } else {
+        params.name = name.trim();
+        if (description.trim()) params.description = description.trim();
+      }
+
+      const res = await api.spaces.create(params);
+
+      if (res.success && res.data) {
+        const created = res.data;
+        if (cipherLocalId) {
+          await bookmarkSpaceCipher(cipherLocalId, created.id);
+        }
+        emitSpacesChanged();
+        const toastName = resolveSpaceDisplayName(created, resolvedCipher, {
+          encryptedSpace: t('spaces.encryptedSpacePlaceholder'),
+        });
+        toast.success(t('spaces.joinSuccess', { name: toastName }));
+        navigate(`/s/${created.slug}`);
+        return;
+      }
+
+      setFormError(mapCreateError(res.error?.code, res.error?.message, submittedSlug));
+    } catch {
+      setFormError(t('spaces.create.errors.createFailed'));
+    } finally {
+      setSubmitting(false);
+    }
+  }, [
+    submitting,
+    name,
+    slugState,
+    isHidden,
+    needsCipher,
+    encryptionAvailable,
+    cipherSource,
+    selectedCipherId,
+    getCipherKey,
+    entropyRows,
+    createCipher,
+    newCipherName,
+    api,
+    slug,
+    description,
+    visibility,
+    allowFreeMembers,
+    wantsE2ee,
+    wantsEncryptIdentity,
+    wantsCipherRequired,
+    bookmarkSpaceCipher,
+    toast,
+    navigate,
+    mapCreateError,
+    t,
+  ]);
 
   if (!isLoggedIn) {
     return (
@@ -344,205 +428,146 @@ export function CreateSpace() {
         </div>
 
         <Card variant="elevated" className="space-create-card">
-          <form className="space-create-form" onSubmit={handleSubmit} noValidate>
-            {formError && (
-              <Alert variant="error" className="space-create-error">
-                {formError}
-              </Alert>
-            )}
+          {formError && (
+            <Alert variant="error" className="space-create-error">
+              {formError}
+            </Alert>
+          )}
 
-            <Input
-              id="space-name"
-              label={t('spaces.create.nameLabel')}
-              hint={t('spaces.create.nameHint')}
-              value={name}
-              maxLength={SPACE_NAME_MAX_LENGTH}
-              placeholder={t('spaces.create.namePlaceholder')}
-              onChange={(e) => setName(e.target.value)}
-              disabled={submitting}
-              autoFocus
-            />
-
-            <div className="form-group">
-              <Input
-                id="space-slug"
-                label={t('spaces.create.slugLabel')}
-                hint={t('spaces.create.slugHint')}
-                value={slug}
-                maxLength={SPACE_SLUG_MAX_LENGTH}
-                onChange={(e) => {
-                  setSlugTouched(true);
-                  setSlug(normalizeSlugInput(e.target.value));
-                }}
-                disabled={submitting}
-              />
-              {status && (
-                <p
-                  className={`space-create-slug-status space-create-slug-status--${status.tone}`}
-                  role="status"
-                  aria-live="polite"
-                >
-                  {status.text}
-                </p>
-              )}
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="space-description" className="input-label">
-                {t('spaces.create.descriptionLabel')}{' '}
-                <span className="form-optional">{t('spaces.create.optional')}</span>
-              </label>
-              <textarea
-                id="space-description"
-                className="input space-create-textarea"
-                value={description}
-                maxLength={SPACE_DESCRIPTION_MAX_LENGTH}
-                placeholder={t('spaces.create.descriptionPlaceholder')}
-                onChange={(e) => setDescription(e.target.value)}
-                disabled={submitting}
-                rows={3}
-              />
-            </div>
-
-            <fieldset className="form-group space-create-fieldset" disabled={submitting}>
-              <legend className="input-label">{t('spaces.create.visibilityLabel')}</legend>
-              {SPACE_VISIBILITY_VALUES.map((value) => (
-                <label key={value} className="space-create-radio">
-                  <input
-                    type="radio"
-                    name="space-visibility"
-                    value={value}
-                    checked={visibility === value}
-                    onChange={() => setVisibility(value)}
-                  />
-                  <span className="space-create-radio-body">
-                    <span className="space-create-radio-title">
-                      {t(`spaces.visibility.${value}`)}
-                    </span>
-                    <span className="space-create-radio-desc">
-                      {t(
-                        value === 'public'
-                          ? 'spaces.create.visibilityPublicDesc'
-                          : value === 'listed'
-                            ? 'spaces.create.visibilityListedDesc'
-                            : 'spaces.create.visibilityHiddenDesc',
-                      )}
-                    </span>
-                  </span>
-                </label>
+          <Steps.Root
+            className="space-create-steps"
+            count={STEP_COUNT}
+            step={step}
+            onStepChange={(details) => {
+              // Ark `linear` mode ignores header trigger clicks entirely, so we
+              // keep non-linear triggers and only allow backwards (or same)
+              // jumps plus one-step forward when the current step is valid.
+              const next = details.step;
+              if (next <= step) {
+                setStep(next);
+                return;
+              }
+              if (next === step + 1 && isStepValid(step)) {
+                setStep(next);
+              }
+            }}
+            orientation="horizontal"
+          >
+            <Steps.List className="space-create-steps-list">
+              {stepItems.map((item, index) => (
+                <Steps.Item className="space-create-steps-item" key={item.title} index={index}>
+                  <Steps.Trigger className="space-create-steps-trigger" type="button">
+                    <Steps.Indicator className="space-create-steps-indicator">
+                      {index + 1}
+                    </Steps.Indicator>
+                    <span className="space-create-steps-title">{item.title}</span>
+                  </Steps.Trigger>
+                  <Steps.Separator className="space-create-steps-separator" />
+                </Steps.Item>
               ))}
-            </fieldset>
+            </Steps.List>
 
-            <label className="space-create-checkbox">
-              <input
-                id="space-allow-free"
-                type="checkbox"
-                checked={allowFreeMembers}
-                onChange={(e) => setAllowFreeMembers(e.target.checked)}
+            <Steps.Content className="space-create-steps-content" index={0}>
+              <CreateSpaceVisibilityStep
+                visibility={visibility}
+                onVisibilityChange={setVisibility}
                 disabled={submitting}
               />
-              <span className="space-create-checkbox-body">
-                <span className="space-create-radio-title">
-                  {t('spaces.create.allowFreeMembersLabel')}
-                </span>
-                <span className="space-create-radio-desc">
-                  {t('spaces.create.allowFreeMembersHint')}
-                </span>
-              </span>
-            </label>
+            </Steps.Content>
 
-            <div className="space-create-encryption">
-              <label className="space-create-checkbox">
-                <input
-                  id="space-encrypt"
-                  type="checkbox"
-                  checked={encrypt}
-                  onChange={(e) => {
-                    const on = e.target.checked;
-                    setEncrypt(on);
-                    if (on) setCipherRequired(true);
-                  }}
-                  disabled={submitting || !canUseCipher}
-                />
-                <span className="space-create-checkbox-body">
-                  <span className="space-create-radio-title">
-                    {t('spaces.create.encryptionToggle')}
-                  </span>
-                  <span className="space-create-radio-desc">
-                    {canUseCipher
-                      ? t('spaces.create.encryptionHint')
-                      : t('spaces.create.encryptionPublicNote')}
-                  </span>
-                </span>
-              </label>
+            <Steps.Content className="space-create-steps-content" index={1}>
+              <CreateSpaceAboutStep
+                visibility={visibility}
+                name={name}
+                onNameChange={setName}
+                slug={slug}
+                onSlugChange={(value) => {
+                  setSlugTouched(true);
+                  setSlug(normalizeSlugInput(value));
+                }}
+                slugStatus={status}
+                description={description}
+                onDescriptionChange={setDescription}
+                allowFreeMembers={allowFreeMembers}
+                onAllowFreeMembersChange={setAllowFreeMembers}
+                disabled={submitting}
+              />
+            </Steps.Content>
 
-              <label className="space-create-checkbox">
-                <input
-                  id="space-cipher-required"
-                  type="checkbox"
-                  checked={cipherRequired}
-                  onChange={(e) => setCipherRequired(e.target.checked)}
-                  disabled={submitting || !canUseCipher}
-                />
-                <span className="space-create-checkbox-body">
-                  <span className="space-create-radio-title">
-                    {t('spaces.create.cipherRequiredToggle')}
-                  </span>
-                  <span className="space-create-radio-desc">
-                    {canUseCipher
-                      ? t('spaces.create.cipherRequiredHint')
-                      : t('spaces.create.encryptionPublicNote')}
-                  </span>
-                </span>
-              </label>
-
-              {needsCipher && !encryptionAvailable && (
-                <Alert variant="warning" className="space-create-encryption-warning">
-                  {t('spaces.create.encryptionUnavailable')}
-                </Alert>
-              )}
-
-              {needsCipher && encryptionAvailable && (
-                <SpaceCipherFormFields
-                  idPrefix="create-cipher"
-                  cipherSource={cipherSource}
-                  onCipherSourceChange={setCipherSource}
-                  ciphers={ciphers}
-                  selectedCipherId={selectedCipherId}
-                  onSelectedCipherIdChange={setSelectedCipherId}
-                  newCipherName={newCipherName}
-                  onNewCipherNameChange={setNewCipherName}
-                  entropyRows={entropyRows}
-                  onEntropyRowChange={(id, value) =>
-                    setEntropyRows((rows) =>
-                      rows.map((r) => (r.id === id ? { ...r, value } : r)),
-                    )
-                  }
-                  onAddEntropyRow={() =>
-                    setEntropyRows((rows) => [
-                      ...rows,
-                      { id: `${Date.now()}-${rows.length}`, value: '' },
-                    ])
-                  }
-                  onRemoveEntropyRow={(id) =>
-                    setEntropyRows((rows) =>
-                      rows.length <= 1 ? rows : rows.filter((r) => r.id !== id),
-                    )
-                  }
-                  disabled={submitting}
-                />
-              )}
-            </div>
+            <Steps.Content className="space-create-steps-content" index={2}>
+              <CreateSpaceEncryptionStep
+                visibility={visibility}
+                canUseCipher={canUseCipher}
+                encrypt={encrypt}
+                onEncryptChange={(on) => {
+                  setEncrypt(on);
+                  if (on) setCipherRequired(true);
+                }}
+                encryptIdentity={encryptIdentity}
+                onEncryptIdentityChange={setEncryptIdentity}
+                cipherRequired={cipherRequired}
+                onCipherRequiredChange={setCipherRequired}
+                needsCipher={needsCipher}
+                encryptionAvailable={encryptionAvailable}
+                cipherSource={cipherSource}
+                onCipherSourceChange={setCipherSource}
+                ciphers={ciphers}
+                selectedCipherId={selectedCipherId}
+                onSelectedCipherIdChange={setSelectedCipherId}
+                newCipherName={newCipherName}
+                onNewCipherNameChange={setNewCipherName}
+                entropyRows={entropyRows}
+                onEntropyRowChange={(id, value) =>
+                  setEntropyRows((rows) =>
+                    rows.map((r) => (r.id === id ? { ...r, value } : r)),
+                  )
+                }
+                onAddEntropyRow={() =>
+                  setEntropyRows((rows) => [
+                    ...rows,
+                    { id: `${Date.now()}-${rows.length}`, value: '' },
+                  ])
+                }
+                onRemoveEntropyRow={(id) =>
+                  setEntropyRows((rows) =>
+                    rows.length <= 1 ? rows : rows.filter((r) => r.id !== id),
+                  )
+                }
+                disabled={submitting}
+              />
+            </Steps.Content>
 
             <div className="space-create-actions">
               <Link to="/spaces" className="btn btn-secondary btn-md">
                 {t('spaces.create.cancel')}
               </Link>
-              <Button type="submit" variant="primary" disabled={submitting}>
-                {submitting ? t('spaces.create.submitting') : t('spaces.create.submit')}
-              </Button>
+              <div className="space-create-actions-nav">
+                {step > 0 && (
+                  <Steps.PrevTrigger className="btn btn-secondary btn-md" type="button">
+                    {t('spaces.create.back')}
+                  </Steps.PrevTrigger>
+                )}
+                {step < STEP_COUNT - 1 ? (
+                  <Steps.NextTrigger
+                    className="btn btn-primary btn-md"
+                    type="button"
+                    disabled={!isStepValid(step) || submitting}
+                  >
+                    {t('spaces.create.next')}
+                  </Steps.NextTrigger>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    disabled={submitting || !isEncryptionValid}
+                    onClick={() => void handleCreate()}
+                  >
+                    {submitting ? t('spaces.create.submitting') : t('spaces.create.submit')}
+                  </Button>
+                )}
+              </div>
             </div>
-          </form>
+          </Steps.Root>
         </Card>
       </div>
     </div>

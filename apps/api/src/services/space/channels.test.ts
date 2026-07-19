@@ -68,7 +68,7 @@ function makeSpaceDoc(overrides: Record<string, unknown> = {}) {
   const now = new Date();
   return {
     _id: new ObjectId(), slug: 'a-space', name: 'A Space', visibility: 'public',
-    e2ee: false, cipherRequired: false,
+    e2ee: false, encryptIdentity: false, cipherRequired: false,
     createdBy: OWNER, ownerIdentityId: OWNER, allowFreeMembers: false, memberCount: 1,
     createdAt: now, updatedAt: now, ...overrides,
   };

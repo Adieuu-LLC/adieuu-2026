@@ -76,7 +76,7 @@ function makeSpaceDoc(overrides: Record<string, unknown> = {}) {
   const now = new Date();
   return {
     _id: new ObjectId(), slug: 'a-space', name: 'A Space', visibility: 'listed',
-    e2ee: false, cipherRequired: false,
+    e2ee: false, encryptIdentity: false, cipherRequired: false,
     createdBy: OWNER, ownerIdentityId: OWNER, allowFreeMembers: false, memberCount: 5,
     createdAt: now, updatedAt: now, ...overrides,
   };
@@ -209,6 +209,25 @@ describe('space/invites', () => {
       const [target, event] = publishSpaceEventToIdentity.mock.calls[0]!;
       expect(target).toBe(invited.toHexString());
       expect(event.type).toBe('space_invite_received');
+    });
+
+    test('omits spaceName snapshot when encryptIdentity is enabled', async () => {
+      const space = makeSpaceDoc({
+        name: '',
+        slug: 'cool',
+        encryptIdentity: true,
+        e2ee: true,
+        memberCount: 9,
+      });
+      spaceRepo.findById.mockResolvedValue(space);
+      const inviter = new ObjectId();
+      const invited = new ObjectId();
+      grantPermissions(space._id, inviter, ['admin']);
+      const r = await createSpaceInvite(space._id, inviter, invited);
+      expect(r.success).toBe(true);
+      const [input] = inviteRepo.createInvite.mock.calls[0]!;
+      expect(input.spaceName).toBeUndefined();
+      expect(input.spaceSlug).toBe('cool');
     });
   });
 

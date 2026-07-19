@@ -61,10 +61,6 @@ mock.module('../../services/spaceCipherService', () => ({
   getSpaceCipherLink: () => null,
 }));
 
-mock.module('./JoinSpaceInterstitial', () => ({
-  JoinSpaceInterstitial: () => null,
-}));
-
 const mockSpacesApi = {
   addReaction: mock(async () => ({ success: true, data: null })),
   removeReaction: mock(async () => ({ success: true })),
@@ -168,7 +164,7 @@ function makeDefaultCtx(overrides: Record<string, unknown> = {}): Record<string,
   return {
     activeSpace: {
       id: 'space-1', slug: 'test', name: 'Test', memberCount: 1,
-      e2ee: false, cipherRequired: false, visibility: 'public',
+      e2ee: false, encryptIdentity: false, cipherRequired: false, visibility: 'public',
     },
     channels: [{ id: 'ch-1', spaceId: 'space-1', type: 'text', name: 'general', position: 0 }],
     activeChannelId: 'ch-1',
@@ -280,6 +276,7 @@ describe('SpaceChannelView', () => {
         name: 'Encrypted Space',
         memberCount: 1,
         e2ee: true,
+        encryptIdentity: false,
         cipherRequired: true,
         visibility: 'listed',
         cipherCheck: { knownValue: 'x', encryptedKnownValue: 'y', nonce: 'z' },
@@ -326,6 +323,7 @@ describe('SpaceChannelView', () => {
         name: 'Encrypted Space',
         memberCount: 1,
         e2ee: true,
+        encryptIdentity: false,
         cipherRequired: true,
         visibility: 'listed',
         cipherCheck: { knownValue: 'x', encryptedKnownValue: 'y', nonce: 'z' },

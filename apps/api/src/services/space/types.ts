@@ -6,6 +6,7 @@
 
 import type {
   CipherCheck,
+  CreateSpaceEncryptedSeed,
   PublicSpace,
   PublicSpaceChannel,
   PublicSpaceInvite,
@@ -143,8 +144,13 @@ export interface SpaceMessagesListResult {
 
 /** Sanitized/validated inputs for creating a Space (from the controller). */
 export interface CreateSpaceServiceParams {
-  slug: string;
-  name: string;
+  /**
+   * Custom URL slug for public/listed. For `hidden`, omit or pass the Space
+   * ObjectId hex — the service always stores `slug = id` for hidden Spaces.
+   */
+  slug?: string;
+  /** Plaintext name; omitted when `encryptIdentity`. */
+  name?: string;
   description?: string;
   visibility: SpaceVisibility;
   allowFreeMembers?: boolean;
@@ -153,10 +159,19 @@ export interface CreateSpaceServiceParams {
    * cipher-required join). Never for `public`.
    */
   cipherCheck?: CipherCheck;
-  /** Content encryption; requires `cipherCheck`. */
+  /** Content + structural metadata encryption; requires `cipherCheck`. */
   e2ee?: boolean;
+  /** Encrypt Space name/description for directory privacy; requires `e2ee`. */
+  encryptIdentity?: boolean;
   /** Client join gate; requires `cipherCheck`. */
   cipherRequired?: boolean;
+  /** Required when `e2ee` — encrypted default channel + system role names. */
+  encryptedSeed?: CreateSpaceEncryptedSeed;
+  encryptedName?: string;
+  nameNonce?: string;
+  cipherId?: string;
+  encryptedDescription?: string;
+  descriptionNonce?: string;
   /** Optional client-generated ObjectId (24 hex) so the cipher challenge binds the final id. */
   id?: string;
 }

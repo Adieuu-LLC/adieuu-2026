@@ -11,7 +11,6 @@ import type { EditHistoryEntry } from '../../components/messaging/EditHistoryLab
 import type { GifAttachment, MediaAttachment } from '../../services/messagePayload';
 import { ChannelMessageList } from '../../components/messaging/ChannelMessageList';
 import { MessageComposer } from '../../components/composer/MessageComposer';
-import { Button } from '../../components/Button';
 import { SpaceChannelCipherGate } from './SpaceChannelCipherGate';
 
 type SpaceComposerIslandProps = {
@@ -119,9 +118,8 @@ export interface SpaceChannelMainPanelProps {
     cipherCheck: import('@adieuu/shared').CipherCheck;
     onCipherLinked: () => void;
   } | null;
-  /** Non-member browse: hide composer, show join CTA. */
+  /** Non-member browse: hide composer (join CTA lives on SpaceLayout). */
   isMember?: boolean;
-  onRequestJoin?: () => void;
   sending: boolean;
   wrappedSend: ComposerSendFn;
   replyContext: ComposerReplyContext | null;
@@ -180,7 +178,6 @@ export function SpaceChannelMainPanel(props: SpaceChannelMainPanelProps): ReactN
     spaceCipher,
     cipherGate,
     isMember = true,
-    onRequestJoin,
     sending,
     wrappedSend,
     replyContext,
@@ -242,39 +239,32 @@ export function SpaceChannelMainPanel(props: SpaceChannelMainPanelProps): ReactN
         />
       </div>
 
-      <div className="space-channel-composer">
-        {!isMember ? (
-          <div className="space-channel-no-cipher">
-            <p className="spaces-state-body">{t('spaces.channel.joinToPost')}</p>
-            {onRequestJoin && (
-              <Button type="button" variant="primary" size="sm" onClick={onRequestJoin}>
-                {t('spaces.channel.joinCta')}
-              </Button>
-            )}
-          </div>
-        ) : isEncrypted && !spaceCipher && cipherGate ? (
-          <SpaceChannelCipherGate
-            spaceId={cipherGate.spaceId}
-            cipherCheck={cipherGate.cipherCheck}
-            onCipherLinked={cipherGate.onCipherLinked}
-          />
-        ) : isEncrypted && !spaceCipher ? (
-          <div className="space-channel-no-cipher">
-            <p className="spaces-state-body">{t('spaces.channel.noCipher')}</p>
-          </div>
-        ) : (
-          <SpaceComposerIsland
-            channelId={activeChannelId ?? channelId!}
-            sending={sending}
-            wrappedSend={wrappedSend}
-            replyContext={replyContext}
-            editingMessage={editingMessage}
-            setEditingMessage={setEditingMessage}
-            editingInitialPlaintext={editingInitialPlaintext}
-            editingInitialAttachments={editingInitialAttachments}
-          />
-        )}
-      </div>
+      {isMember && (
+        <div className="space-channel-composer">
+          {isEncrypted && !spaceCipher && cipherGate ? (
+            <SpaceChannelCipherGate
+              spaceId={cipherGate.spaceId}
+              cipherCheck={cipherGate.cipherCheck}
+              onCipherLinked={cipherGate.onCipherLinked}
+            />
+          ) : isEncrypted && !spaceCipher ? (
+            <div className="space-channel-no-cipher">
+              <p className="spaces-state-body">{t('spaces.channel.noCipher')}</p>
+            </div>
+          ) : (
+            <SpaceComposerIsland
+              channelId={activeChannelId ?? channelId!}
+              sending={sending}
+              wrappedSend={wrappedSend}
+              replyContext={replyContext}
+              editingMessage={editingMessage}
+              setEditingMessage={setEditingMessage}
+              editingInitialPlaintext={editingInitialPlaintext}
+              editingInitialAttachments={editingInitialAttachments}
+            />
+          )}
+        </div>
+      )}
     </>
   );
 }

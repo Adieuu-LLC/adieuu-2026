@@ -51,6 +51,7 @@ export {
   SpaceSlugSchema,
   CipherCheckSchema,
   CreateSpaceSchema,
+  CreateSpaceEncryptedSeedSchema,
   UpdateSpaceSchema,
   CreateSpaceInviteSchema,
   SendSpaceMessageSchema,
