@@ -1,23 +1,15 @@
-import { useState, useEffect, useRef, useCallback, useMemo, forwardRef, useImperativeHandle, memo, startTransition } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, forwardRef, useImperativeHandle, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Portal, Menu } from '@ark-ui/react';
-import { convertShortcodes, SHORTCODE_ENTRIES } from '../../utils/emojiShortcodes';
+import { convertShortcodes } from '../../utils/emojiShortcodes';
 import {
-  serializePayload,
-  gifPayload,
-  buildCustomEmojiPayloadMap,
   type MediaAttachment,
-  type MentionEntity,
-  type PageTagEntity,
   type GifAttachment,
 } from '../../services/messagePayload';
-import { getSenderDeviceIdForPayload } from '../../services/deviceInfo';
 import { createApiClient, CONV_MEDIA_BASE_MAX_BYTES, type PublicCustomEmoji } from '@adieuu/shared';
 import type { EmojiSelectResult } from '../EmojiPicker';
 import type { ContentTab } from '../GifPicker';
 import { useToast } from '../Toast';
-import { Icon } from '../../icons/Icon';
-import { copyPlainTextToClipboard, readPlainTextFromClipboard } from '../../utils/contextMenuClipboard';
 import { useAppConfig } from '../../config';
 import { useAuth } from '../../hooks/useAuth';
 import { useIdentity } from '../../hooks/useIdentity';
@@ -26,58 +18,30 @@ import type {
   ComposerReplyContext,
   MentionSource,
   PageTagSource,
-  PendingAttachment,
-  TrackedMention,
-  TrackedPageTag,
 } from './composerTypes';
 import {
-  MENTION_EVERYONE_ID,
-  MENTION_HERE_ID,
   resolveConversationComposerMediaMaxBytes,
-  MAX_ATTACHMENTS,
   PLACEHOLDER_VERB_KEYS,
 } from './composerTypes';
-import {
-  gatherConversationMediaFromDataTransfer,
-  gatherConversationMediaFromFileList,
-  readClipboardMediaFilesViaApi,
-  shouldInterceptPasteForMediaInspection,
-  clipboardPasteSuggestsNonPlainMedia,
-} from './conversationMediaFromClipboard';
-import { detectShortcodeQuery, detectMentionQuery, detectPageTagQuery, updateMentionOffsets, updatePageTagOffsets, resolveMentionedIdentityIds } from './composerUtils';
 import { runGifSendNow } from './composerGifSendNow';
 import { ComposerAttachments } from './ComposerAttachments';
 import { ComposerBanners } from './ComposerBanners';
 import { ComposerLeftRail, ComposerRightRail } from './ComposerControlRails';
-import { ComposerShortcodeAutocomplete, ComposerMentionAutocomplete, ComposerPageTagAutocomplete, type MentionSuggestion, type PageTagSuggestion } from './ComposerAutocomplete';
+import { ComposerShortcodeAutocomplete, ComposerMentionAutocomplete, ComposerPageTagAutocomplete } from './ComposerAutocomplete';
+import { ComposerContextMenu } from './ComposerContextMenu';
 import { useComposerAutoHeight } from './useComposerAutoHeight';
 import { useComposerFieldInsets } from './useComposerFieldInsets';
+import { useComposerUndoHistory } from './useComposerUndoHistory';
+import { useComposerAttachments } from './useComposerAttachments';
+import { useComposerAutocomplete, acSuggestionKey } from './useComposerAutocomplete';
+import { useComposerEditHydration } from './useComposerEditHydration';
+import { useComposerSend } from './useComposerSend';
+import { useComposerPasteAndClipboard } from './useComposerPasteAndClipboard';
 import { useMediaOutbox } from '../../services/mediaOutbox';
 import {
   getComposerControlsBySide,
   useComposerControlsPreference,
 } from '../../hooks/useComposerControlsPreference';
-
-function sameAcState<T extends { query: string } & Record<string, number>>(
-  prev: T | null,
-  next: T | null,
-): boolean {
-  if (prev === next) return true;
-  if (!prev || !next) return false;
-  if (prev.query !== next.query) return false;
-  for (const key of Object.keys(next) as (keyof T)[]) {
-    if (key === 'query') continue;
-    if (prev[key] !== next[key]) return false;
-  }
-  return true;
-}
-
-type ShortcodeSuggestion = [string, string] | { type: 'custom'; emoji: PublicCustomEmoji };
-
-function acSuggestionKey(s: ShortcodeSuggestion | undefined): string {
-  if (!s) return '';
-  return Array.isArray(s) ? s[0] : s.emoji.shortcode;
-}
 
 export type MessageComposerHandle = {
   /** Add image/video files using the same validation as the attach button (sniffing, caps). */
@@ -182,347 +146,91 @@ const MessageComposerInner = forwardRef<MessageComposerHandle, MessageComposerPr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelId, placeholderTarget, placeholderOverride, t]);
 
-  const [messageText, setMessageTextRaw] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showMediaPicker, setShowMediaPicker] = useState(false);
   const [lastMediaTab, setLastMediaTab] = useState<ContentTab>('gifs');
   const [pendingGif, setPendingGif] = useState<GifAttachment | null>(null);
-  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
-  const attachmentsRef = useRef(attachments);
-  attachmentsRef.current = attachments;
-  const [stripExif, setStripExif] = useState(true);
-  const [moderationEnabled, setModerationEnabled] = useState(true);
-  const [sendMp4WithoutReencode, setSendMp4WithoutReencode] = useState(false);
   const [ttlSeconds, setTtlSeconds] = useState<number | undefined>(undefined);
-  const [shortcodeAC, setShortcodeAC] = useState<{ query: string; colonIdx: number } | null>(null);
-  const [acSelectedIdx, setAcSelectedIdx] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const leftControlsRef = useRef<HTMLDivElement>(null);
   const rightControlsRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const messageTextRef = useRef(messageText);
-  messageTextRef.current = messageText;
 
-  const videoAttachments = useMemo(
-    () => attachments.filter((a) => a.file.type.startsWith('video/')),
-    [attachments]
-  );
-  const allVideosAreMp4 =
-    videoAttachments.length > 0 && videoAttachments.every((a) => a.file.type === 'video/mp4');
+  const {
+    messageText,
+    setMessageText,
+    messageTextRef,
+    resetHistory,
+    handleUndoRedoKeyDown,
+  } = useComposerUndoHistory({ inputRef });
 
-  useEffect(() => {
-    if (!allVideosAreMp4) setSendMp4WithoutReencode(false);
-  }, [allVideosAreMp4]);
+  const {
+    attachments,
+    setAttachments,
+    stripExif,
+    setStripExif,
+    moderationEnabled,
+    setModerationEnabled,
+    sendMp4WithoutReencode,
+    setSendMp4WithoutReencode,
+    allVideosAreMp4,
+    composerToast,
+    showComposerToast,
+    warnAttachmentTooLarge,
+    commitMediaFilesToAttachments,
+    handleFileSelect,
+    removeAttachment,
+    addMediaFiles,
+  } = useComposerAttachments({
+    t,
+    toastWarning,
+    conversationMediaMaxBytes,
+    conversationMediaGatherOpts,
+    fileInputRef,
+    disabled,
+    sending,
+  });
 
-  const acSuggestions = useMemo(() => {
-    if (!shortcodeAC) return [];
-    const q = shortcodeAC.query.toLowerCase();
-    const prefix: ShortcodeSuggestion[] = [];
-    const substring: ShortcodeSuggestion[] = [];
-    for (const [code, emoji] of SHORTCODE_ENTRIES) {
-      if (code.startsWith(q)) prefix.push([code, emoji]);
-      else if (code.includes(q)) substring.push([code, emoji]);
-    }
-    if (!customEmojisDisabled && customEmojis) {
-      for (const ce of customEmojis) {
-        const sc = ce.shortcode.toLowerCase();
-        if (sc.startsWith(q)) prefix.push({ type: 'custom', emoji: ce });
-        else if (sc.includes(q)) substring.push({ type: 'custom', emoji: ce });
-      }
-    }
-    return [...prefix, ...substring].slice(0, 6);
-  }, [shortcodeAC, customEmojis, customEmojisDisabled]);
+  const {
+    acSuggestions,
+    acSelectedIdx,
+    mentionSuggestions,
+    mentionAcSelectedIdx,
+    pageTagSuggestions,
+    pageTagAcSelectedIdx,
+    mentionEntriesRef,
+    pageTagEntriesRef,
+    handleShortcodeDetect,
+    handleMentionDetect,
+    handlePageTagDetect,
+    handleUpdateMentionOffsets,
+    acceptMention,
+    acceptPageTag,
+    handleShortcodeSelect,
+    handleAutocompleteKeyDown,
+  } = useComposerAutocomplete({
+    inputRef,
+    messageTextRef,
+    setMessageText,
+    mentionSource,
+    pageTagSource,
+    customEmojis,
+    customEmojisDisabled,
+    mentionInsertRef,
+  });
 
-  const shortcodeACRef = useRef(shortcodeAC);
-  shortcodeACRef.current = shortcodeAC;
-  const acSuggestionsRef = useRef(acSuggestions);
-  acSuggestionsRef.current = acSuggestions;
-  const acSelectedIdxRef = useRef(acSelectedIdx);
-  acSelectedIdxRef.current = acSelectedIdx;
-
-  const handleShortcodeDetect = useCallback((text: string, cursorPos: number) => {
-    const result = detectShortcodeQuery(text, cursorPos);
-    if (sameAcState(shortcodeACRef.current, result)) return;
-    startTransition(() => {
-      setShortcodeAC(result);
-      if (result) setAcSelectedIdx(0);
-    });
-  }, []);
-
-  // --- @mention autocomplete ---
-  const [mentionAC, setMentionAC] = useState<{ query: string; atIdx: number } | null>(null);
-  const [mentionAcSelectedIdx, setMentionAcSelectedIdx] = useState(0);
-  const mentionEntriesRef = useRef<TrackedMention[]>([]);
-
-  const mentionACRef = useRef(mentionAC);
-  mentionACRef.current = mentionAC;
-  const mentionAcSelectedIdxRef = useRef(mentionAcSelectedIdx);
-  mentionAcSelectedIdxRef.current = mentionAcSelectedIdx;
-
-  const mentionSuggestions = useMemo((): MentionSuggestion[] => {
-    if (!mentionAC || !mentionSource) return [];
-    const q = mentionAC.query.toLowerCase();
-    const groupMatches: MentionSuggestion[] = [];
-    if (mentionSource.isGroup && q.length > 0) {
-      for (const opt of [
-        { id: MENTION_HERE_ID, displayText: 'here' },
-        { id: MENTION_EVERYONE_ID, displayText: 'everyone' },
-      ]) {
-        if (opt.displayText.startsWith(q)) {
-          groupMatches.push({ kind: 'group', id: opt.id, displayText: opt.displayText });
-        }
-      }
-    }
-    const prefix: MentionSuggestion[] = [];
-    const substring: MentionSuggestion[] = [];
-    for (const user of mentionSource.users) {
-      const uname = user.username?.toLowerCase() ?? '';
-      const dname = user.displayName.toLowerCase();
-      const displayText = mentionSource.resolveMentionDisplay(user.id);
-      const fields = [uname, dname].filter(Boolean);
-      if (fields.some((f) => f.startsWith(q))) {
-        prefix.push({ kind: 'user', id: user.id, user, displayText });
-      } else if (fields.some((f) => f.includes(q))) {
-        substring.push({ kind: 'user', id: user.id, user, displayText });
-      }
-    }
-    return [...groupMatches, ...prefix, ...substring].slice(0, 5);
-  }, [mentionAC, mentionSource]);
-
-  const mentionSuggestionsRef = useRef(mentionSuggestions);
-  mentionSuggestionsRef.current = mentionSuggestions;
-
-  const handleMentionDetect = useCallback((text: string, cursorPos: number) => {
-    if (!mentionSource) {
-      if (mentionACRef.current != null) {
-        startTransition(() => setMentionAC(null));
-      }
-      return;
-    }
-    const result = detectMentionQuery(text, cursorPos);
-    if (sameAcState(mentionACRef.current, result)) return;
-    startTransition(() => {
-      setMentionAC(result);
-      if (result) setMentionAcSelectedIdx(0);
-    });
-  }, [mentionSource]);
-
-  const handleUpdateMentionOffsets = useCallback((oldText: string, newText: string, cursorPos: number) => {
-    mentionEntriesRef.current = updateMentionOffsets(mentionEntriesRef.current, oldText, newText, cursorPos);
-    pageTagEntriesRef.current = updatePageTagOffsets(pageTagEntriesRef.current, oldText, newText, cursorPos);
-  }, []);
-
-  // --- #page-tag autocomplete ---
-  const [pageTagAC, setPageTagAC] = useState<{ query: string; hashIdx: number } | null>(null);
-  const [pageTagAcSelectedIdx, setPageTagAcSelectedIdx] = useState(0);
-  const pageTagEntriesRef = useRef<TrackedPageTag[]>([]);
-
-  const pageTagACRef = useRef(pageTagAC);
-  pageTagACRef.current = pageTagAC;
-  const pageTagAcSelectedIdxRef = useRef(pageTagAcSelectedIdx);
-  pageTagAcSelectedIdxRef.current = pageTagAcSelectedIdx;
-
-  const pageTagSuggestions = useMemo((): PageTagSuggestion[] => {
-    if (!pageTagAC || !pageTagSource) return [];
-    const q = pageTagAC.query.toLowerCase();
-    const prefix: PageTagSuggestion[] = [];
-    const substring: PageTagSuggestion[] = [];
-    for (const page of pageTagSource.pages) {
-      const displayText = pageTagSource.resolvePageDisplay(page.id);
-      const fields = [page.id, displayText.toLowerCase(), ...(page.aliases ?? []).map((a) => a.toLowerCase())];
-      if (fields.some((f) => f.startsWith(q))) {
-        prefix.push({ id: page.id, displayText, icon: page.icon as PageTagSuggestion['icon'] });
-      } else if (fields.some((f) => f.includes(q))) {
-        substring.push({ id: page.id, displayText, icon: page.icon as PageTagSuggestion['icon'] });
-      }
-    }
-    return [...prefix, ...substring].slice(0, 5);
-  }, [pageTagAC, pageTagSource]);
-
-  const pageTagSuggestionsRef = useRef(pageTagSuggestions);
-  pageTagSuggestionsRef.current = pageTagSuggestions;
-
-  const handlePageTagDetect = useCallback((text: string, cursorPos: number) => {
-    if (!pageTagSource) {
-      if (pageTagACRef.current != null) {
-        startTransition(() => setPageTagAC(null));
-      }
-      return;
-    }
-    const result = detectPageTagQuery(text, cursorPos);
-    if (sameAcState(pageTagACRef.current, result)) return;
-    startTransition(() => {
-      setPageTagAC(result);
-      if (result) setPageTagAcSelectedIdx(0);
-    });
-  }, [pageTagSource]);
-
-  // --- Undo / redo history ---
-  const undoStack = useRef<{ text: string; cursor: number }[]>([{ text: '', cursor: 0 }]);
-  const redoStack = useRef<{ text: string; cursor: number }[]>([]);
-  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const setMessageText = useCallback((next: string, cursor?: number) => {
-    setMessageTextRaw(next);
-
-    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-    undoTimerRef.current = setTimeout(() => {
-      const top = undoStack.current[undoStack.current.length - 1];
-      if (top && top.text === next) return;
-      undoStack.current.push({ text: next, cursor: cursor ?? next.length });
-      if (undoStack.current.length > 200) undoStack.current.shift();
-      redoStack.current = [];
-    }, 300);
-  }, []);
-
-  const acceptMention = useCallback((identityId: string, displayText: string) => {
-    const ac = mentionACRef.current;
-    if (!ac) return;
-    const textarea = inputRef.current!;
-    const text = messageTextRef.current;
-    const cursor = textarea.selectionStart ?? text.length;
-    const insertText = `@${displayText} `;
-    const newText = text.slice(0, ac.atIdx) + insertText + text.slice(cursor);
-    const newPos = ac.atIdx + insertText.length;
-
-    mentionEntriesRef.current.push({
-      identityId,
-      offset: ac.atIdx,
-      length: insertText.length - 1,
-    });
-
-    setMessageText(newText, newPos);
-    setMentionAC(null);
-    requestAnimationFrame(() => {
-      textarea.focus();
-      textarea.setSelectionRange(newPos, newPos);
-    });
-  }, [setMessageText]);
-
-  const acceptPageTag = useCallback((pageId: string, displayText: string) => {
-    const ac = pageTagACRef.current;
-    if (!ac) return;
-    const textarea = inputRef.current!;
-    const text = messageTextRef.current;
-    const cursor = textarea.selectionStart ?? text.length;
-    const insertText = `#${displayText} `;
-    const newText = text.slice(0, ac.hashIdx) + insertText + text.slice(cursor);
-    const newPos = ac.hashIdx + insertText.length;
-
-    pageTagEntriesRef.current.push({
-      pageId,
-      offset: ac.hashIdx,
-      length: insertText.length - 1,
-    });
-
-    setMessageText(newText, newPos);
-    setPageTagAC(null);
-    requestAnimationFrame(() => {
-      textarea.focus();
-      textarea.setSelectionRange(newPos, newPos);
-    });
-  }, [setMessageText]);
-
-  const insertMentionAtCursor = useCallback((identityId: string) => {
-    if (!mentionSource) return;
-    const displayText = mentionSource.resolveMentionDisplay(identityId);
-    const textarea = inputRef.current;
-    const text = messageTextRef.current;
-    const cursorPos = textarea?.selectionStart ?? text.length;
-    const insertText = `@${displayText} `;
-    const newText = text.slice(0, cursorPos) + insertText + text.slice(cursorPos);
-    const newPos = cursorPos + insertText.length;
-
-    mentionEntriesRef.current.push({
-      identityId,
-      offset: cursorPos,
-      length: insertText.length - 1,
-    });
-
-    setMessageText(newText, newPos);
-    requestAnimationFrame(() => {
-      textarea?.focus();
-      textarea?.setSelectionRange(newPos, newPos);
-    });
-  }, [mentionSource, setMessageText]);
-
-  useEffect(() => {
-    if (mentionInsertRef) mentionInsertRef.current = insertMentionAtCursor;
-    return () => { if (mentionInsertRef) mentionInsertRef.current = null; };
-  }, [mentionInsertRef, insertMentionAtCursor]);
-
-  // --- Composer mini-toast ---
-  const [composerToast, setComposerToast] = useState<string | null>(null);
-  const composerToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const showComposerToast = useCallback((label: string) => {
-    if (composerToastTimer.current) clearTimeout(composerToastTimer.current);
-    setComposerToast(label);
-    composerToastTimer.current = setTimeout(() => setComposerToast(null), 1500);
-  }, []);
-
-  const warnAttachmentTooLarge = useCallback(() => {
-    const maxMb = Math.round(conversationMediaMaxBytes / (1024 * 1024));
-    toastWarning(
-      t('conversations.fileTooLarge', 'File too large'),
-      t('conversations.fileTooLargeDesc', 'Attachments must be under {{maxMb}} MB.', { maxMb }),
-    );
-  }, [toastWarning, t, conversationMediaMaxBytes]);
-
-  const commitMediaFilesToAttachments = useCallback(
-    (files: File[], options?: { toastLabel?: string }) => {
-      if (files.length === 0) return;
-      if (options?.toastLabel) {
-        showComposerToast(options.toastLabel);
-      }
-      setAttachments((prev) => {
-        const remaining = MAX_ATTACHMENTS - prev.length;
-        if (remaining <= 0) return prev;
-        const toAdd = files.slice(0, remaining).map((file) => ({
-          file,
-          previewUrl: URL.createObjectURL(file),
-          uploadStatus: 'pending' as const,
-          uploadProgress: 0,
-        }));
-        return [...prev, ...toAdd];
-      });
-    },
-    [showComposerToast],
-  );
-
-  const handleFileSelect = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (!files) return;
-      void (async () => {
-        const { files: resolved, oversized } = await gatherConversationMediaFromFileList(
-          files,
-          conversationMediaGatherOpts,
-        );
-        if (oversized) warnAttachmentTooLarge();
-        if (resolved.length > 0) {
-          commitMediaFilesToAttachments(resolved, { toastLabel: t('conversations.pasted', 'Pasted') });
-        }
-        if (fileInputRef.current) fileInputRef.current.value = '';
-      })();
-    },
-    [commitMediaFilesToAttachments, warnAttachmentTooLarge, t, conversationMediaGatherOpts],
-  );
-
-  const removeAttachment = useCallback((index: number) => {
-    setAttachments((prev) => {
-      const next = [...prev];
-      const removed = next.splice(index, 1);
-      for (const a of removed) URL.revokeObjectURL(a.previewUrl);
-      return next;
-    });
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      for (const a of attachmentsRef.current) URL.revokeObjectURL(a.previewUrl);
-    };
-  }, []);
+  useComposerEditHydration({
+    editContext,
+    editingMessageKey,
+    editingInitialPlaintext,
+    editingInitialAttachments,
+    setMessageText,
+    mentionEntriesRef,
+    pageTagEntriesRef,
+    setAttachments,
+    setPendingGif,
+    inputRef,
+  });
 
   useEffect(() => {
     if (skipComposerFocus) return;
@@ -547,570 +255,82 @@ const MessageComposerInner = forwardRef<MessageComposerHandle, MessageComposerPr
     return () => window.cancelAnimationFrame(id);
   }, [replyContext, skipComposerFocus]);
 
-  const prevEditKey = useRef<string | null>(null);
-  useEffect(() => {
-    if (editContext && editingMessageKey) {
-      if (prevEditKey.current !== editingMessageKey) {
-        setMessageText(editingInitialPlaintext ?? '', (editingInitialPlaintext ?? '').length);
-        mentionEntriesRef.current = [];
-        pageTagEntriesRef.current = [];
-        prevEditKey.current = editingMessageKey;
-
-        if (editingInitialAttachments) {
-          const existingAtts: PendingAttachment[] = editingInitialAttachments.media.map((att) => ({
-            file: new File([], att.fileName ?? 'attachment', { type: att.contentType }),
-            previewUrl: '',
-            uploadStatus: 'done' as const,
-            uploadProgress: 100,
-            existingMediaId: att.e2eMediaId,
-          }));
-          setAttachments(existingAtts);
-          if (editingInitialAttachments.gifs?.length) {
-            setPendingGif(editingInitialAttachments.gifs[0] ?? null);
-          }
-        } else {
-          setAttachments([]);
-          setPendingGif(null);
-        }
-
-        window.requestAnimationFrame(() => {
-          const ta = inputRef.current;
-          if (ta) {
-            ta.focus();
-            const len = ta.value.length;
-            ta.setSelectionRange(len, len);
-          }
-        });
-      }
-    } else if (prevEditKey.current !== null) {
-      setMessageText('', 0);
-      mentionEntriesRef.current = [];
-      setAttachments((prev) => {
-        for (const a of prev) {
-          if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
-        }
-        return [];
-      });
-      prevEditKey.current = null;
-    }
-  }, [editContext, editingMessageKey, editingInitialPlaintext, editingInitialAttachments, setMessageText]);
-
   const isMultiLine = useComposerAutoHeight(inputRef, messageText);
 
-  const handleSend = useCallback(async () => {
-    if (disabled) return;
-    const text = messageTextRef.current.trim();
-    if (!channelId || (!text && attachments.length === 0 && !pendingGif) || sending) return;
+  const klipyShare = useCallback(
+    (params: { slug: string; type: GifAttachment['type']; searchTerm?: string }) => {
+      api.klipy.share(params);
+    },
+    [api],
+  );
 
-
-    const currentPendingGif = pendingGif;
-    const pendingAttachments = [...attachments];
-    const currentMentions = [...mentionEntriesRef.current];
-    const currentPageTags = [...pageTagEntriesRef.current];
-    setMessageText('');
-    setPendingGif(null);
-    mentionEntriesRef.current = [];
-    pageTagEntriesRef.current = [];
-    undoStack.current = [{ text: '', cursor: 0 }];
-    redoStack.current = [];
-
-    if (currentPendingGif) {
-      const convertedText = convertShortcodes(text) || undefined;
-      const payload = gifPayload(convertedText, currentPendingGif);
-      const customEmojiMap = buildCustomEmojiPayloadMap(
-        convertedText ?? '',
-        customEmojis,
-        customEmojisDisabled === true,
-      );
-      if (customEmojiMap && Object.keys(customEmojiMap).length > 0) {
-        payload.customEmojis = customEmojiMap;
-      }
-      const mentions: MentionEntity[] = currentMentions.map((m) => ({ id: m.identityId, offset: m.offset, length: m.length }));
-      if (mentions.length > 0) payload.mentions = mentions;
-      const pageTags: PageTagEntity[] = currentPageTags.map((p) => ({ id: p.pageId, offset: p.offset, length: p.length }));
-      if (pageTags.length > 0) payload.pageTags = pageTags;
-      const gifSenderDeviceId = getSenderDeviceIdForPayload();
-      if (gifSenderDeviceId) payload.senderDeviceId = gifSenderDeviceId;
-      const plaintext = serializePayload(payload);
-
-      const mentionedIdentityIds = resolveMentionedIdentityIds(mentions, mentionSource);
-
-      if (!editContext) {
-        api.klipy.share({
-          slug: currentPendingGif.slug,
-          type: currentPendingGif.type,
-          searchTerm: currentPendingGif.searchTerm || undefined,
-        });
-      }
-
-      const sent = await onSend(plaintext, {
-        ...(forwardSecrecy?.enabled ? { useForwardSecrecy: true } : {}),
-        ...(replyContext ? { replyToMessageId: replyContext.messageId } : {}),
-        ...(ttlSeconds ? { expiresInSeconds: ttlSeconds } : {}),
-        mentionedIdentityIds,
-      });
-      replyContext?.onCancel();
-      if (sent != null) {
-        onSendSucceeded?.();
-      }
-      inputRef.current?.focus();
-      return;
-    }
-
-    if (pendingAttachments.length > 0 && editContext) {
-      const existingAtts = pendingAttachments.filter((a) => a.existingMediaId);
-      const newAtts = pendingAttachments.filter((a) => !a.existingMediaId);
-      const existingE2eMediaIds = existingAtts.map((a) => a.existingMediaId!);
-
-      if (newAtts.length > 0) {
-        try {
-          await enqueueMediaSend({
-            conversationId: channelId,
-            caption: text,
-            mentions: currentMentions,
-            pageTags: currentPageTags,
-            useForwardSecrecy: forwardSecrecy?.enabled ?? false,
-            stripExif,
-            moderationEnabled,
-            ...(sendMp4WithoutReencode && allVideosAreMp4 ? { sendMp4WithoutReencode: true } : {}),
-            ...(customEmojis?.length && !customEmojisDisabled
-              ? { composerCustomEmojisSnapshotJson: JSON.stringify(customEmojis) }
-              : {}),
-            files: newAtts.map((a) => a.file),
-            editMessageId: editContext.messageId,
-            ...(editContext.clientMessageId
-              ? { editClientMessageId: editContext.clientMessageId }
-              : {}),
-            existingE2eMediaIds,
-          });
-        } catch (err) {
-          console.error('[Composer] Media outbox edit enqueue failed:', err);
-          toastError(
-            t('conversations.uploadFailed', 'Upload failed'),
-            err instanceof Error ? err.message : t('conversations.uploadFailedDesc', 'One or more attachments could not be uploaded.'),
-          );
-          return;
-        }
-      } else {
-        const convertedText = convertShortcodes(text);
-        const mentions: MentionEntity[] = currentMentions.map((m) => ({ id: m.identityId, offset: m.offset, length: m.length }));
-        const pageTags: PageTagEntity[] = currentPageTags.map((p) => ({ id: p.pageId, offset: p.offset, length: p.length }));
-        const senderDeviceId = getSenderDeviceIdForPayload();
-        const customEmojiMap = buildCustomEmojiPayloadMap(convertedText, customEmojis, customEmojisDisabled === true);
-        const plaintext = serializePayload({
-          version: 1,
-          text: convertedText,
-          ...(mentions.length > 0 ? { mentions } : {}),
-          ...(pageTags.length > 0 ? { pageTags } : {}),
-          ...(customEmojiMap ? { customEmojis: customEmojiMap } : {}),
-          ...(editingInitialAttachments?.media.filter((a) => existingE2eMediaIds.includes(a.e2eMediaId)).length
-            ? { attachments: editingInitialAttachments.media.filter((a) => existingE2eMediaIds.includes(a.e2eMediaId)) }
-            : {}),
-          ...(senderDeviceId ? { senderDeviceId } : {}),
-        });
-        const sent = await onSend(plaintext, {
-          ...(forwardSecrecy?.enabled ? { useForwardSecrecy: true } : {}),
-          e2eMediaIds: existingE2eMediaIds,
-        });
-        if (sent != null) {
-          onSendSucceeded?.();
-        }
-      }
-
-      setSendMp4WithoutReencode(false);
-      setAttachments((prev) => {
-        for (const a of prev) {
-          if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
-        }
-        return [];
-      });
-      inputRef.current?.focus();
-    } else if (pendingAttachments.length > 0) {
-      try {
-        await enqueueMediaSend({
-          conversationId: channelId,
-          caption: text,
-          mentions: currentMentions,
-          pageTags: currentPageTags,
-          mentionedIdentityIds: resolveMentionedIdentityIds(
-            currentMentions.map((m) => ({ id: m.identityId, offset: m.offset, length: m.length })),
-            mentionSource,
-          ),
-          replyToMessageId: replyContext?.messageId,
-          ttlSeconds,
-          useForwardSecrecy: forwardSecrecy?.enabled ?? false,
-          stripExif,
-          moderationEnabled,
-          ...(sendMp4WithoutReencode && allVideosAreMp4 ? { sendMp4WithoutReencode: true } : {}),
-          ...(customEmojis?.length && !customEmojisDisabled
-            ? { composerCustomEmojisSnapshotJson: JSON.stringify(customEmojis) }
-            : {}),
-          files: pendingAttachments.map((a) => a.file),
-        });
-      } catch (err) {
-        console.error('[Composer] Media outbox enqueue failed:', err);
-        toastError(
-          t('conversations.uploadFailed', 'Upload failed'),
-          err instanceof Error ? err.message : t('conversations.uploadFailedDesc', 'One or more attachments could not be uploaded.'),
-        );
-        return;
-      }
-
-      replyContext?.onCancel();
-      setSendMp4WithoutReencode(false);
-      setAttachments((prev) => {
-        for (const a of prev) URL.revokeObjectURL(a.previewUrl);
-        return [];
-      });
-      inputRef.current?.focus();
-    } else {
-      const convertedText = convertShortcodes(text);
-      const mentions: MentionEntity[] = currentMentions.map((m) => ({ id: m.identityId, offset: m.offset, length: m.length }));
-      const pageTags: PageTagEntity[] = currentPageTags.map((p) => ({ id: p.pageId, offset: p.offset, length: p.length }));
-      const mentionedIdentityIds = resolveMentionedIdentityIds(mentions, mentionSource);
-      const senderDeviceId = getSenderDeviceIdForPayload();
-
-      const customEmojiMap = buildCustomEmojiPayloadMap(
-        convertedText,
-        customEmojis,
-        customEmojisDisabled === true,
-      );
-
-      const plaintext = serializePayload({
-        version: 1,
-        text: convertedText,
-        ...(mentions.length > 0 ? { mentions } : {}),
-        ...(pageTags.length > 0 ? { pageTags } : {}),
-        ...(customEmojiMap ? { customEmojis: customEmojiMap } : {}),
-        ...(senderDeviceId ? { senderDeviceId } : {}),
-      });
-      if (editContext) {
-        const sent = await onSend(plaintext, {
-          ...(forwardSecrecy?.enabled ? { useForwardSecrecy: true } : {}),
-        });
-        if (sent != null) {
-          onSendSucceeded?.();
-        }
-        inputRef.current?.focus();
-      } else {
-        const sent = await onSend(plaintext, {
-          ...(forwardSecrecy?.enabled ? { useForwardSecrecy: true } : {}),
-          ...(replyContext ? { replyToMessageId: replyContext.messageId } : {}),
-          ...(ttlSeconds ? { expiresInSeconds: ttlSeconds } : {}),
-          mentionedIdentityIds,
-        });
-        replyContext?.onCancel();
-        if (sent != null) {
-          onSendSucceeded?.();
-        }
-        inputRef.current?.focus();
-      }
-    }
-  }, [
+  const handleSend = useComposerSend({
     disabled,
     channelId,
     sending,
     onSend,
+    onSendSucceeded,
     forwardSecrecy,
     replyContext,
     editContext,
-    onSendSucceeded,
+    editingInitialAttachments,
+    ttlSeconds,
+    mentionSource,
+    customEmojis,
+    customEmojisDisabled,
     attachments,
     pendingGif,
     stripExif,
     moderationEnabled,
     sendMp4WithoutReencode,
     allVideosAreMp4,
-    api,
+    enqueueMediaSend,
+    klipyShare,
     toastError,
     t,
-    ttlSeconds,
-    enqueueMediaSend,
-    customEmojis,
-    customEmojisDisabled,
-    mentionSource,
-    editingInitialAttachments,
-  ]);
+    messageTextRef,
+    mentionEntriesRef,
+    pageTagEntriesRef,
+    inputRef,
+    setMessageText,
+    setPendingGif,
+    setAttachments,
+    setSendMp4WithoutReencode,
+    resetHistory,
+  });
 
-  const handleCopy = useCallback(() => {
-    showComposerToast(t('conversations.copied', 'Copied'));
-  }, [showComposerToast, t]);
-
-  const insertPlainTextAtCaret = useCallback(
-    (inserted: string) => {
-      const ta = inputRef.current;
-      if (!ta || disabled) {
-        return;
-      }
-      const oldText = messageTextRef.current;
-      const start = ta.selectionStart ?? 0;
-      const end = ta.selectionEnd ?? oldText.length;
-      const newText = oldText.slice(0, start) + inserted + oldText.slice(end);
-      const newPos = start + inserted.length;
-      handleUpdateMentionOffsets(oldText, newText, newPos);
-      setMessageText(newText, newPos);
-      handleShortcodeDetect(newText, newPos);
-      handleMentionDetect(newText, newPos);
-      handlePageTagDetect(newText, newPos);
-      requestAnimationFrame(() => {
-        ta.focus();
-        ta.setSelectionRange(newPos, newPos);
-      });
-    },
-    [disabled, handleMentionDetect, handlePageTagDetect, handleShortcodeDetect, setMessageText, handleUpdateMentionOffsets],
-  );
-
-  const handlePaste = useCallback(
-    (e: React.ClipboardEvent) => {
-      const cd = e.clipboardData;
-      if (!cd) return;
-
-      if (!shouldInterceptPasteForMediaInspection(cd)) {
-        let hasTextData = false;
-        for (const item of Array.from(cd.items)) {
-          if (item.type === 'text/plain') hasTextData = true;
-        }
-        if (hasTextData) showComposerToast(t('conversations.pasted', 'Pasted'));
-        return;
-      }
-
-      e.preventDefault();
-      const textFallback = cd.getData('text/plain');
-      void (async () => {
-        let { files, oversized } = await gatherConversationMediaFromDataTransfer(cd, conversationMediaGatherOpts);
-        if (files.length === 0 && !oversized) {
-          const apiRes = await readClipboardMediaFilesViaApi(conversationMediaGatherOpts);
-          files = apiRes.files;
-          oversized = oversized || apiRes.oversized;
-        }
-        if (oversized) warnAttachmentTooLarge();
-        if (files.length > 0) {
-          commitMediaFilesToAttachments(files, { toastLabel: t('conversations.pasted', 'Pasted') });
-          return;
-        }
-        if (textFallback) {
-          insertPlainTextAtCaret(textFallback);
-          showComposerToast(t('conversations.pasted', 'Pasted'));
-          return;
-        }
-        if (!oversized && clipboardPasteSuggestsNonPlainMedia(cd)) {
-          toastWarning(
-            t('conversations.pasteMediaUnreadableTitle', 'Could not use clipboard content'),
-            t(
-              'conversations.pasteMediaUnreadableDesc',
-              'We noticed a paste that may include an image or video, but could not read usable media. Try saving the file and attaching it, or copying from another app.',
-            ),
-          );
-        }
-      })();
-    },
-    [
-      showComposerToast,
-      t,
-      toastWarning,
-      warnAttachmentTooLarge,
-      commitMediaFilesToAttachments,
-      insertPlainTextAtCaret,
-      conversationMediaGatherOpts,
-    ],
-  );
+  const {
+    handlePaste,
+    handleCopy,
+    handleComposerContextMenu,
+  } = useComposerPasteAndClipboard({
+    disabled,
+    inputRef,
+    messageText,
+    messageTextRef,
+    setMessageText,
+    handleUpdateMentionOffsets,
+    handleShortcodeDetect,
+    handleMentionDetect,
+    handlePageTagDetect,
+    showComposerToast,
+    warnAttachmentTooLarge,
+    commitMediaFilesToAttachments,
+    conversationMediaGatherOpts,
+    t,
+    toastWarning,
+    toastError,
+  });
 
   useImperativeHandle(
     ref,
-    () => ({
-      addMediaFiles: (list: FileList | File[]) => {
-        if (disabled || sending) return;
-        void (async () => {
-          const { files: resolved, oversized } = await gatherConversationMediaFromFileList(
-            list,
-            conversationMediaGatherOpts,
-          );
-          if (oversized) warnAttachmentTooLarge();
-          if (resolved.length > 0) {
-            commitMediaFilesToAttachments(resolved, { toastLabel: t('conversations.pasted', 'Pasted') });
-          }
-        })();
-      },
-    }),
-    [disabled, sending, warnAttachmentTooLarge, commitMediaFilesToAttachments, t, conversationMediaGatherOpts],
-  );
-
-  const handleComposerContextMenu = useCallback(
-    async (details: { value: string | null }) => {
-      const v = details.value;
-      if (v === 'copy') {
-        const ta = inputRef.current;
-        const text = messageTextRef.current;
-        if (!ta) {
-          return;
-        }
-        const a = ta.selectionStart ?? 0;
-        const b = ta.selectionEnd ?? text.length;
-        const sel = text.slice(a, b);
-        if (!sel) {
-          return;
-        }
-        const ok = await copyPlainTextToClipboard(sel);
-        if (ok) {
-          showComposerToast(t('conversations.copied', 'Copied'));
-        } else {
-          toastError(t('conversations.contextMenu.copyFailed', 'Could not copy to clipboard'));
-        }
-        return;
-      }
-      if (v === 'copy-all') {
-        const ok = await copyPlainTextToClipboard(messageText);
-        if (ok) {
-          showComposerToast(t('conversations.copied', 'Copied'));
-        } else {
-          toastError(t('conversations.contextMenu.copyFailed', 'Could not copy to clipboard'));
-        }
-        return;
-      }
-      if (v === 'select-all') {
-        const ta = inputRef.current;
-        if (!ta) {
-          return;
-        }
-        ta.focus();
-        const len = messageTextRef.current.length;
-        requestAnimationFrame(() => {
-          ta.setSelectionRange(0, len);
-        });
-        return;
-      }
-      if (v === 'paste') {
-        const pasted = await readPlainTextFromClipboard();
-        if (pasted != null && pasted.length > 0) {
-          insertPlainTextAtCaret(pasted);
-          showComposerToast(t('conversations.pasted', 'Pasted'));
-          return;
-        }
-        const { files: clipFiles, oversized: clipOversized } =
-          await readClipboardMediaFilesViaApi(conversationMediaGatherOpts);
-        if (clipOversized) {
-          warnAttachmentTooLarge();
-        }
-        if (clipFiles.length > 0) {
-          commitMediaFilesToAttachments(clipFiles, { toastLabel: t('conversations.pasted', 'Pasted') });
-          return;
-        }
-        if (pasted == null) {
-          toastError(t('conversations.contextMenu.pasteFailed', 'Could not paste from clipboard'));
-          return;
-        }
-        toastWarning(
-          t('conversations.pasteMediaUnreadableTitle', 'Could not use clipboard content'),
-          t(
-            'conversations.pasteMediaUnreadableDesc',
-            'We noticed a paste that may include an image or video, but could not read usable media. Try saving the file and attaching it, or copying from another app.',
-          ),
-        );
-      }
-    },
-    [
-      insertPlainTextAtCaret,
-      messageText,
-      t,
-      showComposerToast,
-      toastError,
-      toastWarning,
-      warnAttachmentTooLarge,
-      commitMediaFilesToAttachments,
-      conversationMediaGatherOpts,
-    ],
+    () => ({ addMediaFiles }),
+    [addMediaFiles],
   );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      const mAc = mentionACRef.current;
-      const mSuggestions = mentionSuggestionsRef.current;
-      if (mAc && mSuggestions.length > 0) {
-        if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
-          e.preventDefault();
-          const s = mSuggestions[mentionAcSelectedIdxRef.current]!;
-          acceptMention(s.id, s.displayText);
-          return;
-        }
-        if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          setMentionAcSelectedIdx((prev) => (prev + 1) % mSuggestions.length);
-          return;
-        }
-        if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          setMentionAcSelectedIdx((prev) => (prev - 1 + mSuggestions.length) % mSuggestions.length);
-          return;
-        }
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          setMentionAC(null);
-          return;
-        }
-      }
-
-      const ptAc = pageTagACRef.current;
-      const ptSuggestions = pageTagSuggestionsRef.current;
-      if (ptAc && ptSuggestions.length > 0) {
-        if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
-          e.preventDefault();
-          const s = ptSuggestions[pageTagAcSelectedIdxRef.current]!;
-          acceptPageTag(s.id, s.displayText);
-          return;
-        }
-        if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          setPageTagAcSelectedIdx((prev) => (prev + 1) % ptSuggestions.length);
-          return;
-        }
-        if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          setPageTagAcSelectedIdx((prev) => (prev - 1 + ptSuggestions.length) % ptSuggestions.length);
-          return;
-        }
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          setPageTagAC(null);
-          return;
-        }
-      }
-
-      const ac = shortcodeACRef.current;
-      const suggestions = acSuggestionsRef.current;
-      if (ac && suggestions.length > 0) {
-        if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
-          e.preventDefault();
-          const selected = suggestions[acSelectedIdxRef.current]!;
-          const insertText = Array.isArray(selected) ? selected[1] : `:${selected.emoji.shortcode}:`;
-          const textarea = inputRef.current!;
-          const text = messageTextRef.current;
-          const cursor = textarea.selectionStart ?? text.length;
-          const newText = text.slice(0, ac.colonIdx) + insertText + text.slice(cursor);
-          const newPos = ac.colonIdx + insertText.length;
-          setMessageText(newText, newPos);
-          setShortcodeAC(null);
-          requestAnimationFrame(() => {
-            textarea.focus();
-            textarea.setSelectionRange(newPos, newPos);
-          });
-          return;
-        }
-        if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          setAcSelectedIdx((prev) => (prev + 1) % suggestions.length);
-          return;
-        }
-        if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          setAcSelectedIdx((prev) => (prev - 1 + suggestions.length) % suggestions.length);
-          return;
-        }
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          setShortcodeAC(null);
-          return;
-        }
-      }
+      if (handleAutocompleteKeyDown(e)) return;
 
       if (e.key === 'Escape' && editContext) {
         e.preventDefault();
@@ -1124,34 +344,9 @@ const MessageComposerInner = forwardRef<MessageComposerHandle, MessageComposerPr
         return;
       }
 
-      const isMod = e.ctrlKey || e.metaKey;
-      if (isMod && e.key === 'z' && !e.shiftKey) {
-        e.preventDefault();
-        if (undoStack.current.length <= 1) return;
-        const current = undoStack.current.pop()!;
-        redoStack.current.push(current);
-        const prev = undoStack.current[undoStack.current.length - 1]!;
-        setMessageTextRaw(prev.text);
-        messageTextRef.current = prev.text;
-        requestAnimationFrame(() => {
-          inputRef.current?.setSelectionRange(prev.cursor, prev.cursor);
-        });
-        return;
-      }
-      if (isMod && (e.key === 'y' || (e.key === 'z' && e.shiftKey) || (e.key === 'Z'))) {
-        e.preventDefault();
-        if (redoStack.current.length === 0) return;
-        const next = redoStack.current.pop()!;
-        undoStack.current.push(next);
-        setMessageTextRaw(next.text);
-        messageTextRef.current = next.text;
-        requestAnimationFrame(() => {
-          inputRef.current?.setSelectionRange(next.cursor, next.cursor);
-        });
-        return;
-      }
+      if (handleUndoRedoKeyDown(e)) return;
     },
-    [handleSend, setMessageText, acceptMention, acceptPageTag, editContext]
+    [handleAutocompleteKeyDown, editContext, handleSend, handleUndoRedoKeyDown],
   );
 
   const handleGifSelect = useCallback((gif: GifAttachment) => {
@@ -1202,22 +397,7 @@ const MessageComposerInner = forwardRef<MessageComposerHandle, MessageComposerPr
       textarea.focus();
       textarea.setSelectionRange(newPos, newPos);
     });
-  }, [setMessageText]);
-
-  const handleShortcodeSelect = useCallback((_code: string, emoji: string) => {
-    const textarea = inputRef.current!;
-    const text = messageTextRef.current;
-    const cursor = textarea.selectionStart ?? text.length;
-    const ac = shortcodeACRef.current!;
-    const newText = text.slice(0, ac.colonIdx) + emoji + text.slice(cursor);
-    const newPos = ac.colonIdx + emoji.length;
-    setMessageText(newText, newPos);
-    setShortcodeAC(null);
-    requestAnimationFrame(() => {
-      textarea.focus();
-      textarea.setSelectionRange(newPos, newPos);
-    });
-  }, [setMessageText]);
+  }, [setMessageText, messageTextRef]);
 
   const composerControls = useComposerControlsPreference();
   const leftControls = useMemo(
@@ -1434,24 +614,7 @@ const MessageComposerInner = forwardRef<MessageComposerHandle, MessageComposerPr
       </Menu.ContextTrigger>
       <Portal>
         <Menu.Positioner>
-          <Menu.Content className="dm-context-menu">
-            <Menu.Item value="copy" className="dm-context-menu-item" disabled={disabled || sending}>
-              <Icon name="copy" className="dm-context-menu-item-icon" />
-              {t('conversations.contextMenu.copy', 'Copy')}
-            </Menu.Item>
-            <Menu.Item value="copy-all" className="dm-context-menu-item" disabled={disabled || sending}>
-              <Icon name="copyAll" className="dm-context-menu-item-icon" />
-              {t('conversations.contextMenu.copyAll', 'Copy all')}
-            </Menu.Item>
-            <Menu.Item value="select-all" className="dm-context-menu-item" disabled={disabled || sending}>
-              <Icon name="selectAll" className="dm-context-menu-item-icon" />
-              {t('conversations.contextMenu.selectAll', 'Select all')}
-            </Menu.Item>
-            <Menu.Item value="paste" className="dm-context-menu-item" disabled={disabled || sending}>
-              <Icon name="fileImport" className="dm-context-menu-item-icon" />
-              {t('conversations.contextMenu.paste', 'Paste')}
-            </Menu.Item>
-          </Menu.Content>
+          <ComposerContextMenu disabled={disabled} sending={sending} />
         </Menu.Positioner>
       </Portal>
     </Menu.Root>
