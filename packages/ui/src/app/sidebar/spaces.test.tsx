@@ -202,7 +202,7 @@ describe('SpacesSidebarSection', () => {
     const { root, container } = await renderSection();
 
     const badge = happy.document.querySelector('.conversation-list-item-badge');
-    expect(badge).toBeDefined();
+    expect(badge).not.toBeNull();
     expect(badge!.textContent).toBe('5');
 
     await act(async () => root.unmount());

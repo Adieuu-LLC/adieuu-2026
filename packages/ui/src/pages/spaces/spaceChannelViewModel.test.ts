@@ -127,4 +127,16 @@ describe('resolveLatestPinInfo', () => {
     expect(result!.messageId).toBe('a');
     expect(result!.preview).toBe('pinned content');
   });
+
+  test('selects the newest pinned message from an oldest-first buffer', () => {
+    const msgs = [
+      makeMsg({ id: 'old', body: 'older pin' }),
+      makeMsg({ id: 'mid', body: 'middle' }),
+      makeMsg({ id: 'new', body: 'newer pin' }),
+    ];
+    const result = resolveLatestPinInfo(msgs, ['old', 'new'], 2, t);
+    expect(result).not.toBeNull();
+    expect(result!.messageId).toBe('new');
+    expect(result!.preview).toBe('newer pin');
+  });
 });

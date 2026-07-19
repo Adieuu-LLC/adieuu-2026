@@ -459,6 +459,10 @@ export const core = {
         title: 'Manage Metadata',
         description: 'Allows members to change Space name, description, visibility, and related settings.',
       },
+      deleteSpace: {
+        title: 'Delete Space',
+        description: 'Allows members to permanently delete the Space and all of its content.',
+      },
       createInvite: {
         title: 'Create Invite',
         description: 'Yes: create invites. Manage: revoke others\u2019 invites and edit invite settings.',

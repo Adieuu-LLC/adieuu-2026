@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { endMessageSearchSessionAndWipeCache } from '../../services/messageSearch/messageSearchSessionEnd';
 
 export type ConversationPane = 'settings' | 'members' | 'search' | null;
@@ -17,6 +17,13 @@ export function useConversationMessageSearchSession(params: {
 }) {
   const { conversationId, identityId, adminDisallowPersistentCache, activePane, setActivePane } = params;
   const [messageSearchSessionActive, setMessageSearchSessionActive] = useState(false);
+  const sessionActiveRef = useRef(false);
+  sessionActiveRef.current = messageSearchSessionActive;
+
+  const identityIdRef = useRef(identityId);
+  identityIdRef.current = identityId;
+  const adminDisallowRef = useRef(adminDisallowPersistentCache);
+  adminDisallowRef.current = adminDisallowPersistentCache;
 
   const handleMessageSearchEndSession = useCallback(() => {
     setMessageSearchSessionActive(false);
@@ -52,8 +59,21 @@ export function useConversationMessageSearchSession(params: {
   ]);
 
   useEffect(() => {
+    const outgoingConversationId = conversationId;
+
     setMessageSearchSessionActive(false);
     setActivePane(null);
+
+    return () => {
+      const outgoingIdentityId = identityIdRef.current;
+      if (sessionActiveRef.current && outgoingConversationId && outgoingIdentityId) {
+        endMessageSearchSessionAndWipeCache({
+          identityId: outgoingIdentityId,
+          conversationId: outgoingConversationId,
+          adminDisallowPersistentCache: adminDisallowRef.current,
+        });
+      }
+    };
   }, [conversationId, setActivePane]);
 
   return {

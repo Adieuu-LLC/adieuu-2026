@@ -17,6 +17,7 @@ export const SPACE_PERMISSIONS = [
   'manageWebhooks',
   'manageEncryption',
   'manageMetadata',
+  'deleteSpace',
   // members
   'createInvite',
   'manageInvites',
@@ -87,6 +88,7 @@ export const SPACE_PERMISSION_DEFS: readonly SpacePermissionDef[] = [
   { id: 'manageWebhooks', category: 'general', toggle: 'noManage', permission: 'manageWebhooks' },
   { id: 'manageEncryption', category: 'general', toggle: 'noManage', permission: 'manageEncryption' },
   { id: 'manageMetadata', category: 'general', toggle: 'noManage', permission: 'manageMetadata' },
+  { id: 'deleteSpace', category: 'general', toggle: 'noManage', permission: 'deleteSpace' },
   // members
   {
     id: 'createInvite',

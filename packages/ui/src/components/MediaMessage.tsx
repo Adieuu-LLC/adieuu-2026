@@ -24,6 +24,10 @@ export type MediaMessageState = 'loading' | 'uploading' | 'scanning' | 'availabl
 /** `grid`: multi-attachment tile (tighter cap, see .dm-message-attachments). */
 export type MediaMessageLayout = 'default' | 'grid';
 
+function hasValidAttachmentDims(n: unknown): n is number {
+  return typeof n === 'number' && Number.isFinite(n) && n > 0;
+}
+
 export interface MediaMessageProps {
   attachment: MediaAttachment;
   state: MediaMessageState;
@@ -71,7 +75,7 @@ export const MediaMessage = memo(function MediaMessage({
   }, [imageUrl]);
 
   const aspectRatio =
-    attachment.width && attachment.height
+    hasValidAttachmentDims(attachment.width) && hasValidAttachmentDims(attachment.height)
       ? `${attachment.width} / ${attachment.height}`
       : undefined;
 
@@ -79,7 +83,7 @@ export const MediaMessage = memo(function MediaMessage({
   const { placeholderSizeStyle, placeholderClassName, hasKnownDims } = useMemo(() => {
     const w = attachment.width;
     const h = attachment.height;
-    if (!w || !h) {
+    if (!hasValidAttachmentDims(w) || !hasValidAttachmentDims(h)) {
       // No intrinsic dimensions: reserve a sensible fallback box (4:3) so the
       // row does not collapse to zero height and then reflow when media loads.
       const width = layout === 'grid' ? 220 : 260;

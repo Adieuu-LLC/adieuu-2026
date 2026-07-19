@@ -97,7 +97,10 @@ export async function findActiveSpaceIdsForIdentity(identityId: string): Promise
 
   try {
     const members = await getSpaceMembersCollection()
-      .find({ identityId: identityObjId, status: 'active' }, { projection: { spaceId: 1 } })
+      .find(
+        { identityId: identityObjId, status: 'active' },
+        { projection: { spaceId: 1 }, maxTimeMS: 2000 },
+      )
       .toArray();
     return members.map((m) => m.spaceId.toHexString());
   } catch (error) {

@@ -47,6 +47,7 @@ export function areChannelMessageBubblePropsEqual(
   if (prev.senderProfile?.displayName !== next.senderProfile?.displayName) return false;
   if (prev.ownProfile?.id !== next.ownProfile?.id) return false;
   if (prev.ownProfile?.avatarUrl !== next.ownProfile?.avatarUrl) return false;
+  if (prev.ownProfile?.displayName !== next.ownProfile?.displayName) return false;
 
   if (prev.participantProfiles !== next.participantProfiles) return false;
   if (prev.memberSettings !== next.memberSettings) return false;

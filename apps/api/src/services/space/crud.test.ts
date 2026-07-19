@@ -616,7 +616,7 @@ describe('space/crud', () => {
   });
 
   describe('deleteSpace', () => {
-    test('rejects a non-admin', async () => {
+    test('rejects a non-member', async () => {
       const spaceId = new ObjectId();
       spaceRepo.findById.mockResolvedValue(makeSpaceDoc({ _id: spaceId }));
       memberRepo.findMember.mockResolvedValue(null);
@@ -625,7 +625,62 @@ describe('space/crud', () => {
       expect(spaceRepo.deleteById).not.toHaveBeenCalled();
     });
 
-    test('cascades deletes and publishes space_deleted for an admin', async () => {
+    test('rejects a member with manageMetadata but without deleteSpace', async () => {
+      const spaceId = new ObjectId();
+      const actor = new ObjectId();
+      spaceRepo.findById.mockResolvedValue(
+        makeSpaceDoc({ _id: spaceId, ownerIdentityId: CREATOR }),
+      );
+      const roleId = new ObjectId();
+      memberRepo.findMember.mockResolvedValue({
+        _id: new ObjectId(),
+        spaceId,
+        identityId: actor,
+        status: 'active',
+        roleIds: [roleId],
+      });
+      roleRepo.findBySpace.mockResolvedValue([
+        {
+          _id: roleId,
+          spaceId,
+          name: 'Manager',
+          permissions: ['manageMetadata', 'viewChannels'],
+        },
+      ]);
+      const r = await deleteSpace(spaceId, actor);
+      expect(r).toMatchObject({ success: false, errorCode: 'FORBIDDEN' });
+      expect(spaceRepo.deleteById).not.toHaveBeenCalled();
+    });
+
+    test('allows a non-owner member with deleteSpace', async () => {
+      const spaceId = new ObjectId();
+      const actor = new ObjectId();
+      spaceRepo.findById.mockResolvedValue(
+        makeSpaceDoc({ _id: spaceId, ownerIdentityId: CREATOR }),
+      );
+      const roleId = new ObjectId();
+      memberRepo.findMember.mockResolvedValue({
+        _id: new ObjectId(),
+        spaceId,
+        identityId: actor,
+        status: 'active',
+        roleIds: [roleId],
+      });
+      roleRepo.findBySpace.mockResolvedValue([
+        {
+          _id: roleId,
+          spaceId,
+          name: 'Deleter',
+          permissions: ['deleteSpace', 'viewChannels'],
+        },
+      ]);
+      channelRepo.findBySpace.mockResolvedValue([]);
+      const r = await deleteSpace(spaceId, actor);
+      expect(r.success).toBe(true);
+      expect(spaceRepo.deleteById).toHaveBeenCalledWith(spaceId);
+    });
+
+    test('cascades deletes and publishes space_deleted for the owner', async () => {
       const spaceId = new ObjectId();
       const channelId = new ObjectId();
       spaceRepo.findById.mockResolvedValue(makeSpaceDoc({ _id: spaceId }));

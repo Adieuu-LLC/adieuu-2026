@@ -167,6 +167,33 @@ describe('chat connections - space fan-out', () => {
     await unregisterConnection('outage', ws, ['space-outage']);
   });
 
+  it('grants space fan-out for an already-connected joiner on space_member_joined', async () => {
+    const joiner = makeSocket();
+    const member = makeSocket(['space-join']);
+    await registerConnection('joiner', joiner, []);
+    await registerConnection('member', member, ['space-join']);
+
+    deliver('space:space-join', {
+      type: 'space_member_joined',
+      data: {
+        spaceId: 'space-join',
+        member: { identityId: 'joiner' },
+      },
+    });
+
+    expect(getConnectionsForSpace('space-join')?.has(joiner)).toBe(true);
+    expect(joiner.getUserData().spaceIds).toContain('space-join');
+    expect(joiner.send).toHaveBeenCalledTimes(1);
+    expect(member.send).toHaveBeenCalledTimes(1);
+
+    deliver('space:space-join', { type: 'space_message', data: {} });
+    expect(joiner.send).toHaveBeenCalledTimes(2);
+    expect(member.send).toHaveBeenCalledTimes(2);
+
+    await unregisterConnection('joiner', joiner, joiner.getUserData().spaceIds);
+    await unregisterConnection('member', member, ['space-join']);
+  });
+
   it('revokes space fan-out after space_member_left while delivering the leave event', async () => {
     const kicked = makeSocket(['space-kick']);
     const remaining = makeSocket(['space-kick']);

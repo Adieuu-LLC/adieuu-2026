@@ -8,6 +8,8 @@ import type { PublicSpaceRole } from '@adieuu/shared';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+
 interface SpaceRoleDisplayTabProps {
   role: PublicSpaceRole;
   saving: boolean;
@@ -53,6 +55,22 @@ export function SpaceRoleDisplayTab({
     mentionable !== role.mentionable ||
     isDefaultMember !== role.isDefaultMember;
 
+  const handleSave = () => {
+    if (!HEX_COLOR_RE.test(color)) {
+      setColor(role.color);
+      return;
+    }
+    const normalizedColor = color.toLowerCase();
+    if (normalizedColor !== color) setColor(normalizedColor);
+    void onSave({
+      name,
+      color: normalizedColor,
+      displaySeparately,
+      mentionable,
+      isDefaultMember,
+    });
+  };
+
   return (
     <Card className="admin-card space-role-tab-card">
       <label className="admin-field-label">
@@ -72,7 +90,7 @@ export function SpaceRoleDisplayTab({
           <input
             type="color"
             className="space-role-color-input"
-            value={color}
+            value={HEX_COLOR_RE.test(color) ? color : role.color}
             onChange={(e) => setColor(e.target.value)}
           />
           <input
@@ -131,9 +149,7 @@ export function SpaceRoleDisplayTab({
           variant="primary"
           size="sm"
           disabled={!dirty || saving}
-          onClick={() =>
-            void onSave({ name, color, displaySeparately, mentionable, isDefaultMember })
-          }
+          onClick={handleSave}
         >
           {saving ? t('spaces.manage.roles.saving') : t('spaces.manage.roles.save')}
         </Button>

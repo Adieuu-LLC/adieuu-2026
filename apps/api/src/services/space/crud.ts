@@ -566,7 +566,8 @@ export async function getSpaceManageOverview(
 }
 
 /**
- * Permanently delete a Space and all related documents. Admin-only.
+ * Permanently delete a Space and all related documents.
+ * Allowed for the Space owner or members with the deleteSpace permission.
  */
 export async function deleteSpace(
   spaceIdRaw: string | ObjectId,
@@ -587,10 +588,11 @@ export async function deleteSpace(
   if (!perms.isMember) {
     return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
   }
-  if (!memberHasPermission(perms, 'manageMetadata')) {
+  const isOwner = space.ownerIdentityId.equals(actingId);
+  if (!isOwner && !memberHasPermission(perms, 'deleteSpace')) {
     return {
       success: false,
-      error: 'You do not have permission to manage this Space.',
+      error: 'You do not have permission to delete this Space.',
       errorCode: 'FORBIDDEN',
     };
   }

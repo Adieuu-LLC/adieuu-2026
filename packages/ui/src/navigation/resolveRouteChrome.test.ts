@@ -35,6 +35,11 @@ describe('resolveRouteChrome', () => {
   });
 
   test('maps space routes with singular title', () => {
+    expect(resolveRouteChrome('/spaces/new')).toMatchObject({
+      icon: 'spaces',
+      titleKey: 'spaces.create.title',
+      titleDefault: 'Create a Space',
+    });
     expect(resolveRouteChrome('/s/my-space')).toMatchObject({
       icon: 'spaces',
       titleKey: 'spaces.spaceTitle',

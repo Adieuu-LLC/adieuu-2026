@@ -117,7 +117,7 @@ export function PublicSpaces() {
     } catch {
       if (seq === fetchSeq.current) toast.error(t('spaces.loadMoreError'));
     } finally {
-      if (seq === fetchSeq.current) setLoadingMore(false);
+      setLoadingMore(false);
     }
   }, [api, cursor, debouncedSearch, loadingMore, toast, t]);
 
@@ -240,7 +240,11 @@ export function PublicSpaces() {
                       </span>
                       <div className="spaces-card-actions">
                         {canBrowse && (
-                          <Link to={browsePath} className="btn btn-secondary btn-sm">
+                          <Link
+                            to={browsePath}
+                            className="btn btn-secondary btn-sm"
+                            aria-label={`${t('spaces.joinModal.browse')} ${displayName}`}
+                          >
                             {t('spaces.joinModal.browse')}
                           </Link>
                         )}
@@ -248,6 +252,7 @@ export function PublicSpaces() {
                           variant="primary"
                           size="sm"
                           onClick={() => setJoinTarget(space)}
+                          aria-label={`${t('spaces.join')} ${displayName}`}
                         >
                           {t('spaces.join')}
                         </Button>

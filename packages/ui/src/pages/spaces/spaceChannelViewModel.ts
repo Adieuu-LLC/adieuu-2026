@@ -37,7 +37,15 @@ export function resolveLatestPinInfo(
   t: TFunction,
 ): { preview: string; messageId: string } | null {
   if (pinnedCount === 0) return null;
-  const pinned = channelMessages.find((m) => pinnedMessageIds.includes(m.id));
+  // Oldest-first array: walk from the end to select the newest pinned message.
+  let pinned: ChannelMessage | undefined;
+  for (let i = channelMessages.length - 1; i >= 0; i--) {
+    const m = channelMessages[i]!;
+    if (pinnedMessageIds.includes(m.id)) {
+      pinned = m;
+      break;
+    }
+  }
   if (!pinned) return null;
   return { preview: formatSpacePinPreview(pinned.body, t), messageId: pinned.id };
 }

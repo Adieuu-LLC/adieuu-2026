@@ -99,7 +99,8 @@ export function MessageBody({
       {content && embeds.hasHiddenEmbeds && (
         <div className="embed-hidden-actions">
           {(() => {
-            const firstHidden = embeds.hiddenEmbedMap!.entries().next().value;
+            if (!embeds.hiddenEmbedMap) return null;
+            const firstHidden = embeds.hiddenEmbedMap.entries().next().value;
             if (!firstHidden) return null;
             const [, info] = firstHidden;
             return (

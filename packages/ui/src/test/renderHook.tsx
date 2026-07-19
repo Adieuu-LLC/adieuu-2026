@@ -58,16 +58,29 @@ export async function renderElement(
   };
 }
 
-export interface RenderHookResult<T, P> {
+export interface RenderHookResultNoProps<T> {
   result: { current: T };
-  rerender: (props?: P) => Promise<void>;
+  rerender: () => Promise<void>;
   unmount: () => void;
 }
 
+export interface RenderHookResultWithProps<T, P> {
+  result: { current: T };
+  rerender: (props: P) => Promise<void>;
+  unmount: () => void;
+}
+
+export async function renderHook<T>(
+  callback: () => T,
+): Promise<RenderHookResultNoProps<T>>;
+export async function renderHook<T, P>(
+  callback: (props: P) => T,
+  options: { initialProps: P },
+): Promise<RenderHookResultWithProps<T, P>>;
 export async function renderHook<T, P = void>(
   callback: (props: P) => T,
   options?: { initialProps?: P },
-): Promise<RenderHookResult<T, P>> {
+): Promise<RenderHookResultNoProps<T> | RenderHookResultWithProps<T, P>> {
   installDom();
   const result = { current: undefined as unknown as T };
   let currentProps = options?.initialProps as P;

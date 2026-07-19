@@ -19,6 +19,7 @@
  */
 import { mock } from 'bun:test';
 import { createElement, type ReactNode } from 'react';
+import type { PathMatch } from 'react-router';
 
 // ---------------------------------------------------------------------------
 // Mutable state for test inspection / configuration
@@ -30,7 +31,7 @@ export const mockNavigate = mock((_to: string | number, _options?: unknown) => {
 let _searchParams = new URLSearchParams();
 let _pathname = '/';
 let _params: Record<string, string> = {};
-let _matchResult: Record<string, string> | null = null;
+let _matchResult: PathMatch<string> | null = null;
 
 /** Mutable location object for easy test manipulation. */
 export const mockLocation = { pathname: '/' };
@@ -52,7 +53,7 @@ export function setMockParams(params: Record<string, string>): void {
 }
 
 /** Replace the value returned by useMatch(). */
-export function setMockMatch(match: Record<string, string> | null): void {
+export function setMockMatch(match: PathMatch<string> | null): void {
   _matchResult = match;
 }
 

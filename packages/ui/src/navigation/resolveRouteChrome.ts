@@ -59,6 +59,9 @@ export function resolveRouteChrome(pathname: string): RouteChromeDescriptor {
   if (pathname === '/search') {
     return { icon: 'search', titleKey: 'search.title', titleDefault: 'Search' };
   }
+  if (pathname === '/spaces/new') {
+    return { icon: 'spaces', titleKey: 'spaces.create.title', titleDefault: 'Create a Space' };
+  }
   if (pathname === '/spaces') {
     return { icon: 'spaces', titleKey: 'spaces.title', titleDefault: 'Spaces' };
   }

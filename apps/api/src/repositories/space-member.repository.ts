@@ -89,7 +89,7 @@ export class SpaceMemberRepository extends BaseRepository<SpaceMemberDocument> {
       { spaceId, identityId } as Filter<SpaceMemberDocument>,
       { $addToSet: { roleIds: roleId }, $set: { updatedAt: new Date() } }
     );
-    return result.modifiedCount === 1;
+    return result.matchedCount === 1;
   }
 
   async removeRole(spaceId: ObjectId, identityId: ObjectId, roleId: ObjectId): Promise<boolean> {

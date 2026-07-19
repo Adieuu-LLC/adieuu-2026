@@ -125,14 +125,14 @@ export function initializeMessageHandler(): void {
       : channel;
 
     let eventType: string | undefined;
-    let leftIdentityId: string | undefined;
+    let memberIdentityId: string | undefined;
     try {
       const parsed = JSON.parse(message) as {
         type?: string;
-        data?: { identityId?: string };
+        data?: { identityId?: string; member?: { identityId?: string } };
       };
       eventType = parsed?.type;
-      leftIdentityId = parsed?.data?.identityId;
+      memberIdentityId = parsed?.data?.member?.identityId ?? parsed?.data?.identityId;
     } catch {
       // Best-effort parse for logging; forward the raw message regardless
     }
@@ -140,6 +140,11 @@ export function initializeMessageHandler(): void {
     // Space broadcast channel: fan out to every member socket for the space.
     if (unprefixed.startsWith('space:')) {
       const spaceId = unprefixed.slice('space:'.length);
+      // Grant joining members before fan-out so already-connected sockets receive this
+      // and subsequent space: deliveries.
+      if (eventType === 'space_member_joined' && memberIdentityId) {
+        void grantSpaceMembership(spaceId, memberIdentityId);
+      }
       deliverToSockets(spaceConnections.get(spaceId), message, {
         channel,
         scope: 'space',
@@ -147,8 +152,8 @@ export function initializeMessageHandler(): void {
         eventType,
       });
       // After delivery, drop revoked members so they stop receiving further broadcasts.
-      if (eventType === 'space_member_left' && leftIdentityId) {
-        void revokeSpaceMembership(spaceId, leftIdentityId);
+      if (eventType === 'space_member_left' && memberIdentityId) {
+        void revokeSpaceMembership(spaceId, memberIdentityId);
       }
       return;
     }
@@ -257,6 +262,36 @@ async function subscribeToSpace(spaceId: string): Promise<void> {
   } catch (error) {
     logger.error('Failed to subscribe to space channel', { error, channel });
   }
+}
+
+/**
+ * Adds an already-connected identity's sockets to a Space's local fan-out set
+ * after they join. Subscribes to the Redis space channel when needed.
+ */
+async function grantSpaceMembership(spaceId: string, identityId: string): Promise<void> {
+  const identitySockets = connections.get(identityId);
+  if (!identitySockets || identitySockets.size === 0) {
+    return;
+  }
+
+  let spaceSockets = spaceConnections.get(spaceId);
+  if (!spaceSockets) {
+    spaceSockets = new Set();
+    spaceConnections.set(spaceId, spaceSockets);
+  }
+
+  for (const ws of identitySockets) {
+    spaceSockets.add(ws);
+    const userData = ws.getUserData();
+    if (!userData.spaceIds) {
+      userData.spaceIds = [];
+    }
+    if (!userData.spaceIds.includes(spaceId)) {
+      userData.spaceIds.push(spaceId);
+    }
+  }
+
+  await subscribeToSpace(spaceId);
 }
 
 /**
