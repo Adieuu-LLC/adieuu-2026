@@ -81,6 +81,11 @@
 // Space Manage roles
 // ---------------------------------------------------------------------------
 
+// Collapse manage/roles side rails to Selects below this width. Higher than the
+// generic admin 720px / Space 720px mobile breakpoints so midsize viewports do
+// not keep three sticky columns (app + manage nav + roles list) for too long.
+$space-manage-collapse: 1100px;
+
 .space-manage-shell {
   flex: 1;
   min-width: 0;
@@ -91,6 +96,12 @@
   align-items: stretch;
   overflow: hidden;
   padding-bottom: 0;
+  // Tighter than the default admin gap — manage shares the Space page chrome.
+  gap: var(--spacing-md);
+
+  .admin-sub-sidebar {
+    flex: 0 0 160px;
+  }
 
   .admin-outlet {
     display: flex;
@@ -158,7 +169,7 @@
   flex-shrink: 0;
 }
 
-@media (max-width: 850px) {
+@media (max-width: $space-manage-collapse) {
   .space-manage-shell {
     flex-direction: column;
     gap: 0;
@@ -194,8 +205,8 @@
 
 .space-manage-roles-layout {
   display: grid;
-  grid-template-columns: 220px 1fr;
-  gap: var(--spacing-lg);
+  grid-template-columns: 180px 1fr;
+  gap: var(--spacing-md);
   margin-top: var(--spacing-md);
   align-items: start;
 }
@@ -330,7 +341,7 @@
   min-height: 0;
 }
 
-@media (max-width: 850px) {
+@media (max-width: $space-manage-collapse) {
   .space-manage-roles-layout {
     grid-template-columns: 1fr;
     gap: 0;

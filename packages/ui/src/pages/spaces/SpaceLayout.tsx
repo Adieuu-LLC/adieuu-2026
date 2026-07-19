@@ -4,7 +4,8 @@
  * Resolves the slug, guards for an Alias session, and renders a Discord-like
  * secondary sidebar (channels) alongside an `<Outlet />` for the landing page
  * or channel views. On narrow viewports the channel rail becomes an off-canvas
- * drawer with a compact Select chrome (hidden entirely on manage routes).
+ * drawer with a compact Select chrome. Manage routes hide the channel rail at
+ * all widths so the manage/roles chrome has room on midsize viewports.
  *
  * When navigating to the index route (`/s/:slug` with no channel), the layout
  * auto-redirects to the last-viewed channel (persisted in localStorage) or the
@@ -152,7 +153,9 @@ export function SpaceLayout() {
     );
   }
 
-  const hideChannelSidebar = isNarrow && isManageRoute;
+  // Manage already has its own secondary nav (and Roles a third list). Keep the
+  // channel rail out of the way at every width so midsize viewports are usable.
+  const hideChannelSidebar = isManageRoute;
   const showMobileChrome = isNarrow && !isManageRoute;
 
   return (

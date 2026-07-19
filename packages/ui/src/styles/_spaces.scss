@@ -611,6 +611,12 @@ button.space-message-author:hover {
   overflow-wrap: anywhere;
 }
 
+// Manage routes never show the channel rail — free width for manage/roles chrome.
+.space-page--manage .space-secondary-sidebar,
+.space-page--manage .space-mobile-overlay {
+  display: none;
+}
+
 // ============================================================================
 // Responsive — hybrid mobile chrome + off-canvas channel drawer (≤720px)
 // Scoped inside `.space-page` so layers stay below the app sidebar stack.
@@ -656,11 +662,6 @@ button.space-message-author:hover {
       transform: translateX(0);
       box-shadow: var(--shadow-md);
     }
-  }
-
-  .space-page--manage .space-secondary-sidebar,
-  .space-page--manage .space-mobile-overlay {
-    display: none;
   }
 
   .space-mobile-chrome {
