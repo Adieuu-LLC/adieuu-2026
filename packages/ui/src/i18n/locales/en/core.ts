@@ -330,9 +330,12 @@ export const core = {
       createChannel: 'Create channel',
       editChannel: 'Edit channel',
       createCategory: 'Create category',
+      createChildCategory: 'Create child category',
       editCategory: 'Edit category',
       deleteCategory: 'Delete category',
+      newCategoryName: 'New Category',
       layoutError: "Couldn't update channel order.",
+      createCategoryError: "Couldn't create category.",
       openMenu: 'Open Space menu',
       closeMenu: 'Close Space menu',
       selectChannel: 'Select a channel',
@@ -394,6 +397,7 @@ export const core = {
       nav: {
         overview: 'Overview',
         roles: 'Roles',
+        backToSpace: 'Back to Space',
       },
       loadError: "Couldn't load Space management data.",
       stats: {

@@ -87,12 +87,29 @@ export class SpaceChannelRepository extends BaseRepository<SpaceChannelDocument>
 
   /** Clear categoryId for all channels in a category (uncategorize). */
   async clearCategory(spaceId: ObjectId, categoryId: ObjectId): Promise<number> {
+    return this.reparentChannels(spaceId, categoryId, null);
+  }
+
+  /** Move all channels in `fromCategoryId` to `toCategoryId` (null = uncategorized). */
+  async reparentChannels(
+    spaceId: ObjectId,
+    fromCategoryId: ObjectId,
+    toCategoryId: ObjectId | null,
+  ): Promise<number> {
+    const $set: Record<string, unknown> = { updatedAt: new Date() };
+    const $unset: Record<string, ''> = {};
+    if (toCategoryId) {
+      $set.categoryId = toCategoryId;
+    } else {
+      $unset.categoryId = '';
+    }
+    const update: UpdateFilter<SpaceChannelDocument> = { $set };
+    if (Object.keys($unset).length > 0) {
+      update.$unset = $unset;
+    }
     const result = await this.collection.updateMany(
-      { spaceId, categoryId } as Filter<SpaceChannelDocument>,
-      {
-        $unset: { categoryId: '' },
-        $set: { updatedAt: new Date() },
-      } as UpdateFilter<SpaceChannelDocument>,
+      { spaceId, categoryId: fromCategoryId } as Filter<SpaceChannelDocument>,
+      update,
     );
     return result.modifiedCount;
   }

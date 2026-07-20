@@ -25,6 +25,7 @@ const roleRepo = {
 const channelRepo = {
   findBySpace: mock(async (_s: ObjectId) => [] as any[]) as AnyMock,
   clearCategory: mock(async (_s: ObjectId, _c: ObjectId) => 0) as AnyMock,
+  reparentChannels: mock(async (_s: ObjectId, _c: ObjectId, _to: ObjectId | null) => 0) as AnyMock,
   setLayout: mock(async () => {}) as AnyMock,
   createChannel: mock(async (input: any) => ({
     ...input,
@@ -53,7 +54,8 @@ const categoryRepo = {
     updatedAt: new Date(),
   })) as AnyMock,
   deleteCategory: mock(async (_s: ObjectId, _c: ObjectId) => true) as AnyMock,
-  setPositions: mock(async () => {}) as AnyMock,
+  setLayout: mock(async () => {}) as AnyMock,
+  reparentChildren: mock(async () => 0) as AnyMock,
 };
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -234,9 +236,10 @@ describe('space/category-crud', () => {
     expect(r.categories?.map((c) => c.name)).toEqual(['Open']);
   });
 
-  test('deleteSpaceChannelCategory uncategorizes children', async () => {
+  test('deleteSpaceChannelCategory promotes children to parent', async () => {
     const spaceId = new ObjectId();
     const actor = new ObjectId();
+    const parentId = new ObjectId();
     const categoryId = new ObjectId();
     seedAdmin(spaceId, actor);
     categoryRepo.findByIdInSpace.mockResolvedValue({
@@ -244,6 +247,7 @@ describe('space/category-crud', () => {
       spaceId,
       name: 'Projects',
       position: 0,
+      parentCategoryId: parentId,
       allowedRoleIds: [EVERYONE_ROLE],
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -251,7 +255,8 @@ describe('space/category-crud', () => {
 
     const r = await deleteSpaceChannelCategory(spaceId, categoryId, actor);
     expect(r.success).toBe(true);
-    expect(channelRepo.clearCategory).toHaveBeenCalledWith(spaceId, categoryId);
+    expect(channelRepo.reparentChannels).toHaveBeenCalledWith(spaceId, categoryId, parentId);
+    expect(categoryRepo.reparentChildren).toHaveBeenCalledWith(spaceId, categoryId, parentId);
     expect(publishSpaceEvent.mock.calls[0]![1].type).toBe('space_category_deleted');
   });
 
@@ -280,7 +285,7 @@ describe('space/category-crud', () => {
     expect(channelRepo.createChannel.mock.calls[0]![0].categoryId).toEqual(categoryId);
   });
 
-  test('updateSpaceChannelLayout reorders categories and channels', async () => {
+  test('updateSpaceChannelLayout reorders nested categories and channels', async () => {
     const spaceId = new ObjectId();
     const actor = new ObjectId();
     const catA = new ObjectId();
@@ -334,16 +339,56 @@ describe('space/category-crud', () => {
     ]);
 
     const r = await updateSpaceChannelLayout(spaceId, actor, {
-      categoryIds: [catB.toHexString(), catA.toHexString()],
-      channelOrder: [
-        { categoryId: null, channelIds: [ch2.toHexString()] },
-        { categoryId: catB.toHexString(), channelIds: [ch1.toHexString()] },
-        { categoryId: catA.toHexString(), channelIds: [] },
+      groups: [
+        {
+          parentCategoryId: null,
+          items: [
+            { type: 'category', id: catB.toHexString() },
+            { type: 'channel', id: ch2.toHexString() },
+            { type: 'category', id: catA.toHexString() },
+          ],
+        },
+        { parentCategoryId: catA.toHexString(), items: [{ type: 'channel', id: ch1.toHexString() }] },
+        { parentCategoryId: catB.toHexString(), items: [] },
       ],
     });
     expect(r.success).toBe(true);
-    expect(categoryRepo.setPositions).toHaveBeenCalledWith(spaceId, [catB, catA]);
+    expect(categoryRepo.setLayout).toHaveBeenCalled();
     expect(channelRepo.setLayout).toHaveBeenCalled();
     expect(publishSpaceEvent.mock.calls[0]![1].type).toBe('space_channel_layout_updated');
+  });
+
+  test('updateSpaceChannelLayout rejects nesting deeper than max depth', async () => {
+    const spaceId = new ObjectId();
+    const actor = new ObjectId();
+    const ids = Array.from({ length: 6 }, () => new ObjectId());
+    seedAdmin(spaceId, actor);
+    categoryRepo.findBySpace.mockResolvedValue(
+      ids.map((id, i) => ({
+        _id: id,
+        spaceId,
+        name: `C${i}`,
+        position: 0,
+        parentCategoryId: i === 0 ? undefined : ids[i - 1],
+        allowedRoleIds: [EVERYONE_ROLE],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })),
+    );
+    channelRepo.findBySpace.mockResolvedValue([]);
+
+    const groups = [
+      { parentCategoryId: null, items: [{ type: 'category' as const, id: ids[0]!.toHexString() }] },
+      ...ids.map((id, i) => ({
+        parentCategoryId: id.toHexString(),
+        items:
+          i < ids.length - 1
+            ? [{ type: 'category' as const, id: ids[i + 1]!.toHexString() }]
+            : [],
+      })),
+    ];
+
+    const r = await updateSpaceChannelLayout(spaceId, actor, { groups });
+    expect(r).toMatchObject({ success: false, errorCode: 'INVALID_CONTENT' });
   });
 });

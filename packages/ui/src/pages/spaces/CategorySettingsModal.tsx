@@ -35,6 +35,10 @@ export interface CategorySettingsModalProps {
   space: PublicSpace;
   heldRoleIds: readonly string[];
   category?: PublicSpaceChannelCategory | null;
+  /** When creating, nest under this category. */
+  parentCategoryId?: string | null;
+  /** Prefill ACL when creating (e.g. inherit from parent category). */
+  initialAllowedRoleIds?: readonly string[] | null;
   onCreated?: (category: PublicSpaceChannelCategory) => void;
   onUpdated?: (category: PublicSpaceChannelCategory) => void;
 }
@@ -45,6 +49,8 @@ export function CategorySettingsModal({
   space,
   heldRoleIds,
   category = null,
+  parentCategoryId = null,
+  initialAllowedRoleIds = null,
   onCreated,
   onUpdated,
 }: CategorySettingsModalProps) {
@@ -80,7 +86,9 @@ export function CategorySettingsModal({
       setSelectedRoleIds(new Set(category.allowedRoleIds));
     } else {
       setName('');
-      setSelectedRoleIds(new Set());
+      setSelectedRoleIds(
+        initialAllowedRoleIds?.length ? new Set(initialAllowedRoleIds) : new Set(),
+      );
     }
 
     let cancelled = false;
@@ -90,12 +98,16 @@ export function CategorySettingsModal({
       setLoadingRoles(false);
       if (!res.success || !res.data?.roles) {
         setRoles([]);
-        if (!category) setSelectedRoleIds(new Set());
+        if (!category && !initialAllowedRoleIds?.length) setSelectedRoleIds(new Set());
         return;
       }
       const list = res.data.roles;
       setRoles(list);
       if (!category) {
+        if (initialAllowedRoleIds?.length) {
+          setSelectedRoleIds(new Set(initialAllowedRoleIds));
+          return;
+        }
         const everyone = findEveryoneRole(list);
         setSelectedRoleIds(everyone ? new Set([everyone.id]) : new Set());
       }
@@ -103,7 +115,7 @@ export function CategorySettingsModal({
     return () => {
       cancelled = true;
     };
-  }, [open, api, space.id, category, spaceCipher]);
+  }, [open, api, space.id, category, spaceCipher, initialAllowedRoleIds]);
 
   const toggleRole = useCallback((roleId: string) => {
     setSelectedRoleIds((prev) => {
@@ -161,6 +173,7 @@ export function CategorySettingsModal({
       const body: CreateSpaceChannelCategoryParams = {
         ...nameFields,
         allowedRoleIds: [...selectedRoleIds],
+        ...(parentCategoryId ? { parentCategoryId } : {}),
       };
       const res = await api.spaces.createCategory(space.id, body);
       if (res.success && res.data?.category) {
@@ -178,6 +191,7 @@ export function CategorySettingsModal({
     buildNameFields,
     isEdit,
     category,
+    parentCategoryId,
     selectedRoleIds,
     api,
     space.id,

@@ -378,6 +378,7 @@ const spaceCategoryNameFields = {
   encryptedName: z.string().min(1).max(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
   nameNonce: z.string().min(1).max(500).optional(),
   cipherId: z.string().min(1).max(256).optional(),
+  parentCategoryId: z.string().length(24).nullable().optional(),
 };
 
 export const CreateSpaceChannelCategorySchema = z
@@ -413,12 +414,18 @@ export const UpdateSpaceChannelCategorySchema = z
   );
 
 export const UpdateSpaceChannelLayoutSchema = z.object({
-  categoryIds: z.array(z.string().length(24)).max(200),
-  channelOrder: z
+  groups: z
     .array(
       z.object({
-        categoryId: z.string().length(24).nullable(),
-        channelIds: z.array(z.string().length(24)).max(500),
+        parentCategoryId: z.string().length(24).nullable(),
+        items: z
+          .array(
+            z.discriminatedUnion('type', [
+              z.object({ type: z.literal('channel'), id: z.string().length(24) }),
+              z.object({ type: z.literal('category'), id: z.string().length(24) }),
+            ]),
+          )
+          .max(500),
       }),
     )
     .max(201),

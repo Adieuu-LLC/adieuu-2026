@@ -4,7 +4,7 @@
  */
 
 import { useMemo } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Select, Portal, createListCollection } from '@ark-ui/react';
 import { useSpaces } from '../../hooks/useSpaces';
@@ -17,7 +17,8 @@ export function SpaceManageLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { hasActiveSpacePermission } = useSpaces();
-  const base = `/s/${slug}/manage`;
+  const spacePath = `/s/${slug}`;
+  const base = `${spacePath}/manage`;
 
   const canOverview = hasActiveSpacePermission('manageMetadata');
   const canRoles = hasActiveSpacePermission('manageRoles');
@@ -52,9 +53,17 @@ export function SpaceManageLayout() {
     navItems.find((item) => item.value === activeValue)?.label ??
     t('spaces.manage.navLabel');
 
+  const renderBackLink = () => (
+    <Link to={spacePath} className="space-manage-back-link">
+      <Icon name="arrowLeft" size="xs" />
+      <span>{t('spaces.manage.nav.backToSpace')}</span>
+    </Link>
+  );
+
   return (
     <div className="admin-shell space-manage-shell">
       <aside className="admin-sub-sidebar" aria-label={t('spaces.manage.navLabel')}>
+        {renderBackLink()}
         <nav className="admin-sub-nav">
           {canOverview && (
             <NavLink to={base} end className={navClass}>
@@ -71,6 +80,7 @@ export function SpaceManageLayout() {
 
       {navItems.length > 0 && (
         <div className="space-manage-nav-select-wrapper">
+          {renderBackLink()}
           <Select.Root
             collection={collection}
             value={[activeValue]}

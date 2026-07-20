@@ -11,6 +11,48 @@
   flex: 1;
 }
 
+.space-sidebar-rail-chrome {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.space-sidebar-context-fill {
+  flex: 1 1 auto;
+  min-height: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+
+  // Ark Menu.Root renders a wrapper; stretch it so empty-area clicks work.
+  > * {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+  }
+}
+
+.space-sidebar-context-surface--fill {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: var(--spacing-lg);
+}
+
+.space-sidebar-tree-region {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.space-sidebar-rail-filler {
+  flex: 1 1 auto;
+  min-height: var(--spacing-lg);
+}
+
 .space-sidebar-buckets {
   display: flex;
   flex-direction: column;
@@ -41,4 +83,53 @@
   outline: 1px dashed var(--color-accent-primary);
   outline-offset: -2px;
   border-radius: var(--radius-sm);
+}
+
+.space-sidebar-drop-target {
+  position: relative;
+}
+
+.space-sidebar-drop-line--before::before,
+.space-sidebar-drop-line--after::after {
+  content: '';
+  position: absolute;
+  left: var(--spacing-sm);
+  right: var(--spacing-sm);
+  height: 2px;
+  background: var(--color-accent-primary);
+  border-radius: 1px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.space-sidebar-drop-line--before::before {
+  top: 0;
+}
+
+.space-sidebar-drop-line--after::after {
+  bottom: 0;
+}
+
+.space-sidebar-drop-on {
+  outline: 1px dashed var(--color-accent-primary);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-accent-primary) 8%, transparent);
+}
+
+.space-sidebar-tree {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+}
+
+.space-sidebar-tree-level {
+  display: flex;
+  flex-direction: column;
+}
+
+.space-sidebar-tree-level--nested {
+  padding-left: var(--spacing-sm);
+  border-left: 1px solid var(--color-border-subtle, var(--color-border));
+  margin-left: var(--spacing-xs);
 }

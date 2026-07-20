@@ -389,6 +389,8 @@ export {
   type CreateSpaceChannelCategoryParams,
   type UpdateSpaceChannelCategoryParams,
   type UpdateSpaceChannelLayoutParams,
+  type SpaceChannelLayoutItem,
+  SPACE_CATEGORY_MAX_DEPTH,
   type SendSpaceMessageParams,
   type EditSpaceMessageParams,
   type AddSpaceReactionParams,

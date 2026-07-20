@@ -2,11 +2,18 @@
  * Discord-style secondary sidebar for a Space.
  *
  * On desktop: persistent channel rail. On mobile: off-canvas drawer inside
- * `.space-page` (opened from SpaceMobileChrome). Supports categories, context
- * menus on the whole rail, and manageChannels-gated drag/drop.
+ * `.space-page` (opened from SpaceMobileChrome). Supports nested categories,
+ * context menus on the whole rail, and manageChannels-gated drag/drop.
  */
 
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  type MutableRefObject,
+  type ReactNode,
+} from 'react';
 import { NavLink, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -18,7 +25,9 @@ import {
 } from '@dnd-kit/core';
 import { Menu, Portal } from '@ark-ui/react';
 import {
+  SPACE_CATEGORY_MAX_DEPTH,
   createApiClient,
+  type CreateSpaceChannelCategoryParams,
   type PublicSpaceChannel,
   type PublicSpaceChannelCategory,
 } from '@adieuu/shared';
@@ -28,17 +37,26 @@ import { useToast } from '../../components/Toast';
 import { useAppConfig } from '../../config';
 import { useSpaceCipher } from './useSpaceCipher';
 import {
+  encryptSpaceMetadataField,
   resolveChannelDisplayName,
   resolveSpaceDisplayName,
 } from './spaceMetadataCipher';
 import { ChannelSettingsModal } from './ChannelSettingsModal';
 import { CategorySettingsModal } from './CategorySettingsModal';
-import { DraggableSpaceItem, DroppableSpaceTarget } from './spaceSidebarDnd';
+import {
+  DraggableSpaceItem,
+  DroppableSpaceTarget,
+  SpaceDropHighlightProvider,
+  type DropHighlight,
+} from './spaceSidebarDnd';
 import {
   applySpaceSidebarDrag,
-  buildSpaceSidebarBuckets,
-  sortByPosition,
+  buildSpaceSidebarTree,
+  getCategoryDepth,
+  layoutAfterCreateCategoryFromChannels,
+  type SpaceSidebarTreeItem,
 } from './spaceSidebarLayout';
+import '../../styles/_spaces-sidebar.scss';
 
 interface SpaceSecondarySidebarProps {
   mobileOpen?: boolean;
@@ -49,19 +67,36 @@ function ContextMenu({
   onSelect,
   items,
   children,
+  isolate = false,
+  fill = false,
 }: {
   onSelect: (value: string) => void;
   items: ReadonlyArray<{ value: string; label: string }>;
   children: ReactNode;
+  /** Stop contextmenu bubbling so a parent rail menu does not also open. */
+  isolate?: boolean;
+  /** Grow to fill remaining sidebar space (empty-area create menu). */
+  fill?: boolean;
 }) {
   if (items.length === 0) return <>{children}</>;
-  return (
+  const surface = (
+    // biome-ignore lint/a11y/noStaticElementInteractions: optional stopPropagation boundary for nested menus
+    <div
+      className={
+        fill
+          ? 'space-sidebar-context-surface space-sidebar-context-surface--fill'
+          : 'space-sidebar-context-surface'
+      }
+      data-skip-app-plain-context
+      onContextMenu={isolate ? (e) => e.stopPropagation() : undefined}
+    >
+      {children}
+    </div>
+  );
+
+  const menu = (
     <Menu.Root onSelect={(details) => onSelect(details.value)}>
-      <Menu.ContextTrigger asChild>
-        <div className="space-sidebar-context-surface" data-skip-app-plain-context>
-          {children}
-        </div>
-      </Menu.ContextTrigger>
+      <Menu.ContextTrigger asChild>{surface}</Menu.ContextTrigger>
       <Portal>
         <Menu.Positioner>
           <Menu.Content className="conversation-context-menu">
@@ -78,6 +113,27 @@ function ContextMenu({
         </Menu.Positioner>
       </Portal>
     </Menu.Root>
+  );
+
+  if (!fill) return menu;
+  return <div className="space-sidebar-context-fill">{menu}</div>;
+}
+
+function SpaceSidebarDndShell({
+  sensors,
+  onDragEnd,
+  zoneRef,
+  children,
+}: {
+  sensors: ReturnType<typeof useSensors>;
+  onDragEnd: (event: DragEndEvent) => void;
+  zoneRef: MutableRefObject<DropHighlight>;
+  children: ReactNode;
+}) {
+  return (
+    <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+      <SpaceDropHighlightProvider zoneRef={zoneRef}>{children}</SpaceDropHighlightProvider>
+    </DndContext>
   );
 }
 
@@ -104,10 +160,12 @@ export function SpaceSecondarySidebar({
     applyChannelLayout,
   } = useSpaces();
   const { spaceCipher } = useSpaceCipher(activeSpace?.id);
+  const dropZoneRef = useRef<DropHighlight>(null);
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
   const [createChannelCategoryId, setCreateChannelCategoryId] = useState<string | null>(null);
   const [editingChannel, setEditingChannel] = useState<PublicSpaceChannel | null>(null);
   const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
+  const [createCategoryParentId, setCreateCategoryParentId] = useState<string | null>(null);
   const [editingCategory, setEditingCategory] = useState<PublicSpaceChannelCategory | null>(null);
   const [collapsedCategoryIds, setCollapsedCategoryIds] = useState<Set<string>>(() => {
     try {
@@ -128,15 +186,14 @@ export function SpaceSecondarySidebar({
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
 
-  const sortedCategories = useMemo(() => sortByPosition(categories), [categories]);
-  const buckets = useMemo(
-    () => buildSpaceSidebarBuckets(categories, channels),
+  const tree = useMemo(
+    () => buildSpaceSidebarTree(categories, channels),
     [categories, channels],
   );
 
   const categoryById = useMemo(
-    () => new Map(sortedCategories.map((c) => [c.id, c])),
-    [sortedCategories],
+    () => new Map(categories.map((c) => [c.id, c])),
+    [categories],
   );
 
   const toggleCollapsed = useCallback(
@@ -151,7 +208,9 @@ export function SpaceSecondarySidebar({
               `adieuu:spaceCollapsedCats:${activeSpace.id}`,
               JSON.stringify([...next]),
             );
-          } catch { /* quota */ }
+          } catch {
+            /* quota */
+          }
         }
         return next;
       });
@@ -169,15 +228,28 @@ export function SpaceSecondarySidebar({
     return categoryById.get(createChannelCategoryId)?.allowedRoleIds ?? null;
   }, [createChannelCategoryId, categoryById]);
 
-  const handleRailMenu = useCallback((value: string) => {
-    if (value === 'create-channel') openCreateChannel(null);
-    else if (value === 'create-category') setCreateCategoryOpen(true);
-  }, [openCreateChannel]);
+  const openCreateCategory = useCallback((parentCategoryId: string | null = null) => {
+    setCreateCategoryParentId(parentCategoryId);
+    setCreateCategoryOpen(true);
+  }, []);
+
+  const createCategoryParent = createCategoryParentId
+    ? categoryById.get(createCategoryParentId) ?? null
+    : null;
+
+  const handleRailMenu = useCallback(
+    (value: string) => {
+      if (value === 'create-channel') openCreateChannel(null);
+      else if (value === 'create-category') openCreateCategory(null);
+    },
+    [openCreateChannel, openCreateCategory],
+  );
 
   const handleCategoryMenu = useCallback(
     (category: PublicSpaceChannelCategory, value: string) => {
       if (value === 'edit-category') setEditingCategory(category);
       else if (value === 'create-channel') openCreateChannel(category.id);
+      else if (value === 'create-child-category') openCreateCategory(category.id);
       else if (value === 'delete-category' && activeSpace) {
         void (async () => {
           const res = await api.spaces.deleteCategory(activeSpace.id, category.id);
@@ -189,16 +261,81 @@ export function SpaceSecondarySidebar({
         })();
       }
     },
-    [openCreateChannel, activeSpace, api, removeCategoryLocally, toast, t],
+    [openCreateChannel, openCreateCategory, activeSpace, api, removeCategoryLocally, toast, t],
   );
 
   const handleChannelMenu = useCallback(
     (channel: PublicSpaceChannel, value: string) => {
       if (value === 'edit-channel') setEditingChannel(channel);
       else if (value === 'create-channel') openCreateChannel(channel.categoryId);
-      else if (value === 'create-category') setCreateCategoryOpen(true);
+      else if (value === 'create-category') openCreateCategory(channel.categoryId);
     },
-    [openCreateChannel],
+    [openCreateChannel, openCreateCategory],
+  );
+
+  const createCategoryFromChannels = useCallback(
+    async (intent: {
+      parentCategoryId: string | null;
+      channelIds: [string, string];
+      insertIndex: number;
+    }) => {
+      if (!activeSpace) return;
+      const parent =
+        intent.parentCategoryId != null
+          ? categoryById.get(intent.parentCategoryId)
+          : null;
+      const name = t('spaces.sidebar.newCategoryName');
+      const body: CreateSpaceChannelCategoryParams = {
+        parentCategoryId: intent.parentCategoryId,
+        allowedRoleIds: parent?.allowedRoleIds?.length
+          ? [...parent.allowedRoleIds]
+          : undefined,
+      };
+
+      if (activeSpace.e2ee) {
+        if (!spaceCipher) {
+          toast.error(t('spaces.sidebar.createCategoryError'));
+          return;
+        }
+        const enc = encryptSpaceMetadataField(spaceCipher, name);
+        body.encryptedName = enc.encryptedName;
+        body.nameNonce = enc.nameNonce;
+        body.cipherId = enc.cipherId;
+      } else {
+        body.name = name;
+      }
+
+      const res = await api.spaces.createCategory(activeSpace.id, body);
+      if (!res.success || !res.data?.category) {
+        toast.error(t('spaces.sidebar.createCategoryError'));
+        return;
+      }
+      const newCategory = res.data.category;
+      addCategoryLocally(newCategory);
+
+      const layout = layoutAfterCreateCategoryFromChannels({
+        categories,
+        channels,
+        newCategory,
+        parentCategoryId: intent.parentCategoryId,
+        channelIds: intent.channelIds,
+        insertIndex: intent.insertIndex,
+      });
+      const ok = await applyChannelLayout(layout);
+      if (!ok) toast.error(t('spaces.sidebar.layoutError'));
+    },
+    [
+      activeSpace,
+      api,
+      categoryById,
+      categories,
+      channels,
+      spaceCipher,
+      addCategoryLocally,
+      applyChannelLayout,
+      toast,
+      t,
+    ],
   );
 
   const handleDragEnd = useCallback(
@@ -207,18 +344,39 @@ export function SpaceSecondarySidebar({
       const activeId = String(event.active.id);
       const overId = event.over ? String(event.over.id) : null;
       if (!overId) return;
-      const layout = applySpaceSidebarDrag({
+      const highlight = dropZoneRef.current;
+      const zone =
+        highlight && highlight.overId === overId ? highlight.zone : 'on';
+      dropZoneRef.current = null;
+
+      const result = applySpaceSidebarDrag({
         categories,
         channels,
         activeId,
         overId,
+        zone,
       });
-      if (!layout) return;
-      void applyChannelLayout(layout).then((ok) => {
+      if (!result) return;
+
+      if (result.type === 'createCategoryFromChannels') {
+        void createCategoryFromChannels(result);
+        return;
+      }
+
+      void applyChannelLayout(result.layout).then((ok) => {
         if (!ok) toast.error(t('spaces.sidebar.layoutError'));
       });
     },
-    [canManageChannels, categories, channels, applyChannelLayout, toast, t],
+    [
+      canManageChannels,
+      categories,
+      channels,
+      applyChannelLayout,
+      createCategoryFromChannels,
+      dropZoneRef,
+      toast,
+      t,
+    ],
   );
 
   if (!activeSpace) return null;
@@ -286,6 +444,7 @@ export function SpaceSecondarySidebar({
       <ContextMenu
         onSelect={(value) => handleChannelMenu(ch, value)}
         items={channelMenuItems}
+        isolate
       >
         {link}
       </ContextMenu>
@@ -297,133 +456,154 @@ export function SpaceSecondarySidebar({
 
     return (
       <DraggableSpaceItem key={ch.id} id={`channel:${ch.id}`}>
-        <DroppableSpaceTarget id={`channel:${ch.id}`}>
+        <DroppableSpaceTarget
+          id={`channel:${ch.id}`}
+          data={{ kind: 'channel', id: ch.id }}
+        >
           {wrapped}
         </DroppableSpaceTarget>
       </DraggableSpaceItem>
     );
   };
 
-  const renderBucket = (bucket: { categoryId: string | null; channels: PublicSpaceChannel[] }) => {
-    if (bucket.categoryId === null) {
-      const header = (
-        <div className="space-sidebar-group-header">
-          {t('spaces.sidebar.textChannels')}
-        </div>
-      );
-      return (
-        <DroppableSpaceTarget
-          key="uncategorized"
-          id="uncategorized"
-          disabled={!canManageChannels}
-        >
-          <div className="space-sidebar-group">
-            {header}
-            <nav
-              className="space-sidebar-channels"
-              aria-label={t('spaces.sidebar.textChannels')}
-            >
-              {bucket.channels.map(renderChannel)}
-            </nav>
-          </div>
-        </DroppableSpaceTarget>
-      );
-    }
+  const renderTreeItems = (items: readonly SpaceSidebarTreeItem[], depth: number): ReactNode => (
+    <div
+      className={
+        depth > 0
+          ? 'space-sidebar-tree-level space-sidebar-tree-level--nested'
+          : 'space-sidebar-tree-level'
+      }
+    >
+      {items.map((item) => {
+        if (item.type === 'channel') {
+          return renderChannel(item.channel);
+        }
 
-    const category = categoryById.get(bucket.categoryId);
-    if (!category) return null;
-    const collapsed = collapsedCategoryIds.has(category.id);
-    const categoryName = resolveChannelDisplayName(category, spaceCipher, {
-      encryptedChannel: t('spaces.encryptedChannelPlaceholder'),
-    });
+        const { category, children } = item;
+        const collapsed = collapsedCategoryIds.has(category.id);
+        const categoryName = resolveChannelDisplayName(category, spaceCipher, {
+          encryptedChannel: t('spaces.encryptedChannelPlaceholder'),
+        });
 
-    const categoryMenuItems = canManageChannels
-      ? [
-          { value: 'edit-category', label: t('spaces.sidebar.editCategory') },
-          { value: 'create-channel', label: t('spaces.sidebar.createChannel') },
-          { value: 'delete-category', label: t('spaces.sidebar.deleteCategory') },
-        ]
-      : [];
+        const canCreateChild =
+          getCategoryDepth(category.id, categories) < SPACE_CATEGORY_MAX_DEPTH;
+        const categoryMenuItems = canManageChannels
+          ? [
+              { value: 'edit-category', label: t('spaces.sidebar.editCategory') },
+              { value: 'create-channel', label: t('spaces.sidebar.createChannel') },
+              ...(canCreateChild
+                ? [
+                    {
+                      value: 'create-child-category',
+                      label: t('spaces.sidebar.createChildCategory'),
+                    },
+                  ]
+                : []),
+              { value: 'delete-category', label: t('spaces.sidebar.deleteCategory') },
+            ]
+          : [];
 
-    const header = (
-      <button
-        type="button"
-        className="space-sidebar-group-header space-sidebar-group-header--toggle"
-        onClick={() => toggleCollapsed(category.id)}
-        aria-expanded={!collapsed}
-      >
-        <Icon name={collapsed ? 'chevronRight' : 'chevronDown'} size="sm" />
-        <span>{categoryName}</span>
-      </button>
-    );
-
-    const body = (
-      <div className="space-sidebar-group">
-        <ContextMenu
-          onSelect={(value) => handleCategoryMenu(category, value)}
-          items={categoryMenuItems}
-        >
-          {header}
-        </ContextMenu>
-        {!collapsed && (
-          <nav
-            className="space-sidebar-channels"
-            aria-label={categoryName}
+        const header = (
+          <button
+            type="button"
+            className="space-sidebar-group-header space-sidebar-group-header--toggle"
+            onClick={() => toggleCollapsed(category.id)}
+            aria-expanded={!collapsed}
           >
-            {bucket.channels.map(renderChannel)}
-          </nav>
-        )}
-      </div>
-    );
+            <Icon name={collapsed ? 'chevronRight' : 'chevronDown'} size="sm" />
+            <span>{categoryName}</span>
+          </button>
+        );
 
-    if (!canManageChannels) {
-      return <div key={category.id}>{body}</div>;
-    }
+        const headerWrapped = (
+          <ContextMenu
+            onSelect={(value) => handleCategoryMenu(category, value)}
+            items={categoryMenuItems}
+            isolate
+          >
+            {header}
+          </ContextMenu>
+        );
 
-    return (
-      <DraggableSpaceItem key={category.id} id={`category:${category.id}`}>
-        <DroppableSpaceTarget id={`category:${category.id}`}>
-          {body}
-        </DroppableSpaceTarget>
-      </DraggableSpaceItem>
-    );
-  };
+        const headerNode = canManageChannels ? (
+          <DraggableSpaceItem id={`category:${category.id}`}>
+            <DroppableSpaceTarget
+              id={`category:${category.id}`}
+              data={{ kind: 'category', id: category.id }}
+            >
+              {headerWrapped}
+            </DroppableSpaceTarget>
+          </DraggableSpaceItem>
+        ) : (
+          headerWrapped
+        );
 
+        return (
+          <div key={category.id} className="space-sidebar-group">
+            {headerNode}
+            {!collapsed && children.length > 0 && (
+              <nav className="space-sidebar-channels" aria-label={categoryName}>
+                {renderTreeItems(children, depth + 1)}
+              </nav>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // Rail create menu covers chrome + the tree region (empty space). Channel /
+  // category menus use `isolate` so their contextmenu does not bubble up.
   const sidebarInner = (
     <>
-      <div className="space-sidebar-banner">
-        <span className="space-sidebar-banner-name">{spaceName}</span>
-        {activeSpace.e2ee && (
-          <span className="spaces-badge spaces-badge--encrypted">
-            {t('spaces.encrypted')}
-          </span>
-        )}
-      </div>
+      <ContextMenu onSelect={handleRailMenu} items={railMenuItems}>
+        <div className="space-sidebar-rail-chrome">
+          <div className="space-sidebar-banner">
+            <span className="space-sidebar-banner-name">{spaceName}</span>
+            {activeSpace.e2ee && (
+              <span className="spaces-badge spaces-badge--encrypted">
+                {t('spaces.encrypted')}
+              </span>
+            )}
+          </div>
 
-      {canAccessSpaceManage && (
-        <NavLink
-          to={`/s/${slug}/manage`}
-          className={navLinkClass}
-          onClick={handleNav}
-        >
-          <Icon name="settings" size="sm" />
-          <span>{t('spaces.sidebar.manage')}</span>
-        </NavLink>
+          {canAccessSpaceManage && (
+            <NavLink
+              to={`/s/${slug}/manage`}
+              className={navLinkClass}
+              onClick={handleNav}
+            >
+              <Icon name="settings" size="sm" />
+              <span>{t('spaces.sidebar.manage')}</span>
+            </NavLink>
+          )}
+
+          <NavLink
+            to={`/s/${slug}`}
+            end
+            className={navLinkClass}
+            onClick={handleNav}
+          >
+            <Icon name="home" size="sm" />
+            <span>{t('spaces.sidebar.home')}</span>
+          </NavLink>
+        </div>
+      </ContextMenu>
+
+      {railMenuItems.length > 0 ? (
+        <ContextMenu onSelect={handleRailMenu} items={railMenuItems} fill>
+          <div className="space-sidebar-tree-region">
+            <div className="space-sidebar-tree">{renderTreeItems(tree, 0)}</div>
+            <div className="space-sidebar-rail-filler" />
+          </div>
+        </ContextMenu>
+      ) : (
+        <div className="space-sidebar-context-fill">
+          <div className="space-sidebar-tree-region">
+            <div className="space-sidebar-tree">{renderTreeItems(tree, 0)}</div>
+          </div>
+        </div>
       )}
-
-      <NavLink
-        to={`/s/${slug}`}
-        end
-        className={navLinkClass}
-        onClick={handleNav}
-      >
-        <Icon name="home" size="sm" />
-        <span>{t('spaces.sidebar.home')}</span>
-      </NavLink>
-
-      <div className="space-sidebar-buckets">
-        {buckets.map(renderBucket)}
-      </div>
     </>
   );
 
@@ -433,17 +613,19 @@ export function SpaceSecondarySidebar({
         className={`space-secondary-sidebar${mobileOpen ? ' space-secondary-sidebar--mobile-open' : ''}`}
         aria-label={spaceName}
       >
-        <ContextMenu onSelect={handleRailMenu} items={railMenuItems}>
-          <div className="space-sidebar-rail-body">
-            {canManageChannels ? (
-              <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-                {sidebarInner}
-              </DndContext>
-            ) : (
-              sidebarInner
-            )}
-          </div>
-        </ContextMenu>
+        <div className="space-sidebar-rail-body">
+          {canManageChannels ? (
+            <SpaceSidebarDndShell
+              sensors={sensors}
+              onDragEnd={handleDragEnd}
+              zoneRef={dropZoneRef}
+            >
+              {sidebarInner}
+            </SpaceSidebarDndShell>
+          ) : (
+            sidebarInner
+          )}
+        </div>
       </aside>
 
       {createChannelOpen && (
@@ -478,9 +660,14 @@ export function SpaceSecondarySidebar({
       {createCategoryOpen && (
         <CategorySettingsModal
           open={createCategoryOpen}
-          onOpenChange={setCreateCategoryOpen}
+          onOpenChange={(open) => {
+            setCreateCategoryOpen(open);
+            if (!open) setCreateCategoryParentId(null);
+          }}
           space={activeSpace}
           heldRoleIds={activeSpaceRoleIds}
+          parentCategoryId={createCategoryParentId}
+          initialAllowedRoleIds={createCategoryParent?.allowedRoleIds ?? null}
           onCreated={addCategoryLocally}
         />
       )}

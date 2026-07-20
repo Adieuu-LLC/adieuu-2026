@@ -263,13 +263,21 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const removeCategoryLocally = useCallback((categoryId: string) => {
-    setCategories((prev) => prev.filter((c) => c.id !== categoryId));
+    const removed = categories.find((c) => c.id === categoryId);
+    const promoteTo = removed?.parentCategoryId ?? null;
+    setCategories((prev) =>
+      prev
+        .filter((c) => c.id !== categoryId)
+        .map((c) =>
+          c.parentCategoryId === categoryId ? { ...c, parentCategoryId: promoteTo } : c,
+        ),
+    );
     setChannels((prev) =>
       prev.map((ch) =>
-        ch.categoryId === categoryId ? { ...ch, categoryId: null } : ch,
+        ch.categoryId === categoryId ? { ...ch, categoryId: promoteTo } : ch,
       ),
     );
-  }, []);
+  }, [categories]);
 
   const applyChannelLayout = useCallback(
     async (layout: UpdateSpaceChannelLayoutParams): Promise<boolean> => {
@@ -282,27 +290,35 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       const categoryById = new Map(categories.map((c) => [c.id, c]));
       const channelById = new Map(channels.map((c) => [c.id, c]));
 
-      const nextCategories = layout.categoryIds
-        .map((id, position) => {
-          const cat = categoryById.get(id);
-          return cat ? { ...cat, position } : null;
-        })
-        .filter((c): c is PublicSpaceChannelCategory => c != null);
-
+      const nextCategories: PublicSpaceChannelCategory[] = [];
       const nextChannels: PublicSpaceChannel[] = [];
-      for (const bucket of layout.channelOrder) {
-        bucket.channelIds.forEach((id, position) => {
-          const ch = channelById.get(id);
-          if (ch) {
-            nextChannels.push({
-              ...ch,
-              categoryId: bucket.categoryId,
-              position,
-            });
+
+      for (const group of layout.groups) {
+        group.items.forEach((item, position) => {
+          if (item.type === 'channel') {
+            const ch = channelById.get(item.id);
+            if (ch) {
+              nextChannels.push({
+                ...ch,
+                categoryId: group.parentCategoryId,
+                position,
+              });
+            }
+          } else {
+            const cat = categoryById.get(item.id);
+            if (cat) {
+              nextCategories.push({
+                ...cat,
+                parentCategoryId: group.parentCategoryId,
+                position,
+              });
+            }
           }
         });
       }
 
+      // Keep any categories that only appear as group parents with empty items
+      // (already covered when they appear as items under their parent).
       setCategories(nextCategories);
       setChannels(nextChannels);
 

@@ -5,13 +5,17 @@
  */
 
 import { ObjectId } from 'mongodb';
+import { SPACE_CATEGORY_MAX_DEPTH } from '@adieuu/shared';
 import { getSpaceRepository } from '../../repositories/space.repository';
 import { getSpaceChannelRepository } from '../../repositories/space-channel.repository';
 import { getSpaceChannelCategoryRepository } from '../../repositories/space-channel-category.repository';
 import { getSpaceRoleRepository } from '../../repositories/space-role.repository';
 import { isValidObjectId } from '../../utils';
 import { toPublicSpaceChannel } from '../../models/space-channel';
-import { toPublicSpaceChannelCategory } from '../../models/space-channel-category';
+import {
+  toPublicSpaceChannelCategory,
+  type SpaceChannelCategoryDocument,
+} from '../../models/space-channel-category';
 import type { SpaceDocument } from '../../models/space';
 import type { SpaceRoleDocument } from '../../models/space-role';
 import {
@@ -45,6 +49,7 @@ export interface CreateSpaceChannelCategoryParams {
   encryptedName?: string;
   nameNonce?: string;
   cipherId?: string;
+  parentCategoryId?: string | null;
 }
 
 export interface UpdateSpaceChannelCategoryParams {
@@ -54,14 +59,39 @@ export interface UpdateSpaceChannelCategoryParams {
   nameNonce?: string;
   cipherId?: string;
   position?: number;
+  parentCategoryId?: string | null;
 }
 
 export interface UpdateSpaceChannelLayoutParams {
-  categoryIds: readonly string[];
-  channelOrder: ReadonlyArray<{
-    categoryId: string | null;
-    channelIds: readonly string[];
+  groups: ReadonlyArray<{
+    parentCategoryId: string | null;
+    items: ReadonlyArray<{ type: 'channel' | 'category'; id: string }>;
   }>;
+}
+
+function parentIdHex(doc: SpaceChannelCategoryDocument): string | null {
+  return doc.parentCategoryId ? doc.parentCategoryId.toHexString() : null;
+}
+
+/** Depth of a category (root = 1). Returns null on cycle / missing parent. */
+function categoryDepth(
+  categoryId: string,
+  parentById: ReadonlyMap<string, string | null>,
+): number | null {
+  let depth = 1;
+  let current: string | null = categoryId;
+  const seen = new Set<string>();
+  while (current) {
+    if (seen.has(current)) return null;
+    seen.add(current);
+    const parent = parentById.get(current);
+    if (parent === undefined) return null;
+    if (parent === null) return depth;
+    depth += 1;
+    if (depth > SPACE_CATEGORY_MAX_DEPTH) return depth;
+    current = parent;
+  }
+  return depth;
 }
 
 async function requireCategoryMember(
@@ -273,7 +303,37 @@ export async function createSpaceChannelCategory(
   if (!rolesResult.ok) return rolesResult.result;
 
   const existing = await getSpaceChannelCategoryRepository().findBySpace(spaceId);
-  const maxPosition = existing.reduce((max, cat) => Math.max(max, cat.position ?? 0), -1);
+  let parentCategoryId: ObjectId | null = null;
+  if (params.parentCategoryId) {
+    const parentOid = parseObjId(params.parentCategoryId);
+    if (!parentOid) {
+      return { success: false, error: 'Invalid parent category id.', errorCode: 'INVALID_ID' };
+    }
+    const parent = existing.find((c) => c._id.equals(parentOid));
+    if (!parent) {
+      return { success: false, error: 'Parent category not found.', errorCode: 'CATEGORY_NOT_FOUND' };
+    }
+    const parentById = new Map(
+      existing.map((c) => [c._id.toHexString(), parentIdHex(c)] as const),
+    );
+    const parentDepth = categoryDepth(parentOid.toHexString(), parentById);
+    if (parentDepth === null || parentDepth >= SPACE_CATEGORY_MAX_DEPTH) {
+      return {
+        success: false,
+        error: `Categories cannot nest deeper than ${SPACE_CATEGORY_MAX_DEPTH} levels.`,
+        errorCode: 'INVALID_CONTENT',
+      };
+    }
+    parentCategoryId = parentOid;
+  }
+
+  const siblings = existing.filter((c) => {
+    const p = parentIdHex(c);
+    return parentCategoryId
+      ? p === parentCategoryId.toHexString()
+      : p === null;
+  });
+  const maxPosition = siblings.reduce((max, cat) => Math.max(max, cat.position ?? 0), -1);
   const e2ee = !!space.e2ee;
   const hasEncrypted = !!(params.encryptedName && params.nameNonce && params.cipherId);
   const plainName = params.name?.trim() ?? '';
@@ -283,6 +343,7 @@ export async function createSpaceChannelCategory(
     name: e2ee ? '' : plainName,
     position: maxPosition + 1,
     allowedRoleIds: rolesResult.allowedRoleIds,
+    ...(parentCategoryId ? { parentCategoryId } : {}),
     ...(hasEncrypted
       ? {
           encryptedName: params.encryptedName,
@@ -333,7 +394,8 @@ export async function updateSpaceChannelCategory(
     params.encryptedName === undefined &&
     params.nameNonce === undefined &&
     params.cipherId === undefined &&
-    params.position === undefined
+    params.position === undefined &&
+    params.parentCategoryId === undefined
   ) {
     return { success: false, error: 'At least one field is required.', errorCode: 'INVALID_CONTENT' };
   }
@@ -346,6 +408,67 @@ export async function updateSpaceChannelCategory(
     const rolesResult = await resolveAllowedRoleIds(spaceId, perms, params.allowedRoleIds);
     if (!rolesResult.ok) return rolesResult.result;
     allowedRoleIds = rolesResult.allowedRoleIds;
+  }
+
+  let parentCategoryId: ObjectId | null | undefined;
+  if (params.parentCategoryId !== undefined) {
+    if (params.parentCategoryId === null) {
+      parentCategoryId = null;
+    } else {
+      const parentOid = parseObjId(params.parentCategoryId);
+      if (!parentOid) {
+        return { success: false, error: 'Invalid parent category id.', errorCode: 'INVALID_ID' };
+      }
+      if (parentOid.equals(categoryId)) {
+        return {
+          success: false,
+          error: 'A category cannot be its own parent.',
+          errorCode: 'INVALID_CONTENT',
+        };
+      }
+      const all = await getSpaceChannelCategoryRepository().findBySpace(spaceId);
+      const parent = all.find((c) => c._id.equals(parentOid));
+      if (!parent) {
+        return {
+          success: false,
+          error: 'Parent category not found.',
+          errorCode: 'CATEGORY_NOT_FOUND',
+        };
+      }
+      const parentById = new Map(
+        all.map((c) => {
+          const id = c._id.toHexString();
+          if (id === categoryId.toHexString()) {
+            return [id, parentOid.toHexString()] as const;
+          }
+          return [id, parentIdHex(c)] as const;
+        }),
+      );
+      // Reject nesting into a descendant (cycle).
+      let walk: string | null = parentOid.toHexString();
+      const seen = new Set<string>();
+      while (walk) {
+        if (walk === categoryId.toHexString()) {
+          return {
+            success: false,
+            error: 'Cannot nest a category under its descendant.',
+            errorCode: 'INVALID_CONTENT',
+          };
+        }
+        if (seen.has(walk)) break;
+        seen.add(walk);
+        walk = parentById.get(walk) ?? null;
+      }
+      const depth = categoryDepth(categoryId.toHexString(), parentById);
+      if (depth === null || depth > SPACE_CATEGORY_MAX_DEPTH) {
+        return {
+          success: false,
+          error: `Categories cannot nest deeper than ${SPACE_CATEGORY_MAX_DEPTH} levels.`,
+          errorCode: 'INVALID_CONTENT',
+        };
+      }
+      parentCategoryId = parentOid;
+    }
   }
 
   const hasEncrypted = !!(params.encryptedName && params.nameNonce && params.cipherId);
@@ -362,6 +485,7 @@ export async function updateSpaceChannelCategory(
       : {}),
     ...(allowedRoleIds !== undefined ? { allowedRoleIds } : {}),
     ...(params.position !== undefined ? { position: params.position } : {}),
+    ...(parentCategoryId !== undefined ? { parentCategoryId } : {}),
   });
 
   if (!updated) {
@@ -378,8 +502,8 @@ export async function updateSpaceChannelCategory(
 }
 
 /**
- * Delete a category. Child channels become uncategorized.
- * Requires `manageChannels`.
+ * Delete a category. Direct child channels and nested categories are promoted
+ * to this category's parent (or root). Requires `manageChannels`.
  */
 export async function deleteSpaceChannelCategory(
   spaceIdRaw: string | ObjectId,
@@ -405,7 +529,9 @@ export async function deleteSpaceChannelCategory(
     return { success: false, error: 'Category not found.', errorCode: 'CATEGORY_NOT_FOUND' };
   }
 
-  await getSpaceChannelRepository().clearCategory(spaceId, categoryId);
+  const promoteTo = existing.parentCategoryId ?? null;
+  await getSpaceChannelRepository().reparentChannels(spaceId, categoryId, promoteTo);
+  await getSpaceChannelCategoryRepository().reparentChildren(spaceId, categoryId, promoteTo);
   const deleted = await getSpaceChannelCategoryRepository().deleteCategory(spaceId, categoryId);
   if (!deleted) {
     return { success: false, error: 'Category not found.', errorCode: 'CATEGORY_NOT_FOUND' };
@@ -420,8 +546,8 @@ export async function deleteSpaceChannelCategory(
 }
 
 /**
- * Atomically reorder categories and channels (including moves between categories).
- * Requires `manageChannels`. Payload must cover every category and channel in the Space.
+ * Atomically reorder nested categories and interleaved channels.
+ * Requires `manageChannels`. Payload must cover every category and channel.
  */
 export async function updateSpaceChannelLayout(
   spaceIdRaw: string | ObjectId,
@@ -449,80 +575,148 @@ export async function updateSpaceChannelLayout(
   const categoryIdSet = new Set(categories.map((c) => c._id.toHexString()));
   const channelIdSet = new Set(channels.map((c) => c._id.toHexString()));
 
-  if (params.categoryIds.length !== categoryIdSet.size) {
+  if (params.groups.length !== categoryIdSet.size + 1) {
     return {
       success: false,
-      error: 'categoryIds must include every category in the Space.',
+      error: 'groups must include the root group and exactly one group per category.',
       errorCode: 'INVALID_CONTENT',
     };
   }
-  const seenCats = new Set<string>();
-  const orderedCategoryIds: ObjectId[] = [];
-  for (const raw of params.categoryIds) {
-    if (!categoryIdSet.has(raw) || seenCats.has(raw)) {
-      return {
-        success: false,
-        error: 'Invalid or duplicate category id in layout.',
-        errorCode: 'INVALID_CONTENT',
-      };
-    }
-    seenCats.add(raw);
-    orderedCategoryIds.push(new ObjectId(raw));
-  }
 
+  const seenGroupParents = new Set<string | null>();
   const seenChannels = new Set<string>();
+  const seenCategoriesAsItems = new Set<string>();
+  const parentById = new Map<string, string | null>();
+  const categoryEntries: Array<{
+    categoryId: ObjectId;
+    parentCategoryId: ObjectId | null;
+    position: number;
+  }> = [];
   const channelEntries: Array<{
     channelId: ObjectId;
     categoryId: ObjectId | null;
     position: number;
   }> = [];
 
-  for (const bucket of params.channelOrder) {
-    let bucketCategoryId: ObjectId | null = null;
-    if (bucket.categoryId !== null) {
-      if (!categoryIdSet.has(bucket.categoryId)) {
+  for (const group of params.groups) {
+    const parentKey = group.parentCategoryId;
+    if (seenGroupParents.has(parentKey)) {
+      return {
+        success: false,
+        error: 'Duplicate parentCategoryId in groups.',
+        errorCode: 'INVALID_CONTENT',
+      };
+    }
+    seenGroupParents.add(parentKey);
+
+    if (parentKey !== null) {
+      if (!categoryIdSet.has(parentKey)) {
         return {
           success: false,
-          error: 'Unknown category in channelOrder.',
+          error: 'Unknown parent category in groups.',
           errorCode: 'CATEGORY_NOT_FOUND',
         };
       }
-      bucketCategoryId = new ObjectId(bucket.categoryId);
     }
-    for (let position = 0; position < bucket.channelIds.length; position++) {
-      const raw = bucket.channelIds[position]!;
-      if (!channelIdSet.has(raw)) {
-        return {
-          success: false,
-          error: 'Unknown channel in channelOrder.',
-          errorCode: 'CHANNEL_NOT_FOUND',
-        };
+
+    let parentOid: ObjectId | null = null;
+    if (parentKey !== null) {
+      parentOid = new ObjectId(parentKey);
+    }
+
+    for (let position = 0; position < group.items.length; position++) {
+      const item = group.items[position]!;
+      if (item.type === 'channel') {
+        if (!channelIdSet.has(item.id) || seenChannels.has(item.id)) {
+          return {
+            success: false,
+            error: 'Invalid or duplicate channel in layout.',
+            errorCode: 'INVALID_CONTENT',
+          };
+        }
+        seenChannels.add(item.id);
+        channelEntries.push({
+          channelId: new ObjectId(item.id),
+          categoryId: parentOid,
+          position,
+        });
+      } else {
+        if (!categoryIdSet.has(item.id) || seenCategoriesAsItems.has(item.id)) {
+          return {
+            success: false,
+            error: 'Invalid or duplicate category in layout.',
+            errorCode: 'INVALID_CONTENT',
+          };
+        }
+        if (parentKey !== null && item.id === parentKey) {
+          return {
+            success: false,
+            error: 'A category cannot be nested under itself.',
+            errorCode: 'INVALID_CONTENT',
+          };
+        }
+        seenCategoriesAsItems.add(item.id);
+        parentById.set(item.id, parentKey);
+        categoryEntries.push({
+          categoryId: new ObjectId(item.id),
+          parentCategoryId: parentOid,
+          position,
+        });
       }
-      if (seenChannels.has(raw)) {
-        return {
-          success: false,
-          error: 'Duplicate channel in channelOrder.',
-          errorCode: 'INVALID_CONTENT',
-        };
-      }
-      seenChannels.add(raw);
-      channelEntries.push({
-        channelId: new ObjectId(raw),
-        categoryId: bucketCategoryId,
-        position,
-      });
     }
   }
 
+  // Every category must appear as an item once and own a groups entry.
+  if (seenCategoriesAsItems.size !== categoryIdSet.size) {
+    return {
+      success: false,
+      error: 'Every category must appear exactly once in layout items.',
+      errorCode: 'INVALID_CONTENT',
+    };
+  }
+  for (const catId of categoryIdSet) {
+    if (!seenGroupParents.has(catId)) {
+      return {
+        success: false,
+        error: 'Every category must have a groups entry.',
+        errorCode: 'INVALID_CONTENT',
+      };
+    }
+  }
+  if (!seenGroupParents.has(null)) {
+    return {
+      success: false,
+      error: 'Layout must include a root group (parentCategoryId null).',
+      errorCode: 'INVALID_CONTENT',
+    };
+  }
   if (seenChannels.size !== channelIdSet.size) {
     return {
       success: false,
-      error: 'channelOrder must include every channel in the Space exactly once.',
+      error: 'Every channel must appear exactly once in layout items.',
       errorCode: 'INVALID_CONTENT',
     };
   }
 
-  await getSpaceChannelCategoryRepository().setPositions(spaceId, orderedCategoryIds);
+  for (const catId of categoryIdSet) {
+    const depth = categoryDepth(catId, parentById);
+    if (depth === null) {
+      return {
+        success: false,
+        error: 'Category hierarchy contains a cycle.',
+        errorCode: 'INVALID_CONTENT',
+      };
+    }
+    if (depth > SPACE_CATEGORY_MAX_DEPTH) {
+      return {
+        success: false,
+        error: `Categories cannot nest deeper than ${SPACE_CATEGORY_MAX_DEPTH} levels.`,
+        errorCode: 'INVALID_CONTENT',
+      };
+    }
+  }
+
+  await getSpaceChannelCategoryRepository().setLayout(spaceId, categoryEntries);
   await getSpaceChannelRepository().setLayout(spaceId, channelEntries);
 
   const [updatedCategories, updatedChannels] = await Promise.all([

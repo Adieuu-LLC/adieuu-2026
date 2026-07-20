@@ -231,8 +231,13 @@ export interface PublicSpaceChannelCategory {
   spaceId: string;
   /** Plaintext name; empty when the Space is e2ee. */
   name: string;
-  /** Order among categories in the sidebar (ascending). */
+  /**
+   * Order among interleaved siblings under `parentCategoryId` (or root when null).
+   * Siblings are channels in the same parent plus nested categories.
+   */
   position: number;
+  /** Parent category id, or null when this category is at the Space root. */
+  parentCategoryId: string | null;
   /**
    * Role IDs allowed to see this category. Empty/missing on legacy docs means
    * open to everyone (Everyone role).
@@ -481,6 +486,8 @@ export interface CreateSpaceChannelCategoryParams {
   encryptedName?: string;
   nameNonce?: string;
   cipherId?: string;
+  /** Nest under this category (null/omit = root). */
+  parentCategoryId?: string | null;
 }
 
 /** PATCH body for updating a Space channel category. */
@@ -491,20 +498,28 @@ export interface UpdateSpaceChannelCategoryParams {
   nameNonce?: string;
   cipherId?: string;
   position?: number;
+  parentCategoryId?: string | null;
 }
 
+/** One interleaved child under a category (or Space root). */
+export type SpaceChannelLayoutItem =
+  | { type: 'channel'; id: string }
+  | { type: 'category'; id: string };
+
 /**
- * PUT body for atomic sidebar layout (category order + channel buckets).
- * `categoryIds` is the full ordered list of categories in the Space.
- * Each entry in `channelOrder` lists channel ids (in order) for that bucket.
+ * PUT body for atomic sidebar layout (nested categories + interleaved children).
+ * Every category and channel must appear exactly once across all `items`.
+ * Every category (including leaves) must have exactly one `groups` entry.
  */
 export interface UpdateSpaceChannelLayoutParams {
-  categoryIds: string[];
-  channelOrder: Array<{
-    categoryId: string | null;
-    channelIds: string[];
+  groups: Array<{
+    parentCategoryId: string | null;
+    items: SpaceChannelLayoutItem[];
   }>;
 }
+
+/** Maximum nesting depth for Space channel categories (root = 1). */
+export const SPACE_CATEGORY_MAX_DEPTH = 5;
 
 /** Common fields for both plaintext and encrypted message sends. */
 interface SendSpaceMessageCommon {

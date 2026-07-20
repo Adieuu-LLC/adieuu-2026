@@ -31,6 +31,7 @@ export class SpaceChannelCategoryRepository extends BaseRepository<SpaceChannelC
     fields: UpdateSpaceChannelCategoryFields,
   ): Promise<SpaceChannelCategoryDocument | null> {
     const $set: Record<string, unknown> = { updatedAt: new Date() };
+    const $unset: Record<string, ''> = {};
 
     if (fields.name !== undefined) $set.name = fields.name;
     if (fields.allowedRoleIds !== undefined) $set.allowedRoleIds = fields.allowedRoleIds;
@@ -38,10 +39,24 @@ export class SpaceChannelCategoryRepository extends BaseRepository<SpaceChannelC
     if (fields.nameNonce !== undefined) $set.nameNonce = fields.nameNonce;
     if (fields.cipherId !== undefined) $set.cipherId = fields.cipherId;
     if (fields.position !== undefined) $set.position = fields.position;
+    if (fields.clearParentCategoryId) {
+      $unset.parentCategoryId = '';
+    } else if (fields.parentCategoryId !== undefined) {
+      if (fields.parentCategoryId === null) {
+        $unset.parentCategoryId = '';
+      } else {
+        $set.parentCategoryId = fields.parentCategoryId;
+      }
+    }
+
+    const update: UpdateFilter<SpaceChannelCategoryDocument> = { $set };
+    if (Object.keys($unset).length > 0) {
+      update.$unset = $unset;
+    }
 
     const result = await this.collection.findOneAndUpdate(
       { _id: categoryId, spaceId } as Filter<SpaceChannelCategoryDocument>,
-      { $set } as UpdateFilter<SpaceChannelCategoryDocument>,
+      update,
       { returnDocument: 'after' },
     );
     return (result as SpaceChannelCategoryDocument | null) ?? null;
@@ -79,19 +94,63 @@ export class SpaceChannelCategoryRepository extends BaseRepository<SpaceChannelC
     return result.deletedCount;
   }
 
-  /** Bulk-set positions for an ordered list of category ids in a Space. */
-  async setPositions(
+  /**
+   * Bulk-set parent + position for categories in a Space.
+   * `parentCategoryId: null` clears nesting (root).
+   */
+  async setLayout(
     spaceId: ObjectId,
-    orderedIds: readonly ObjectId[],
+    entries: ReadonlyArray<{
+      categoryId: ObjectId;
+      parentCategoryId: ObjectId | null;
+      position: number;
+    }>,
   ): Promise<void> {
-    if (orderedIds.length === 0) return;
-    const ops = orderedIds.map((id, position) => ({
-      updateOne: {
-        filter: { _id: id, spaceId } as Filter<SpaceChannelCategoryDocument>,
-        update: { $set: { position, updatedAt: new Date() } },
-      },
-    }));
+    if (entries.length === 0) return;
+    const ops = entries.map(({ categoryId, parentCategoryId, position }) => {
+      const $set: Record<string, unknown> = { position, updatedAt: new Date() };
+      const $unset: Record<string, ''> = {};
+      if (parentCategoryId) {
+        $set.parentCategoryId = parentCategoryId;
+      } else {
+        $unset.parentCategoryId = '';
+      }
+      const update: UpdateFilter<SpaceChannelCategoryDocument> = { $set };
+      if (Object.keys($unset).length > 0) {
+        update.$unset = $unset;
+      }
+      return {
+        updateOne: {
+          filter: { _id: categoryId, spaceId } as Filter<SpaceChannelCategoryDocument>,
+          update,
+        },
+      };
+    });
     await this.collection.bulkWrite(ops);
+  }
+
+  /** Promote nested categories from `fromParentId` up to `toParentId` (null = root). */
+  async reparentChildren(
+    spaceId: ObjectId,
+    fromParentId: ObjectId,
+    toParentId: ObjectId | null,
+  ): Promise<number> {
+    const $set: Record<string, unknown> = { updatedAt: new Date() };
+    const $unset: Record<string, ''> = {};
+    if (toParentId) {
+      $set.parentCategoryId = toParentId;
+    } else {
+      $unset.parentCategoryId = '';
+    }
+    const update: UpdateFilter<SpaceChannelCategoryDocument> = { $set };
+    if (Object.keys($unset).length > 0) {
+      update.$unset = $unset;
+    }
+    const result = await this.collection.updateMany(
+      { spaceId, parentCategoryId: fromParentId } as Filter<SpaceChannelCategoryDocument>,
+      update,
+    );
+    return result.modifiedCount;
   }
 }
 
