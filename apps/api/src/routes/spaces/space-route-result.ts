@@ -20,7 +20,8 @@ export type SpaceRouteResult<T = unknown> =
   | { kind: 'validation_failed' }
   | { kind: 'bad_request'; message: string }
   | { kind: 'not_found'; message: string }
-  | { kind: 'conflict'; code: string; message: string };
+  | { kind: 'conflict'; code: string; message: string }
+  | { kind: 'named_error'; code: string; message: string; status: number };
 
 export function spaceRespond<T>(ctx: RouteContext, r: SpaceRouteResult<T>): Response {
   switch (r.kind) {
@@ -38,6 +39,8 @@ export function spaceRespond<T>(ctx: RouteContext, r: SpaceRouteResult<T>): Resp
       return errors.notFound(r.message);
     case 'conflict':
       return error(r.code, r.message, 409);
+    case 'named_error':
+      return error(r.code, r.message, r.status);
     default:
       return errors.badRequest('Unexpected error.');
   }
@@ -71,10 +74,11 @@ export function mapSpaceError(
     case 'OWNER_CANNOT_LEAVE':
     case 'CANNOT_REMOVE_OWNER':
     case 'SYSTEM_ROLE':
-    case 'ROLE_IN_USE':
-    case 'LAST_ADMIN':
     case 'ESCALATION':
       return { kind: 'forbidden', message };
+    case 'ROLE_IN_USE':
+    case 'LAST_ADMIN':
+      return { kind: 'named_error', code: errorCode, message, status: 403 };
     case 'SLUG_TAKEN':
       return { kind: 'conflict', code: 'SLUG_TAKEN', message };
     case 'SLUG_RESERVED':

@@ -27,6 +27,7 @@ import type { SpaceMemberDocument } from '../../models/space-member';
 import { toPublicSpaceRole } from '../../models/space-role';
 import { resolveMemberPermissions, memberHasPermission } from './permissions';
 import { canReadSpace } from './access';
+import { assertNotLastAdmin } from './last-admin';
 import { publishSpaceEvent } from './redis-events';
 import type {
   SpaceActionResult,
@@ -174,6 +175,9 @@ export async function leaveSpace(
     };
   }
 
+  const lastAdmin = await assertNotLastAdmin(spaceId, identityId);
+  if (lastAdmin) return lastAdmin;
+
   const removed = await getSpaceMemberRepository().removeMember(spaceId, identityId);
   if (!removed) {
     return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
@@ -226,6 +230,9 @@ export async function removeSpaceMember(
       errorCode: 'CANNOT_REMOVE_OWNER',
     };
   }
+
+  const lastAdmin = await assertNotLastAdmin(spaceId, targetId);
+  if (lastAdmin) return lastAdmin;
 
   const removed = await getSpaceMemberRepository().removeMember(spaceId, targetId);
   if (!removed) {

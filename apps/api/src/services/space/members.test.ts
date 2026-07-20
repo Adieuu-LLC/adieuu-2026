@@ -27,11 +27,13 @@ const memberRepo = {
   })) as AnyMock,
   removeMember: mock(async (_s: ObjectId, _i: ObjectId) => true) as AnyMock,
   listBySpace: mock(async (_s: ObjectId, _l?: number, _c?: ObjectId) => [] as any[]) as AnyMock,
+  countWithRole: mock(async (_s: ObjectId, _r: ObjectId) => 0) as AnyMock,
 };
 
 const roleRepo = {
   findDefaultMember: mock(async (_s: ObjectId) => null as any) as AnyMock,
   findBySpace: mock(async (_s: ObjectId) => [] as any[]) as AnyMock,
+  findBySystemKey: mock(async (_s: ObjectId, _k: string) => null as any) as AnyMock,
 };
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -101,8 +103,10 @@ describe('space/members', () => {
     memberRepo.findMember.mockResolvedValue(null);
     memberRepo.removeMember.mockResolvedValue(true);
     memberRepo.listBySpace.mockResolvedValue([]);
+    memberRepo.countWithRole.mockResolvedValue(0);
     roleRepo.findDefaultMember.mockResolvedValue({ _id: DEFAULT_ROLE });
     roleRepo.findBySpace.mockResolvedValue([]);
+    roleRepo.findBySystemKey.mockResolvedValue(null);
     publishSpaceEvent.mockClear();
   });
 
@@ -237,6 +241,30 @@ describe('space/members', () => {
       expect(event.type).toBe('space_member_left');
       expect(event.data).toMatchObject({ identityId: leaver.toHexString() });
     });
+
+    test('blocks the last Admin from leaving', async () => {
+      const space = makeSpaceDoc();
+      spaceRepo.findById.mockResolvedValue(space);
+      const leaver = new ObjectId();
+      const adminRoleId = new ObjectId();
+      memberRepo.findMember.mockResolvedValue({
+        _id: new ObjectId(),
+        spaceId: space._id,
+        identityId: leaver,
+        roleIds: [adminRoleId],
+        status: 'active',
+      });
+      roleRepo.findBySystemKey.mockResolvedValue({
+        _id: adminRoleId,
+        spaceId: space._id,
+        systemKey: 'admin',
+      });
+      memberRepo.countWithRole.mockResolvedValue(1);
+
+      const r = await leaveSpace(space._id, leaver);
+      expect(r).toMatchObject({ success: false, errorCode: 'LAST_ADMIN' });
+      expect(memberRepo.removeMember).not.toHaveBeenCalled();
+    });
   });
 
   describe('removeSpaceMember', () => {
@@ -291,6 +319,49 @@ describe('space/members', () => {
         type: 'space_member_left',
         data: { identityId: target.toHexString() },
       });
+    });
+
+    test('cannot kick the last Admin', async () => {
+      const space = makeSpaceDoc();
+      spaceRepo.findById.mockResolvedValue(space);
+      const acting = new ObjectId();
+      const target = new ObjectId();
+      const actorRoleId = new ObjectId();
+      const adminRoleId = new ObjectId();
+      memberRepo.findMember.mockImplementation(async (_s: ObjectId, id: ObjectId) => {
+        if (id.equals(acting)) {
+          return {
+            _id: new ObjectId(),
+            spaceId: space._id,
+            identityId: acting,
+            roleIds: [actorRoleId],
+            status: 'active',
+          };
+        }
+        if (id.equals(target)) {
+          return {
+            _id: new ObjectId(),
+            spaceId: space._id,
+            identityId: target,
+            roleIds: [adminRoleId],
+            status: 'active',
+          };
+        }
+        return null;
+      });
+      roleRepo.findBySpace.mockResolvedValue([
+        { _id: actorRoleId, spaceId: space._id, permissions: ['kickMembers'] },
+      ]);
+      roleRepo.findBySystemKey.mockResolvedValue({
+        _id: adminRoleId,
+        spaceId: space._id,
+        systemKey: 'admin',
+      });
+      memberRepo.countWithRole.mockResolvedValue(1);
+
+      const r = await removeSpaceMember(space._id, acting, target);
+      expect(r).toMatchObject({ success: false, errorCode: 'LAST_ADMIN' });
+      expect(memberRepo.removeMember).not.toHaveBeenCalled();
     });
   });
 

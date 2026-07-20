@@ -16,6 +16,7 @@ const spaceRepo = {
 const roleRepo = {
   findBySpace: mock(async (_s: ObjectId) => [] as any[]) as AnyMock,
   findByIdInSpace: mock(async (_s: ObjectId, _r: ObjectId) => null as any) as AnyMock,
+  findBySystemKey: mock(async (_s: ObjectId, _k: string) => null as any) as AnyMock,
   createRole: mock(async (input: any) => ({
     _id: new ObjectId(),
     ...input,
@@ -123,6 +124,7 @@ describe('space/roles', () => {
     memberRepo.findMember.mockResolvedValue(null);
     roleRepo.findBySpace.mockResolvedValue([]);
     roleRepo.findByIdInSpace.mockResolvedValue(null);
+    roleRepo.findBySystemKey.mockResolvedValue(null);
     roleRepo.deleteRole.mockResolvedValue(true);
     memberRepo.countWithRole.mockResolvedValue(1);
   });
@@ -204,6 +206,43 @@ describe('space/roles', () => {
     expect(roleRepo.deleteRole).toHaveBeenCalled();
   });
 
+  function adminRoleDoc(overrides: Record<string, unknown> = {}) {
+    return {
+      _id: ADMIN_ROLE,
+      spaceId: SPACE,
+      name: 'Admin',
+      permissions: ['manageRoles', 'kickMembers', 'manageMetadata'],
+      systemKey: 'admin' as const,
+      isSystem: true,
+      isDefaultMember: false,
+      color: '#e74c3c',
+      displaySeparately: true,
+      mentionable: false,
+      position: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ...overrides,
+    };
+  }
+
+  function memberRoleDoc() {
+    return {
+      _id: MEMBER_ROLE,
+      spaceId: SPACE,
+      name: 'Everyone',
+      permissions: ['viewChannels', 'sendMessages'],
+      systemKey: 'member' as const,
+      isSystem: true,
+      isDefaultMember: true,
+      color: '#99aab5',
+      displaySeparately: false,
+      mentionable: false,
+      position: 1000,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+  }
+
   test('setMemberRoles protects the last Admin', async () => {
     seedSpace();
     const actorRole = new ObjectId();
@@ -229,36 +268,8 @@ describe('space/roles', () => {
       return null;
     });
     roleRepo.findBySpace.mockResolvedValue([
-      {
-        _id: ADMIN_ROLE,
-        spaceId: SPACE,
-        name: 'Admin',
-        permissions: ['manageRoles', 'kickMembers', 'manageMetadata'],
-        systemKey: 'admin',
-        isSystem: true,
-        isDefaultMember: false,
-        color: '#e74c3c',
-        displaySeparately: true,
-        mentionable: false,
-        position: 0,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-      {
-        _id: MEMBER_ROLE,
-        spaceId: SPACE,
-        name: 'Everyone',
-        permissions: ['viewChannels', 'sendMessages'],
-        systemKey: 'member',
-        isSystem: true,
-        isDefaultMember: true,
-        color: '#99aab5',
-        displaySeparately: false,
-        mentionable: false,
-        position: 1000,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
+      adminRoleDoc(),
+      memberRoleDoc(),
       {
         _id: actorRole,
         spaceId: SPACE,
@@ -274,10 +285,75 @@ describe('space/roles', () => {
         updatedAt: new Date(),
       },
     ]);
+    roleRepo.findBySystemKey.mockResolvedValue(adminRoleDoc());
     memberRepo.countWithRole.mockResolvedValue(1);
 
     const r = await setMemberRoles(SPACE, TARGET, ACTOR, [MEMBER_ROLE.toHexString()]);
     expect(r).toMatchObject({ success: false, errorCode: 'LAST_ADMIN' });
+    expect(memberRepo.setRoles).not.toHaveBeenCalled();
+  });
+
+  test('setMemberRoles blocks sole Admin from self-demoting', async () => {
+    seedSpace();
+    memberRepo.findMember.mockImplementation(async (_s: ObjectId, id: ObjectId) =>
+      id.equals(ACTOR)
+        ? {
+            _id: new ObjectId(),
+            spaceId: SPACE,
+            identityId: ACTOR,
+            roleIds: [ADMIN_ROLE, MEMBER_ROLE],
+            status: 'active',
+          }
+        : null,
+    );
+    roleRepo.findBySpace.mockResolvedValue([
+      adminRoleDoc({
+        permissions: ['manageRoles', 'kickMembers', 'manageMetadata', 'viewChannels', 'sendMessages'],
+      }),
+      memberRoleDoc(),
+    ]);
+    roleRepo.findBySystemKey.mockResolvedValue(
+      adminRoleDoc({
+        permissions: ['manageRoles', 'kickMembers', 'manageMetadata', 'viewChannels', 'sendMessages'],
+      }),
+    );
+    memberRepo.countWithRole.mockResolvedValue(1);
+
+    const r = await setMemberRoles(SPACE, ACTOR, ACTOR, [MEMBER_ROLE.toHexString()]);
+    expect(r).toMatchObject({ success: false, errorCode: 'LAST_ADMIN' });
+    expect(memberRepo.setRoles).not.toHaveBeenCalled();
+  });
+
+  test('setMemberRoles allows demoting Admin when another Admin remains', async () => {
+    seedSpace();
+    memberRepo.findMember.mockImplementation(async (_s: ObjectId, id: ObjectId) => {
+      if (id.equals(ACTOR) || id.equals(TARGET)) {
+        return {
+          _id: new ObjectId(),
+          spaceId: SPACE,
+          identityId: id,
+          roleIds: [ADMIN_ROLE, MEMBER_ROLE],
+          status: 'active',
+        };
+      }
+      return null;
+    });
+    roleRepo.findBySpace.mockResolvedValue([
+      adminRoleDoc({
+        permissions: ['manageRoles', 'kickMembers', 'manageMetadata', 'viewChannels', 'sendMessages'],
+      }),
+      memberRoleDoc(),
+    ]);
+    roleRepo.findBySystemKey.mockResolvedValue(
+      adminRoleDoc({
+        permissions: ['manageRoles', 'kickMembers', 'manageMetadata', 'viewChannels', 'sendMessages'],
+      }),
+    );
+    memberRepo.countWithRole.mockResolvedValue(2);
+
+    const r = await setMemberRoles(SPACE, ACTOR, ACTOR, [MEMBER_ROLE.toHexString()]);
+    expect(r.success).toBe(true);
+    expect(memberRepo.setRoles).toHaveBeenCalled();
   });
 
   test('updateSpaceRole patches display fields', async () => {

@@ -84,6 +84,8 @@ export function SpaceRoleMembersTab({ role, allRoles }: SpaceRoleMembersTabProps
 
   /** Default Member role cannot be removed via the API (always re-applied). */
   const canRemoveFromRole = !role.isDefaultMember;
+  /** Sole Admin cannot be removed until policy/voting can succeed them. */
+  const isLastAdminRole = role.systemKey === 'admin' && members.length <= 1;
 
   const setRolesFor = async (identityId: string, roleIds: string[]) => {
     if (!activeSpace) return;
@@ -93,7 +95,11 @@ export function SpaceRoleMembersTab({ role, allRoles }: SpaceRoleMembersTabProps
     if (res.success) {
       void load();
     } else {
-      toast.error(t('spaces.manage.roles.membersUpdateError'));
+      toast.error(
+        res.error?.code === 'LAST_ADMIN'
+          ? t('spaces.manage.roles.members.lastAdminError')
+          : t('spaces.manage.roles.members.membersUpdateError'),
+      );
     }
   };
 
@@ -174,7 +180,12 @@ export function SpaceRoleMembersTab({ role, allRoles }: SpaceRoleMembersTabProps
             <Button
               variant="ghost"
               size="sm"
-              disabled={busyId === member.identityId}
+              disabled={busyId === member.identityId || isLastAdminRole}
+              title={
+                isLastAdminRole
+                  ? t('spaces.manage.roles.members.lastAdminError')
+                  : undefined
+              }
               onClick={() => handleRemove(member)}
             >
               {t('spaces.manage.roles.members.remove')}

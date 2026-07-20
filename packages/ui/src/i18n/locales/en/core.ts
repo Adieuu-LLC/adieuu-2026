@@ -413,6 +413,7 @@ export const core = {
           remove: 'Remove from role',
           empty: 'No members have this role yet.',
           membersUpdateError: "Couldn't update member roles.",
+          lastAdminError: 'Cannot remove the last Admin.',
           rolesLabel: 'Roles',
           defaultRoleHint:
             'Every member keeps the default role, so it cannot be removed from individuals here.',

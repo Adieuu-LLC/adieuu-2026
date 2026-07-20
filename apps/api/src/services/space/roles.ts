@@ -26,6 +26,7 @@ import { getSpaceRoleRepository } from '../../repositories/space-role.repository
 import { getSpaceMemberRepository } from '../../repositories/space-member.repository';
 import { resolveMemberPermissions, memberHasPermission } from './permissions';
 import { canReadSpace } from './access';
+import { assertNotLastAdmin } from './last-admin';
 import type { SpaceActionResult, SpaceErrorCode, SpaceMemberResult, SpaceRolesResult } from './types';
 
 function parseObjId(raw: string | ObjectId): ObjectId | null {
@@ -355,19 +356,13 @@ export async function setMemberRoles(
     };
   }
 
-  // Last Admin protection.
+  // Last Admin protection: cannot strip Admin when this member is the sole holder.
   if (adminRole) {
     const hadAdmin = target.roleIds.some((id) => id.equals(adminRole._id));
     const willHaveAdmin = nextIds.some((id) => id.equals(adminRole._id));
     if (hadAdmin && !willHaveAdmin) {
-      const holders = await memberRepo.countWithRole(spaceId, adminRole._id);
-      if (holders <= 1) {
-        return {
-          success: false,
-          error: 'Cannot remove the last Admin.',
-          errorCode: 'LAST_ADMIN',
-        };
-      }
+      const blocked = await assertNotLastAdmin(spaceId, targetId);
+      if (blocked) return blocked;
     }
   }
 
