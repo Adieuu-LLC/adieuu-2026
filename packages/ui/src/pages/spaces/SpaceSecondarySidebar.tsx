@@ -223,10 +223,12 @@ export function SpaceSecondarySidebar({
     setCreateChannelOpen(true);
   }, []);
 
-  const inheritRoleIds = useMemo(() => {
-    if (!createChannelCategoryId) return null;
-    return categoryById.get(createChannelCategoryId)?.allowedRoleIds ?? null;
-  }, [createChannelCategoryId, categoryById]);
+  const createChannelCategory = createChannelCategoryId
+    ? categoryById.get(createChannelCategoryId) ?? null
+    : null;
+
+  const inheritRoleIds = createChannelCategory?.allowedRoleIds ?? null;
+  const inheritChannelCipherCheck = createChannelCategory?.cipherCheck ?? null;
 
   const openCreateCategory = useCallback((parentCategoryId: string | null = null) => {
     setCreateCategoryParentId(parentCategoryId);
@@ -311,7 +313,6 @@ export function SpaceSecondarySidebar({
         return;
       }
       const newCategory = res.data.category;
-      addCategoryLocally(newCategory);
 
       const layout = layoutAfterCreateCategoryFromChannels({
         categories,
@@ -321,8 +322,14 @@ export function SpaceSecondarySidebar({
         channelIds: intent.channelIds,
         insertIndex: intent.insertIndex,
       });
-      const ok = await applyChannelLayout(layout);
-      if (!ok) toast.error(t('spaces.sidebar.layoutError'));
+      const ok = await applyChannelLayout(layout, {
+        knownCategories: [newCategory],
+      });
+      if (!ok) {
+        // Category was created; keep it visible even if layout failed.
+        addCategoryLocally(newCategory);
+        toast.error(t('spaces.sidebar.layoutError'));
+      }
     },
     [
       activeSpace,
@@ -638,6 +645,7 @@ export function SpaceSecondarySidebar({
           canManageEncryption={canManageEncryption}
           categoryId={createChannelCategoryId}
           initialAllowedRoleIds={inheritRoleIds}
+          initialCipherCheck={inheritChannelCipherCheck}
           onCreated={addChannelLocally}
         />
       )}
@@ -666,8 +674,10 @@ export function SpaceSecondarySidebar({
           }}
           space={activeSpace}
           heldRoleIds={activeSpaceRoleIds}
+          canManageEncryption={canManageEncryption}
           parentCategoryId={createCategoryParentId}
           initialAllowedRoleIds={createCategoryParent?.allowedRoleIds ?? null}
+          initialCipherCheck={createCategoryParent?.cipherCheck ?? null}
           onCreated={addCategoryLocally}
         />
       )}
@@ -680,6 +690,7 @@ export function SpaceSecondarySidebar({
           }}
           space={activeSpace}
           heldRoleIds={activeSpaceRoleIds}
+          canManageEncryption={canManageEncryption}
           category={editingCategory}
           onUpdated={addCategoryLocally}
         />

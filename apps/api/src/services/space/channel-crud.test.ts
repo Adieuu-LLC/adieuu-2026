@@ -296,6 +296,28 @@ describe('space/channel-crud', () => {
         resolveChannelCipherCheck({ e2ee: false, cipherCheck }, { encrypt: true }),
       ).toEqual(cipherCheck);
     });
+
+    test('inherits category cipherCheck over Space', () => {
+      const categoryCipher = { knownValue: 'c', encryptedKnownValue: 'ce', nonce: 'cn' };
+      expect(
+        resolveChannelCipherCheck(
+          { e2ee: true, cipherCheck },
+          {},
+          { cipherCheck: categoryCipher },
+        ),
+      ).toEqual(categoryCipher);
+    });
+
+    test('inherits category cipherCheck when Space is not e2ee', () => {
+      const categoryCipher = { knownValue: 'c', encryptedKnownValue: 'ce', nonce: 'cn' };
+      expect(
+        resolveChannelCipherCheck(
+          { e2ee: false },
+          {},
+          { cipherCheck: categoryCipher },
+        ),
+      ).toEqual(categoryCipher);
+    });
   });
 
   describe('updateSpaceChannel', () => {

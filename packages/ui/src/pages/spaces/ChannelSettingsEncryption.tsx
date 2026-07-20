@@ -29,6 +29,10 @@ export interface ChannelSettingsEncryptionProps {
   onAddEntropyRow: () => void;
   onRemoveEntropyRow: (id: string) => void;
   disabled?: boolean;
+  /** Override copy for category settings (defaults to channel copy). */
+  label?: string;
+  hint?: string;
+  idPrefix?: string;
 }
 
 export function ChannelSettingsEncryption({
@@ -48,6 +52,9 @@ export function ChannelSettingsEncryption({
   onAddEntropyRow,
   onRemoveEntropyRow,
   disabled = false,
+  label,
+  hint,
+  idPrefix = 'channel-settings-cipher',
 }: ChannelSettingsEncryptionProps) {
   const { t } = useTranslation();
 
@@ -62,12 +69,13 @@ export function ChannelSettingsEncryption({
         />
         <span className="create-channel-encrypt-body">
           <span className="create-channel-field-label">
-            {t('spaces.createChannel.encryptLabel')}
+            {label ?? t('spaces.createChannel.encryptLabel')}
           </span>
           <span className="create-channel-field-hint">
-            {spaceE2ee
-              ? t('spaces.createChannel.encryptSpaceE2eeHint')
-              : t('spaces.createChannel.encryptHint')}
+            {hint ??
+              (spaceE2ee
+                ? t('spaces.createChannel.encryptSpaceE2eeHint')
+                : t('spaces.createChannel.encryptHint'))}
           </span>
         </span>
       </label>
@@ -80,7 +88,7 @@ export function ChannelSettingsEncryption({
 
       {encrypt && encryptionAvailable && (
         <SpaceCipherFormFields
-          idPrefix="channel-settings-cipher"
+          idPrefix={idPrefix}
           cipherSource={cipherSource}
           onCipherSourceChange={onCipherSourceChange}
           ciphers={ciphers}

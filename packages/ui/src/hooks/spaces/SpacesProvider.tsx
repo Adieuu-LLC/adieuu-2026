@@ -280,7 +280,10 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   }, [categories]);
 
   const applyChannelLayout = useCallback(
-    async (layout: UpdateSpaceChannelLayoutParams): Promise<boolean> => {
+    async (
+      layout: UpdateSpaceChannelLayoutParams,
+      options?: { knownCategories?: readonly PublicSpaceChannelCategory[] },
+    ): Promise<boolean> => {
       const spaceId = activeSpaceIdRef.current;
       if (!spaceId) return false;
 
@@ -288,6 +291,9 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       const prevChannels = channels;
 
       const categoryById = new Map(categories.map((c) => [c.id, c]));
+      for (const cat of options?.knownCategories ?? []) {
+        categoryById.set(cat.id, cat);
+      }
       const channelById = new Map(channels.map((c) => [c.id, c]));
 
       const nextCategories: PublicSpaceChannelCategory[] = [];
@@ -317,8 +323,6 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
         });
       }
 
-      // Keep any categories that only appear as group parents with empty items
-      // (already covered when they appear as items under their parent).
       setCategories(nextCategories);
       setChannels(nextChannels);
 

@@ -61,18 +61,21 @@ export interface UpdateSpaceChannelParams {
 
 /**
  * Resolve whether a new/updated channel should store a `cipherCheck`.
- * Defaults to inheriting the Space Cipher when the Space is e2ee.
+ * Preference: explicit params → category default → Space (when e2ee / encrypt).
  */
 export function resolveChannelCipherCheck(
   space: Pick<SpaceDocument, 'e2ee' | 'cipherCheck'>,
   params: { encrypt?: boolean; cipherCheck?: CipherCheck },
+  category?: { cipherCheck?: CipherCheck } | null,
 ): CipherCheck | undefined {
   if (params.encrypt === false) return undefined;
   if (params.cipherCheck) return toPublicCipherCheck(params.cipherCheck);
-  const inheritByDefault = params.encrypt === true || (params.encrypt === undefined && !!space.e2ee);
-  if (inheritByDefault && space.cipherCheck) {
-    return toPublicCipherCheck(space.cipherCheck);
-  }
+  const inheritByDefault =
+    params.encrypt === true ||
+    (params.encrypt === undefined && (!!space.e2ee || !!category?.cipherCheck));
+  if (!inheritByDefault) return undefined;
+  if (category?.cipherCheck) return toPublicCipherCheck(category.cipherCheck);
+  if (space.cipherCheck) return toPublicCipherCheck(space.cipherCheck);
   return undefined;
 }
 
@@ -260,6 +263,7 @@ export async function createSpaceChannel(
 
   let categoryObjectId: ObjectId | null = null;
   let inheritedRoleIds: ObjectId[] | undefined;
+  let categoryForCipher: { cipherCheck?: CipherCheck } | null = null;
   if (params.categoryId) {
     const categoryId = parseObjId(params.categoryId);
     if (!categoryId) {
@@ -270,6 +274,7 @@ export async function createSpaceChannel(
       return { success: false, error: 'Category not found.', errorCode: 'CATEGORY_NOT_FOUND' };
     }
     categoryObjectId = categoryId;
+    categoryForCipher = category;
     if (params.allowedRoleIds === undefined && category.allowedRoleIds?.length) {
       inheritedRoleIds = category.allowedRoleIds;
     }
@@ -283,7 +288,7 @@ export async function createSpaceChannel(
   );
   if (!rolesResult.ok) return rolesResult.result;
 
-  const cipherCheck = resolveChannelCipherCheck(space, params);
+  const cipherCheck = resolveChannelCipherCheck(space, params, categoryForCipher);
   if (params.encrypt === true && !cipherCheck) {
     return {
       success: false,

@@ -487,6 +487,10 @@ export function applySpaceSidebarDrag(params: {
 /**
  * After creating a category from two channels, build the layout that places
  * the new category at `insertIndex` under `parentCategoryId` with both channels inside.
+ *
+ * The create API may already return `newCategory` with `parentCategoryId` set, so we
+ * build the base tree without it and insert a single node (avoids duplicate items that
+ * the layout endpoint rejects).
  */
 export function layoutAfterCreateCategoryFromChannels(params: {
   categories: readonly PublicSpaceChannelCategory[];
@@ -497,8 +501,9 @@ export function layoutAfterCreateCategoryFromChannels(params: {
   insertIndex: number;
 }): UpdateSpaceChannelLayoutParams {
   const { categories, channels, newCategory, parentCategoryId, channelIds, insertIndex } = params;
-  const allCategories = [...categories, newCategory];
-  const tree = cloneAndBuild(allCategories, channels);
+  const baseCategories = categories.filter((c) => c.id !== newCategory.id);
+  const allCategories = [...baseCategories, newCategory];
+  const tree = cloneAndBuild(baseCategories, channels);
 
   // Remove both channels from wherever they are
   for (const chId of channelIds) {
@@ -507,7 +512,7 @@ export function layoutAfterCreateCategoryFromChannels(params: {
 
   const newNode: SpaceSidebarTreeItem = {
     type: 'category',
-    category: newCategory,
+    category: { ...newCategory, parentCategoryId },
     children: channelIds.map((id) => {
       const channel = channels.find((c) => c.id === id)!;
       return { type: 'channel' as const, channel };

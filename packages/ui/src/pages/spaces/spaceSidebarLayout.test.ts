@@ -191,6 +191,28 @@ describe('spaceSidebarLayout', () => {
     expect(nested?.items.map((i) => i.id)).toEqual(['a', 'b']);
   });
 
+  test('layoutAfterCreateCategoryFromChannels does not duplicate a just-created nested category', () => {
+    // createCategory already returns the category with parentCategoryId set and
+    // may also appear in the local categories list after addCategoryLocally.
+    const newCat = cat('new', 2, 'c1');
+    const layout = layoutAfterCreateCategoryFromChannels({
+      categories: [cat('c1', 0), newCat],
+      channels: [ch('a', 0, 'c1'), ch('b', 1, 'c1'), ch('c', 2, 'c1')],
+      newCategory: newCat,
+      parentCategoryId: 'c1',
+      channelIds: ['a', 'b'],
+      insertIndex: 0,
+    });
+    const categoryItemIds = layout.groups.flatMap((g) =>
+      g.items.filter((i) => i.type === 'category').map((i) => i.id),
+    );
+    expect(categoryItemIds.filter((id) => id === 'new')).toHaveLength(1);
+    const c1 = layout.groups.find((g) => g.parentCategoryId === 'c1');
+    expect(c1?.items.map((i) => i.id)).toEqual(['new', 'c']);
+    const nested = layout.groups.find((g) => g.parentCategoryId === 'new');
+    expect(nested?.items.map((i) => i.id)).toEqual(['a', 'b']);
+  });
+
   test('applySpaceSidebarDrag rejects nesting past max depth', () => {
     const cats = [
       cat('c1', 0),

@@ -246,6 +246,11 @@ export interface PublicSpaceChannelCategory {
   encryptedName?: string;
   nameNonce?: string;
   cipherId?: string;
+  /**
+   * Default content Cipher for channels created in this category.
+   * New channels inherit this when they do not set an explicit cipher.
+   */
+  cipherCheck?: CipherCheck;
   createdAt: string;
   updatedAt: string;
 }
@@ -488,6 +493,12 @@ export interface CreateSpaceChannelCategoryParams {
   cipherId?: string;
   /** Nest under this category (null/omit = root). */
   parentCategoryId?: string | null;
+  /**
+   * When true, store a default content Cipher for child channels.
+   * When omitted, inherits parent category / Space cipher when applicable.
+   */
+  encrypt?: boolean;
+  cipherCheck?: CipherCheck;
 }
 
 /** PATCH body for updating a Space channel category. */
@@ -499,6 +510,8 @@ export interface UpdateSpaceChannelCategoryParams {
   cipherId?: string;
   position?: number;
   parentCategoryId?: string | null;
+  encrypt?: boolean;
+  cipherCheck?: CipherCheck;
 }
 
 /** One interleaved child under a category (or Space root). */

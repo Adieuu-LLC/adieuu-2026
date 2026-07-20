@@ -147,6 +147,18 @@ export function removeChannelCipherLink(channelId: string): void {
   channelCipherLinks.delete(channelId);
 }
 
+const categoryCipherLinks = new Map<string, string>();
+
+/** Records a per-category default Cipher link (in-memory). */
+export function registerCategoryCipherLink(categoryId: string, cipherLocalId: string): void {
+  categoryCipherLinks.set(categoryId, cipherLocalId);
+}
+
+/** Returns the local cipher id bound to a category, or null if unknown. */
+export function getCategoryCipherLink(categoryId: string): string | null {
+  return categoryCipherLinks.get(categoryId) ?? null;
+}
+
 /** Evicts a single cached per-Space key. */
 export function evictSpaceKey(spaceId: string, cipherId: string): void {
   spaceKeyCache.delete(keyCacheKey(spaceId, cipherId));

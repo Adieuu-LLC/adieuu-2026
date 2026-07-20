@@ -379,6 +379,13 @@ const spaceCategoryNameFields = {
   nameNonce: z.string().min(1).max(500).optional(),
   cipherId: z.string().min(1).max(256).optional(),
   parentCategoryId: z.string().length(24).nullable().optional(),
+  /**
+   * Default content Cipher for channels created in this category.
+   * When true (or omitted on an e2ee Space / under an encrypted parent),
+   * inherits parent/Space `cipherCheck` unless an explicit one is provided.
+   */
+  encrypt: z.boolean().optional(),
+  cipherCheck: CipherCheckSchema.optional(),
 };
 
 export const CreateSpaceChannelCategorySchema = z
@@ -390,7 +397,11 @@ export const CreateSpaceChannelCategorySchema = z
       return (hasPlain || hasCipher) && !(hasPlain && hasCipher);
     },
     { message: 'Provide either name (plaintext) or encryptedName+nameNonce+cipherId, not both' },
-  );
+  )
+  .refine((v) => !(v.encrypt === false && v.cipherCheck), {
+    message: 'cipherCheck cannot be set when encrypt is false',
+    path: ['cipherCheck'],
+  });
 
 export const UpdateSpaceChannelCategorySchema = z
   .object({
@@ -411,7 +422,11 @@ export const UpdateSpaceChannelCategorySchema = z
       return true;
     },
     { message: 'Provide either name (plaintext) or encryptedName+nameNonce+cipherId, not both' },
-  );
+  )
+  .refine((v) => !(v.encrypt === false && v.cipherCheck), {
+    message: 'cipherCheck cannot be set when encrypt is false',
+    path: ['cipherCheck'],
+  });
 
 export const UpdateSpaceChannelLayoutSchema = z.object({
   groups: z

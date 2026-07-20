@@ -77,6 +77,8 @@ import {
   createSpaceChannelCategory,
   deleteSpaceChannelCategory,
   listSpaceChannelCategories,
+  resolveCategoryCipherCheck,
+  updateSpaceChannelCategory,
   updateSpaceChannelLayout,
 } from './category-crud';
 import { createSpaceChannel } from './channel-crud';
@@ -283,6 +285,148 @@ describe('space/category-crud', () => {
     expect(r.success).toBe(true);
     expect(channelRepo.createChannel.mock.calls[0]![0].allowedRoleIds).toEqual([ADMIN_ROLE]);
     expect(channelRepo.createChannel.mock.calls[0]![0].categoryId).toEqual(categoryId);
+  });
+
+  test('createSpaceChannel inherits category cipherCheck', async () => {
+    const spaceId = new ObjectId();
+    const actor = new ObjectId();
+    const categoryId = new ObjectId();
+    const cipherCheck = { knownValue: 'kv', encryptedKnownValue: 'enc', nonce: 'n' };
+    seedAdmin(spaceId, actor);
+    categoryRepo.findByIdInSpace.mockResolvedValue({
+      _id: categoryId,
+      spaceId,
+      name: 'Encrypted',
+      position: 0,
+      allowedRoleIds: [EVERYONE_ROLE],
+      cipherCheck,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const r = await createSpaceChannel(spaceId, actor, {
+      type: 'text',
+      name: 'secret',
+      categoryId: categoryId.toHexString(),
+    });
+    expect(r.success).toBe(true);
+    expect(channelRepo.createChannel.mock.calls[0]![0].cipherCheck).toEqual(cipherCheck);
+  });
+
+  test('createSpaceChannelCategory persists explicit cipherCheck', async () => {
+    const spaceId = new ObjectId();
+    const actor = new ObjectId();
+    const cipherCheck = { knownValue: 'kv', encryptedKnownValue: 'enc', nonce: 'n' };
+    seedAdmin(spaceId, actor);
+
+    const r = await createSpaceChannelCategory(spaceId, actor, {
+      name: 'Vault',
+      encrypt: true,
+      cipherCheck,
+    });
+    expect(r.success).toBe(true);
+    expect(categoryRepo.createCategory.mock.calls[0]![0].cipherCheck).toEqual(cipherCheck);
+    expect(r.category?.cipherCheck).toEqual(cipherCheck);
+  });
+
+  test('createSpaceChannelCategory inherits parent cipherCheck', async () => {
+    const spaceId = new ObjectId();
+    const actor = new ObjectId();
+    const parentId = new ObjectId();
+    const cipherCheck = { knownValue: 'kv', encryptedKnownValue: 'enc', nonce: 'n' };
+    seedAdmin(spaceId, actor);
+    categoryRepo.findByIdInSpace.mockResolvedValue({
+      _id: parentId,
+      spaceId,
+      name: 'Parent',
+      position: 0,
+      allowedRoleIds: [EVERYONE_ROLE],
+      cipherCheck,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    categoryRepo.findBySpace.mockResolvedValue([
+      {
+        _id: parentId,
+        spaceId,
+        name: 'Parent',
+        position: 0,
+        allowedRoleIds: [EVERYONE_ROLE],
+        cipherCheck,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+
+    const r = await createSpaceChannelCategory(spaceId, actor, {
+      name: 'Child',
+      parentCategoryId: parentId.toHexString(),
+    });
+    expect(r.success).toBe(true);
+    expect(categoryRepo.createCategory.mock.calls[0]![0].cipherCheck).toEqual(cipherCheck);
+  });
+
+  test('updateSpaceChannelCategory clears cipherCheck when encrypt is false', async () => {
+    const spaceId = new ObjectId();
+    const actor = new ObjectId();
+    const categoryId = new ObjectId();
+    const cipherCheck = { knownValue: 'kv', encryptedKnownValue: 'enc', nonce: 'n' };
+    seedAdmin(spaceId, actor);
+    categoryRepo.findByIdInSpace.mockResolvedValue({
+      _id: categoryId,
+      spaceId,
+      name: 'Vault',
+      position: 0,
+      allowedRoleIds: [EVERYONE_ROLE],
+      cipherCheck,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    categoryRepo.updateCategory.mockImplementation(async (_s, _c, fields) => ({
+      _id: categoryId,
+      spaceId,
+      name: 'Vault',
+      position: 0,
+      allowedRoleIds: [EVERYONE_ROLE],
+      ...(fields.clearCipherCheck ? {} : fields.cipherCheck ? { cipherCheck: fields.cipherCheck } : { cipherCheck }),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+
+    const r = await updateSpaceChannelCategory(spaceId, categoryId, actor, { encrypt: false });
+    expect(r.success).toBe(true);
+    expect(categoryRepo.updateCategory.mock.calls[0]![2].clearCipherCheck).toBe(true);
+  });
+
+  describe('resolveCategoryCipherCheck', () => {
+    const cipherCheck = { knownValue: 'kv', encryptedKnownValue: 'enc', nonce: 'n' };
+    const parentCipher = { knownValue: 'p', encryptedKnownValue: 'pe', nonce: 'pn' };
+
+    test('prefers explicit cipherCheck', () => {
+      expect(
+        resolveCategoryCipherCheck(
+          { e2ee: true, cipherCheck },
+          { cipherCheck: parentCipher },
+          { cipherCheck },
+        ),
+      ).toEqual(parentCipher);
+    });
+
+    test('inherits parent over Space', () => {
+      expect(
+        resolveCategoryCipherCheck(
+          { e2ee: false, cipherCheck },
+          {},
+          { cipherCheck: parentCipher },
+        ),
+      ).toEqual(parentCipher);
+    });
+
+    test('inherits Space when e2ee and no parent cipher', () => {
+      expect(
+        resolveCategoryCipherCheck({ e2ee: true, cipherCheck }, {}, null),
+      ).toEqual(cipherCheck);
+    });
   });
 
   test('updateSpaceChannelLayout reorders nested categories and channels', async () => {

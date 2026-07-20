@@ -48,6 +48,11 @@ export class SpaceChannelCategoryRepository extends BaseRepository<SpaceChannelC
         $set.parentCategoryId = fields.parentCategoryId;
       }
     }
+    if (fields.clearCipherCheck) {
+      $unset.cipherCheck = '';
+    } else if (fields.cipherCheck !== undefined) {
+      $set.cipherCheck = fields.cipherCheck;
+    }
 
     const update: UpdateFilter<SpaceChannelCategoryDocument> = { $set };
     if (Object.keys($unset).length > 0) {

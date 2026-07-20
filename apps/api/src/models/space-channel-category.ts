@@ -5,7 +5,8 @@
 
 import type { ObjectId } from 'mongodb';
 import type { BaseDocument } from './base';
-import type { PublicSpaceChannelCategory } from '@adieuu/shared';
+import type { CipherCheck, PublicSpaceChannelCategory } from '@adieuu/shared';
+import { toPublicCipherCheck } from './cipher-check';
 
 export interface SpaceChannelCategoryDocument extends BaseDocument {
   spaceId: ObjectId;
@@ -26,6 +27,8 @@ export interface SpaceChannelCategoryDocument extends BaseDocument {
   encryptedName?: string;
   nameNonce?: string;
   cipherId?: string;
+  /** Default content Cipher for channels created in this category. */
+  cipherCheck?: CipherCheck;
 }
 
 export interface CreateSpaceChannelCategoryInput {
@@ -37,6 +40,7 @@ export interface CreateSpaceChannelCategoryInput {
   encryptedName?: string;
   nameNonce?: string;
   cipherId?: string;
+  cipherCheck?: CipherCheck;
 }
 
 export interface UpdateSpaceChannelCategoryFields {
@@ -48,6 +52,8 @@ export interface UpdateSpaceChannelCategoryFields {
   position?: number;
   parentCategoryId?: ObjectId | null;
   clearParentCategoryId?: boolean;
+  cipherCheck?: CipherCheck;
+  clearCipherCheck?: boolean;
 }
 
 export function toPublicSpaceChannelCategory(
@@ -67,6 +73,7 @@ export function toPublicSpaceChannelCategory(
           cipherId: doc.cipherId,
         }
       : {}),
+    ...(doc.cipherCheck ? { cipherCheck: toPublicCipherCheck(doc.cipherCheck) } : {}),
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString(),
   };

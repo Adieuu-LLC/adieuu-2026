@@ -77,7 +77,10 @@ export interface SpacesContextValue {
   removeCategoryLocally: (categoryId: string) => void;
 
   /** Apply a full channel/category layout (optimistic + API). */
-  applyChannelLayout: (layout: UpdateSpaceChannelLayoutParams) => Promise<boolean>;
+  applyChannelLayout: (
+    layout: UpdateSpaceChannelLayoutParams,
+    options?: { knownCategories?: readonly PublicSpaceChannelCategory[] },
+  ) => Promise<boolean>;
 
   /** Currently viewed channel within the active Space. */
   activeChannelId: string | null;

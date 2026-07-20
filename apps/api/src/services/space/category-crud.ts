@@ -5,7 +5,7 @@
  */
 
 import { ObjectId } from 'mongodb';
-import { SPACE_CATEGORY_MAX_DEPTH } from '@adieuu/shared';
+import { SPACE_CATEGORY_MAX_DEPTH, type CipherCheck } from '@adieuu/shared';
 import { getSpaceRepository } from '../../repositories/space.repository';
 import { getSpaceChannelRepository } from '../../repositories/space-channel.repository';
 import { getSpaceChannelCategoryRepository } from '../../repositories/space-channel-category.repository';
@@ -16,6 +16,7 @@ import {
   toPublicSpaceChannelCategory,
   type SpaceChannelCategoryDocument,
 } from '../../models/space-channel-category';
+import { toPublicCipherCheck } from '../../models/cipher-check';
 import type { SpaceDocument } from '../../models/space';
 import type { SpaceRoleDocument } from '../../models/space-role';
 import {
@@ -50,6 +51,8 @@ export interface CreateSpaceChannelCategoryParams {
   nameNonce?: string;
   cipherId?: string;
   parentCategoryId?: string | null;
+  encrypt?: boolean;
+  cipherCheck?: CipherCheck;
 }
 
 export interface UpdateSpaceChannelCategoryParams {
@@ -60,6 +63,27 @@ export interface UpdateSpaceChannelCategoryParams {
   cipherId?: string;
   position?: number;
   parentCategoryId?: string | null;
+  encrypt?: boolean;
+  cipherCheck?: CipherCheck;
+}
+
+/**
+ * Default content Cipher for a category: explicit → parent category → Space e2ee.
+ */
+export function resolveCategoryCipherCheck(
+  space: Pick<SpaceDocument, 'e2ee' | 'cipherCheck'>,
+  params: { encrypt?: boolean; cipherCheck?: CipherCheck },
+  parentCategory?: { cipherCheck?: CipherCheck } | null,
+): CipherCheck | undefined {
+  if (params.encrypt === false) return undefined;
+  if (params.cipherCheck) return toPublicCipherCheck(params.cipherCheck);
+  const inheritByDefault =
+    params.encrypt === true ||
+    (params.encrypt === undefined && (!!space.e2ee || !!parentCategory?.cipherCheck));
+  if (!inheritByDefault) return undefined;
+  if (parentCategory?.cipherCheck) return toPublicCipherCheck(parentCategory.cipherCheck);
+  if (space.cipherCheck) return toPublicCipherCheck(space.cipherCheck);
+  return undefined;
 }
 
 export interface UpdateSpaceChannelLayoutParams {
@@ -130,6 +154,17 @@ function forbidUnlessManage(
   return {
     success: false,
     error: 'You do not have permission to manage channels.',
+    errorCode: 'FORBIDDEN',
+  };
+}
+
+function forbidUnlessEncryption(
+  perms: SpaceMemberPermissions,
+): SpaceCategoryResult | null {
+  if (memberHasPermission(perms, 'manageEncryption')) return null;
+  return {
+    success: false,
+    error: 'You do not have permission to manage encryption.',
     errorCode: 'FORBIDDEN',
   };
 }
@@ -296,6 +331,12 @@ export async function createSpaceChannelCategory(
   const denied = forbidUnlessManage(perms);
   if (denied) return denied;
 
+  const touchesEncryption = params.encrypt !== undefined || params.cipherCheck !== undefined;
+  if (touchesEncryption) {
+    const encryptionDenied = forbidUnlessEncryption(perms);
+    if (encryptionDenied) return encryptionDenied;
+  }
+
   const nameErr = validateCategoryName(space, params, { requireName: true });
   if (nameErr) return nameErr;
 
@@ -304,6 +345,7 @@ export async function createSpaceChannelCategory(
 
   const existing = await getSpaceChannelCategoryRepository().findBySpace(spaceId);
   let parentCategoryId: ObjectId | null = null;
+  let parentDoc: SpaceChannelCategoryDocument | null = null;
   if (params.parentCategoryId) {
     const parentOid = parseObjId(params.parentCategoryId);
     if (!parentOid) {
@@ -325,6 +367,7 @@ export async function createSpaceChannelCategory(
       };
     }
     parentCategoryId = parentOid;
+    parentDoc = parent;
   }
 
   const siblings = existing.filter((c) => {
@@ -337,6 +380,15 @@ export async function createSpaceChannelCategory(
   const e2ee = !!space.e2ee;
   const hasEncrypted = !!(params.encryptedName && params.nameNonce && params.cipherId);
   const plainName = params.name?.trim() ?? '';
+
+  const cipherCheck = resolveCategoryCipherCheck(space, params, parentDoc);
+  if (params.encrypt === true && !cipherCheck) {
+    return {
+      success: false,
+      error: 'cipherCheck is required when encrypt is enabled.',
+      errorCode: 'INVALID_CONTENT',
+    };
+  }
 
   const category = await getSpaceChannelCategoryRepository().createCategory({
     spaceId,
@@ -351,6 +403,7 @@ export async function createSpaceChannelCategory(
           cipherId: params.cipherId,
         }
       : {}),
+    ...(cipherCheck ? { cipherCheck } : {}),
   });
 
   const publicCategory = toPublicSpaceChannelCategory(category);
@@ -383,6 +436,12 @@ export async function updateSpaceChannelCategory(
   const denied = forbidUnlessManage(perms);
   if (denied) return denied;
 
+  const touchesEncryption = params.encrypt !== undefined || params.cipherCheck !== undefined;
+  if (touchesEncryption) {
+    const encryptionDenied = forbidUnlessEncryption(perms);
+    if (encryptionDenied) return encryptionDenied;
+  }
+
   const existing = await getSpaceChannelCategoryRepository().findByIdInSpace(spaceId, categoryId);
   if (!existing) {
     return { success: false, error: 'Category not found.', errorCode: 'CATEGORY_NOT_FOUND' };
@@ -395,7 +454,9 @@ export async function updateSpaceChannelCategory(
     params.nameNonce === undefined &&
     params.cipherId === undefined &&
     params.position === undefined &&
-    params.parentCategoryId === undefined
+    params.parentCategoryId === undefined &&
+    params.encrypt === undefined &&
+    params.cipherCheck === undefined
   ) {
     return { success: false, error: 'At least one field is required.', errorCode: 'INVALID_CONTENT' };
   }
@@ -473,6 +534,38 @@ export async function updateSpaceChannelCategory(
 
   const hasEncrypted = !!(params.encryptedName && params.nameNonce && params.cipherId);
 
+  let cipherCheck: CipherCheck | undefined;
+  let clearCipherCheck = false;
+  if (touchesEncryption) {
+    if (params.encrypt === false) {
+      clearCipherCheck = true;
+    } else {
+      let parentForCipher: SpaceChannelCategoryDocument | null = null;
+      const parentId =
+        parentCategoryId !== undefined
+          ? parentCategoryId
+          : (existing.parentCategoryId ?? null);
+      if (parentId) {
+        parentForCipher = await getSpaceChannelCategoryRepository().findByIdInSpace(
+          spaceId,
+          parentId,
+        );
+      }
+      cipherCheck = resolveCategoryCipherCheck(
+        space,
+        { encrypt: params.encrypt ?? true, cipherCheck: params.cipherCheck },
+        parentForCipher,
+      );
+      if (!cipherCheck) {
+        return {
+          success: false,
+          error: 'cipherCheck is required when encrypt is enabled.',
+          errorCode: 'INVALID_CONTENT',
+        };
+      }
+    }
+  }
+
   const updated = await getSpaceChannelCategoryRepository().updateCategory(spaceId, categoryId, {
     ...(params.name !== undefined ? { name: params.name.trim() } : {}),
     ...(hasEncrypted
@@ -486,6 +579,8 @@ export async function updateSpaceChannelCategory(
     ...(allowedRoleIds !== undefined ? { allowedRoleIds } : {}),
     ...(params.position !== undefined ? { position: params.position } : {}),
     ...(parentCategoryId !== undefined ? { parentCategoryId } : {}),
+    ...(clearCipherCheck ? { clearCipherCheck: true } : {}),
+    ...(cipherCheck ? { cipherCheck } : {}),
   });
 
   if (!updated) {

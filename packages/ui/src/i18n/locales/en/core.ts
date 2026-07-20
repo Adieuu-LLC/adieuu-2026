@@ -346,6 +346,11 @@ export const core = {
       title: 'Create category',
       nameLabel: 'Category name',
       namePlaceholder: 'Category',
+      encryptLabel: 'Encrypt category channels',
+      encryptHint:
+        'New channels in this category encrypt messages with a Cipher on your device by default.',
+      encryptSpaceE2eeHint:
+        'Choose a default Cipher for channels in this category. Space-wide encryption still applies to metadata.',
       create: 'Create',
       creating: 'Creating…',
       error: "Couldn't create category.",

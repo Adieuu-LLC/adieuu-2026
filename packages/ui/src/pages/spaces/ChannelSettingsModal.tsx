@@ -53,6 +53,8 @@ export interface ChannelSettingsModalProps {
   categoryId?: string | null;
   /** Prefill role ACL when creating (e.g. inherited from a category). */
   initialAllowedRoleIds?: readonly string[] | null;
+  /** Prefill content Cipher when creating (e.g. inherited from a category). */
+  initialCipherCheck?: CipherCheck | null;
   onCreated?: (channel: PublicSpaceChannel) => void;
   onUpdated?: (channel: PublicSpaceChannel) => void;
 }
@@ -72,6 +74,7 @@ export function ChannelSettingsModal({
   channel = null,
   categoryId = null,
   initialAllowedRoleIds = null,
+  initialCipherCheck: seedCipherCheck = null,
   onCreated,
   onUpdated,
 }: ChannelSettingsModalProps) {
@@ -93,7 +96,7 @@ export function ChannelSettingsModal({
   const [roles, setRoles] = useState<PublicSpaceRole[]>([]);
   const [selectedRoleIds, setSelectedRoleIds] = useState<Set<string>>(new Set());
   const [encrypt, setEncrypt] = useState(false);
-  const [initialCipherCheck, setInitialCipherCheck] = useState<CipherCheck | null>(null);
+  const [storedCipherCheck, setStoredCipherCheck] = useState<CipherCheck | null>(null);
   const [cipherSource, setCipherSource] = useState<CipherSource>('existing');
   const [selectedCipherId, setSelectedCipherId] = useState('');
   const [newCipherName, setNewCipherName] = useState('');
@@ -130,12 +133,13 @@ export function ChannelSettingsModal({
       );
       const hasChannelCipher = !!channel.cipherCheck;
       setEncrypt(hasChannelCipher || !!space.e2ee);
-      setInitialCipherCheck(channel.cipherCheck ?? null);
+      setStoredCipherCheck(channel.cipherCheck ?? null);
       setSelectedRoleIds(new Set(channel.allowedRoleIds));
     } else {
       setName('');
-      setEncrypt(!!space.e2ee);
-      setInitialCipherCheck(null);
+      const seedCipher = seedCipherCheck ?? null;
+      setEncrypt(!!seedCipher || !!space.e2ee);
+      setStoredCipherCheck(seedCipher);
       setSelectedRoleIds(new Set());
     }
 
@@ -177,6 +181,7 @@ export function ChannelSettingsModal({
     spaceCipher,
     canManageChannels,
     initialAllowedRoleIds,
+    seedCipherCheck,
   ]);
 
   const toggleRole = useCallback((roleId: string) => {
@@ -218,26 +223,43 @@ export function ChannelSettingsModal({
   }, [channel, space.id]);
 
   const encryptionSelectionChanged = useCallback((): boolean => {
-    if (!encrypt) return !!initialCipherCheck;
-    if (!initialCipherCheck) return true;
+    if (!encrypt) return !!storedCipherCheck;
+    // Create: leave unset so the API inherits category (then Space) defaults,
+    // unless the user explicitly picks/creates a Cipher.
+    if (!isEdit) {
+      if (cipherSource === 'new') return true;
+      if (
+        cipherSource === 'existing' &&
+        selectedCipherId &&
+        selectedCipherId !== (getSpaceCipherLink(space.id) ?? '')
+      ) {
+        return true;
+      }
+      // Inheritance can supply a challenge — otherwise resolve the picker.
+      return !(storedCipherCheck || space.e2ee || space.cipherCheck);
+    }
+    if (!storedCipherCheck) return true;
     if (cipherSource === 'new') return true;
     if (cipherSource === 'existing') {
       if (selectedCipherId) return selectedCipherId !== initialLinkedCipherId;
       // Inherit Space challenge — changed only when channel wasn't already on it.
       return !(
         space.cipherCheck &&
-        initialCipherCheck.knownValue === space.cipherCheck.knownValue &&
-        initialCipherCheck.nonce === space.cipherCheck.nonce
+        storedCipherCheck.knownValue === space.cipherCheck.knownValue &&
+        storedCipherCheck.nonce === space.cipherCheck.nonce
       );
     }
     return true;
   }, [
     encrypt,
-    initialCipherCheck,
+    isEdit,
+    storedCipherCheck,
     cipherSource,
     selectedCipherId,
     initialLinkedCipherId,
     space.cipherCheck,
+    space.e2ee,
+    space.id,
   ]);
 
   const resolveEncryptionPayload = useCallback(async (): Promise<
@@ -247,7 +269,7 @@ export function ChannelSettingsModal({
     if (!encrypt) {
       return {
         ok: true,
-        value: initialCipherCheck ? { kind: 'off' } : { kind: 'unchanged' },
+        value: storedCipherCheck ? { kind: 'off' } : { kind: 'unchanged' },
       };
     }
 
@@ -305,7 +327,7 @@ export function ChannelSettingsModal({
     }
   }, [
     encrypt,
-    initialCipherCheck,
+    storedCipherCheck,
     encryptionSelectionChanged,
     encryptionAvailable,
     cipherSource,
