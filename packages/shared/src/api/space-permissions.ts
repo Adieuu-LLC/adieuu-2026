@@ -12,6 +12,7 @@
 export const SPACE_PERMISSIONS = [
   // general
   'viewChannels',
+  'manageChannels',
   'manageRoles',
   'viewAuditLog',
   'manageWebhooks',
@@ -83,6 +84,7 @@ export interface SpacePermissionDef {
 export const SPACE_PERMISSION_DEFS: readonly SpacePermissionDef[] = [
   // general
   { id: 'viewChannels', category: 'general', toggle: 'yesNo', permission: 'viewChannels' },
+  { id: 'manageChannels', category: 'general', toggle: 'noManage', permission: 'manageChannels' },
   { id: 'manageRoles', category: 'general', toggle: 'noManage', permission: 'manageRoles' },
   { id: 'viewAuditLog', category: 'general', toggle: 'yesNo', permission: 'viewAuditLog' },
   { id: 'manageWebhooks', category: 'general', toggle: 'noManage', permission: 'manageWebhooks' },
@@ -167,7 +169,6 @@ const LEGACY_PERMISSION_MAP: Record<string, readonly SpacePermission[]> = {
   post: ['sendMessages'],
   invite: ['createInvite'],
   manageMembers: ['kickMembers'],
-  manageChannels: ['pinMessages'],
   manageRoles: ['manageRoles'],
 };
 

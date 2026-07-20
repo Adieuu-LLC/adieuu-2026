@@ -263,15 +263,16 @@ export async function deleteSpaceRole(
     return { success: false, error: 'Role not found.', errorCode: 'ROLE_NOT_FOUND' };
   }
 
-  const memberRepo = getSpaceMemberRepository();
-  const holderCount = await memberRepo.countWithRole(spaceId, roleId);
-  if ((existing.isSystem || existing.systemKey) && holderCount > 0) {
+  if (existing.isSystem || existing.systemKey) {
     return {
       success: false,
-      error: 'System roles can only be deleted when no members hold them.',
-      errorCode: 'ROLE_IN_USE',
+      error: 'System roles cannot be deleted.',
+      errorCode: 'SYSTEM_ROLE',
     };
   }
+
+  const memberRepo = getSpaceMemberRepository();
+  const holderCount = await memberRepo.countWithRole(spaceId, roleId);
 
   // Strip the role from all members before delete (no-op when already empty).
   if (holderCount > 0) {

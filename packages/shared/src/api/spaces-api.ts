@@ -1,6 +1,7 @@
 import type { ApiResponse } from '../types';
 import type { HttpClient, RequestOptions } from './http-client';
 import type {
+  CreateSpaceChannelParams,
   CreateSpaceParams,
   EditSpaceMessageParams,
   PublicSpace,
@@ -13,6 +14,7 @@ import type {
   SendSpaceMessageParams,
   SpaceManageOverview,
   SpaceViewerPermissions,
+  UpdateSpaceChannelParams,
   UpdateSpaceParams,
 } from './spaces-types';
 
@@ -188,6 +190,24 @@ export class SpacesApi {
 
   async listChannels(spaceId: string): Promise<ApiResponse<{ channels: PublicSpaceChannel[] }>> {
     return this.client.get(`/api/spaces/${encodeURIComponent(spaceId)}/channels`);
+  }
+
+  async createChannel(
+    spaceId: string,
+    body: CreateSpaceChannelParams,
+  ): Promise<ApiResponse<{ channel: PublicSpaceChannel }>> {
+    return this.client.post(`/api/spaces/${encodeURIComponent(spaceId)}/channels`, body);
+  }
+
+  async updateChannel(
+    spaceId: string,
+    channelId: string,
+    body: UpdateSpaceChannelParams,
+  ): Promise<ApiResponse<{ channel: PublicSpaceChannel }>> {
+    return this.client.patch(
+      `/api/spaces/${encodeURIComponent(spaceId)}/channels/${encodeURIComponent(channelId)}`,
+      body,
+    );
   }
 
   async getMessages(

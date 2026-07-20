@@ -55,6 +55,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   const [unreadByChannel, setUnreadByChannel] = useState<Record<string, SpaceChannelUnreadState>>({});
   const [unreadBySpace, setUnreadBySpace] = useState<Record<string, number>>({});
   const [activeSpacePermissions, setActiveSpacePermissions] = useState<SpacePermission[]>([]);
+  const [activeSpaceRoleIds, setActiveSpaceRoleIds] = useState<string[]>([]);
   const [isActiveSpaceAdmin, setIsActiveSpaceAdmin] = useState(false);
   const [activeSpacePermissionsLoading, setActiveSpacePermissionsLoading] = useState(false);
   const [rolePermissionPreview, setRolePermissionPreview] = useState<{
@@ -143,6 +144,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
         clearActiveSpace();
         setActiveChannelIdState(null);
         setActiveSpacePermissions([]);
+        setActiveSpaceRoleIds([]);
         setIsActiveSpaceAdmin(false);
         setActiveSpacePermissionsLoading(false);
         setRolePermissionPreview(null);
@@ -167,6 +169,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     setRolePermissionPreview(null);
     if (!isLoggedIn || !spaceId) {
       setActiveSpacePermissions([]);
+      setActiveSpaceRoleIds([]);
       setIsActiveSpaceAdmin(false);
       setActiveSpacePermissionsLoading(false);
       return;
@@ -178,9 +181,11 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
       if (res.success && res.data) {
         setActiveSpacePermissions(res.data.permissions);
+        setActiveSpaceRoleIds(res.data.roleIds ?? []);
         setIsActiveSpaceAdmin(res.data.isAdmin);
       } else {
         setActiveSpacePermissions([]);
+        setActiveSpaceRoleIds([]);
         setIsActiveSpaceAdmin(false);
       }
       setActiveSpacePermissionsLoading(false);
@@ -225,12 +230,22 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
         clearActiveSpace();
         setActiveChannelIdState(null);
         setActiveSpacePermissions([]);
+        setActiveSpaceRoleIds([]);
         setIsActiveSpaceAdmin(false);
         setActiveSpacePermissionsLoading(false);
       }
     },
     [clearActiveSpace],
   );
+
+  const addChannelLocally = useCallback((channel: PublicSpaceChannel) => {
+    setChannels((prev) => {
+      if (prev.some((c) => c.id === channel.id)) {
+        return prev.map((c) => (c.id === channel.id ? channel : c));
+      }
+      return [...prev, channel].sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
+    });
+  }, []);
 
   const setActiveChannel = useCallback(
     (channelId: string | null) => {
@@ -471,6 +486,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     subscribe,
     onStateChange,
     setSpaces,
+    setChannels,
     setMessagesByChannel,
     activeSpaceIdRef,
     activeChannelIdRef,
@@ -513,6 +529,8 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       rolePermissionPreview,
       setRolePermissionPreview,
       channels,
+      activeSpaceRoleIds,
+      addChannelLocally,
       activeChannelId,
       activeMessages: activeChannelState?.messages ?? [],
       activeMessagesLoading: activeChannelState?.loading ?? false,
@@ -550,6 +568,8 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       activeSpacePermissionsLoading,
       rolePermissionPreview,
       channels,
+      activeSpaceRoleIds,
+      addChannelLocally,
       activeChannelId,
       activeChannelState,
       sending,

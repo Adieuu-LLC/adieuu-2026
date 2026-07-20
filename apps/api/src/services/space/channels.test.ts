@@ -60,7 +60,8 @@ mock.module('../notification.service', () => ({
   createNotification: createNotificationMock,
 }));
 
-import { listSpaceChannels, sendSpaceMessage, getSpaceMessages, getSpaceMessagesAround } from './channels';
+import { sendSpaceMessage, getSpaceMessages, getSpaceMessagesAround } from './channels';
+import { listSpaceChannels } from './channel-crud';
 
 const OWNER = new ObjectId();
 
@@ -118,15 +119,14 @@ describe('space/channels', () => {
     createNotificationMock.mockClear();
   });
 
-  describe('listSpaceChannels', () => {
-    test('lets anyone list a public space', async () => {
+  describe('listSpaceChannels (access gate)', () => {
+    test('lets anyone list a public space (legacy open channels)', async () => {
       const space = makeSpaceDoc({ visibility: 'public' });
       spaceRepo.findById.mockResolvedValue(space);
       channelRepo.findBySpace.mockResolvedValue([makeChannelDoc(space._id)]);
       const r = await listSpaceChannels(space._id, new ObjectId());
       expect(r.success).toBe(true);
       expect(r.channels).toHaveLength(1);
-      expect(memberRepo.findMember).not.toHaveBeenCalled();
     });
 
     test('lets non-members browse a listed non-E2EE space', async () => {
@@ -156,6 +156,51 @@ describe('space/channels', () => {
   });
 
   describe('sendSpaceMessage', () => {
+    test('rejects send to a channel the member cannot view', async () => {
+      const space = makeSpaceDoc({ visibility: 'public' });
+      spaceRepo.findById.mockResolvedValue(space);
+      const sender = new ObjectId();
+      const everyone = new ObjectId();
+      const mods = new ObjectId();
+      memberRepo.findMember.mockImplementation(async (_s: ObjectId, id: ObjectId) =>
+        id.equals(sender)
+          ? {
+              _id: new ObjectId(),
+              spaceId: space._id,
+              identityId: sender,
+              roleIds: [everyone],
+              status: 'active',
+              joinedAt: new Date(),
+            }
+          : null,
+      );
+      roleRepo.findBySpace.mockResolvedValue([
+        {
+          _id: everyone,
+          spaceId: space._id,
+          permissions: ['sendMessages', 'viewChannels'],
+          position: 1000,
+          isDefaultMember: true,
+          systemKey: 'member',
+        },
+        {
+          _id: mods,
+          spaceId: space._id,
+          permissions: ['sendMessages'],
+          position: 100,
+          isDefaultMember: false,
+        },
+      ]);
+      channelRepo.findByIdInSpace.mockResolvedValue(
+        makeChannelDoc(space._id, { allowedRoleIds: [mods] }),
+      );
+      const r = await sendSpaceMessage(space._id, new ObjectId(), sender, {
+        content: 'hi',
+        clientMessageId: 'c1',
+      });
+      expect(r).toMatchObject({ success: false, errorCode: 'CHANNEL_NOT_FOUND' });
+    });
+
     test('rejects empty content on a plaintext channel', async () => {
       const space = makeSpaceDoc({ visibility: 'public' });
       spaceRepo.findById.mockResolvedValue(space);

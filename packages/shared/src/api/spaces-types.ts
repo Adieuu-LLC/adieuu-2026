@@ -204,11 +204,19 @@ export interface PublicSpaceChannel {
   /** Plaintext name; empty when the Space is e2ee. */
   name: string;
   position: number;
+  /**
+   * Role IDs allowed to see this channel. Empty/missing on legacy docs means
+   * open to everyone (Everyone role). Always non-empty for newly created channels.
+   */
+  allowedRoleIds: string[];
   /** Present when the Space (or channel) uses Cipher-encrypted names. */
   encryptedName?: string;
   nameNonce?: string;
   cipherId?: string;
-  /** Present only when the channel has per-channel E2EE (schema only in the first pass). */
+  /**
+   * Blind-relay challenge when this channel encrypts content with a Cipher.
+   * New channels in an e2ee Space inherit the Space's `cipherCheck` by default.
+   */
   cipherCheck?: CipherCheck;
   createdAt: string;
   updatedAt: string;
@@ -405,6 +413,37 @@ export interface UpdateSpaceParams {
   allowFreeMembers?: boolean;
   /** Client join gate; may be toggled after create. */
   cipherRequired?: boolean;
+}
+
+/** PATCH body for updating a Space channel (name, ACL, encryption). */
+export interface UpdateSpaceChannelParams {
+  name?: string;
+  allowedRoleIds?: string[];
+  encryptedName?: string;
+  nameNonce?: string;
+  cipherId?: string;
+  /**
+   * When true, ensure the channel has a `cipherCheck` (explicit or inherited
+   * from the parent Space). When false, clear channel `cipherCheck`.
+   */
+  encrypt?: boolean;
+  cipherCheck?: CipherCheck;
+}
+
+/** POST body for creating a Space text channel. */
+export interface CreateSpaceChannelParams {
+  name?: string;
+  type: 'text';
+  allowedRoleIds?: string[];
+  encryptedName?: string;
+  nameNonce?: string;
+  cipherId?: string;
+  /**
+   * Defaults to inheriting the Space Cipher when the Space is e2ee.
+   * When false, the channel stores no `cipherCheck`.
+   */
+  encrypt?: boolean;
+  cipherCheck?: CipherCheck;
 }
 
 /** Common fields for both plaintext and encrypted message sends. */

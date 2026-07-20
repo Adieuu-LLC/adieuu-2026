@@ -53,6 +53,13 @@ export {
 export { canReadSpace, type SpaceReadAccess } from './access';
 export {
   listSpaceChannels,
+  createSpaceChannel,
+  updateSpaceChannel,
+  resolveChannelCipherCheck,
+  type CreateSpaceChannelParams,
+  type UpdateSpaceChannelParams,
+} from './channel-crud';
+export {
   sendSpaceMessage,
   getSpaceMessages,
   getSpaceMessage,

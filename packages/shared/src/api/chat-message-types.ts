@@ -7,6 +7,7 @@
 
 import type {
   PublicSpace,
+  PublicSpaceChannel,
   PublicSpaceInvite,
   PublicSpaceMember,
   PublicSpaceMessage,
@@ -43,6 +44,8 @@ export type ChatMessageType =
   | 'space_created'
   | 'space_updated'
   | 'space_deleted'
+  | 'space_channel_created'
+  | 'space_channel_updated'
   | 'space_message'
   | 'space_member_joined'
   | 'space_member_left'
@@ -402,6 +405,18 @@ export interface ChatSpaceDeletedMessage extends ChatMessageBase {
   data: { spaceId: string };
 }
 
+/** A new channel was created. Fanned out on the `space:{spaceId}` channel. */
+export interface ChatSpaceChannelCreatedMessage extends ChatMessageBase {
+  type: 'space_channel_created';
+  data: { channel: PublicSpaceChannel };
+}
+
+/** A channel was updated. Fanned out on the `space:{spaceId}` channel. */
+export interface ChatSpaceChannelUpdatedMessage extends ChatMessageBase {
+  type: 'space_channel_updated';
+  data: { channel: PublicSpaceChannel };
+}
+
 /**
  * A new (non-E2EE) channel message. Fanned out on the `space:{spaceId}`
  * channel to active members.
@@ -525,6 +540,8 @@ export type ChatIncomingMessage =
   | ChatSpaceCreatedMessage
   | ChatSpaceUpdatedMessage
   | ChatSpaceDeletedMessage
+  | ChatSpaceChannelCreatedMessage
+  | ChatSpaceChannelUpdatedMessage
   | ChatSpaceMessageMessage
   | ChatSpaceMemberJoinedMessage
   | ChatSpaceMemberLeftMessage

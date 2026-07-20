@@ -235,7 +235,7 @@ export async function createSpace(
           }
         : {}),
     });
-    await roleRepo.createRole({
+    const memberRole = await roleRepo.createRole({
       spaceId: spaceObjId,
       name: e2ee ? '' : DEFAULT_MEMBER_ROLE_NAME,
       permissions: [...DEFAULT_MEMBER_PERMISSIONS],
@@ -266,6 +266,7 @@ export async function createSpace(
       type: 'text',
       name: e2ee ? '' : DEFAULT_SPACE_CHANNEL_NAME,
       position: 0,
+      allowedRoleIds: [memberRole._id],
       ...(seed?.channel
         ? {
             encryptedName: seed.channel.encryptedName,
@@ -273,6 +274,8 @@ export async function createSpace(
             cipherId: seed.channel.cipherId,
           }
         : {}),
+      // Default channel inherits the Space Cipher when the Space is e2ee.
+      ...(e2ee && params.cipherCheck ? { cipherCheck: params.cipherCheck } : {}),
     });
   } catch (err) {
     elog.error('Failed to seed Space after create; rolling back', { spaceId: spaceObjId.toHexString(), err });

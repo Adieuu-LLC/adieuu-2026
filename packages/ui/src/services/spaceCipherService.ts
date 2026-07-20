@@ -36,6 +36,9 @@ const spaceKeyCache = new Map<string, Uint8Array>();
 /** Local link of `spaceId -> local cipher id` (the cipher store's `StoredCipher.id`). */
 const spaceCipherLinks = new Map<string, string>();
 
+/** Local link of `channelId -> local cipher id` for per-channel Cipher overrides. */
+const channelCipherLinks = new Map<string, string>();
+
 function keyCacheKey(spaceId: string, cipherId: string): string {
   return `${spaceId}:${cipherId}`;
 }
@@ -129,6 +132,21 @@ export function removeSpaceCipherLink(spaceId: string): void {
   spaceCipherLinks.delete(spaceId);
 }
 
+/** Records a per-channel Cipher link (in-memory; re-detected via Cipher gate after reload). */
+export function registerChannelCipherLink(channelId: string, cipherLocalId: string): void {
+  channelCipherLinks.set(channelId, cipherLocalId);
+}
+
+/** Returns the local cipher id bound to a channel, or null if unknown. */
+export function getChannelCipherLink(channelId: string): string | null {
+  return channelCipherLinks.get(channelId) ?? null;
+}
+
+/** Removes the local link for a channel. */
+export function removeChannelCipherLink(channelId: string): void {
+  channelCipherLinks.delete(channelId);
+}
+
 /** Evicts a single cached per-Space key. */
 export function evictSpaceKey(spaceId: string, cipherId: string): void {
   spaceKeyCache.delete(keyCacheKey(spaceId, cipherId));
@@ -151,4 +169,5 @@ export function clearSpaceKeyCacheForSpace(spaceId: string): void {
 export function clearSpaceCipherState(): void {
   spaceKeyCache.clear();
   spaceCipherLinks.clear();
+  channelCipherLinks.clear();
 }

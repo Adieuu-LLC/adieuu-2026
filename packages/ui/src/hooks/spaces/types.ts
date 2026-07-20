@@ -59,6 +59,12 @@ export interface SpacesContextValue {
   /** Channels for the active Space (sorted by position). */
   channels: PublicSpaceChannel[];
 
+  /** Role IDs held by the viewer in the active Space. */
+  activeSpaceRoleIds: string[];
+
+  /** Append or replace a channel in the active Space list (create/update / socket). */
+  addChannelLocally: (channel: PublicSpaceChannel) => void;
+
   /** Currently viewed channel within the active Space. */
   activeChannelId: string | null;
 

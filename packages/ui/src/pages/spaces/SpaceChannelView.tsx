@@ -15,7 +15,10 @@ import { useSpaces } from '../../hooks/useSpaces';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useAppConfig } from '../../config';
 import { useCipherStore } from '../../hooks/useCipherStore';
-import { getSpaceCipherLink } from '../../services/spaceCipherService';
+import {
+  getChannelCipherLink,
+  getSpaceCipherLink,
+} from '../../services/spaceCipherService';
 import { Spinner } from '../../components/Spinner';
 import { useToast } from '../../components/Toast';
 import { SpaceMembersSidebar } from './SpaceMembersSidebar';
@@ -109,12 +112,14 @@ export function SpaceChannelView() {
 
   const spaceCipher: CommunityCipher | null = useMemo(() => {
     if (!isEncrypted || !activeSpace) return null;
-    const localCipherId = getSpaceCipherLink(activeSpace.id);
+    const localCipherId =
+      (channelId ? getChannelCipherLink(channelId) : null) ??
+      getSpaceCipherLink(activeSpace.id);
     if (!localCipherId) return null;
     return getCipherKey(localCipherId);
     // cipherLinkVersion forces re-resolve after bookmark/detect recovery.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional bump
-  }, [isEncrypted, activeSpace, getCipherKey, cipherLinkVersion]);
+  }, [isEncrypted, activeSpace, channelId, getCipherKey, cipherLinkVersion]);
 
   const encryptedFallback = t('spaces.channel.encryptedUnavailable', '[Encrypted message]');
 
@@ -539,10 +544,11 @@ export function SpaceChannelView() {
           isEncrypted={isEncrypted}
           spaceCipher={spaceCipher}
           cipherGate={
-            isEncrypted && activeSpace && (activeSpace.cipherCheck ?? activeChannel?.cipherCheck)
+            isEncrypted && activeSpace && (activeChannel?.cipherCheck ?? activeSpace.cipherCheck)
               ? {
                   spaceId: activeSpace.id,
-                  cipherCheck: (activeSpace.cipherCheck ?? activeChannel!.cipherCheck)!,
+                  channelId: activeChannel?.id,
+                  cipherCheck: (activeChannel?.cipherCheck ?? activeSpace.cipherCheck)!,
                   onCipherLinked: () => setCipherLinkVersion((v) => v + 1),
                 }
               : null

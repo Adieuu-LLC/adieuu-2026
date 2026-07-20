@@ -132,6 +132,14 @@ export interface SpaceChannelsResult {
   errorCode?: SpaceErrorCode;
 }
 
+/** Result of creating a single channel. */
+export interface SpaceChannelResult {
+  success: boolean;
+  channel?: PublicSpaceChannel;
+  error?: string;
+  errorCode?: SpaceErrorCode;
+}
+
 /** Result of sending a single channel message. */
 export interface SpaceMessageResult {
   success: boolean;

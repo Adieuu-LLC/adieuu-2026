@@ -137,6 +137,14 @@ router.get('/spaces/:id/channels', async (ctx) => {
   return spaceRespond(ctx, await messageController.listChannelsCtrl(ctx));
 });
 
+router.post('/spaces/:id/channels', async (ctx) => {
+  return spaceRespond(ctx, await messageController.createChannelCtrl(ctx));
+});
+
+router.patch('/spaces/:id/channels/:channelId', async (ctx) => {
+  return spaceRespond(ctx, await messageController.updateChannelCtrl(ctx));
+});
+
 router.get('/spaces/:id/channels/:channelId/messages', async (ctx) => {
   return spaceRespond(ctx, await messageController.getMessagesCtrl(ctx));
 });

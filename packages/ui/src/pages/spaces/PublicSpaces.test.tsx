@@ -48,6 +48,15 @@ mock.module('../../hooks/useIdentity', () => ({
   useIdentity: () => ({ status: mockIdentityStatus }),
 }));
 
+let mockJoinedSpaces: Array<{ id: string; slug: string }> = [];
+
+mock.module('../../hooks/useSpaces', () => ({
+  useSpaces: () => ({
+    spaces: mockJoinedSpaces,
+    spacesLoading: false,
+  }),
+}));
+
 mock.module('../../hooks/useCipherStore', () => ({
   useCipherStore: () => ({
     ciphers: [],
@@ -128,6 +137,7 @@ beforeEach(() => {
   setMockTranslate((key) => key);
   resetReactRouterDomMock();
   mockIdentityStatus = 'logged_in';
+  mockJoinedSpaces = [];
   mockDiscover.mockClear();
   mockJoin.mockClear();
   toastSuccess.mockClear();
@@ -299,6 +309,50 @@ describe('PublicSpaces directory', () => {
         (a) => a.textContent === 'Secret',
       ),
     ).toBe(false);
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('shows Joined + Open instead of Join/Browse for Spaces the user already belongs to', async () => {
+    mockJoinedSpaces = [{ id: 'space-1', slug: 'test-space' }];
+    mockDiscover.mockImplementation(() =>
+      Promise.resolve({
+        success: true,
+        data: {
+          spaces: [
+            makeSpace(),
+            makeSpace({ id: 'space-2', slug: 'other', name: 'Other Space' }),
+          ],
+          cursor: null,
+        },
+      }),
+    );
+
+    const { root, container } = await renderDirectory();
+
+    const text = happy.document.body.textContent ?? '';
+    expect(text).toContain('spaces.joined');
+    expect(text).toContain('spaces.open');
+
+    const openLinks = [...happy.document.querySelectorAll('a')].filter((a) =>
+      a.textContent?.includes('spaces.open'),
+    );
+    expect(openLinks).toHaveLength(1);
+    expect(openLinks[0]?.getAttribute('href')).toBe('/s/test-space');
+
+    // Joined card must not offer Join or Browse.
+    const joinButtons = [...happy.document.querySelectorAll('button')].filter((b) =>
+      b.textContent?.includes('spaces.join'),
+    );
+    expect(joinButtons).toHaveLength(1); // only on the unjoined "Other Space" card
+    const browseLinks = [...happy.document.querySelectorAll('a')].filter((a) =>
+      a.textContent?.includes('spaces.joinModal.browse'),
+    );
+    expect(browseLinks).toHaveLength(1);
+    expect(browseLinks[0]?.getAttribute('href')).toBe('/s/other');
 
     await act(async () => {
       root.unmount();

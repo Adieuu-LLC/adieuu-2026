@@ -25,8 +25,12 @@ import {
   unpinSpaceMessage,
   getSpacePinnedMessages,
   listSpaceChannels,
+  createSpaceChannel,
+  updateSpaceChannel,
 } from '../../services/space.service';
 import {
+  CreateSpaceChannelSchema,
+  UpdateSpaceChannelSchema,
   SendSpaceMessageSchema,
   EditSpaceMessageSchema,
   AddSpaceReactionSchema,
@@ -58,6 +62,45 @@ export async function listChannelsCtrl(
     return mapSpaceError(result.errorCode, result.error ?? 'Failed to list channels.');
   }
   return { kind: 'ok', data: { channels: result.channels ?? [] } };
+}
+
+export async function createChannelCtrl(
+  ctx: RouteContext,
+): Promise<SpaceRouteResult<{ channel: unknown }>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const id = sanitizeSpaceObjectId(ctx.params.id);
+  if (!id.ok) return { kind: 'bad_request', message: 'Invalid Space id.' };
+
+  const parsed = CreateSpaceChannelSchema.safeParse(ctx.body);
+  if (!parsed.success) return { kind: 'validation_failed' };
+
+  const result = await createSpaceChannel(id.id, identity._id, parsed.data);
+  if (!result.success) {
+    return mapSpaceError(result.errorCode, result.error ?? 'Failed to create channel.');
+  }
+  return { kind: 'ok', data: { channel: result.channel }, message: 'Channel created.' };
+}
+
+export async function updateChannelCtrl(
+  ctx: RouteContext,
+): Promise<SpaceRouteResult<{ channel: unknown }>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const id = sanitizeSpaceObjectId(ctx.params.id);
+  const channelId = sanitizeSpaceObjectId(ctx.params.channelId);
+  if (!id.ok || !channelId.ok) return { kind: 'bad_request', message: 'Invalid id.' };
+
+  const parsed = UpdateSpaceChannelSchema.safeParse(ctx.body);
+  if (!parsed.success) return { kind: 'validation_failed' };
+
+  const result = await updateSpaceChannel(id.id, channelId.id, identity._id, parsed.data);
+  if (!result.success) {
+    return mapSpaceError(result.errorCode, result.error ?? 'Failed to update channel.');
+  }
+  return { kind: 'ok', data: { channel: result.channel }, message: 'Channel updated.' };
 }
 
 // ---------------------------------------------------------------------------

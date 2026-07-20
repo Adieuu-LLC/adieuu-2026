@@ -1,13 +1,12 @@
 /**
- * Space channels — plaintext and E2EE (Cipher) messaging.
+ * Space channel messaging — plaintext and E2EE (Cipher).
  *
- * - List channels (visibility-gated read).
  * - Send/list plaintext messages for non-encrypted channels.
  * - Send/list encrypted messages (ciphertext/nonce/cipherId) for E2EE channels.
  *   The server acts as a blind relay and never performs crypto.
  *
- * Reading follows Space visibility (`public` is open; `listed`/`hidden` require
- * membership). Posting always requires membership plus the `post` permission.
+ * Channel list/create lives in `channel-crud.ts`. Message reads/writes enforce
+ * the same per-channel role ACL via `requireChannelView`.
  *
  * Message content is sanitized at the controller layer (see
  * `routes/spaces/space-inputs.ts`); this service defensively re-validates the
@@ -23,14 +22,13 @@ import { getSpaceChannelRepository } from '../../repositories/space-channel.repo
 import { getSpaceMessageRepository } from '../../repositories/space-message.repository';
 import { getSpaceReactionRepository } from '../../repositories/space-reaction.repository';
 import { isValidObjectId } from '../../utils';
-import { toPublicSpaceChannel } from '../../models/space-channel';
 import { toPublicSpaceMessage } from '../../models/space-message';
 import { resolveMemberPermissions, memberHasPermission } from './permissions';
+import { requireChannelView } from './channel-access';
 import { canReadSpace } from './access';
 import { publishSpaceEvent } from './redis-events';
 import { createNotification } from '../notification.service';
 import type {
-  SpaceChannelsResult,
   SpaceMessageResult,
   SpaceMessagesListResult,
 } from './types';
@@ -40,31 +38,6 @@ const MAX_EDIT_REVISIONS = 3;
 function parseObjId(raw: string | ObjectId): ObjectId | null {
   if (raw instanceof ObjectId) return raw;
   return isValidObjectId(raw) ? new ObjectId(raw) : null;
-}
-
-/**
- * List a Space's channels (ordered by position). Visibility-gated read.
- */
-export async function listSpaceChannels(
-  spaceIdRaw: string | ObjectId,
-  requesterIdentityIdRaw: string | ObjectId,
-): Promise<SpaceChannelsResult> {
-  const spaceId = parseObjId(spaceIdRaw);
-  const requesterId = parseObjId(requesterIdentityIdRaw);
-  if (!spaceId || !requesterId) {
-    return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
-  }
-
-  const space = await getSpaceRepository().findById(spaceId);
-  if (!space) {
-    return { success: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' };
-  }
-
-  const access = await canReadSpace(space, requesterId);
-  if (!access.ok) return { success: false, error: access.error, errorCode: access.errorCode };
-
-  const channels = await getSpaceChannelRepository().findBySpace(spaceId);
-  return { success: true, channels: channels.map(toPublicSpaceChannel) };
 }
 
 /**
@@ -115,6 +88,8 @@ export async function sendSpaceMessage(
   if (!channel) {
     return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
   }
+  const view = await requireChannelView(spaceId, channel, senderId);
+  if (!view.ok) return { success: false, error: view.error, errorCode: view.errorCode };
 
   // Content encryption is signaled by `e2ee` (or a per-channel cipherCheck).
   // A Space-level cipherCheck alone may be gate-only and still accepts plaintext.
@@ -277,6 +252,8 @@ export async function getSpaceMessages(
   if (!channel) {
     return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
   }
+  const view = await requireChannelView(spaceId, channel, requesterId);
+  if (!view.ok) return { success: false, error: view.error, errorCode: view.errorCode };
 
   const messageRepo = getSpaceMessageRepository();
   const cursorObjId = cursor && isValidObjectId(cursor) ? new ObjectId(cursor) : undefined;
@@ -355,6 +332,8 @@ export async function getSpaceMessage(
   if (!channel) {
     return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
   }
+  const view = await requireChannelView(spaceId, channel, requesterId);
+  if (!view.ok) return { success: false, error: view.error, errorCode: view.errorCode };
 
   const message = await getSpaceMessageRepository().findByIdInChannel(channelId, messageId);
   if (!message) {
@@ -395,6 +374,8 @@ export async function editSpaceMessage(
   if (!channel) {
     return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
   }
+  const view = await requireChannelView(spaceId, channel, callerId);
+  if (!view.ok) return { success: false, error: view.error, errorCode: view.errorCode };
 
   const perms = await resolveMemberPermissions(spaceId, callerId);
   if (!perms.isMember) {
@@ -490,6 +471,8 @@ export async function deleteSpaceMessage(
   if (!channel) {
     return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
   }
+  const view = await requireChannelView(spaceId, channel, callerId);
+  if (!view.ok) return { success: false, error: view.error, errorCode: view.errorCode };
 
   const perms = await resolveMemberPermissions(spaceId, callerId);
   if (!perms.isMember) {
@@ -548,6 +531,8 @@ export async function modDeleteSpaceMessage(
   if (!channel) {
     return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
   }
+  const view = await requireChannelView(spaceId, channel, callerId);
+  if (!view.ok) return { success: false, error: view.error, errorCode: view.errorCode };
 
   const messageRepo = getSpaceMessageRepository();
   const message = await messageRepo.findByIdInChannel(channelId, messageId);
@@ -600,6 +585,8 @@ export async function getSpaceMessagesAround(
   if (!channel) {
     return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
   }
+  const view = await requireChannelView(spaceId, channel, requesterId);
+  if (!view.ok) return { success: false, error: view.error, errorCode: view.errorCode };
 
   const messageRepo = getSpaceMessageRepository();
   const target = await messageRepo.findByIdInChannel(channelId, targetId);

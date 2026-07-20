@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { createApiClient, type PublicSpace } from '@adieuu/shared';
 import { useAppConfig } from '../../config';
 import { useIdentity } from '../../hooks/useIdentity';
+import { useSpaces } from '../../hooks/useSpaces';
 import { useCipherStore } from '../../hooks/useCipherStore';
 import { useToast } from '../../components/Toast';
 import { Button } from '../../components/Button';
@@ -36,8 +37,14 @@ export function PublicSpaces() {
   const { apiBaseUrl } = useAppConfig();
   const { status: identityStatus } = useIdentity();
   const isLoggedIn = identityStatus === 'logged_in';
+  const { spaces: joinedSpaces } = useSpaces();
   const { getCipherKey } = useCipherStore();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
+
+  const joinedSpaceIds = useMemo(
+    () => new Set(joinedSpaces.map((s) => s.id)),
+    [joinedSpaces],
+  );
 
   const [spaces, setSpaces] = useState<PublicSpace[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -191,18 +198,19 @@ export function PublicSpaces() {
                   encryptedSpace: t('spaces.encryptedSpacePlaceholder'),
                 });
                 const description = resolveSpaceDisplayDescription(space, cipher);
-                const browsePath = `/s/${space.slug}`;
-                const canBrowse = canBrowseSpace(space);
+                const spacePath = `/s/${space.slug}`;
+                const isJoined = joinedSpaceIds.has(space.id);
+                const canBrowse = isJoined || canBrowseSpace(space);
                 return (
                   <Card key={space.id} variant="elevated" className="spaces-card">
                     <div className="spaces-card-header">
                       <div>
                         {canBrowse ? (
                           <>
-                            <Link to={browsePath} className="spaces-card-name">
+                            <Link to={spacePath} className="spaces-card-name">
                               {displayName}
                             </Link>
-                            <Link to={browsePath} className="spaces-card-slug">
+                            <Link to={spacePath} className="spaces-card-slug">
                               /s/{space.slug}
                             </Link>
                           </>
@@ -227,6 +235,11 @@ export function PublicSpaces() {
                             {t('spaces.joinModal.cipherRequiredBadge')}
                           </span>
                         )}
+                        {isJoined && (
+                          <span className="spaces-badge spaces-badge--joined">
+                            {t('spaces.joined')}
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -239,23 +252,35 @@ export function PublicSpaces() {
                         {t('spaces.memberCount', { count: space.memberCount })}
                       </span>
                       <div className="spaces-card-actions">
-                        {canBrowse && (
+                        {isJoined ? (
                           <Link
-                            to={browsePath}
-                            className="btn btn-secondary btn-sm"
-                            aria-label={`${t('spaces.joinModal.browse')} ${displayName}`}
+                            to={spacePath}
+                            className="btn btn-primary btn-sm"
+                            aria-label={`${t('spaces.open')} ${displayName}`}
                           >
-                            {t('spaces.joinModal.browse')}
+                            {t('spaces.open')}
                           </Link>
+                        ) : (
+                          <>
+                            {canBrowseSpace(space) && (
+                              <Link
+                                to={spacePath}
+                                className="btn btn-secondary btn-sm"
+                                aria-label={`${t('spaces.joinModal.browse')} ${displayName}`}
+                              >
+                                {t('spaces.joinModal.browse')}
+                              </Link>
+                            )}
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={() => setJoinTarget(space)}
+                              aria-label={`${t('spaces.join')} ${displayName}`}
+                            >
+                              {t('spaces.join')}
+                            </Button>
+                          </>
                         )}
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={() => setJoinTarget(space)}
-                          aria-label={`${t('spaces.join')} ${displayName}`}
-                        >
-                          {t('spaces.join')}
-                        </Button>
                       </div>
                     </div>
                   </Card>

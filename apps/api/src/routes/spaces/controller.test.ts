@@ -49,6 +49,14 @@ const svc = {
   listSpaceInvitesForIdentity: mock(async () => ({ success: true, invites: [], cursor: null })) as AnyMock,
   listPendingInvitesForSpace: mock(async () => ({ success: true, invites: [] })) as AnyMock,
   listSpaceChannels: mock(async () => ({ success: true, channels: [] })) as AnyMock,
+  createSpaceChannel: mock(async () => ({
+    success: true,
+    channel: { id: 'ch1', type: 'text', name: 'lounge', allowedRoleIds: [] },
+  })) as AnyMock,
+  updateSpaceChannel: mock(async () => ({
+    success: true,
+    channel: { id: 'ch1', type: 'text', name: 'renamed', allowedRoleIds: [] },
+  })) as AnyMock,
   sendSpaceMessage: mock(async () => ({ success: true, message: { id: 'msg1' } })) as AnyMock,
   getSpaceMessages: mock(async () => ({ success: true, messages: [], cursor: null })) as AnyMock,
   getSpaceMessage: mock(async () => ({ success: true, message: { id: 'msg1' } })) as AnyMock,
@@ -524,6 +532,72 @@ describe('messagesAroundCtrl', () => {
       makeCtx({ params: { id: HEX, channelId: CHID, msgId: MSGID } }),
     );
     expect(r).toEqual({ kind: 'not_found', message: 'not found' });
+  });
+});
+
+describe('createChannelCtrl', () => {
+  beforeEach(() => {
+    svc.createSpaceChannel.mockClear();
+    svc.createSpaceChannel.mockResolvedValue({
+      success: true,
+      channel: { id: 'ch1', type: 'text', name: 'lounge', allowedRoleIds: [] },
+    });
+  });
+
+  test('rejects malformed body', async () => {
+    const r = await mc.createChannelCtrl(
+      makeCtx({ params: { id: HEX }, body: { type: 'voice' } }),
+    );
+    expect(r).toEqual({ kind: 'validation_failed' });
+    expect(svc.createSpaceChannel).not.toHaveBeenCalled();
+  });
+
+  test('returns the created channel', async () => {
+    const r = await mc.createChannelCtrl(
+      makeCtx({
+        params: { id: HEX },
+        body: { type: 'text', name: 'lounge' },
+      }),
+    );
+    expect(r).toMatchObject({
+      kind: 'ok',
+      data: { channel: { id: 'ch1' } },
+      message: 'Channel created.',
+    });
+    expect(svc.createSpaceChannel).toHaveBeenCalled();
+  });
+});
+
+describe('updateChannelCtrl', () => {
+  beforeEach(() => {
+    svc.updateSpaceChannel.mockClear();
+    svc.updateSpaceChannel.mockResolvedValue({
+      success: true,
+      channel: { id: 'ch1', type: 'text', name: 'renamed', allowedRoleIds: [] },
+    });
+  });
+
+  test('rejects malformed body', async () => {
+    const r = await mc.updateChannelCtrl(
+      makeCtx({ params: { id: HEX, channelId: HEX }, body: {} }),
+    );
+    expect(r).toEqual({ kind: 'validation_failed' });
+    expect(svc.updateSpaceChannel).not.toHaveBeenCalled();
+  });
+
+  test('returns the updated channel', async () => {
+    const r = await mc.updateChannelCtrl(
+      makeCtx({
+        params: { id: HEX, channelId: HEX },
+        body: { name: 'renamed' },
+      }),
+    );
+    expect(r).toMatchObject({
+      kind: 'ok',
+      data: { channel: { id: 'ch1' } },
+      message: 'Channel updated.',
+    });
+    expect(svc.updateSpaceChannel).toHaveBeenCalled();
   });
 });
 

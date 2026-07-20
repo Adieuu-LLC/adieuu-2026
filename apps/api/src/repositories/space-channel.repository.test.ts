@@ -16,6 +16,7 @@ const mockCollection = {
     Promise.resolve({ insertedId: doc._id ?? new ObjectId() })
   ) as AnyMock,
   findOne: mock(() => Promise.resolve(null)) as AnyMock,
+  findOneAndUpdate: mock(() => Promise.resolve(null)) as AnyMock,
   updateOne: mock(() => Promise.resolve({ modifiedCount: 1 })) as AnyMock,
   deleteMany: mock(() => Promise.resolve({ deletedCount: 0 })) as AnyMock,
   find: mock((filter: any) => {
@@ -48,6 +49,8 @@ describe('SpaceChannelRepository', () => {
   beforeEach(() => {
     mockCollection.insertOne.mockClear();
     mockCollection.findOne.mockClear();
+    mockCollection.findOneAndUpdate.mockClear();
+    mockCollection.findOneAndUpdate.mockResolvedValue(null);
     mockCollection.updateOne.mockClear();
     mockCollection.deleteMany.mockClear();
     mockCollection.deleteMany.mockResolvedValue({ deletedCount: 0 });
@@ -67,6 +70,7 @@ describe('SpaceChannelRepository', () => {
       type: 'text',
       name: 'general',
       position: 0,
+      allowedRoleIds: [new ObjectId()],
     });
     expect(channel.name).toBe('general');
     const [doc] = mockCollection.insertOne.mock.calls[0]!;
@@ -100,5 +104,36 @@ describe('SpaceChannelRepository', () => {
     const count = await repo.deleteBySpace(spaceId);
     expect(count).toBe(3);
     expect(mockCollection.deleteMany).toHaveBeenCalledWith({ spaceId });
+  });
+
+  test('updateChannel sets fields and can unset cipherCheck', async () => {
+    const repo = new SpaceChannelRepository();
+    const spaceId = new ObjectId();
+    const channelId = new ObjectId();
+    const updated = {
+      _id: channelId,
+      spaceId,
+      type: 'text' as const,
+      name: 'renamed',
+      position: 0,
+      allowedRoleIds: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    mockCollection.findOneAndUpdate.mockResolvedValueOnce(updated);
+
+    const result = await repo.updateChannel(spaceId, channelId, {
+      name: 'renamed',
+      clearCipherCheck: true,
+    });
+    expect(result).toEqual(updated);
+    expect(mockCollection.findOneAndUpdate).toHaveBeenCalledWith(
+      { _id: channelId, spaceId },
+      {
+        $set: expect.objectContaining({ name: 'renamed' }),
+        $unset: { cipherCheck: '' },
+      },
+      { returnDocument: 'after' },
+    );
   });
 });

@@ -74,7 +74,7 @@ describe('space/permissions', () => {
     expect(perms.permissions.has('kickMembers')).toBe(false);
   });
 
-  test('isAdmin is true when the member holds the system Admin role', async () => {
+  test('system Admin role contributes the full current catalog', async () => {
     memberRepo.findMember.mockResolvedValue({
       _id: new ObjectId(), spaceId: SPACE, identityId: IDENTITY, roleIds: [ADMIN_ROLE], status: 'active',
     });
@@ -82,6 +82,7 @@ describe('space/permissions', () => {
       {
         _id: ADMIN_ROLE,
         spaceId: SPACE,
+        // Stale seed from before manageChannels existed.
         permissions: ['viewChannels', 'sendMessages'],
         systemKey: 'admin',
       },
@@ -89,8 +90,8 @@ describe('space/permissions', () => {
 
     const perms = await resolveMemberPermissions(SPACE, IDENTITY);
     expect(perms.isAdmin).toBe(true);
-    // No god-flag: isAdmin does not imply missing permissions.
-    expect(memberHasPermission(perms, 'manageRoles')).toBe(false);
+    expect(memberHasPermission(perms, 'manageRoles')).toBe(true);
+    expect(memberHasPermission(perms, 'manageChannels')).toBe(true);
   });
 
   test('unions permissions across multiple roles and ignores unknown role ids', async () => {
@@ -109,7 +110,7 @@ describe('space/permissions', () => {
   });
 
   describe('memberHasPermission', () => {
-    test('only holds explicit permissions (no admin bypass)', () => {
+    test('checks the resolved permission set only', () => {
       const perms = {
         isMember: true,
         isAdmin: true,

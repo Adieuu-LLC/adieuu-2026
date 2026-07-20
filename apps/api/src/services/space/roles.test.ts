@@ -159,30 +159,7 @@ describe('space/roles', () => {
     expect(roleRepo.createRole).toHaveBeenCalled();
   });
 
-  test('deleteSpaceRole blocks system roles that still have members', async () => {
-    seedSpace();
-    seedActorWithPerms(['manageRoles']);
-    memberRepo.countWithRole.mockResolvedValue(2);
-    roleRepo.findByIdInSpace.mockResolvedValue({
-      _id: ADMIN_ROLE,
-      spaceId: SPACE,
-      name: 'Admin',
-      permissions: [],
-      isSystem: true,
-      systemKey: 'admin',
-      color: '#e74c3c',
-      displaySeparately: true,
-      mentionable: false,
-      position: 0,
-      isDefaultMember: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-    const r = await deleteSpaceRole(SPACE, ADMIN_ROLE, ACTOR);
-    expect(r).toMatchObject({ success: false, errorCode: 'ROLE_IN_USE' });
-  });
-
-  test('deleteSpaceRole allows empty system roles', async () => {
+  test('deleteSpaceRole rejects Admin system role even with no holders', async () => {
     seedSpace();
     seedActorWithPerms(['manageRoles']);
     memberRepo.countWithRole.mockResolvedValue(0);
@@ -202,8 +179,31 @@ describe('space/roles', () => {
       updatedAt: new Date(),
     });
     const r = await deleteSpaceRole(SPACE, ADMIN_ROLE, ACTOR);
-    expect(r.success).toBe(true);
-    expect(roleRepo.deleteRole).toHaveBeenCalled();
+    expect(r).toMatchObject({ success: false, errorCode: 'SYSTEM_ROLE' });
+    expect(roleRepo.deleteRole).not.toHaveBeenCalled();
+  });
+
+  test('deleteSpaceRole rejects Everyone system role', async () => {
+    seedSpace();
+    seedActorWithPerms(['manageRoles']);
+    roleRepo.findByIdInSpace.mockResolvedValue({
+      _id: MEMBER_ROLE,
+      spaceId: SPACE,
+      name: 'Everyone',
+      permissions: [],
+      isSystem: true,
+      systemKey: 'member',
+      color: '#99aab5',
+      displaySeparately: false,
+      mentionable: false,
+      position: 1000,
+      isDefaultMember: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const r = await deleteSpaceRole(SPACE, MEMBER_ROLE, ACTOR);
+    expect(r).toMatchObject({ success: false, errorCode: 'SYSTEM_ROLE' });
+    expect(roleRepo.deleteRole).not.toHaveBeenCalled();
   });
 
   function adminRoleDoc(overrides: Record<string, unknown> = {}) {

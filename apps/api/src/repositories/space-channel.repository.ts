@@ -3,10 +3,14 @@
  * Data access for channels within a Space.
  */
 
-import { type Filter, ObjectId } from 'mongodb';
+import { type Filter, type UpdateFilter, ObjectId } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
-import type { SpaceChannelDocument, CreateSpaceChannelInput } from '../models/space-channel';
+import type {
+  SpaceChannelDocument,
+  CreateSpaceChannelInput,
+  UpdateSpaceChannelFields,
+} from '../models/space-channel';
 
 export class SpaceChannelRepository extends BaseRepository<SpaceChannelDocument> {
   constructor() {
@@ -17,6 +21,38 @@ export class SpaceChannelRepository extends BaseRepository<SpaceChannelDocument>
     return await this.create(
       input as Omit<SpaceChannelDocument, '_id' | 'createdAt' | 'updatedAt'>
     );
+  }
+
+  async updateChannel(
+    spaceId: ObjectId,
+    channelId: ObjectId,
+    fields: UpdateSpaceChannelFields,
+  ): Promise<SpaceChannelDocument | null> {
+    const $set: Record<string, unknown> = { updatedAt: new Date() };
+    const $unset: Record<string, ''> = {};
+
+    if (fields.name !== undefined) $set.name = fields.name;
+    if (fields.allowedRoleIds !== undefined) $set.allowedRoleIds = fields.allowedRoleIds;
+    if (fields.encryptedName !== undefined) $set.encryptedName = fields.encryptedName;
+    if (fields.nameNonce !== undefined) $set.nameNonce = fields.nameNonce;
+    if (fields.cipherId !== undefined) $set.cipherId = fields.cipherId;
+    if (fields.clearCipherCheck) {
+      $unset.cipherCheck = '';
+    } else if (fields.cipherCheck !== undefined) {
+      $set.cipherCheck = fields.cipherCheck;
+    }
+
+    const update: UpdateFilter<SpaceChannelDocument> = { $set };
+    if (Object.keys($unset).length > 0) {
+      update.$unset = $unset;
+    }
+
+    const result = await this.collection.findOneAndUpdate(
+      { _id: channelId, spaceId } as Filter<SpaceChannelDocument>,
+      update,
+      { returnDocument: 'after' },
+    );
+    return (result as SpaceChannelDocument | null) ?? null;
   }
 
   /** Channels for a Space, ordered by position ascending. */

@@ -2,15 +2,19 @@
  * Space permission resolver.
  *
  * A member's effective permissions are the union of the permissions across all
- * roles they hold. There is no god-flag: the seeded Admin role simply holds
- * the full permission catalog. `isAdmin` means the member holds the system
- * Admin role (`systemKey: 'admin'`).
+ * roles they hold. The system Admin role always contributes the current full
+ * catalog (`DEFAULT_ADMIN_PERMISSIONS`) so catalog growth applies to existing
+ * Spaces without a DB migration. `isAdmin` means the member holds that role.
  *
  * @module services/space/permissions
  */
 
 import type { ObjectId } from 'mongodb';
-import { normalizeSpacePermissions, type SpacePermission } from '@adieuu/shared';
+import {
+  DEFAULT_ADMIN_PERMISSIONS,
+  normalizeSpacePermissions,
+  type SpacePermission,
+} from '@adieuu/shared';
 import { getSpaceMemberRepository } from '../../repositories/space-member.repository';
 import { getSpaceRoleRepository } from '../../repositories/space-role.repository';
 
@@ -53,7 +57,13 @@ export async function resolveMemberPermissions(
   for (const roleId of member.roleIds) {
     const role = roleById.get(roleId.toHexString());
     if (!role) continue;
-    if (role.systemKey === 'admin') isAdmin = true;
+    if (role.systemKey === 'admin') {
+      isAdmin = true;
+      for (const perm of DEFAULT_ADMIN_PERMISSIONS) {
+        permissions.add(perm);
+      }
+      continue;
+    }
     for (const perm of normalizeSpacePermissions(role.permissions)) {
       permissions.add(perm);
     }

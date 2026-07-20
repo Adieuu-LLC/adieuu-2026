@@ -2,6 +2,7 @@ import type {
   ChatIncomingMessage,
   PublicIdentity,
   PublicSpace,
+  PublicSpaceChannel,
   PublicSpaceMessage,
   PublicSpaceReaction,
 } from '@adieuu/shared';
@@ -14,6 +15,7 @@ export interface SpaceChannelUnreadState {
 
 export interface SpaceSocketHandlerContext {
   setSpaces: (updater: (prev: PublicSpace[]) => PublicSpace[]) => void;
+  setChannels?: (updater: (prev: PublicSpaceChannel[]) => PublicSpaceChannel[]) => void;
   setMessagesByChannel: (
     updater: (
       prev: Record<string, { messages: PublicSpaceMessage[]; olderCursor: string | null; loading: boolean }>,
@@ -95,6 +97,22 @@ export function handleSpaceSocketMessage(
       });
       emitSpacesChanged();
       ctx.onSpaceDeleted?.(spaceId);
+      break;
+    }
+
+    case 'space_channel_created':
+    case 'space_channel_updated': {
+      const { channel } = message.data;
+      if (channel.spaceId !== ctx.activeSpaceId) break;
+      ctx.setChannels?.((prev) => {
+        if (prev.some((c) => c.id === channel.id)) {
+          return prev.map((c) => (c.id === channel.id ? channel : c));
+        }
+        if (message.type === 'space_channel_updated') return prev;
+        return [...prev, channel].sort(
+          (a, b) => a.position - b.position || a.id.localeCompare(b.id),
+        );
+      });
       break;
     }
 

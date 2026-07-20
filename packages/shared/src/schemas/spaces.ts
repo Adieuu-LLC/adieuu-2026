@@ -313,9 +313,17 @@ export const CreateSpaceChannelSchema = z
   .object({
     name: z.string().min(SPACE_CHANNEL_NAME_MIN_LENGTH).max(SPACE_CHANNEL_NAME_MAX_LENGTH).optional(),
     type: z.literal('text'),
+    allowedRoleIds: z.array(z.string().length(24)).max(50).optional(),
     encryptedName: z.string().min(1).max(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
     nameNonce: z.string().min(1).max(500).optional(),
     cipherId: z.string().min(1).max(256).optional(),
+    /**
+     * When true (or omitted on an e2ee Space), the channel inherits the parent
+     * Space's `cipherCheck` unless an explicit `cipherCheck` is provided.
+     * When false, the channel stores no `cipherCheck`.
+     */
+    encrypt: z.boolean().optional(),
+    cipherCheck: CipherCheckSchema.optional(),
   })
   .refine(
     (v) => {
@@ -324,13 +332,49 @@ export const CreateSpaceChannelSchema = z
       return (hasPlain || hasCipher) && !(hasPlain && hasCipher);
     },
     { message: 'Provide either name (plaintext) or encryptedName+nameNonce+cipherId, not both' },
-  );
+  )
+  .refine((v) => !(v.encrypt === false && v.cipherCheck), {
+    message: 'cipherCheck cannot be set when encrypt is false',
+    path: ['cipherCheck'],
+  });
+
+export const UpdateSpaceChannelSchema = z
+  .object({
+    name: z.string().min(SPACE_CHANNEL_NAME_MIN_LENGTH).max(SPACE_CHANNEL_NAME_MAX_LENGTH).optional(),
+    allowedRoleIds: z.array(z.string().length(24)).max(50).optional(),
+    encryptedName: z.string().min(1).max(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
+    nameNonce: z.string().min(1).max(500).optional(),
+    cipherId: z.string().min(1).max(256).optional(),
+    /** Set/clear channel content encryption (`cipherCheck`). */
+    encrypt: z.boolean().optional(),
+    cipherCheck: CipherCheckSchema.optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, {
+    message: 'At least one field is required',
+  })
+  .refine(
+    (v) => {
+      const hasPlain = typeof v.name === 'string' && v.name.length > 0;
+      const hasCipher = !!(v.encryptedName && v.nameNonce && v.cipherId);
+      const hasPartial =
+        !!(v.encryptedName || v.nameNonce || v.cipherId) && !hasCipher;
+      if (hasPartial) return false;
+      if (hasPlain && hasCipher) return false;
+      return true;
+    },
+    { message: 'Provide either name (plaintext) or encryptedName+nameNonce+cipherId, not both' },
+  )
+  .refine((v) => !(v.encrypt === false && v.cipherCheck), {
+    message: 'cipherCheck cannot be set when encrypt is false',
+    path: ['cipherCheck'],
+  });
 
 export type CreateSpaceBody = z.infer<typeof CreateSpaceSchema>;
 export type UpdateSpaceBody = z.infer<typeof UpdateSpaceSchema>;
 export type CreateSpaceInviteBody = z.infer<typeof CreateSpaceInviteSchema>;
 export type SendSpaceMessageBody = z.infer<typeof SendSpaceMessageSchema>;
 export type CreateSpaceChannelBody = z.infer<typeof CreateSpaceChannelSchema>;
+export type UpdateSpaceChannelBody = z.infer<typeof UpdateSpaceChannelSchema>;
 export type CreateSpaceRoleBody = z.infer<typeof CreateSpaceRoleSchema>;
 export type UpdateSpaceRoleBody = z.infer<typeof UpdateSpaceRoleSchema>;
 export type SetMemberRolesBody = z.infer<typeof SetMemberRolesSchema>;

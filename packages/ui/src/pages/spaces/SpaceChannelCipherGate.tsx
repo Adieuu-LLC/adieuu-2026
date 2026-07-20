@@ -9,6 +9,7 @@ import type { CipherCheck } from '@adieuu/shared';
 import { useCipherStore } from '../../hooks/useCipherStore';
 import {
   detectSpaceCipher,
+  registerChannelCipherLink,
   verifySpaceCipherCheck,
 } from '../../services/spaceCipherService';
 import { Button } from '../../components/Button';
@@ -21,6 +22,8 @@ import { resolveSpaceCipherSelection } from './resolveSpaceCipherSelection';
 
 export interface SpaceChannelCipherGateProps {
   spaceId: string;
+  /** When set, the linked Cipher is also bound to this channel. */
+  channelId?: string;
   cipherCheck: CipherCheck;
   /** Invoked after a Cipher is successfully bookmarked for this Space. */
   onCipherLinked: () => void;
@@ -28,6 +31,7 @@ export interface SpaceChannelCipherGateProps {
 
 export function SpaceChannelCipherGate({
   spaceId,
+  channelId,
   cipherCheck,
   onCipherLinked,
 }: SpaceChannelCipherGateProps) {
@@ -71,6 +75,7 @@ export function SpaceChannelCipherGate({
         return;
       }
       await bookmarkSpaceCipher(localId, spaceId);
+      if (channelId) registerChannelCipherLink(channelId, localId);
       setStatusMsg(t('spaces.channel.cipherFound'));
       onCipherLinked();
     } catch {
@@ -84,6 +89,7 @@ export function SpaceChannelCipherGate({
     ciphers,
     getCipherKey,
     spaceId,
+    channelId,
     cipherCheck,
     findLocalIdByCipherId,
     bookmarkSpaceCipher,
@@ -120,6 +126,7 @@ export function SpaceChannelCipherGate({
         return;
       }
       await bookmarkSpaceCipher(resolved.localId, spaceId);
+      if (channelId) registerChannelCipherLink(channelId, resolved.localId);
       setStatusMsg(t('spaces.channel.cipherFound'));
       onCipherLinked();
     } catch {
@@ -136,6 +143,7 @@ export function SpaceChannelCipherGate({
     createCipher,
     newCipherName,
     spaceId,
+    channelId,
     cipherCheck,
     bookmarkSpaceCipher,
     onCipherLinked,

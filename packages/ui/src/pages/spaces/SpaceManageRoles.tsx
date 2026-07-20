@@ -353,13 +353,15 @@ export function SpaceManageRoles() {
                         </Button>
                       </div>
                     )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setDeleteTarget(selectedRole)}
-                    >
-                      {t('spaces.manage.roles.delete')}
-                    </Button>
+                    {!selectedRole.isSystem && !selectedRole.systemKey && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDeleteTarget(selectedRole)}
+                      >
+                        {t('spaces.manage.roles.delete')}
+                      </Button>
+                    )}
                   </div>
                 </header>
 
@@ -417,15 +419,9 @@ export function SpaceManageRoles() {
           if (!open) setDeleteTarget(null);
         }}
         title={t('spaces.manage.roles.deleteConfirmTitle')}
-        description={
-          deleteTarget?.isSystem
-            ? t('spaces.manage.roles.deleteSystemConfirmBody', {
-                name: deleteTarget ? resolveRoleName(deleteTarget) : '',
-              })
-            : t('spaces.manage.roles.deleteConfirmBody', {
-                name: deleteTarget ? resolveRoleName(deleteTarget) : '',
-              })
-        }
+        description={t('spaces.manage.roles.deleteConfirmBody', {
+          name: deleteTarget ? resolveRoleName(deleteTarget) : '',
+        })}
         confirmLabel={t('spaces.manage.roles.delete')}
         onConfirm={() => void handleDelete()}
         loading={deleting}

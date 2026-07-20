@@ -186,6 +186,68 @@ describe('spaceSocketHandlers', () => {
     expect(h.deletedCalls).toEqual(['space-1']);
   });
 
+  test('space_channel_created: appends channel for the active Space', () => {
+    let channels: Array<{ id: string; spaceId: string; position: number; name: string }> = [
+      { id: 'ch-1', spaceId: 'space-1', position: 0, name: 'general' },
+    ];
+    const h = createContext({
+      setChannels: (updater) => {
+        channels = updater(channels as never) as typeof channels;
+      },
+    });
+    handleSpaceSocketMessage(
+      {
+        type: 'space_channel_created',
+        data: {
+          channel: {
+            id: 'ch-2',
+            spaceId: 'space-1',
+            type: 'text',
+            name: 'lounge',
+            position: 1,
+            allowedRoleIds: [],
+            createdAt: '',
+            updatedAt: '',
+          },
+        },
+      } as ChatIncomingMessage,
+      h.ctx,
+    );
+    expect(channels.map((c) => c.id)).toEqual(['ch-1', 'ch-2']);
+  });
+
+  test('space_channel_updated: replaces channel for the active Space', () => {
+    let channels: Array<{ id: string; spaceId: string; position: number; name: string }> = [
+      { id: 'ch-1', spaceId: 'space-1', position: 0, name: 'general' },
+    ];
+    const h = createContext({
+      setChannels: (updater) => {
+        channels = updater(channels as never) as typeof channels;
+      },
+    });
+    handleSpaceSocketMessage(
+      {
+        type: 'space_channel_updated',
+        data: {
+          channel: {
+            id: 'ch-1',
+            spaceId: 'space-1',
+            type: 'text',
+            name: 'renamed',
+            position: 0,
+            allowedRoleIds: [],
+            createdAt: '',
+            updatedAt: '',
+          },
+        },
+      } as ChatIncomingMessage,
+      h.ctx,
+    );
+    expect(channels).toEqual([
+      { id: 'ch-1', spaceId: 'space-1', type: 'text', name: 'renamed', position: 0, allowedRoleIds: [], createdAt: '', updatedAt: '' },
+    ]);
+  });
+
   test('space_message: increments unread for non-active channel', () => {
     const h = createContext({ activeChannelId: 'ch-other' });
     const msg = makeMessage({ id: 'msg-2', fromIdentityId: 'user-2' });

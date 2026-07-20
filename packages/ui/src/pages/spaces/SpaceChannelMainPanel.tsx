@@ -115,6 +115,7 @@ export interface SpaceChannelMainPanelProps {
   /** When encrypted without a linked cipher, gate UI needs these. */
   cipherGate?: {
     spaceId: string;
+    channelId?: string;
     cipherCheck: import('@adieuu/shared').CipherCheck;
     onCipherLinked: () => void;
   } | null;
@@ -244,6 +245,7 @@ export function SpaceChannelMainPanel(props: SpaceChannelMainPanelProps): ReactN
           {isEncrypted && !spaceCipher && cipherGate ? (
             <SpaceChannelCipherGate
               spaceId={cipherGate.spaceId}
+              channelId={cipherGate.channelId}
               cipherCheck={cipherGate.cipherCheck}
               onCipherLinked={cipherGate.onCipherLinked}
             />

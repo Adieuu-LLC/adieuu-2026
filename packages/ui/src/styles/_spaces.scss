@@ -94,6 +94,16 @@
     background: color-mix(in srgb, var(--color-accent-primary) 18%, transparent);
     color: var(--color-accent-primary);
   }
+
+  &--joined {
+    background: color-mix(in srgb, var(--color-success, var(--color-accent-primary)) 18%, transparent);
+    color: var(--color-text-primary);
+  }
+
+  &--selected {
+    background: color-mix(in srgb, var(--color-accent-primary) 20%, transparent);
+    color: var(--color-accent-primary);
+  }
 }
 
 .spaces-card-description {
@@ -275,6 +285,131 @@
   color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.space-sidebar-context-surface {
+  display: contents;
+}
+
+.create-channel-modal {
+  display: flex;
+  flex-direction: column;
+  max-height: min(90vh, 720px);
+}
+
+.create-channel-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.create-channel-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.create-channel-field-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.create-channel-field-hint {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-normal);
+}
+
+.create-channel-type-select {
+  font: inherit;
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+}
+
+.create-channel-roles {
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.create-channel-roles legend.create-channel-field-label {
+  padding: 0;
+  margin-bottom: 0;
+}
+
+.create-channel-role-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  max-height: 10rem;
+  overflow-y: auto;
+}
+
+.create-channel-role-option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.create-channel-role-swatch {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.create-channel-encryption {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  padding-top: var(--spacing-xs);
+  border-top: 1px solid var(--color-border);
+}
+
+.create-channel-encrypt {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.create-channel-encrypt input {
+  margin-top: 0.2rem;
+}
+
+.create-channel-encrypt-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2xs, 0.25rem);
+  min-width: 0;
+}
+
+.create-channel-encryption-warning {
+  margin: 0;
+}
+
+.create-channel-encryption .space-create-cipher {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
 }
 
 .space-sidebar-channels {
@@ -1029,6 +1164,163 @@ button.space-message-author:hover {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-bg-secondary);
+}
+
+.space-cipher-combobox-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.space-cipher-selected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  border: 1px solid color-mix(in srgb, var(--color-accent-primary) 35%, var(--color-border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-accent-primary) 8%, var(--color-bg-primary));
+}
+
+.space-cipher-selected-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-xs);
+  min-width: 0;
+}
+
+.space-cipher-selected-name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.space-cipher-selected-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  padding: 0.2rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-text-primary);
+    background: var(--color-bg-secondary);
+  }
+}
+
+.space-cipher-picker {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-primary);
+  overflow: hidden;
+}
+
+.space-cipher-combobox-search-icon {
+  display: inline-flex;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.space-cipher-search-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+}
+
+.space-cipher-combobox-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-xs) 0;
+  outline: none;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.space-cipher-combobox-list {
+  list-style: none;
+  margin: 0;
+  padding: var(--spacing-xs);
+  overflow-y: auto;
+  max-height: 12rem;
+}
+
+.space-cipher-combobox-empty {
+  padding: var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.space-cipher-combobox-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  text-align: left;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--color-bg-secondary);
+    outline: none;
+  }
+
+  &--selected {
+    background: color-mix(in srgb, var(--color-accent-primary) 10%, transparent);
+  }
+}
+
+.space-cipher-combobox-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.space-cipher-combobox-item-name {
+  font-weight: var(--font-weight-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.space-cipher-combobox-item-id {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.space-cipher-combobox-item-check {
+  display: inline-flex;
+  color: var(--color-accent-primary);
+  flex-shrink: 0;
 }
 
 .space-create-hint {

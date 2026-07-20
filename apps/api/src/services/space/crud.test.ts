@@ -288,10 +288,12 @@ describe('space/crud', () => {
       expect(memberInput.roleIds).toHaveLength(1);
       expect(memberInput.roleIds[0]).toBeInstanceOf(ObjectId);
 
-      // Default #general text channel at position 0.
+      // Default #general text channel at position 0, open to Everyone.
       expect(channelRepo.createChannel).toHaveBeenCalledTimes(1);
       const channelInput = channelRepo.createChannel.mock.calls[0]![0];
       expect(channelInput).toMatchObject({ type: 'text', name: 'general', position: 0 });
+      expect(channelInput.allowedRoleIds).toHaveLength(1);
+      expect(channelInput.allowedRoleIds[0]).toBeInstanceOf(ObjectId);
 
       // Creator is notified of their new Space on their identity channel.
       expect(publishSpaceEventToIdentity).toHaveBeenCalledTimes(1);
@@ -320,6 +322,7 @@ describe('space/crud', () => {
       const channelInput = channelRepo.createChannel.mock.calls[0]![0];
       expect(channelInput.name).toBe('');
       expect(channelInput.encryptedName).toBe(VALID_ENCRYPTED_SEED.channel.encryptedName);
+      expect(channelInput.cipherCheck).toEqual(cipherCheck);
 
       const adminArg = roleRepo.createRole.mock.calls[0]![0];
       expect(adminArg.name).toBe('');
