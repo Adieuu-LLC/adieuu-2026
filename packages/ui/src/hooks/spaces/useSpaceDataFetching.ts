@@ -1,5 +1,10 @@
 import { useCallback, useRef } from 'react';
-import type { PublicSpace, PublicSpaceChannel, PublicSpaceMessage } from '@adieuu/shared';
+import type {
+  PublicSpace,
+  PublicSpaceChannel,
+  PublicSpaceChannelCategory,
+  PublicSpaceMessage,
+} from '@adieuu/shared';
 import type { SpaceChannelMessagesState } from './types';
 import { MAX_SPACE_LOADED_MESSAGES, trimSpaceMessages } from './spaceScrollUtils';
 
@@ -7,6 +12,9 @@ type SpacesApiLike = {
   listMine: () => Promise<{ success: boolean; data?: { spaces: PublicSpace[] } }>;
   getBySlug: (slug: string) => Promise<{ success: boolean; data?: PublicSpace; error?: { code: string } }>;
   listChannels: (spaceId: string) => Promise<{ success: boolean; data?: { channels: PublicSpaceChannel[] } }>;
+  listCategories: (
+    spaceId: string,
+  ) => Promise<{ success: boolean; data?: { categories: PublicSpaceChannelCategory[] } }>;
   getMessages: (
     spaceId: string,
     channelId: string,
@@ -36,6 +44,7 @@ export interface SpaceDataFetchingParams {
   setActiveSpaceLoading: React.Dispatch<React.SetStateAction<boolean>>;
   setActiveSpaceError: React.Dispatch<React.SetStateAction<'not_found' | 'error' | null>>;
   setChannels: React.Dispatch<React.SetStateAction<PublicSpaceChannel[]>>;
+  setCategories: React.Dispatch<React.SetStateAction<PublicSpaceChannelCategory[]>>;
   setMessagesByChannel: React.Dispatch<React.SetStateAction<Record<string, SpaceChannelMessagesState>>>;
 }
 
@@ -49,6 +58,7 @@ export function useSpaceDataFetching(params: SpaceDataFetchingParams) {
     setActiveSpaceLoading,
     setActiveSpaceError,
     setChannels,
+    setCategories,
     setMessagesByChannel,
   } = params;
 
@@ -82,16 +92,23 @@ export function useSpaceDataFetching(params: SpaceDataFetchingParams) {
       setActiveSpaceError(null);
       setActiveSpace(null);
       setChannels([]);
+      setCategories([]);
       try {
         const res = await api.spaces.getBySlug(slug);
         if (seq !== spaceSeq.current) return;
         if (res.success && res.data) {
           setActiveSpace(res.data);
           setActiveSpaceError(null);
-          const chRes = await api.spaces.listChannels(res.data.id);
+          const [chRes, catRes] = await Promise.all([
+            api.spaces.listChannels(res.data.id),
+            api.spaces.listCategories(res.data.id),
+          ]);
           if (seq !== spaceSeq.current) return;
           if (chRes.success && chRes.data) {
             setChannels(chRes.data.channels);
+          }
+          if (catRes.success && catRes.data) {
+            setCategories(catRes.data.categories);
           }
         } else if (res.error && NOT_FOUND_CODES.has(res.error.code)) {
           setActiveSpaceError('not_found');
@@ -104,7 +121,7 @@ export function useSpaceDataFetching(params: SpaceDataFetchingParams) {
         if (seq === spaceSeq.current) setActiveSpaceLoading(false);
       }
     },
-    [api, setActiveSpace, setActiveSpaceLoading, setActiveSpaceError, setChannels],
+    [api, setActiveSpace, setActiveSpaceLoading, setActiveSpaceError, setChannels, setCategories],
   );
 
   const clearActiveSpace = useCallback(() => {
@@ -113,8 +130,16 @@ export function useSpaceDataFetching(params: SpaceDataFetchingParams) {
     setActiveSpaceLoading(false);
     setActiveSpaceError(null);
     setChannels([]);
+    setCategories([]);
     setMessagesByChannel({});
-  }, [setActiveSpace, setActiveSpaceLoading, setActiveSpaceError, setChannels, setMessagesByChannel]);
+  }, [
+    setActiveSpace,
+    setActiveSpaceLoading,
+    setActiveSpaceError,
+    setChannels,
+    setCategories,
+    setMessagesByChannel,
+  ]);
 
   const fetchChannelMessages = useCallback(
     async (

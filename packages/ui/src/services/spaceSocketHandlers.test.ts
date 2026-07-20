@@ -205,6 +205,7 @@ describe('spaceSocketHandlers', () => {
             type: 'text',
             name: 'lounge',
             position: 1,
+            categoryId: null,
             allowedRoleIds: [],
             createdAt: '',
             updatedAt: '',
@@ -235,6 +236,7 @@ describe('spaceSocketHandlers', () => {
             type: 'text',
             name: 'renamed',
             position: 0,
+            categoryId: null,
             allowedRoleIds: [],
             createdAt: '',
             updatedAt: '',
@@ -244,8 +246,83 @@ describe('spaceSocketHandlers', () => {
       h.ctx,
     );
     expect(channels).toEqual([
-      { id: 'ch-1', spaceId: 'space-1', type: 'text', name: 'renamed', position: 0, allowedRoleIds: [], createdAt: '', updatedAt: '' },
+      { id: 'ch-1', spaceId: 'space-1', type: 'text', name: 'renamed', position: 0, categoryId: null, allowedRoleIds: [], createdAt: '', updatedAt: '' },
     ]);
+  });
+
+  test('space_category_created: appends category for the active Space', () => {
+    let categories: Array<{ id: string; spaceId: string; position: number; name: string }> = [];
+    const h = createContext({
+      setCategories: (updater) => {
+        categories = updater(categories as never) as typeof categories;
+      },
+    });
+    handleSpaceSocketMessage(
+      {
+        type: 'space_category_created',
+        data: {
+          category: {
+            id: 'cat-1',
+            spaceId: 'space-1',
+            name: 'Projects',
+            position: 0,
+            allowedRoleIds: [],
+            createdAt: '',
+            updatedAt: '',
+          },
+        },
+      } as ChatIncomingMessage,
+      h.ctx,
+    );
+    expect(categories.map((c) => c.id)).toEqual(['cat-1']);
+  });
+
+  test('space_channel_layout_updated: replaces categories and channels', () => {
+    let categories: Array<{ id: string }> = [{ id: 'old' }];
+    let channels: Array<{ id: string }> = [{ id: 'old-ch' }];
+    const h = createContext({
+      setCategories: (updater) => {
+        categories = updater(categories as never) as typeof categories;
+      },
+      setChannels: (updater) => {
+        channels = updater(channels as never) as typeof channels;
+      },
+    });
+    handleSpaceSocketMessage(
+      {
+        type: 'space_channel_layout_updated',
+        data: {
+          spaceId: 'space-1',
+          categories: [
+            {
+              id: 'cat-1',
+              spaceId: 'space-1',
+              name: 'A',
+              position: 0,
+              allowedRoleIds: [],
+              createdAt: '',
+              updatedAt: '',
+            },
+          ],
+          channels: [
+            {
+              id: 'ch-1',
+              spaceId: 'space-1',
+              type: 'text',
+              name: 'general',
+              position: 0,
+              categoryId: null,
+              allowedRoleIds: [],
+              createdAt: '',
+              updatedAt: '',
+            },
+          ],
+        },
+      } as ChatIncomingMessage,
+      h.ctx,
+    );
+    expect(categories.map((c) => c.id)).toEqual(['cat-1']);
+    expect(channels.map((c) => c.id)).toEqual(['ch-1']);
   });
 
   test('space_message: increments unread for non-active channel', () => {

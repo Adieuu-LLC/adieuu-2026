@@ -63,12 +63,18 @@ export {
   SetMemberRolesSchema,
   CreateSpaceChannelSchema,
   UpdateSpaceChannelSchema,
+  CreateSpaceChannelCategorySchema,
+  UpdateSpaceChannelCategorySchema,
+  UpdateSpaceChannelLayoutSchema,
   type CreateSpaceBody,
   type UpdateSpaceBody,
   type CreateSpaceInviteBody,
   type SendSpaceMessageBody,
   type CreateSpaceChannelBody,
   type UpdateSpaceChannelBody,
+  type CreateSpaceChannelCategoryBody,
+  type UpdateSpaceChannelCategoryBody,
+  type UpdateSpaceChannelLayoutBody,
 } from './spaces';
 
 // Re-export zod for convenience

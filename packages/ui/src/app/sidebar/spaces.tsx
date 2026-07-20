@@ -3,9 +3,17 @@
  *
  * Mirrors the Conversations tab: an actions row (Discover / Create) plus a
  * list of the Spaces the current Alias is a member of. Selecting a Space
- * opens `/s/:slug`. Unreads and active highlighting are driven by the
- * SpacesProvider context.
+ * resumes the last-viewed channel when known, otherwise opens Space Home.
+ * Unreads and active highlighting are driven by the SpacesProvider context.
  */
+
+function getLastChannelId(spaceId: string): string | null {
+  try {
+    return localStorage.getItem(`adieuu:lastChannel:${spaceId}`);
+  } catch {
+    return null;
+  }
+}
 
 import { useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -39,8 +47,9 @@ export function SpacesSidebarSection() {
   }, [navigate, closeMobile]);
 
   const handleOpenSpace = useCallback(
-    (slug: string) => {
-      navigate(`/s/${slug}`);
+    (space: { id: string; slug: string }) => {
+      const lastChannelId = getLastChannelId(space.id);
+      navigate(lastChannelId ? `/s/${space.slug}/c/${lastChannelId}` : `/s/${space.slug}`);
       closeMobile();
     },
     [navigate, closeMobile],
@@ -95,7 +104,7 @@ export function SpacesSidebarSection() {
               key={space.id}
               type="button"
               className={itemClasses}
-              onClick={() => handleOpenSpace(space.slug)}
+              onClick={() => handleOpenSpace(space)}
             >
               <div className="conversation-list-item-avatar">
                 <span className="conversation-list-item-avatar-placeholder">

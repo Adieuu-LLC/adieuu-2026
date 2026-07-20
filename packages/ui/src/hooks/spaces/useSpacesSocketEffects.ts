@@ -5,6 +5,7 @@ import type {
   PublicIdentity,
   PublicSpace,
   PublicSpaceChannel,
+  PublicSpaceChannelCategory,
   PublicSpaceMessage,
 } from '@adieuu/shared';
 import { handleSpaceSocketMessage, type SpaceChannelUnreadState } from '../../services/spaceSocketHandlers';
@@ -16,6 +17,7 @@ export interface SpacesSocketEffectsParams {
   onStateChange: (handler: (state: ChatConnectionState) => void) => () => void;
   setSpaces: React.Dispatch<React.SetStateAction<PublicSpace[]>>;
   setChannels: React.Dispatch<React.SetStateAction<PublicSpaceChannel[]>>;
+  setCategories: React.Dispatch<React.SetStateAction<PublicSpaceChannelCategory[]>>;
   setMessagesByChannel: React.Dispatch<React.SetStateAction<Record<string, SpaceChannelMessagesState>>>;
   activeSpaceIdRef: MutableRefObject<string | null>;
   activeChannelIdRef: MutableRefObject<string | null>;
@@ -46,6 +48,7 @@ export function useSpacesSocketEffects(params: SpacesSocketEffectsParams): void 
     onStateChange,
     setSpaces,
     setChannels,
+    setCategories,
     setMessagesByChannel,
     activeSpaceIdRef,
     activeChannelIdRef,
@@ -75,6 +78,7 @@ export function useSpacesSocketEffects(params: SpacesSocketEffectsParams): void 
       handleSpaceSocketMessage(message, {
         setSpaces: (updater) => setSpaces((prev) => updater(prev)),
         setChannels: (updater) => setChannels((prev) => updater(prev)),
+        setCategories: (updater) => setCategories((prev) => updater(prev)),
         setMessagesByChannel: (updater) => setMessagesByChannel((prev) => updater(prev)),
         activeSpaceId: activeSpaceIdRef.current,
         activeChannelId: activeChannelIdRef.current,

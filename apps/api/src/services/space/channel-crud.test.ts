@@ -36,7 +36,8 @@ const channelRepo = {
     spaceId: _s,
     type: 'text',
     name: fields.name ?? 'lounge',
-    position: 0,
+    position: fields.position ?? 0,
+    categoryId: fields.clearCategoryId ? undefined : fields.categoryId,
     allowedRoleIds: fields.allowedRoleIds ?? [EVERYONE_ROLE],
     ...(fields.cipherCheck ? { cipherCheck: fields.cipherCheck } : {}),
     ...(fields.encryptedName
@@ -50,12 +51,20 @@ const channelRepo = {
     updatedAt: new Date(),
   })) as AnyMock,
 };
+
+const categoryRepo = {
+  findBySpace: mock(async (_s: ObjectId) => [] as any[]) as AnyMock,
+  findByIdInSpace: mock(async (_s: ObjectId, _c: ObjectId) => null as any) as AnyMock,
+};
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 mock.module('../../repositories/space.repository', () => ({ getSpaceRepository: () => spaceRepo }));
 mock.module('../../repositories/space-member.repository', () => ({ getSpaceMemberRepository: () => memberRepo }));
 mock.module('../../repositories/space-role.repository', () => ({ getSpaceRoleRepository: () => roleRepo }));
 mock.module('../../repositories/space-channel.repository', () => ({ getSpaceChannelRepository: () => channelRepo }));
+mock.module('../../repositories/space-channel-category.repository', () => ({
+  getSpaceChannelCategoryRepository: () => categoryRepo,
+}));
 
 const publishSpaceEvent = mock(async () => {}) as AnyMock;
 mock.module('./redis-events', () => ({

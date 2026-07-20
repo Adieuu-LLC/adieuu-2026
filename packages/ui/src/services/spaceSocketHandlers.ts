@@ -3,6 +3,7 @@ import type {
   PublicIdentity,
   PublicSpace,
   PublicSpaceChannel,
+  PublicSpaceChannelCategory,
   PublicSpaceMessage,
   PublicSpaceReaction,
 } from '@adieuu/shared';
@@ -16,6 +17,9 @@ export interface SpaceChannelUnreadState {
 export interface SpaceSocketHandlerContext {
   setSpaces: (updater: (prev: PublicSpace[]) => PublicSpace[]) => void;
   setChannels?: (updater: (prev: PublicSpaceChannel[]) => PublicSpaceChannel[]) => void;
+  setCategories?: (
+    updater: (prev: PublicSpaceChannelCategory[]) => PublicSpaceChannelCategory[],
+  ) => void;
   setMessagesByChannel: (
     updater: (
       prev: Record<string, { messages: PublicSpaceMessage[]; olderCursor: string | null; loading: boolean }>,
@@ -113,6 +117,42 @@ export function handleSpaceSocketMessage(
           (a, b) => a.position - b.position || a.id.localeCompare(b.id),
         );
       });
+      break;
+    }
+
+    case 'space_category_created':
+    case 'space_category_updated': {
+      const { category } = message.data;
+      if (category.spaceId !== ctx.activeSpaceId) break;
+      ctx.setCategories?.((prev) => {
+        if (prev.some((c) => c.id === category.id)) {
+          return prev.map((c) => (c.id === category.id ? category : c));
+        }
+        if (message.type === 'space_category_updated') return prev;
+        return [...prev, category].sort(
+          (a, b) => a.position - b.position || a.id.localeCompare(b.id),
+        );
+      });
+      break;
+    }
+
+    case 'space_category_deleted': {
+      const { spaceId, categoryId } = message.data;
+      if (spaceId !== ctx.activeSpaceId) break;
+      ctx.setCategories?.((prev) => prev.filter((c) => c.id !== categoryId));
+      ctx.setChannels?.((prev) =>
+        prev.map((ch) =>
+          ch.categoryId === categoryId ? { ...ch, categoryId: null } : ch,
+        ),
+      );
+      break;
+    }
+
+    case 'space_channel_layout_updated': {
+      const { spaceId, categories, channels } = message.data;
+      if (spaceId !== ctx.activeSpaceId) break;
+      ctx.setCategories?.(() => categories);
+      ctx.setChannels?.(() => channels);
       break;
     }
 

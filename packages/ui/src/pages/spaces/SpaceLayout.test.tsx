@@ -30,6 +30,18 @@ mock.module('../../hooks/useCipherStore', () => ({
   }),
 }));
 
+mock.module('../../config', () => ({
+  useAppConfig: () => ({ apiBaseUrl: 'http://localhost:3000' }),
+}));
+
+mock.module('../../components/Toast', () => ({
+  useToast: () => ({
+    success: () => {},
+    error: () => {},
+    info: () => {},
+  }),
+}));
+
 mock.module('../../icons/Icon', () => ({
   Icon: ({ name }: { name: string }) => createElement('span', { 'data-icon': name }),
 }));
@@ -76,9 +88,13 @@ function makeDefaultCtx(overrides: Record<string, unknown> = {}): Record<string,
     activeSpaceLoading: false,
     activeSpaceError: null,
     channels: [],
+    categories: [],
     unreadByChannel: {},
     activeSpaceRoleIds: [],
     addChannelLocally: mock(() => {}),
+    addCategoryLocally: mock(() => {}),
+    removeCategoryLocally: mock(() => {}),
+    applyChannelLayout: mock(async () => true),
     setActiveSpace: mock(() => {}),
     isActiveSpaceMember: true,
     isActiveSpaceAdmin: false,
@@ -152,11 +168,14 @@ describe('SpaceLayout', () => {
     container.remove();
   });
 
-  it('shows sign-in prompt when not logged in', async () => {
+  it('shows sign-in prompt when not logged in without calling useSpaces', async () => {
     mockIdentityStatus = 'not_logged_in';
+    const setActiveSpace = mock(() => {});
+    mockSpacesContext = makeDefaultCtx({ setActiveSpace });
 
     const { root, container } = await render();
     expect(happy.document.body.textContent).toContain('spaces.signInHeading');
+    expect(setActiveSpace).not.toHaveBeenCalled();
 
     await act(async () => root.unmount());
     container.remove();

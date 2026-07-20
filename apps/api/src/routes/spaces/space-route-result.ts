@@ -57,6 +57,7 @@ export function mapSpaceError(
   switch (errorCode) {
     case 'SPACE_NOT_FOUND':
     case 'CHANNEL_NOT_FOUND':
+    case 'CATEGORY_NOT_FOUND':
     case 'MEMBER_NOT_FOUND':
     case 'INVITE_NOT_FOUND':
     case 'IDENTITY_NOT_FOUND':

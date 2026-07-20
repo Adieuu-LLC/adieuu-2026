@@ -145,6 +145,26 @@ router.patch('/spaces/:id/channels/:channelId', async (ctx) => {
   return spaceRespond(ctx, await messageController.updateChannelCtrl(ctx));
 });
 
+router.get('/spaces/:id/categories', async (ctx) => {
+  return spaceRespond(ctx, await messageController.listCategoriesCtrl(ctx));
+});
+
+router.post('/spaces/:id/categories', async (ctx) => {
+  return spaceRespond(ctx, await messageController.createCategoryCtrl(ctx));
+});
+
+router.patch('/spaces/:id/categories/:categoryId', async (ctx) => {
+  return spaceRespond(ctx, await messageController.updateCategoryCtrl(ctx));
+});
+
+router.delete('/spaces/:id/categories/:categoryId', async (ctx) => {
+  return spaceRespond(ctx, await messageController.deleteCategoryCtrl(ctx));
+});
+
+router.put('/spaces/:id/channel-layout', async (ctx) => {
+  return spaceRespond(ctx, await messageController.updateChannelLayoutCtrl(ctx));
+});
+
 router.get('/spaces/:id/channels/:channelId/messages', async (ctx) => {
   return spaceRespond(ctx, await messageController.getMessagesCtrl(ctx));
 });

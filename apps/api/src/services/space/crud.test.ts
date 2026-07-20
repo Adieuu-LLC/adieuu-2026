@@ -70,6 +70,10 @@ const channelRepo = {
   deleteBySpace: mock(async (_id: ObjectId) => 0) as AnyMock,
 };
 
+const categoryRepo = {
+  deleteBySpace: mock(async (_id: ObjectId) => 0) as AnyMock,
+};
+
 const messageRepo = {
   deleteBySpace: mock(async (_id: ObjectId) => 0) as AnyMock,
 };
@@ -92,6 +96,9 @@ mock.module('../../repositories/space.repository', () => ({ getSpaceRepository: 
 mock.module('../../repositories/space-role.repository', () => ({ getSpaceRoleRepository: () => roleRepo }));
 mock.module('../../repositories/space-member.repository', () => ({ getSpaceMemberRepository: () => memberRepo }));
 mock.module('../../repositories/space-channel.repository', () => ({ getSpaceChannelRepository: () => channelRepo }));
+mock.module('../../repositories/space-channel-category.repository', () => ({
+  getSpaceChannelCategoryRepository: () => categoryRepo,
+}));
 mock.module('../../repositories/space-message.repository', () => ({ getSpaceMessageRepository: () => messageRepo }));
 mock.module('../../repositories/space-reaction.repository', () => ({ getSpaceReactionRepository: () => reactionRepo }));
 mock.module('../../repositories/space-pin.repository', () => ({ getSpacePinRepository: () => pinRepo }));
@@ -406,6 +413,7 @@ describe('space/crud', () => {
       ).rejects.toThrow('boom');
 
       expect(channelRepo.deleteBySpace).toHaveBeenCalledTimes(1);
+      expect(categoryRepo.deleteBySpace).toHaveBeenCalledTimes(1);
       expect(memberRepo.deleteBySpace).toHaveBeenCalledTimes(1);
       expect(roleRepo.deleteBySpace).toHaveBeenCalledTimes(1);
       expect(spaceRepo.deleteById).toHaveBeenCalledTimes(1);
@@ -696,6 +704,7 @@ describe('space/crud', () => {
       expect(pinRepo.deleteByChannelIds).toHaveBeenCalledWith([channelId]);
       expect(inviteRepo.deleteBySpace).toHaveBeenCalledWith(spaceId);
       expect(channelRepo.deleteBySpace).toHaveBeenCalledWith(spaceId);
+      expect(categoryRepo.deleteBySpace).toHaveBeenCalledWith(spaceId);
       expect(memberRepo.deleteBySpace).toHaveBeenCalledWith(spaceId);
       expect(roleRepo.deleteBySpace).toHaveBeenCalledWith(spaceId);
       expect(spaceRepo.deleteById).toHaveBeenCalledWith(spaceId);

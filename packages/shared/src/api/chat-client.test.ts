@@ -235,6 +235,10 @@ describe('chat message types', () => {
       'space_deleted',
       'space_channel_created',
       'space_channel_updated',
+      'space_category_created',
+      'space_category_updated',
+      'space_category_deleted',
+      'space_channel_layout_updated',
       'space_message',
       'space_member_joined',
       'space_member_left',
@@ -248,7 +252,7 @@ describe('chat message types', () => {
       'space_pins_updated',
     ] as const satisfies readonly ChatMessageType[];
 
-    expect(spaceEvents).toHaveLength(16);
+    expect(spaceEvents).toHaveLength(20);
     expect(spaceEvents).toContain('space_pins_updated');
     expect(spaceEvents).toContain('space_created');
   });

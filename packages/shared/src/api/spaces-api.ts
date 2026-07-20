@@ -1,11 +1,13 @@
 import type { ApiResponse } from '../types';
 import type { HttpClient, RequestOptions } from './http-client';
 import type {
+  CreateSpaceChannelCategoryParams,
   CreateSpaceChannelParams,
   CreateSpaceParams,
   EditSpaceMessageParams,
   PublicSpace,
   PublicSpaceChannel,
+  PublicSpaceChannelCategory,
   PublicSpaceInvite,
   PublicSpaceMember,
   PublicSpaceMessage,
@@ -14,6 +16,8 @@ import type {
   SendSpaceMessageParams,
   SpaceManageOverview,
   SpaceViewerPermissions,
+  UpdateSpaceChannelCategoryParams,
+  UpdateSpaceChannelLayoutParams,
   UpdateSpaceChannelParams,
   UpdateSpaceParams,
 } from './spaces-types';
@@ -206,6 +210,54 @@ export class SpacesApi {
   ): Promise<ApiResponse<{ channel: PublicSpaceChannel }>> {
     return this.client.patch(
       `/api/spaces/${encodeURIComponent(spaceId)}/channels/${encodeURIComponent(channelId)}`,
+      body,
+    );
+  }
+
+  async listCategories(
+    spaceId: string,
+  ): Promise<ApiResponse<{ categories: PublicSpaceChannelCategory[] }>> {
+    return this.client.get(`/api/spaces/${encodeURIComponent(spaceId)}/categories`);
+  }
+
+  async createCategory(
+    spaceId: string,
+    body: CreateSpaceChannelCategoryParams,
+  ): Promise<ApiResponse<{ category: PublicSpaceChannelCategory }>> {
+    return this.client.post(`/api/spaces/${encodeURIComponent(spaceId)}/categories`, body);
+  }
+
+  async updateCategory(
+    spaceId: string,
+    categoryId: string,
+    body: UpdateSpaceChannelCategoryParams,
+  ): Promise<ApiResponse<{ category: PublicSpaceChannelCategory }>> {
+    return this.client.patch(
+      `/api/spaces/${encodeURIComponent(spaceId)}/categories/${encodeURIComponent(categoryId)}`,
+      body,
+    );
+  }
+
+  async deleteCategory(
+    spaceId: string,
+    categoryId: string,
+  ): Promise<ApiResponse<{ ok: true }>> {
+    return this.client.delete(
+      `/api/spaces/${encodeURIComponent(spaceId)}/categories/${encodeURIComponent(categoryId)}`,
+    );
+  }
+
+  async updateChannelLayout(
+    spaceId: string,
+    body: UpdateSpaceChannelLayoutParams,
+  ): Promise<
+    ApiResponse<{
+      categories: PublicSpaceChannelCategory[];
+      channels: PublicSpaceChannel[];
+    }>
+  > {
+    return this.client.put(
+      `/api/spaces/${encodeURIComponent(spaceId)}/channel-layout`,
       body,
     );
   }

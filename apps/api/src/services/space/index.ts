@@ -60,6 +60,16 @@ export {
   type UpdateSpaceChannelParams,
 } from './channel-crud';
 export {
+  listSpaceChannelCategories,
+  createSpaceChannelCategory,
+  updateSpaceChannelCategory,
+  deleteSpaceChannelCategory,
+  updateSpaceChannelLayout,
+  type CreateSpaceChannelCategoryParams,
+  type UpdateSpaceChannelCategoryParams,
+  type UpdateSpaceChannelLayoutParams,
+} from './category-crud';
+export {
   sendSpaceMessage,
   getSpaceMessages,
   getSpaceMessage,

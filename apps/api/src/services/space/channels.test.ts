@@ -46,6 +46,12 @@ mock.module('../../repositories/space.repository', () => ({ getSpaceRepository: 
 mock.module('../../repositories/space-member.repository', () => ({ getSpaceMemberRepository: () => memberRepo }));
 mock.module('../../repositories/space-role.repository', () => ({ getSpaceRoleRepository: () => roleRepo }));
 mock.module('../../repositories/space-channel.repository', () => ({ getSpaceChannelRepository: () => channelRepo }));
+mock.module('../../repositories/space-channel-category.repository', () => ({
+  getSpaceChannelCategoryRepository: () => ({
+    findBySpace: mock(async () => []),
+    findByIdInSpace: mock(async () => null),
+  }),
+}));
 mock.module('../../repositories/space-message.repository', () => ({ getSpaceMessageRepository: () => messageRepo }));
 mock.module('../../repositories/space-reaction.repository', () => ({ getSpaceReactionRepository: () => reactionRepo }));
 

@@ -9,6 +9,7 @@ import type {
   CreateSpaceEncryptedSeed,
   PublicSpace,
   PublicSpaceChannel,
+  PublicSpaceChannelCategory,
   PublicSpaceInvite,
   PublicSpaceMember,
   PublicSpaceMessage,
@@ -49,6 +50,7 @@ export type SpaceErrorCode =
   | 'IDENTITY_NOT_FOUND'
   | 'CANNOT_INVITE_SELF'
   | 'CHANNEL_NOT_FOUND'
+  | 'CATEGORY_NOT_FOUND'
   | 'ENCRYPTION_NOT_SUPPORTED'
   | 'INVALID_CONTENT'
   | 'MESSAGE_NOT_FOUND'
@@ -136,6 +138,31 @@ export interface SpaceChannelsResult {
 export interface SpaceChannelResult {
   success: boolean;
   channel?: PublicSpaceChannel;
+  error?: string;
+  errorCode?: SpaceErrorCode;
+}
+
+/** Result of listing a Space's channel categories. */
+export interface SpaceCategoriesResult {
+  success: boolean;
+  categories?: PublicSpaceChannelCategory[];
+  error?: string;
+  errorCode?: SpaceErrorCode;
+}
+
+/** Result of creating/updating a single channel category. */
+export interface SpaceCategoryResult {
+  success: boolean;
+  category?: PublicSpaceChannelCategory;
+  error?: string;
+  errorCode?: SpaceErrorCode;
+}
+
+/** Result of applying a Space channel/category layout. */
+export interface SpaceChannelLayoutResult {
+  success: boolean;
+  categories?: PublicSpaceChannelCategory[];
+  channels?: PublicSpaceChannel[];
   error?: string;
   errorCode?: SpaceErrorCode;
 }

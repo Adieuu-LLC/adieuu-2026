@@ -178,14 +178,22 @@ function AuthenticatedShell() {
     );
   }
 
+  // Public shell still mounts Spaces (and its ChatSocket/Cipher deps) because
+  // `/spaces` and `/s/:slug` are public routes that call useSpaces / useCipherStore.
   return (
     <SiteAnnouncementsProvider>
-      <AppLayout sidebar={<AppSidebar variant="public" />}>
-        <SiteAnnouncementBanner />
-        <Suspense fallback={<RouteFallback />}>
-          <Outlet />
-        </Suspense>
-      </AppLayout>
+      <CipherStoreProvider>
+        <ChatSocketProvider>
+          <SpacesProvider>
+            <AppLayout sidebar={<AppSidebar variant="public" />}>
+              <SiteAnnouncementBanner />
+              <Suspense fallback={<RouteFallback />}>
+                <Outlet />
+              </Suspense>
+            </AppLayout>
+          </SpacesProvider>
+        </ChatSocketProvider>
+      </CipherStoreProvider>
     </SiteAnnouncementsProvider>
   );
 }

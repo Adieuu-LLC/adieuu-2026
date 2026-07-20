@@ -1,0 +1,44 @@
+/**
+ * Space secondary sidebar — categories, DnD, and rail layout extras.
+ * Core sidebar chrome still lives in `_spaces.scss`; new category UI styles
+ * land here so that file does not grow further.
+ */
+
+.space-sidebar-rail-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  flex: 1;
+}
+
+.space-sidebar-buckets {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.space-sidebar-group-header--toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  width: 100%;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+
+  &:hover {
+    color: var(--color-text-primary);
+  }
+}
+
+.space-sidebar-dragging {
+  opacity: 0.55;
+}
+
+.space-sidebar-drop-over {
+  outline: 1px dashed var(--color-accent-primary);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}

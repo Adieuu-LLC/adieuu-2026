@@ -427,6 +427,7 @@ export const Collections = {
   SPACES: 'spaces',
   /** Channels within a Space */
   SPACE_CHANNELS: 'space_channels',
+  SPACE_CHANNEL_CATEGORIES: 'space_channel_categories',
   /** Space membership (one document per space + identity) */
   SPACE_MEMBERS: 'space_members',
   /** Space roles (permission flags) */
@@ -864,9 +865,14 @@ export async function createIndexes(): Promise<void> {
   );
   await spaces.createIndex({ ownerIdentityId: 1 });
 
-  // Space channels — ordered listing per space
+  // Space channels — ordered listing per space / category
   const spaceChannels = database.collection(Collections.SPACE_CHANNELS);
   await spaceChannels.createIndex({ spaceId: 1, position: 1 });
+  await spaceChannels.createIndex({ spaceId: 1, categoryId: 1, position: 1 });
+
+  // Space channel categories — ordered listing per space
+  const spaceChannelCategories = database.collection(Collections.SPACE_CHANNEL_CATEGORIES);
+  await spaceChannelCategories.createIndex({ spaceId: 1, position: 1 });
 
   // Space members — one membership per (space, identity); reverse lookup by identity
   const spaceMembers = database.collection(Collections.SPACE_MEMBERS);

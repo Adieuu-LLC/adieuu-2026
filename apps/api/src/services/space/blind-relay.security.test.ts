@@ -71,6 +71,11 @@ mock.module('../../repositories/space.repository', () => ({ getSpaceRepository: 
 mock.module('../../repositories/space-role.repository', () => ({ getSpaceRoleRepository: () => roleRepo }));
 mock.module('../../repositories/space-member.repository', () => ({ getSpaceMemberRepository: () => memberRepo }));
 mock.module('../../repositories/space-channel.repository', () => ({ getSpaceChannelRepository: () => channelRepo }));
+mock.module('../../repositories/space-channel-category.repository', () => ({
+  getSpaceChannelCategoryRepository: () => ({
+    deleteBySpace: mock(async () => 0),
+  }),
+}));
 
 const publishSpaceEvent = mock(async () => {}) as AnyMock;
 const publishSpaceEventToIdentity = mock(async () => {}) as AnyMock;

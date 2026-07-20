@@ -7,13 +7,16 @@
  * drawer with a compact Select chrome. Manage routes hide the channel rail at
  * all widths so the manage/roles chrome has room on midsize viewports.
  *
- * When navigating to the index route (`/s/:slug` with no channel), the layout
- * auto-redirects to the last-viewed channel (persisted in localStorage) or the
- * first channel in the list.
+ * Index route (`/s/:slug`) renders Space Home. Resume-to-last-channel happens
+ * when opening a Space from the primary Spaces sidebar, not from Home.
+ *
+ * Sign-in gating is a separate component so guests never call `useSpaces`
+ * (SpacesProvider is only guaranteed once an Alias session or the public shell
+ * providers are mounted).
  */
 
-import { useEffect, useRef, useState } from 'react';
-import { Link, Outlet, useParams, useNavigate, useMatch } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, Outlet, useParams, useMatch } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useSpaces } from '../../hooks/useSpaces';
@@ -26,31 +29,36 @@ import { SpaceMobileChrome } from './SpaceMobileChrome';
 import { SpaceSecondarySidebar } from './SpaceSecondarySidebar';
 import { useSpaceMobileNav } from './useSpaceMobileNav';
 import '../../styles/_spaces.scss';
+import '../../styles/_spaces-sidebar.scss';
 
-function getLastChannel(spaceId: string): string | null {
-  try {
-    return localStorage.getItem(`adieuu:lastChannel:${spaceId}`);
-  } catch {
-    return null;
-  }
+function SpaceSignInPrompt() {
+  const { t } = useTranslation();
+  return (
+    <div className="page-content">
+      <div className="container">
+        <Card variant="elevated" className="spaces-state">
+          <p className="spaces-state-heading">{t('spaces.signInHeading')}</p>
+          <p className="spaces-state-body">{t('spaces.signInBody')}</p>
+          <Link to="/identity/profile" className="btn btn-primary btn-md">
+            {t('spaces.signInCta')}
+          </Link>
+        </Card>
+      </div>
+    </div>
+  );
 }
 
-export function SpaceLayout() {
+function SpaceLayoutSession() {
   const { t } = useTranslation();
   const { slug } = useParams<{ slug: string }>();
-  const navigate = useNavigate();
-  const isIndexRoute = !!useMatch('/s/:slug');
   // Call both matches unconditionally — `||` short-circuit would skip a hook.
   const manageExactMatch = useMatch('/s/:slug/manage');
   const manageNestedMatch = useMatch('/s/:slug/manage/*');
   const isManageRoute = !!manageExactMatch || !!manageNestedMatch;
-  const { status: identityStatus } = useIdentity();
-  const isLoggedIn = identityStatus === 'logged_in';
   const {
     activeSpace,
     activeSpaceLoading,
     activeSpaceError,
-    channels,
     setActiveSpace,
     isActiveSpaceMember,
   } = useSpaces();
@@ -63,51 +71,18 @@ export function SpaceLayout() {
   } = useSpaceMobileNav();
 
   useEffect(() => {
-    if (isLoggedIn && slug) {
+    if (slug) {
       setActiveSpace(slug);
     }
     return () => {
       setActiveSpace(null);
     };
-  }, [isLoggedIn, slug, setActiveSpace]);
-
-  const didRedirect = useRef(false);
-  useEffect(() => {
-    if (!isIndexRoute || !activeSpace || !slug || channels.length === 0 || didRedirect.current) return;
-    const lastChannelId = getLastChannel(activeSpace.id);
-    const target = lastChannelId && channels.some((ch) => ch.id === lastChannelId)
-      ? lastChannelId
-      : channels[0]?.id;
-    if (target) {
-      didRedirect.current = true;
-      navigate(`/s/${slug}/c/${target}`, { replace: true });
-    }
-  }, [isIndexRoute, activeSpace, slug, channels, navigate]);
-
-  useEffect(() => {
-    didRedirect.current = false;
-  }, [slug]);
+  }, [slug, setActiveSpace]);
 
   // Close the channel drawer when entering manage (sidebar is hidden there).
   useEffect(() => {
     if (isManageRoute) closeMobileNav();
   }, [isManageRoute, closeMobileNav]);
-
-  if (!isLoggedIn) {
-    return (
-      <div className="page-content">
-        <div className="container">
-          <Card variant="elevated" className="spaces-state">
-            <p className="spaces-state-heading">{t('spaces.signInHeading')}</p>
-            <p className="spaces-state-body">{t('spaces.signInBody')}</p>
-            <Link to="/identity/profile" className="btn btn-primary btn-md">
-              {t('spaces.signInCta')}
-            </Link>
-          </Card>
-        </div>
-      </div>
-    );
-  }
 
   if (activeSpaceLoading) {
     return (
@@ -197,4 +172,15 @@ export function SpaceLayout() {
       )}
     </div>
   );
+}
+
+export function SpaceLayout() {
+  const { status: identityStatus } = useIdentity();
+  const isLoggedIn = identityStatus === 'logged_in';
+
+  if (!isLoggedIn) {
+    return <SpaceSignInPrompt />;
+  }
+
+  return <SpaceLayoutSession />;
 }

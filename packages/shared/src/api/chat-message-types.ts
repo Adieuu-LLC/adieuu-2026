@@ -8,6 +8,7 @@
 import type {
   PublicSpace,
   PublicSpaceChannel,
+  PublicSpaceChannelCategory,
   PublicSpaceInvite,
   PublicSpaceMember,
   PublicSpaceMessage,
@@ -46,6 +47,10 @@ export type ChatMessageType =
   | 'space_deleted'
   | 'space_channel_created'
   | 'space_channel_updated'
+  | 'space_category_created'
+  | 'space_category_updated'
+  | 'space_category_deleted'
+  | 'space_channel_layout_updated'
   | 'space_message'
   | 'space_member_joined'
   | 'space_member_left'
@@ -417,6 +422,34 @@ export interface ChatSpaceChannelUpdatedMessage extends ChatMessageBase {
   data: { channel: PublicSpaceChannel };
 }
 
+/** A channel category was created. Fanned out on the `space:{spaceId}` channel. */
+export interface ChatSpaceCategoryCreatedMessage extends ChatMessageBase {
+  type: 'space_category_created';
+  data: { category: PublicSpaceChannelCategory };
+}
+
+/** A channel category was updated. Fanned out on the `space:{spaceId}` channel. */
+export interface ChatSpaceCategoryUpdatedMessage extends ChatMessageBase {
+  type: 'space_category_updated';
+  data: { category: PublicSpaceChannelCategory };
+}
+
+/** A channel category was deleted. Fanned out on the `space:{spaceId}` channel. */
+export interface ChatSpaceCategoryDeletedMessage extends ChatMessageBase {
+  type: 'space_category_deleted';
+  data: { spaceId: string; categoryId: string };
+}
+
+/** Sidebar channel/category layout was reordered. */
+export interface ChatSpaceChannelLayoutUpdatedMessage extends ChatMessageBase {
+  type: 'space_channel_layout_updated';
+  data: {
+    spaceId: string;
+    categories: PublicSpaceChannelCategory[];
+    channels: PublicSpaceChannel[];
+  };
+}
+
 /**
  * A new (non-E2EE) channel message. Fanned out on the `space:{spaceId}`
  * channel to active members.
@@ -542,6 +575,10 @@ export type ChatIncomingMessage =
   | ChatSpaceDeletedMessage
   | ChatSpaceChannelCreatedMessage
   | ChatSpaceChannelUpdatedMessage
+  | ChatSpaceCategoryCreatedMessage
+  | ChatSpaceCategoryUpdatedMessage
+  | ChatSpaceCategoryDeletedMessage
+  | ChatSpaceChannelLayoutUpdatedMessage
   | ChatSpaceMessageMessage
   | ChatSpaceMemberJoinedMessage
   | ChatSpaceMemberLeftMessage

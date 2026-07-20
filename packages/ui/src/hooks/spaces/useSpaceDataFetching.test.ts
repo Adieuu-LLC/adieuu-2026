@@ -92,6 +92,7 @@ function renderDataHook(api: SpaceDataFetchingParams['api']): Harness {
       setActiveSpaceLoading: noop as SpaceDataFetchingParams['setActiveSpaceLoading'],
       setActiveSpaceError: noop as SpaceDataFetchingParams['setActiveSpaceError'],
       setChannels: noop as SpaceDataFetchingParams['setChannels'],
+      setCategories: noop as SpaceDataFetchingParams['setCategories'],
       setMessagesByChannel,
     });
     Object.assign(ref, hook);

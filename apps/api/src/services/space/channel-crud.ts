@@ -8,6 +8,7 @@ import { ObjectId } from 'mongodb';
 import type { CipherCheck } from '@adieuu/shared';
 import { getSpaceRepository } from '../../repositories/space.repository';
 import { getSpaceChannelRepository } from '../../repositories/space-channel.repository';
+import { getSpaceChannelCategoryRepository } from '../../repositories/space-channel-category.repository';
 import { getSpaceRoleRepository } from '../../repositories/space-role.repository';
 import { isValidObjectId } from '../../utils';
 import { toPublicSpaceChannel } from '../../models/space-channel';
@@ -38,6 +39,7 @@ export interface CreateSpaceChannelParams {
   name?: string;
   type: 'text';
   allowedRoleIds?: readonly string[];
+  categoryId?: string;
   encryptedName?: string;
   nameNonce?: string;
   cipherId?: string;
@@ -48,6 +50,8 @@ export interface CreateSpaceChannelParams {
 export interface UpdateSpaceChannelParams {
   name?: string;
   allowedRoleIds?: readonly string[];
+  categoryId?: string | null;
+  position?: number;
   encryptedName?: string;
   nameNonce?: string;
   cipherId?: string;
@@ -254,7 +258,29 @@ export async function createSpaceChannel(
     return { success: false, error: 'Channel name is required.', errorCode: 'INVALID_CONTENT' };
   }
 
-  const rolesResult = await resolveAllowedRoleIds(spaceId, perms, params.allowedRoleIds);
+  let categoryObjectId: ObjectId | null = null;
+  let inheritedRoleIds: ObjectId[] | undefined;
+  if (params.categoryId) {
+    const categoryId = parseObjId(params.categoryId);
+    if (!categoryId) {
+      return { success: false, error: 'Invalid category id.', errorCode: 'INVALID_ID' };
+    }
+    const category = await getSpaceChannelCategoryRepository().findByIdInSpace(spaceId, categoryId);
+    if (!category) {
+      return { success: false, error: 'Category not found.', errorCode: 'CATEGORY_NOT_FOUND' };
+    }
+    categoryObjectId = categoryId;
+    if (params.allowedRoleIds === undefined && category.allowedRoleIds?.length) {
+      inheritedRoleIds = category.allowedRoleIds;
+    }
+  }
+
+  const rolesResult = await resolveAllowedRoleIds(
+    spaceId,
+    perms,
+    params.allowedRoleIds ??
+      (inheritedRoleIds ? inheritedRoleIds.map((id) => id.toHexString()) : undefined),
+  );
   if (!rolesResult.ok) return rolesResult.result;
 
   const cipherCheck = resolveChannelCipherCheck(space, params);
@@ -267,7 +293,12 @@ export async function createSpaceChannel(
   }
 
   const existing = await getSpaceChannelRepository().findBySpace(spaceId);
-  const maxPosition = existing.reduce((max, ch) => Math.max(max, ch.position ?? 0), -1);
+  const inBucket = existing.filter((ch) => {
+    const chCat = ch.categoryId?.toHexString() ?? null;
+    const target = categoryObjectId?.toHexString() ?? null;
+    return chCat === target;
+  });
+  const maxPosition = inBucket.reduce((max, ch) => Math.max(max, ch.position ?? 0), -1);
 
   const channel = await getSpaceChannelRepository().createChannel({
     spaceId,
@@ -275,6 +306,7 @@ export async function createSpaceChannel(
     name: e2ee ? '' : plainName,
     position: maxPosition + 1,
     allowedRoleIds: rolesResult.allowedRoleIds,
+    ...(categoryObjectId ? { categoryId: categoryObjectId } : {}),
     ...(hasEncrypted
       ? {
           encryptedName: params.encryptedName,
@@ -323,6 +355,8 @@ export async function updateSpaceChannel(
   const touchesStructure =
     params.name !== undefined ||
     params.allowedRoleIds !== undefined ||
+    params.categoryId !== undefined ||
+    params.position !== undefined ||
     params.encryptedName !== undefined ||
     params.nameNonce !== undefined ||
     params.cipherId !== undefined;
@@ -384,6 +418,25 @@ export async function updateSpaceChannel(
     allowedRoleIds = rolesResult.allowedRoleIds;
   }
 
+  let categoryId: ObjectId | null | undefined;
+  let clearCategoryId = false;
+  if (params.categoryId !== undefined) {
+    if (params.categoryId === null) {
+      clearCategoryId = true;
+      categoryId = null;
+    } else {
+      const parsed = parseObjId(params.categoryId);
+      if (!parsed) {
+        return { success: false, error: 'Invalid category id.', errorCode: 'INVALID_ID' };
+      }
+      const category = await getSpaceChannelCategoryRepository().findByIdInSpace(spaceId, parsed);
+      if (!category) {
+        return { success: false, error: 'Category not found.', errorCode: 'CATEGORY_NOT_FOUND' };
+      }
+      categoryId = parsed;
+    }
+  }
+
   let cipherCheck: CipherCheck | undefined;
   let clearCipherCheck = false;
   if (touchesEncryption) {
@@ -415,6 +468,9 @@ export async function updateSpaceChannel(
         }
       : {}),
     ...(allowedRoleIds !== undefined ? { allowedRoleIds } : {}),
+    ...(clearCategoryId ? { clearCategoryId: true } : {}),
+    ...(categoryId !== undefined && !clearCategoryId ? { categoryId } : {}),
+    ...(params.position !== undefined ? { position: params.position } : {}),
     ...(clearCipherCheck ? { clearCipherCheck: true } : {}),
     ...(cipherCheck ? { cipherCheck } : {}),
   });

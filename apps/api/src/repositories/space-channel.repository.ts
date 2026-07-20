@@ -33,6 +33,12 @@ export class SpaceChannelRepository extends BaseRepository<SpaceChannelDocument>
 
     if (fields.name !== undefined) $set.name = fields.name;
     if (fields.allowedRoleIds !== undefined) $set.allowedRoleIds = fields.allowedRoleIds;
+    if (fields.position !== undefined) $set.position = fields.position;
+    if (fields.clearCategoryId) {
+      $unset.categoryId = '';
+    } else if (fields.categoryId !== undefined) {
+      $set.categoryId = fields.categoryId;
+    }
     if (fields.encryptedName !== undefined) $set.encryptedName = fields.encryptedName;
     if (fields.nameNonce !== undefined) $set.nameNonce = fields.nameNonce;
     if (fields.cipherId !== undefined) $set.cipherId = fields.cipherId;
@@ -77,6 +83,50 @@ export class SpaceChannelRepository extends BaseRepository<SpaceChannelDocument>
   async deleteBySpace(spaceId: ObjectId): Promise<number> {
     const result = await this.collection.deleteMany({ spaceId } as Filter<SpaceChannelDocument>);
     return result.deletedCount;
+  }
+
+  /** Clear categoryId for all channels in a category (uncategorize). */
+  async clearCategory(spaceId: ObjectId, categoryId: ObjectId): Promise<number> {
+    const result = await this.collection.updateMany(
+      { spaceId, categoryId } as Filter<SpaceChannelDocument>,
+      {
+        $unset: { categoryId: '' },
+        $set: { updatedAt: new Date() },
+      } as UpdateFilter<SpaceChannelDocument>,
+    );
+    return result.modifiedCount;
+  }
+
+  /** Bulk-set categoryId + position for channels in a Space. */
+  async setLayout(
+    spaceId: ObjectId,
+    entries: ReadonlyArray<{
+      channelId: ObjectId;
+      categoryId: ObjectId | null;
+      position: number;
+    }>,
+  ): Promise<void> {
+    if (entries.length === 0) return;
+    const ops = entries.map(({ channelId, categoryId, position }) => {
+      const $set: Record<string, unknown> = { position, updatedAt: new Date() };
+      const $unset: Record<string, ''> = {};
+      if (categoryId) {
+        $set.categoryId = categoryId;
+      } else {
+        $unset.categoryId = '';
+      }
+      const update: UpdateFilter<SpaceChannelDocument> = { $set };
+      if (Object.keys($unset).length > 0) {
+        update.$unset = $unset;
+      }
+      return {
+        updateOne: {
+          filter: { _id: channelId, spaceId } as Filter<SpaceChannelDocument>,
+          update,
+        },
+      };
+    });
+    await this.collection.bulkWrite(ops);
   }
 }
 

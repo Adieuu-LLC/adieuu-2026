@@ -1,0 +1,32 @@
+---
+description: UI work is not done until typecheck, lint, build, tests, and provider boundaries pass
+alwaysApply: true
+---
+
+# UI completion gate
+
+Do **not** tell the user a frontend/UI change is done until you have verified it.
+
+## Required before claiming done
+
+1. **Typecheck** the affected package(s) (e.g. `pnpm exec tsc -p packages/ui --noEmit` or the repo’s usual check script).
+2. **Lint** changed UI code (e.g. biome/eslint for `packages/ui`).
+3. **Tests** for touched areas (unit/integration). Fix failures you introduced.
+4. **Build** when the change crosses package boundaries or shared exports (rebuild `@adieuu/shared` if API/types changed and UI consumes them).
+5. **Provider / route boundaries** — see below. A green unit test that mocks hooks is not enough.
+
+## Provider and route boundaries (common failure)
+
+Hooks that throw outside their provider (`useSpaces`, `useChatSocket`, `useCipherStore`, `useConversations`, etc.) must only run under a tree that actually mounts that provider for **every** auth state that can reach the route.
+
+When you add or extend UI that calls such a hook:
+
+- Trace the route in `App.tsx` (or equivalent): public shell vs authenticated shell vs `ProtectedGuard`.
+- Confirm the provider wraps that route for guests **and** authenticated users if the route is public.
+- Prefer splitting pages so the sign-in / logged-out branch does **not** call provider-bound hooks (render a prompt component first; call `useSpaces` only in a child mounted after the gate).
+- Never assume “tests mock `useSpaces`” means the real app tree is correct.
+
+## Do not
+
+- Mark todos complete or say “done” after only writing code or running a narrow unit file.
+- Ignore runtime boundary errors (`must be used within a …Provider`) as “HMR” without fixing the tree.

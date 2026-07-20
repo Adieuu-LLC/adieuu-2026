@@ -203,7 +203,10 @@ export interface PublicSpaceChannel {
   type: SpaceChannelType;
   /** Plaintext name; empty when the Space is e2ee. */
   name: string;
+  /** Order within the channel's category (or uncategorized bucket). */
   position: number;
+  /** Parent category id, or null when uncategorized. */
+  categoryId: string | null;
   /**
    * Role IDs allowed to see this channel. Empty/missing on legacy docs means
    * open to everyone (Everyone role). Always non-empty for newly created channels.
@@ -218,6 +221,26 @@ export interface PublicSpaceChannel {
    * New channels in an e2ee Space inherit the Space's `cipherCheck` by default.
    */
   cipherCheck?: CipherCheck;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Public channel category (sidebar grouping + ACL). */
+export interface PublicSpaceChannelCategory {
+  id: string;
+  spaceId: string;
+  /** Plaintext name; empty when the Space is e2ee. */
+  name: string;
+  /** Order among categories in the sidebar (ascending). */
+  position: number;
+  /**
+   * Role IDs allowed to see this category. Empty/missing on legacy docs means
+   * open to everyone (Everyone role).
+   */
+  allowedRoleIds: string[];
+  encryptedName?: string;
+  nameNonce?: string;
+  cipherId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -415,13 +438,16 @@ export interface UpdateSpaceParams {
   cipherRequired?: boolean;
 }
 
-/** PATCH body for updating a Space channel (name, ACL, encryption). */
+/** PATCH body for updating a Space channel (name, ACL, encryption, layout). */
 export interface UpdateSpaceChannelParams {
   name?: string;
   allowedRoleIds?: string[];
   encryptedName?: string;
   nameNonce?: string;
   cipherId?: string;
+  /** Move into a category, or `null` to uncategorize. */
+  categoryId?: string | null;
+  position?: number;
   /**
    * When true, ensure the channel has a `cipherCheck` (explicit or inherited
    * from the parent Space). When false, clear channel `cipherCheck`.
@@ -435,6 +461,8 @@ export interface CreateSpaceChannelParams {
   name?: string;
   type: 'text';
   allowedRoleIds?: string[];
+  /** When set, channel is created in this category (inherits ACL if roles omitted). */
+  categoryId?: string;
   encryptedName?: string;
   nameNonce?: string;
   cipherId?: string;
@@ -444,6 +472,38 @@ export interface CreateSpaceChannelParams {
    */
   encrypt?: boolean;
   cipherCheck?: CipherCheck;
+}
+
+/** POST body for creating a Space channel category. */
+export interface CreateSpaceChannelCategoryParams {
+  name?: string;
+  allowedRoleIds?: string[];
+  encryptedName?: string;
+  nameNonce?: string;
+  cipherId?: string;
+}
+
+/** PATCH body for updating a Space channel category. */
+export interface UpdateSpaceChannelCategoryParams {
+  name?: string;
+  allowedRoleIds?: string[];
+  encryptedName?: string;
+  nameNonce?: string;
+  cipherId?: string;
+  position?: number;
+}
+
+/**
+ * PUT body for atomic sidebar layout (category order + channel buckets).
+ * `categoryIds` is the full ordered list of categories in the Space.
+ * Each entry in `channelOrder` lists channel ids (in order) for that bucket.
+ */
+export interface UpdateSpaceChannelLayoutParams {
+  categoryIds: string[];
+  channelOrder: Array<{
+    categoryId: string | null;
+    channelIds: string[];
+  }>;
 }
 
 /** Common fields for both plaintext and encrypted message sends. */

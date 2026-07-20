@@ -15,6 +15,7 @@ import { getSpaceRepository } from '../../repositories/space.repository';
 import { getSpaceRoleRepository } from '../../repositories/space-role.repository';
 import { getSpaceMemberRepository } from '../../repositories/space-member.repository';
 import { getSpaceChannelRepository } from '../../repositories/space-channel.repository';
+import { getSpaceChannelCategoryRepository } from '../../repositories/space-channel-category.repository';
 import { getSpaceMessageRepository } from '../../repositories/space-message.repository';
 import { getSpaceReactionRepository } from '../../repositories/space-reaction.repository';
 import { getSpacePinRepository } from '../../repositories/space-pin.repository';
@@ -298,6 +299,7 @@ async function rollbackSpaceSeed(spaceId: ObjectId): Promise<void> {
   try {
     await Promise.all([
       getSpaceChannelRepository().deleteBySpace(spaceId),
+      getSpaceChannelCategoryRepository().deleteBySpace(spaceId),
       getSpaceMemberRepository().deleteBySpace(spaceId),
       getSpaceRoleRepository().deleteBySpace(spaceId),
     ]);
@@ -613,6 +615,7 @@ export async function deleteSpace(
     ]);
     await Promise.all([
       getSpaceChannelRepository().deleteBySpace(spaceId),
+      getSpaceChannelCategoryRepository().deleteBySpace(spaceId),
       getSpaceMemberRepository().deleteBySpace(spaceId),
       getSpaceRoleRepository().deleteBySpace(spaceId),
     ]);

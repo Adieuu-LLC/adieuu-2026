@@ -4,8 +4,10 @@ import {
   type PublicIdentity,
   type PublicSpace,
   type PublicSpaceChannel,
+  type PublicSpaceChannelCategory,
   type PublicSpaceMessage,
   type SpacePermission,
+  type UpdateSpaceChannelLayoutParams,
 } from '@adieuu/shared';
 import { useNavigate } from 'react-router-dom';
 import { useAppConfig, usePlatformCapabilities } from '../../config';
@@ -48,6 +50,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   const [activeSpaceError, setActiveSpaceError] = useState<'not_found' | 'error' | null>(null);
 
   const [channels, setChannels] = useState<PublicSpaceChannel[]>([]);
+  const [categories, setCategories] = useState<PublicSpaceChannelCategory[]>([]);
   const [activeChannelId, setActiveChannelIdState] = useState<string | null>(null);
   const [messagesByChannel, setMessagesByChannel] = useState<Record<string, SpaceChannelMessagesState>>({});
   const [sending, setSending] = useState(false);
@@ -93,6 +96,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     setActiveSpaceLoading,
     setActiveSpaceError,
     setChannels,
+    setCategories,
     setMessagesByChannel,
   });
 
@@ -246,6 +250,80 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       return [...prev, channel].sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
     });
   }, []);
+
+  const addCategoryLocally = useCallback((category: PublicSpaceChannelCategory) => {
+    setCategories((prev) => {
+      if (prev.some((c) => c.id === category.id)) {
+        return prev.map((c) => (c.id === category.id ? category : c));
+      }
+      return [...prev, category].sort(
+        (a, b) => a.position - b.position || a.id.localeCompare(b.id),
+      );
+    });
+  }, []);
+
+  const removeCategoryLocally = useCallback((categoryId: string) => {
+    setCategories((prev) => prev.filter((c) => c.id !== categoryId));
+    setChannels((prev) =>
+      prev.map((ch) =>
+        ch.categoryId === categoryId ? { ...ch, categoryId: null } : ch,
+      ),
+    );
+  }, []);
+
+  const applyChannelLayout = useCallback(
+    async (layout: UpdateSpaceChannelLayoutParams): Promise<boolean> => {
+      const spaceId = activeSpaceIdRef.current;
+      if (!spaceId) return false;
+
+      const prevCategories = categories;
+      const prevChannels = channels;
+
+      const categoryById = new Map(categories.map((c) => [c.id, c]));
+      const channelById = new Map(channels.map((c) => [c.id, c]));
+
+      const nextCategories = layout.categoryIds
+        .map((id, position) => {
+          const cat = categoryById.get(id);
+          return cat ? { ...cat, position } : null;
+        })
+        .filter((c): c is PublicSpaceChannelCategory => c != null);
+
+      const nextChannels: PublicSpaceChannel[] = [];
+      for (const bucket of layout.channelOrder) {
+        bucket.channelIds.forEach((id, position) => {
+          const ch = channelById.get(id);
+          if (ch) {
+            nextChannels.push({
+              ...ch,
+              categoryId: bucket.categoryId,
+              position,
+            });
+          }
+        });
+      }
+
+      setCategories(nextCategories);
+      setChannels(nextChannels);
+
+      try {
+        const res = await api.spaces.updateChannelLayout(spaceId, layout);
+        if (!res.success || !res.data) {
+          setCategories(prevCategories);
+          setChannels(prevChannels);
+          return false;
+        }
+        setCategories(res.data.categories);
+        setChannels(res.data.channels);
+        return true;
+      } catch {
+        setCategories(prevCategories);
+        setChannels(prevChannels);
+        return false;
+      }
+    },
+    [api, categories, channels],
+  );
 
   const setActiveChannel = useCallback(
     (channelId: string | null) => {
@@ -487,6 +565,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     onStateChange,
     setSpaces,
     setChannels,
+    setCategories,
     setMessagesByChannel,
     activeSpaceIdRef,
     activeChannelIdRef,
@@ -529,8 +608,12 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       rolePermissionPreview,
       setRolePermissionPreview,
       channels,
+      categories,
       activeSpaceRoleIds,
       addChannelLocally,
+      addCategoryLocally,
+      removeCategoryLocally,
+      applyChannelLayout,
       activeChannelId,
       activeMessages: activeChannelState?.messages ?? [],
       activeMessagesLoading: activeChannelState?.loading ?? false,
@@ -568,8 +651,12 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       activeSpacePermissionsLoading,
       rolePermissionPreview,
       channels,
+      categories,
       activeSpaceRoleIds,
       addChannelLocally,
+      addCategoryLocally,
+      removeCategoryLocally,
+      applyChannelLayout,
       activeChannelId,
       activeChannelState,
       sending,

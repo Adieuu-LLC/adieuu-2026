@@ -14,8 +14,10 @@ export interface SpaceChannelDocument extends BaseDocument {
   type: SpaceChannelType;
   /** Plaintext name; empty when the Space is e2ee. */
   name: string;
-  /** Ordering within the Space channel list (ascending). */
+  /** Ordering within the channel's category (or uncategorized bucket). */
   position: number;
+  /** Parent category; missing/null means uncategorized. */
+  categoryId?: ObjectId | null;
   /**
    * Roles allowed to see this channel. Missing/empty on legacy docs is treated
    * as open to all members (Everyone). New channels always store at least one.
@@ -35,6 +37,7 @@ export interface CreateSpaceChannelInput {
   name: string;
   position: number;
   allowedRoleIds: ObjectId[];
+  categoryId?: ObjectId | null;
   encryptedName?: string;
   nameNonce?: string;
   cipherId?: string;
@@ -44,6 +47,10 @@ export interface CreateSpaceChannelInput {
 export interface UpdateSpaceChannelFields {
   name?: string;
   allowedRoleIds?: ObjectId[];
+  categoryId?: ObjectId | null;
+  /** When true, remove `categoryId` from the document (uncategorize). */
+  clearCategoryId?: boolean;
+  position?: number;
   encryptedName?: string;
   nameNonce?: string;
   cipherId?: string;
@@ -59,6 +66,7 @@ export function toPublicSpaceChannel(doc: SpaceChannelDocument): PublicSpaceChan
     type: doc.type,
     name: doc.name,
     position: doc.position,
+    categoryId: doc.categoryId ? doc.categoryId.toHexString() : null,
     allowedRoleIds: (doc.allowedRoleIds ?? []).map((id) => id.toHexString()),
     ...(doc.encryptedName
       ? {

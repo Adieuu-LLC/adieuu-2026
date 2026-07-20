@@ -30,7 +30,6 @@ import { useSpaceCipher } from './useSpaceCipher';
 import {
   encryptSpaceMetadataField,
   resolveChannelDisplayName,
-  resolveRoleDisplayName,
 } from './spaceMetadataCipher';
 import {
   actorTopRolePosition,
@@ -40,6 +39,7 @@ import {
 import type { CipherSource, EntropyRow } from './SpaceCipherFormFields';
 import { resolveSpaceCipherSelection } from './resolveSpaceCipherSelection';
 import { ChannelSettingsEncryption } from './ChannelSettingsEncryption';
+import { ChannelRoleMultiselect } from './ChannelRoleMultiselect';
 
 export interface ChannelSettingsModalProps {
   open: boolean;
@@ -49,6 +49,10 @@ export interface ChannelSettingsModalProps {
   canManageChannels?: boolean;
   canManageEncryption?: boolean;
   channel?: PublicSpaceChannel | null;
+  /** When creating, place the channel in this category (inherits ACL if roles not overridden). */
+  categoryId?: string | null;
+  /** Prefill role ACL when creating (e.g. inherited from a category). */
+  initialAllowedRoleIds?: readonly string[] | null;
   onCreated?: (channel: PublicSpaceChannel) => void;
   onUpdated?: (channel: PublicSpaceChannel) => void;
 }
@@ -66,6 +70,8 @@ export function ChannelSettingsModal({
   canManageChannels = true,
   canManageEncryption = false,
   channel = null,
+  categoryId = null,
+  initialAllowedRoleIds = null,
   onCreated,
   onUpdated,
 }: ChannelSettingsModalProps) {
@@ -147,8 +153,12 @@ export function ChannelSettingsModal({
         const list = res.data.roles;
         setRoles(list);
         if (!channel) {
-          const everyone = findEveryoneRole(list);
-          setSelectedRoleIds(everyone ? new Set([everyone.id]) : new Set());
+          if (initialAllowedRoleIds && initialAllowedRoleIds.length > 0) {
+            setSelectedRoleIds(new Set(initialAllowedRoleIds));
+          } else {
+            const everyone = findEveryoneRole(list);
+            setSelectedRoleIds(everyone ? new Set([everyone.id]) : new Set());
+          }
         }
       });
     } else {
@@ -158,7 +168,16 @@ export function ChannelSettingsModal({
     return () => {
       cancelled = true;
     };
-  }, [open, api, space.id, space.e2ee, channel, spaceCipher, canManageChannels]);
+  }, [
+    open,
+    api,
+    space.id,
+    space.e2ee,
+    channel,
+    spaceCipher,
+    canManageChannels,
+    initialAllowedRoleIds,
+  ]);
 
   const toggleRole = useCallback((roleId: string) => {
     setSelectedRoleIds((prev) => {
@@ -241,6 +260,7 @@ export function ChannelSettingsModal({
     }
 
     // Prefer an explicit picker selection; otherwise inherit the Space challenge.
+    // Confirm only on edit — create has no prior cipher/messages to warn about.
     if (cipherSource === 'existing' && !selectedCipherId && space.cipherCheck) {
       return {
         ok: true,
@@ -248,7 +268,7 @@ export function ChannelSettingsModal({
           kind: 'on',
           cipherCheck: space.cipherCheck,
           localCipherId: getSpaceCipherLink(space.id) ?? '',
-          needsConfirm: true,
+          needsConfirm: isEdit,
         },
       };
     }
@@ -277,7 +297,7 @@ export function ChannelSettingsModal({
           kind: 'on',
           cipherCheck,
           localCipherId: resolved.localId,
-          needsConfirm: true,
+          needsConfirm: isEdit,
         },
       };
     } catch {
@@ -299,6 +319,7 @@ export function ChannelSettingsModal({
     createCipher,
     newCipherName,
     name,
+    isEdit,
     t,
   ]);
 
@@ -374,6 +395,7 @@ export function ChannelSettingsModal({
         type: 'text',
         ...nameFields,
         allowedRoleIds: [...selectedRoleIds],
+        ...(categoryId ? { categoryId } : {}),
         ...(createEncryption ?? {}),
       };
       const res = await api.spaces.createChannel(space.id, body);
@@ -403,6 +425,7 @@ export function ChannelSettingsModal({
     buildNameFields,
     isEdit,
     channel,
+    categoryId,
     selectedRoleIds,
     encrypt,
     api,
@@ -488,41 +511,14 @@ export function ChannelSettingsModal({
                       </select>
                     </label>
 
-                    <fieldset
-                      className="create-channel-roles"
-                      disabled={loadingRoles || submitting}
-                    >
-                      <legend className="create-channel-field-label">
-                        {t('spaces.createChannel.rolesLabel')}
-                      </legend>
-                      <p className="create-channel-field-hint">
-                        {t('spaces.createChannel.rolesHint')}
-                      </p>
-                      <ul className="create-channel-role-list">
-                        {selectableRoles.map((role) => {
-                          const label = resolveRoleDisplayName(role, spaceCipher, {
-                            encryptedRole: t('spaces.encryptedRolePlaceholder'),
-                          });
-                          return (
-                            <li key={role.id}>
-                              <label className="create-channel-role-option">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedRoleIds.has(role.id)}
-                                  onChange={() => toggleRole(role.id)}
-                                />
-                                <span
-                                  className="create-channel-role-swatch"
-                                  style={{ backgroundColor: role.color }}
-                                  aria-hidden
-                                />
-                                <span>{label}</span>
-                              </label>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </fieldset>
+                    <ChannelRoleMultiselect
+                      roles={selectableRoles}
+                      selectedRoleIds={selectedRoleIds}
+                      onToggle={toggleRole}
+                      spaceCipher={spaceCipher}
+                      disabled={submitting}
+                      loading={loadingRoles}
+                    />
                   </>
                 )}
 

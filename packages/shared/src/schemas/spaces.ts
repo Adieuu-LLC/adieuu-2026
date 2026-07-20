@@ -314,6 +314,7 @@ export const CreateSpaceChannelSchema = z
     name: z.string().min(SPACE_CHANNEL_NAME_MIN_LENGTH).max(SPACE_CHANNEL_NAME_MAX_LENGTH).optional(),
     type: z.literal('text'),
     allowedRoleIds: z.array(z.string().length(24)).max(50).optional(),
+    categoryId: z.string().length(24).optional(),
     encryptedName: z.string().min(1).max(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
     nameNonce: z.string().min(1).max(500).optional(),
     cipherId: z.string().min(1).max(256).optional(),
@@ -342,6 +343,8 @@ export const UpdateSpaceChannelSchema = z
   .object({
     name: z.string().min(SPACE_CHANNEL_NAME_MIN_LENGTH).max(SPACE_CHANNEL_NAME_MAX_LENGTH).optional(),
     allowedRoleIds: z.array(z.string().length(24)).max(50).optional(),
+    categoryId: z.string().length(24).nullable().optional(),
+    position: z.number().int().min(0).max(10_000).optional(),
     encryptedName: z.string().min(1).max(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
     nameNonce: z.string().min(1).max(500).optional(),
     cipherId: z.string().min(1).max(256).optional(),
@@ -369,12 +372,67 @@ export const UpdateSpaceChannelSchema = z
     path: ['cipherCheck'],
   });
 
+const spaceCategoryNameFields = {
+  name: z.string().min(SPACE_CHANNEL_NAME_MIN_LENGTH).max(SPACE_CHANNEL_NAME_MAX_LENGTH).optional(),
+  allowedRoleIds: z.array(z.string().length(24)).max(50).optional(),
+  encryptedName: z.string().min(1).max(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
+  nameNonce: z.string().min(1).max(500).optional(),
+  cipherId: z.string().min(1).max(256).optional(),
+};
+
+export const CreateSpaceChannelCategorySchema = z
+  .object(spaceCategoryNameFields)
+  .refine(
+    (v) => {
+      const hasPlain = typeof v.name === 'string' && v.name.length > 0;
+      const hasCipher = !!(v.encryptedName && v.nameNonce && v.cipherId);
+      return (hasPlain || hasCipher) && !(hasPlain && hasCipher);
+    },
+    { message: 'Provide either name (plaintext) or encryptedName+nameNonce+cipherId, not both' },
+  );
+
+export const UpdateSpaceChannelCategorySchema = z
+  .object({
+    ...spaceCategoryNameFields,
+    position: z.number().int().min(0).max(10_000).optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, {
+    message: 'At least one field is required',
+  })
+  .refine(
+    (v) => {
+      const hasPlain = typeof v.name === 'string' && v.name.length > 0;
+      const hasCipher = !!(v.encryptedName && v.nameNonce && v.cipherId);
+      const hasPartial =
+        !!(v.encryptedName || v.nameNonce || v.cipherId) && !hasCipher;
+      if (hasPartial) return false;
+      if (hasPlain && hasCipher) return false;
+      return true;
+    },
+    { message: 'Provide either name (plaintext) or encryptedName+nameNonce+cipherId, not both' },
+  );
+
+export const UpdateSpaceChannelLayoutSchema = z.object({
+  categoryIds: z.array(z.string().length(24)).max(200),
+  channelOrder: z
+    .array(
+      z.object({
+        categoryId: z.string().length(24).nullable(),
+        channelIds: z.array(z.string().length(24)).max(500),
+      }),
+    )
+    .max(201),
+});
+
 export type CreateSpaceBody = z.infer<typeof CreateSpaceSchema>;
 export type UpdateSpaceBody = z.infer<typeof UpdateSpaceSchema>;
 export type CreateSpaceInviteBody = z.infer<typeof CreateSpaceInviteSchema>;
 export type SendSpaceMessageBody = z.infer<typeof SendSpaceMessageSchema>;
 export type CreateSpaceChannelBody = z.infer<typeof CreateSpaceChannelSchema>;
 export type UpdateSpaceChannelBody = z.infer<typeof UpdateSpaceChannelSchema>;
+export type CreateSpaceChannelCategoryBody = z.infer<typeof CreateSpaceChannelCategorySchema>;
+export type UpdateSpaceChannelCategoryBody = z.infer<typeof UpdateSpaceChannelCategorySchema>;
+export type UpdateSpaceChannelLayoutBody = z.infer<typeof UpdateSpaceChannelLayoutSchema>;
 export type CreateSpaceRoleBody = z.infer<typeof CreateSpaceRoleSchema>;
 export type UpdateSpaceRoleBody = z.infer<typeof UpdateSpaceRoleSchema>;
 export type SetMemberRolesBody = z.infer<typeof SetMemberRolesSchema>;

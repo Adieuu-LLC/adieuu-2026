@@ -27,10 +27,18 @@ import {
   listSpaceChannels,
   createSpaceChannel,
   updateSpaceChannel,
+  listSpaceChannelCategories,
+  createSpaceChannelCategory,
+  updateSpaceChannelCategory,
+  deleteSpaceChannelCategory,
+  updateSpaceChannelLayout,
 } from '../../services/space.service';
 import {
   CreateSpaceChannelSchema,
   UpdateSpaceChannelSchema,
+  CreateSpaceChannelCategorySchema,
+  UpdateSpaceChannelCategorySchema,
+  UpdateSpaceChannelLayoutSchema,
   SendSpaceMessageSchema,
   EditSpaceMessageSchema,
   AddSpaceReactionSchema,
@@ -101,6 +109,113 @@ export async function updateChannelCtrl(
     return mapSpaceError(result.errorCode, result.error ?? 'Failed to update channel.');
   }
   return { kind: 'ok', data: { channel: result.channel }, message: 'Channel updated.' };
+}
+
+// ---------------------------------------------------------------------------
+// Categories & layout
+// ---------------------------------------------------------------------------
+
+export async function listCategoriesCtrl(
+  ctx: RouteContext,
+): Promise<SpaceRouteResult<{ categories: unknown[] }>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const id = sanitizeSpaceObjectId(ctx.params.id);
+  if (!id.ok) return { kind: 'bad_request', message: 'Invalid Space id.' };
+
+  const result = await listSpaceChannelCategories(id.id, identity._id);
+  if (!result.success) {
+    return mapSpaceError(result.errorCode, result.error ?? 'Failed to list categories.');
+  }
+  return { kind: 'ok', data: { categories: result.categories ?? [] } };
+}
+
+export async function createCategoryCtrl(
+  ctx: RouteContext,
+): Promise<SpaceRouteResult<{ category: unknown }>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const id = sanitizeSpaceObjectId(ctx.params.id);
+  if (!id.ok) return { kind: 'bad_request', message: 'Invalid Space id.' };
+
+  const parsed = CreateSpaceChannelCategorySchema.safeParse(ctx.body);
+  if (!parsed.success) return { kind: 'validation_failed' };
+
+  const result = await createSpaceChannelCategory(id.id, identity._id, parsed.data);
+  if (!result.success) {
+    return mapSpaceError(result.errorCode, result.error ?? 'Failed to create category.');
+  }
+  return { kind: 'ok', data: { category: result.category }, message: 'Category created.' };
+}
+
+export async function updateCategoryCtrl(
+  ctx: RouteContext,
+): Promise<SpaceRouteResult<{ category: unknown }>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const id = sanitizeSpaceObjectId(ctx.params.id);
+  const categoryId = sanitizeSpaceObjectId(ctx.params.categoryId);
+  if (!id.ok || !categoryId.ok) return { kind: 'bad_request', message: 'Invalid id.' };
+
+  const parsed = UpdateSpaceChannelCategorySchema.safeParse(ctx.body);
+  if (!parsed.success) return { kind: 'validation_failed' };
+
+  const result = await updateSpaceChannelCategory(
+    id.id,
+    categoryId.id,
+    identity._id,
+    parsed.data,
+  );
+  if (!result.success) {
+    return mapSpaceError(result.errorCode, result.error ?? 'Failed to update category.');
+  }
+  return { kind: 'ok', data: { category: result.category }, message: 'Category updated.' };
+}
+
+export async function deleteCategoryCtrl(
+  ctx: RouteContext,
+): Promise<SpaceRouteResult<{ ok: true }>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const id = sanitizeSpaceObjectId(ctx.params.id);
+  const categoryId = sanitizeSpaceObjectId(ctx.params.categoryId);
+  if (!id.ok || !categoryId.ok) return { kind: 'bad_request', message: 'Invalid id.' };
+
+  const result = await deleteSpaceChannelCategory(id.id, categoryId.id, identity._id);
+  if (!result.success) {
+    return mapSpaceError(result.errorCode, result.error ?? 'Failed to delete category.');
+  }
+  return { kind: 'ok', data: { ok: true }, message: 'Category deleted.' };
+}
+
+export async function updateChannelLayoutCtrl(
+  ctx: RouteContext,
+): Promise<SpaceRouteResult<{ categories: unknown[]; channels: unknown[] }>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const id = sanitizeSpaceObjectId(ctx.params.id);
+  if (!id.ok) return { kind: 'bad_request', message: 'Invalid Space id.' };
+
+  const parsed = UpdateSpaceChannelLayoutSchema.safeParse(ctx.body);
+  if (!parsed.success) return { kind: 'validation_failed' };
+
+  const result = await updateSpaceChannelLayout(id.id, identity._id, parsed.data);
+  if (!result.success) {
+    return mapSpaceError(result.errorCode, result.error ?? 'Failed to update channel layout.');
+  }
+  return {
+    kind: 'ok',
+    data: {
+      categories: result.categories ?? [],
+      channels: result.channels ?? [],
+    },
+    message: 'Channel layout updated.',
+  };
 }
 
 // ---------------------------------------------------------------------------

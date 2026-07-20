@@ -2,9 +2,11 @@ import type {
   PublicIdentity,
   PublicSpace,
   PublicSpaceChannel,
+  PublicSpaceChannelCategory,
   PublicSpaceMessage,
   SendSpaceMessageParams,
   SpacePermission,
+  UpdateSpaceChannelLayoutParams,
 } from '@adieuu/shared';
 import type { SpaceChannelUnreadState } from '../../services/spaceSocketHandlers';
 
@@ -56,14 +58,26 @@ export interface SpacesContextValue {
     preview: { roleId: string; permissions: SpacePermission[] } | null,
   ) => void;
 
-  /** Channels for the active Space (sorted by position). */
+  /** Channels for the active Space (sorted by position within bucket). */
   channels: PublicSpaceChannel[];
+
+  /** Channel categories for the active Space (sorted by position). */
+  categories: PublicSpaceChannelCategory[];
 
   /** Role IDs held by the viewer in the active Space. */
   activeSpaceRoleIds: string[];
 
   /** Append or replace a channel in the active Space list (create/update / socket). */
   addChannelLocally: (channel: PublicSpaceChannel) => void;
+
+  /** Append or replace a category in the active Space list. */
+  addCategoryLocally: (category: PublicSpaceChannelCategory) => void;
+
+  /** Remove a category locally (channels become uncategorized). */
+  removeCategoryLocally: (categoryId: string) => void;
+
+  /** Apply a full channel/category layout (optimistic + API). */
+  applyChannelLayout: (layout: UpdateSpaceChannelLayoutParams) => Promise<boolean>;
 
   /** Currently viewed channel within the active Space. */
   activeChannelId: string | null;
