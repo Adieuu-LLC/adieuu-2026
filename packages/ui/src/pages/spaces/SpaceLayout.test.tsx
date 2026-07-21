@@ -21,6 +21,7 @@ mock.module('../../hooks/useSpaces', () => ({
 
 mock.module('../../hooks/useCipherStore', () => ({
   useCipherStore: () => ({
+    loading: false,
     ciphers: [],
     getCipherKey: () => null,
     createCipher: async () => ({ success: false }),

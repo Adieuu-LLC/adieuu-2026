@@ -2,25 +2,34 @@
  * Resolve the bookmarked Community Cipher for a Space (if any).
  */
 
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useCallback, useSyncExternalStore } from 'react';
 import type { CommunityCipher } from '@adieuu/crypto';
 import { useCipherStore } from '../../hooks/useCipherStore';
-import { getSpaceCipherLink } from '../../services/spaceCipherService';
+import {
+  bumpCipherLinkEpoch,
+  getCipherLinkEpoch,
+  getSpaceCipherLink,
+  subscribeCipherLinks,
+} from '../../services/spaceCipherService';
 
 /**
  * Returns the unlocked Cipher linked to `spaceId`, or null when missing /
- * locked. Call `bumpCipherLink` after bookmark/detect recovery so the
- * memo re-resolves.
+ * locked. Re-resolves automatically when cipher links change (hydrate,
+ * bookmark, detect). Call `bumpCipherLink` only if you need a manual refresh.
  */
 export function useSpaceCipher(spaceId: string | null | undefined): {
   spaceCipher: CommunityCipher | null;
   bumpCipherLink: () => void;
 } {
   const { getCipherKey } = useCipherStore();
-  const [cipherLinkVersion, setCipherLinkVersion] = useState(0);
+  const linkEpoch = useSyncExternalStore(
+    subscribeCipherLinks,
+    getCipherLinkEpoch,
+    getCipherLinkEpoch,
+  );
 
   const bumpCipherLink = useCallback(() => {
-    setCipherLinkVersion((v) => v + 1);
+    bumpCipherLinkEpoch();
   }, []);
 
   const spaceCipher = useMemo(() => {
@@ -28,9 +37,7 @@ export function useSpaceCipher(spaceId: string | null | undefined): {
     const localCipherId = getSpaceCipherLink(spaceId);
     if (!localCipherId) return null;
     return getCipherKey(localCipherId);
-    // cipherLinkVersion forces re-resolve after bookmark/detect recovery.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional bump
-  }, [spaceId, getCipherKey, cipherLinkVersion]);
+  }, [spaceId, getCipherKey, linkEpoch]);
 
   return { spaceCipher, bumpCipherLink };
 }

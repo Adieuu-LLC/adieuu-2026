@@ -102,6 +102,8 @@ export const SPACE_CHANNEL_NAME_MIN_LENGTH = 1;
 export const SPACE_CHANNEL_NAME_MAX_LENGTH = 100;
 /** The single text channel auto-created with every new Space. */
 export const DEFAULT_SPACE_CHANNEL_NAME = 'general';
+/** The root category auto-created with every new Space (holds `#general`). */
+export const DEFAULT_SPACE_CATEGORY_NAME = 'Text Channels';
 /** System role names seeded with every new Space (plaintext labels for client encrypt). */
 export const DEFAULT_ADMIN_ROLE_NAME = 'Admin';
 export const DEFAULT_MEMBER_ROLE_NAME = 'Everyone';
@@ -148,8 +150,9 @@ export interface EncryptedSpaceDescription {
 export const SPACE_SEED_ROLE_SYSTEMS = ['admin', 'member'] as const;
 export type SpaceSeedRoleSystem = (typeof SPACE_SEED_ROLE_SYSTEMS)[number];
 
-/** Client-encrypted seed payloads for default channel + system roles when e2ee. */
+/** Client-encrypted seed payloads for default category/channel + system roles when e2ee. */
 export interface CreateSpaceEncryptedSeed {
+  category: EncryptedSpaceField;
   channel: EncryptedSpaceField;
   roles: Array<EncryptedSpaceField & { system: SpaceSeedRoleSystem }>;
 }

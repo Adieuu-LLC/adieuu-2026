@@ -10,9 +10,14 @@ import {
   registerSpaceCipherLink,
   getSpaceCipherLink,
   removeSpaceCipherLink,
+  registerChannelCipherLink,
+  getChannelCipherLink,
   evictSpaceKey,
   clearSpaceKeyCacheForSpace,
   clearSpaceCipherState,
+  subscribeCipherLinks,
+  getCipherLinkEpoch,
+  bumpCipherLinkEpoch,
 } from './spaceCipherService';
 
 const SPACE_A = '507f1f77bcf86cd799439011';
@@ -117,6 +122,43 @@ describe('spaceCipherService', () => {
       expect(getSpaceCipherLink(SPACE_A)).toBe('local-cipher-1');
       removeSpaceCipherLink(SPACE_A);
       expect(getSpaceCipherLink(SPACE_A)).toBeNull();
+    });
+  });
+
+  describe('cipher link epoch', () => {
+    test('subscribeCipherLinks notifies on register / remove / clear / bump', () => {
+      let notifications = 0;
+      const unsub = subscribeCipherLinks(() => {
+        notifications += 1;
+      });
+      const start = getCipherLinkEpoch();
+
+      registerSpaceCipherLink(SPACE_A, 'local-1');
+      expect(getCipherLinkEpoch()).toBe(start + 1);
+      expect(notifications).toBe(1);
+
+      // Same link value does not bump.
+      registerSpaceCipherLink(SPACE_A, 'local-1');
+      expect(notifications).toBe(1);
+
+      registerChannelCipherLink('ch-1', 'local-1');
+      expect(notifications).toBe(2);
+      expect(getChannelCipherLink('ch-1')).toBe('local-1');
+
+      bumpCipherLinkEpoch();
+      expect(notifications).toBe(3);
+
+      removeSpaceCipherLink(SPACE_A);
+      expect(notifications).toBe(4);
+
+      clearSpaceCipherState();
+      expect(notifications).toBe(5);
+      expect(getSpaceCipherLink(SPACE_A)).toBeNull();
+      expect(getChannelCipherLink('ch-1')).toBeNull();
+
+      unsub();
+      bumpCipherLinkEpoch();
+      expect(notifications).toBe(5);
     });
   });
 

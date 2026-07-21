@@ -20,6 +20,7 @@ const validEncryptedField = {
 };
 
 const validEncryptedSeed = {
+  category: { ...validEncryptedField },
   channel: { ...validEncryptedField },
   roles: [
     { system: 'admin' as const, ...validEncryptedField },

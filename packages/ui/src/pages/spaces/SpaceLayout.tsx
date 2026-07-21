@@ -27,6 +27,7 @@ import { JoinSpaceInterstitial } from './JoinSpaceInterstitial';
 import { SpaceJoinBanner } from './SpaceJoinBanner';
 import { SpaceMobileChrome } from './SpaceMobileChrome';
 import { SpaceSecondarySidebar } from './SpaceSecondarySidebar';
+import { useAutoDetectSpaceChannelCiphers } from './useAutoDetectSpaceChannelCiphers';
 import { useSpaceMobileNav } from './useSpaceMobileNav';
 import '../../styles/_spaces.scss';
 import '../../styles/_spaces-sidebar.scss';
@@ -69,6 +70,9 @@ function SpaceLayoutSession() {
     closeMobileNav,
     toggleMobileNav,
   } = useSpaceMobileNav();
+
+  // Unlock encrypted channel/category names on first enter (deduped cipher checks).
+  useAutoDetectSpaceChannelCiphers();
 
   useEffect(() => {
     if (slug) {

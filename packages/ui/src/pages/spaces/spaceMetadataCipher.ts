@@ -6,6 +6,7 @@
 import {
   DEFAULT_ADMIN_ROLE_NAME,
   DEFAULT_MEMBER_ROLE_NAME,
+  DEFAULT_SPACE_CATEGORY_NAME,
   DEFAULT_SPACE_CHANNEL_NAME,
   type CreateSpaceEncryptedSeed,
   type EncryptedSpaceField,
@@ -72,9 +73,10 @@ export function decryptSpaceDescription(
   );
 }
 
-/** Build client-encrypted seed payloads for default channel + system roles. */
+/** Build client-encrypted seed payloads for default category/channel + system roles. */
 export function buildEncryptedSpaceSeed(cipher: CommunityCipher): CreateSpaceEncryptedSeed {
   return {
+    category: encryptSpaceMetadataField(cipher, DEFAULT_SPACE_CATEGORY_NAME),
     channel: encryptSpaceMetadataField(cipher, DEFAULT_SPACE_CHANNEL_NAME),
     roles: [
       {

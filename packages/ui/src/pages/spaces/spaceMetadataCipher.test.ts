@@ -21,9 +21,10 @@ describe('spaceMetadataCipher', () => {
     expect(plain).toBe('general');
   });
 
-  test('buildEncryptedSpaceSeed includes channel + admin/member roles', () => {
+  test('buildEncryptedSpaceSeed includes category + channel + admin/member roles', () => {
     const seed = buildEncryptedSpaceSeed(cipher);
     expect(seed.roles.map((r) => r.system).sort()).toEqual(['admin', 'member']);
+    expect(decryptSpaceMetadataField(cipher, seed.category, '')).toBe('Text Channels');
     expect(decryptSpaceMetadataField(cipher, seed.channel, '')).toBe('general');
     const admin = seed.roles.find((r) => r.system === 'admin')!;
     const member = seed.roles.find((r) => r.system === 'member')!;

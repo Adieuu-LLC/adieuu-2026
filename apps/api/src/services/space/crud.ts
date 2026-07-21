@@ -2,10 +2,10 @@
  * Space CRUD: create, get-by-slug, list-mine, discover, slug availability.
  *
  * Create seeds the default Admin + Member roles, adds the creator as an Admin
- * member, and creates the default `#general` text channel. When the Space is
- * E2EE, the caller-provided blind-relay cipher challenge and encrypted seed
- * metadata are persisted verbatim (the server performs no crypto and stores
- * no keys).
+ * member, creates a default category, and nests the `#general` text channel
+ * inside it. When the Space is E2EE, the caller-provided blind-relay cipher
+ * challenge and encrypted seed metadata are persisted verbatim (the server
+ * performs no crypto and stores no keys).
  *
  * @module services/space/crud
  */
@@ -26,17 +26,9 @@ import elog from '../../utils/adieuuLogger';
 import { toPublicSpace } from '../../models/space';
 import { resolveMemberPermissions, memberHasPermission } from './permissions';
 import { publishSpaceEvent, publishSpaceEventToIdentity } from './redis-events';
+import { seedNewSpace } from './space-seed';
 import type { PublicSpace, SpaceVisibility } from '@adieuu/shared';
-import {
-  DEFAULT_ADMIN_ROLE_NAME,
-  DEFAULT_MEMBER_ROLE_NAME,
-  DEFAULT_ADMIN_PERMISSIONS,
-  DEFAULT_MEMBER_PERMISSIONS,
-  DEFAULT_ADMIN_ROLE_COLOR,
-  DEFAULT_MEMBER_ROLE_COLOR,
-  isReservedSpaceSlug,
-} from '../../constants/spaces';
-import { DEFAULT_SPACE_CHANNEL_NAME } from '@adieuu/shared';
+import { isReservedSpaceSlug } from '../../constants/spaces';
 import type {
   CreateSpaceServiceParams,
   SpaceActionResult,
@@ -57,8 +49,8 @@ function isDuplicateKeyError(err: unknown): boolean {
 }
 
 /**
- * Create a Space. Paid-only; seeds roles/member/#general and persists the
- * cipher challenge for E2EE Spaces.
+ * Create a Space. Paid-only; seeds roles/member/category/#general and
+ * persists the cipher challenge for E2EE Spaces.
  */
 export async function createSpace(
   creatorIdentityId: string | ObjectId,
@@ -210,73 +202,15 @@ export async function createSpace(
     throw err;
   }
 
-  // Seed roles, creator membership, and the default channel. On failure, roll
+  // Seed roles, creator membership, category, and #general. On failure, roll
   // back the orphaned documents (no multi-doc transaction requirement).
   try {
-    const roleRepo = getSpaceRoleRepository();
-    const seed = params.encryptedSeed;
-    const adminSeed = seed?.roles.find((r) => r.system === 'admin');
-    const memberSeed = seed?.roles.find((r) => r.system === 'member');
-
-    const adminRole = await roleRepo.createRole({
+    await seedNewSpace({
       spaceId: spaceObjId,
-      name: e2ee ? '' : DEFAULT_ADMIN_ROLE_NAME,
-      permissions: [...DEFAULT_ADMIN_PERMISSIONS],
-      color: DEFAULT_ADMIN_ROLE_COLOR,
-      displaySeparately: true,
-      mentionable: false,
-      position: 0,
-      isSystem: true,
-      systemKey: 'admin',
-      ...(adminSeed
-        ? {
-            encryptedName: adminSeed.encryptedName,
-            nameNonce: adminSeed.nameNonce,
-            cipherId: adminSeed.cipherId,
-          }
-        : {}),
-    });
-    const memberRole = await roleRepo.createRole({
-      spaceId: spaceObjId,
-      name: e2ee ? '' : DEFAULT_MEMBER_ROLE_NAME,
-      permissions: [...DEFAULT_MEMBER_PERMISSIONS],
-      color: DEFAULT_MEMBER_ROLE_COLOR,
-      displaySeparately: false,
-      mentionable: false,
-      position: 1000,
-      isDefaultMember: true,
-      isSystem: true,
-      systemKey: 'member',
-      ...(memberSeed
-        ? {
-            encryptedName: memberSeed.encryptedName,
-            nameNonce: memberSeed.nameNonce,
-            cipherId: memberSeed.cipherId,
-          }
-        : {}),
-    });
-
-    await getSpaceMemberRepository().createMember({
-      spaceId: spaceObjId,
-      identityId: creatorObjId,
-      roleIds: [adminRole._id],
-    });
-
-    await getSpaceChannelRepository().createChannel({
-      spaceId: spaceObjId,
-      type: 'text',
-      name: e2ee ? '' : DEFAULT_SPACE_CHANNEL_NAME,
-      position: 0,
-      allowedRoleIds: [memberRole._id],
-      ...(seed?.channel
-        ? {
-            encryptedName: seed.channel.encryptedName,
-            nameNonce: seed.channel.nameNonce,
-            cipherId: seed.channel.cipherId,
-          }
-        : {}),
-      // Default channel inherits the Space Cipher when the Space is e2ee.
-      ...(e2ee && params.cipherCheck ? { cipherCheck: params.cipherCheck } : {}),
+      creatorIdentityId: creatorObjId,
+      e2ee,
+      ...(params.cipherCheck ? { cipherCheck: params.cipherCheck } : {}),
+      ...(params.encryptedSeed ? { encryptedSeed: params.encryptedSeed } : {}),
     });
   } catch (err) {
     elog.error('Failed to seed Space after create; rolling back', { spaceId: spaceObjId.toHexString(), err });

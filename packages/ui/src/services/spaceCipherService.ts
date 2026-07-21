@@ -39,6 +39,40 @@ const spaceCipherLinks = new Map<string, string>();
 /** Local link of `channelId -> local cipher id` for per-channel Cipher overrides. */
 const channelCipherLinks = new Map<string, string>();
 
+/**
+ * Epoch bumped whenever space/channel/category cipher links change.
+ * React consumers subscribe via {@link subscribeCipherLinks} +
+ * {@link getCipherLinkEpoch} (`useSyncExternalStore`) so UI re-resolves
+ * after hydrate, bookmark, or detect without a local version counter.
+ */
+let cipherLinkEpoch = 0;
+const cipherLinkListeners = new Set<() => void>();
+
+function notifyCipherLinkListeners(): void {
+  cipherLinkEpoch += 1;
+  for (const listener of cipherLinkListeners) {
+    listener();
+  }
+}
+
+/** Subscribe to cipher-link map changes (for `useSyncExternalStore`). */
+export function subscribeCipherLinks(onStoreChange: () => void): () => void {
+  cipherLinkListeners.add(onStoreChange);
+  return () => {
+    cipherLinkListeners.delete(onStoreChange);
+  };
+}
+
+/** Current cipher-link epoch (for `useSyncExternalStore` getSnapshot). */
+export function getCipherLinkEpoch(): number {
+  return cipherLinkEpoch;
+}
+
+/** Manually advance the link epoch (e.g. after an external recover path). */
+export function bumpCipherLinkEpoch(): void {
+  notifyCipherLinkListeners();
+}
+
 function keyCacheKey(spaceId: string, cipherId: string): string {
   return `${spaceId}:${cipherId}`;
 }
@@ -119,7 +153,9 @@ export async function detectSpaceCipher(
 
 /** Records the local `spaceId -> local cipher id` link (persist via the cipher store separately). */
 export function registerSpaceCipherLink(spaceId: string, cipherLocalId: string): void {
+  const prev = spaceCipherLinks.get(spaceId);
   spaceCipherLinks.set(spaceId, cipherLocalId);
+  if (prev !== cipherLocalId) notifyCipherLinkListeners();
 }
 
 /** Returns the local cipher id bound to a Space, or null if unknown. */
@@ -129,12 +165,15 @@ export function getSpaceCipherLink(spaceId: string): string | null {
 
 /** Removes the local link for a Space (e.g. on leave). */
 export function removeSpaceCipherLink(spaceId: string): void {
-  spaceCipherLinks.delete(spaceId);
+  if (!spaceCipherLinks.delete(spaceId)) return;
+  notifyCipherLinkListeners();
 }
 
 /** Records a per-channel Cipher link (in-memory; re-detected via Cipher gate after reload). */
 export function registerChannelCipherLink(channelId: string, cipherLocalId: string): void {
+  const prev = channelCipherLinks.get(channelId);
   channelCipherLinks.set(channelId, cipherLocalId);
+  if (prev !== cipherLocalId) notifyCipherLinkListeners();
 }
 
 /** Returns the local cipher id bound to a channel, or null if unknown. */
@@ -144,19 +183,28 @@ export function getChannelCipherLink(channelId: string): string | null {
 
 /** Removes the local link for a channel. */
 export function removeChannelCipherLink(channelId: string): void {
-  channelCipherLinks.delete(channelId);
+  if (!channelCipherLinks.delete(channelId)) return;
+  notifyCipherLinkListeners();
 }
 
 const categoryCipherLinks = new Map<string, string>();
 
 /** Records a per-category default Cipher link (in-memory). */
 export function registerCategoryCipherLink(categoryId: string, cipherLocalId: string): void {
+  const prev = categoryCipherLinks.get(categoryId);
   categoryCipherLinks.set(categoryId, cipherLocalId);
+  if (prev !== cipherLocalId) notifyCipherLinkListeners();
 }
 
 /** Returns the local cipher id bound to a category, or null if unknown. */
 export function getCategoryCipherLink(categoryId: string): string | null {
   return categoryCipherLinks.get(categoryId) ?? null;
+}
+
+/** Removes the local link for a category. */
+export function removeCategoryCipherLink(categoryId: string): void {
+  if (!categoryCipherLinks.delete(categoryId)) return;
+  notifyCipherLinkListeners();
 }
 
 /** Evicts a single cached per-Space key. */
@@ -179,7 +227,13 @@ export function clearSpaceKeyCacheForSpace(spaceId: string): void {
  * MUST be called on logout, identity switch, and local wipe.
  */
 export function clearSpaceCipherState(): void {
+  const hadLinks =
+    spaceCipherLinks.size > 0 ||
+    channelCipherLinks.size > 0 ||
+    categoryCipherLinks.size > 0;
   spaceKeyCache.clear();
   spaceCipherLinks.clear();
   channelCipherLinks.clear();
+  categoryCipherLinks.clear();
+  if (hadLinks) notifyCipherLinkListeners();
 }

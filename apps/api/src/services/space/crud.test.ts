@@ -71,6 +71,12 @@ const channelRepo = {
 };
 
 const categoryRepo = {
+  createCategory: mock(async (input: any) => ({
+    ...input,
+    _id: new ObjectId(),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  })) as AnyMock,
   deleteBySpace: mock(async (_id: ObjectId) => 0) as AnyMock,
 };
 
@@ -125,6 +131,11 @@ const CREATOR = new ObjectId();
 const PAID = { subscriptions: ['access'] as const };
 
 const VALID_ENCRYPTED_SEED = {
+  category: {
+    encryptedName: 'ZW5jLWNhdA',
+    nameNonce: 'bm9uY2U',
+    cipherId: 'cipher-hex',
+  },
   channel: {
     encryptedName: 'ZW5jLWNo',
     nameNonce: 'bm9uY2U',
@@ -173,7 +184,7 @@ describe('space/crud', () => {
     mockHasPaidAccess.mockReset();
     mockHasPaidAccess.mockReturnValue(true);
     for (const repo of [
-      spaceRepo, roleRepo, memberRepo, channelRepo,
+      spaceRepo, roleRepo, memberRepo, channelRepo, categoryRepo,
       messageRepo, reactionRepo, pinRepo, inviteRepo,
     ]) {
       for (const fn of Object.values(repo)) (fn as AnyMock).mockClear();
@@ -263,7 +274,7 @@ describe('space/crud', () => {
       expect(r).toMatchObject({ success: false, errorCode: 'INVALID_ID' });
     });
 
-    test('seeds Admin + Member roles, creator membership, and #general', async () => {
+    test('seeds Admin + Member roles, creator membership, Text Channels, and #general', async () => {
       const r = await createSpace(CREATOR, {
         slug: 'my-space', name: 'My Space', visibility: 'listed',
       }, PAID);
@@ -295,10 +306,24 @@ describe('space/crud', () => {
       expect(memberInput.roleIds).toHaveLength(1);
       expect(memberInput.roleIds[0]).toBeInstanceOf(ObjectId);
 
-      // Default #general text channel at position 0, open to Everyone.
+      // Default Text Channels category at position 0, open to Everyone.
+      expect(categoryRepo.createCategory).toHaveBeenCalledTimes(1);
+      const categoryInput = categoryRepo.createCategory.mock.calls[0]![0];
+      expect(categoryInput).toMatchObject({ name: 'Text Channels', position: 0 });
+      expect(categoryInput.allowedRoleIds).toHaveLength(1);
+      expect(categoryInput.allowedRoleIds[0]).toBeInstanceOf(ObjectId);
+
+      // Default #general text channel nested in that category.
       expect(channelRepo.createChannel).toHaveBeenCalledTimes(1);
       const channelInput = channelRepo.createChannel.mock.calls[0]![0];
-      expect(channelInput).toMatchObject({ type: 'text', name: 'general', position: 0 });
+      expect(channelInput).toMatchObject({
+        type: 'text',
+        name: 'general',
+        position: 0,
+        inheritAllowedRoleIds: true,
+        inheritCipherCheck: true,
+      });
+      expect(channelInput.categoryId).toBeInstanceOf(ObjectId);
       expect(channelInput.allowedRoleIds).toHaveLength(1);
       expect(channelInput.allowedRoleIds[0]).toBeInstanceOf(ObjectId);
 
@@ -326,10 +351,16 @@ describe('space/crud', () => {
       expect(createArg.encryptIdentity).toBe(false);
       expect(createArg.cipherRequired).toBe(true);
 
+      const categoryInput = categoryRepo.createCategory.mock.calls[0]![0];
+      expect(categoryInput.name).toBe('');
+      expect(categoryInput.encryptedName).toBe(VALID_ENCRYPTED_SEED.category.encryptedName);
+      expect(categoryInput.cipherCheck).toEqual(cipherCheck);
+
       const channelInput = channelRepo.createChannel.mock.calls[0]![0];
       expect(channelInput.name).toBe('');
       expect(channelInput.encryptedName).toBe(VALID_ENCRYPTED_SEED.channel.encryptedName);
       expect(channelInput.cipherCheck).toEqual(cipherCheck);
+      expect(channelInput.categoryId).toBeInstanceOf(ObjectId);
 
       const adminArg = roleRepo.createRole.mock.calls[0]![0];
       expect(adminArg.name).toBe('');

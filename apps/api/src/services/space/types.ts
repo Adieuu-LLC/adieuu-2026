@@ -209,7 +209,7 @@ export interface CreateSpaceServiceParams {
   encryptIdentity?: boolean;
   /** Client join gate; requires `cipherCheck`. */
   cipherRequired?: boolean;
-  /** Required when `e2ee` — encrypted default channel + system role names. */
+  /** Required when `e2ee` — encrypted default category/channel + system role names. */
   encryptedSeed?: CreateSpaceEncryptedSeed;
   encryptedName?: string;
   nameNonce?: string;

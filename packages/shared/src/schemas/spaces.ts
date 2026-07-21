@@ -46,6 +46,7 @@ const EncryptedSpaceFieldSchema = z.object({
 });
 
 export const CreateSpaceEncryptedSeedSchema = z.object({
+  category: EncryptedSpaceFieldSchema,
   channel: EncryptedSpaceFieldSchema,
   roles: z
     .array(

@@ -6,7 +6,7 @@
  * and {@link SpaceMembersSidebar}.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { CommunityCipher } from '@adieuu/crypto';
@@ -16,8 +16,11 @@ import { useIdentity } from '../../hooks/useIdentity';
 import { useAppConfig } from '../../config';
 import { useCipherStore } from '../../hooks/useCipherStore';
 import {
+  bumpCipherLinkEpoch,
   getChannelCipherLink,
+  getCipherLinkEpoch,
   getSpaceCipherLink,
+  subscribeCipherLinks,
 } from '../../services/spaceCipherService';
 import { Spinner } from '../../components/Spinner';
 import { useToast } from '../../components/Toast';
@@ -78,7 +81,11 @@ export function SpaceChannelView() {
 
   const { identity } = useIdentity();
   const { getCipherKey } = useCipherStore();
-  const [cipherLinkVersion, setCipherLinkVersion] = useState(0);
+  const cipherLinkEpoch = useSyncExternalStore(
+    subscribeCipherLinks,
+    getCipherLinkEpoch,
+    getCipherLinkEpoch,
+  );
   const [memberRoles, setMemberRoles] = useState<PublicSpaceRole[]>([]);
 
   const api = useMemo(
@@ -117,9 +124,7 @@ export function SpaceChannelView() {
       getSpaceCipherLink(activeSpace.id);
     if (!localCipherId) return null;
     return getCipherKey(localCipherId);
-    // cipherLinkVersion forces re-resolve after bookmark/detect recovery.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional bump
-  }, [isEncrypted, activeSpace, channelId, getCipherKey, cipherLinkVersion]);
+  }, [isEncrypted, activeSpace, channelId, getCipherKey, cipherLinkEpoch]);
 
   const encryptedFallback = t('spaces.channel.encryptedUnavailable', '[Encrypted message]');
 
@@ -549,7 +554,7 @@ export function SpaceChannelView() {
                   spaceId: activeSpace.id,
                   channelId: activeChannel?.id,
                   cipherCheck: (activeChannel?.cipherCheck ?? activeSpace.cipherCheck)!,
-                  onCipherLinked: () => setCipherLinkVersion((v) => v + 1),
+                  onCipherLinked: bumpCipherLinkEpoch,
                 }
               : null
           }
