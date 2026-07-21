@@ -33,6 +33,19 @@ const channelRepo = {
     createdAt: new Date(),
     updatedAt: new Date(),
   })) as AnyMock,
+  updateChannel: mock(async (_s: ObjectId, id: ObjectId, fields: any) => ({
+    _id: id,
+    spaceId: _s,
+    type: 'text',
+    name: 'ch',
+    position: 0,
+    allowedRoleIds: fields.allowedRoleIds ?? [EVERYONE_ROLE],
+    inheritAllowedRoleIds: fields.inheritAllowedRoleIds,
+    inheritCipherCheck: fields.inheritCipherCheck,
+    cipherCheck: fields.clearCipherCheck ? undefined : fields.cipherCheck,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  })) as AnyMock,
 };
 
 const categoryRepo = {
@@ -396,6 +409,51 @@ describe('space/category-crud', () => {
     const r = await updateSpaceChannelCategory(spaceId, categoryId, actor, { encrypt: false });
     expect(r.success).toBe(true);
     expect(categoryRepo.updateCategory.mock.calls[0]![2].clearCipherCheck).toBe(true);
+  });
+
+  test('updateSpaceChannelCategory forceChildrenAcl cascades inherit onto children', async () => {
+    const spaceId = new ObjectId();
+    const actor = new ObjectId();
+    const rootId = new ObjectId();
+    const channelId = new ObjectId();
+    seedAdmin(spaceId, actor);
+    const root = {
+      _id: rootId,
+      spaceId,
+      name: 'Root',
+      position: 0,
+      allowedRoleIds: [ADMIN_ROLE],
+      forceChildrenAcl: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    categoryRepo.findByIdInSpace.mockResolvedValue(root);
+    categoryRepo.findBySpace.mockResolvedValue([root]);
+    categoryRepo.updateCategory.mockImplementation(async (_s, _c, fields) => ({
+      ...root,
+      ...fields,
+      forceChildrenAcl: fields.forceChildrenAcl ?? root.forceChildrenAcl,
+      allowedRoleIds: fields.allowedRoleIds ?? root.allowedRoleIds,
+    }));
+    channelRepo.findBySpace.mockResolvedValue([
+      {
+        _id: channelId,
+        spaceId,
+        type: 'text',
+        name: 'ops',
+        position: 0,
+        categoryId: rootId,
+        allowedRoleIds: [EVERYONE_ROLE],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+    const r = await updateSpaceChannelCategory(spaceId, rootId, actor, {
+      forceChildrenAcl: true,
+    });
+    expect(r.success).toBe(true);
+    expect(channelRepo.updateChannel).toHaveBeenCalled();
+    expect(channelRepo.updateChannel.mock.calls[0]![2].inheritAllowedRoleIds).toBe(true);
   });
 
   describe('resolveCategoryCipherCheck', () => {

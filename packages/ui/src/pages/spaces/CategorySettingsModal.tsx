@@ -39,6 +39,11 @@ import type { CipherSource, EntropyRow } from './SpaceCipherFormFields';
 import { resolveSpaceCipherSelection } from './resolveSpaceCipherSelection';
 import { ChannelSettingsEncryption } from './ChannelSettingsEncryption';
 import { ChannelRoleMultiselect } from './ChannelRoleMultiselect';
+import {
+  ancestorForceFlags,
+  resolveParentCipherCheck,
+  resolveParentRoleIds,
+} from './spaceSettingsInherit';
 
 export interface CategorySettingsModalProps {
   open: boolean;
@@ -47,6 +52,8 @@ export interface CategorySettingsModalProps {
   heldRoleIds: readonly string[];
   canManageEncryption?: boolean;
   category?: PublicSpaceChannelCategory | null;
+  /** All categories in the Space (for parent / force resolution). */
+  categories?: readonly PublicSpaceChannelCategory[];
   /** When creating, nest under this category. */
   parentCategoryId?: string | null;
   /** Prefill ACL when creating (e.g. inherit from parent category). */
@@ -69,6 +76,7 @@ export function CategorySettingsModal({
   heldRoleIds,
   canManageEncryption = false,
   category = null,
+  categories = [],
   parentCategoryId = null,
   initialAllowedRoleIds = null,
   initialCipherCheck = null,
@@ -93,6 +101,10 @@ export function CategorySettingsModal({
   const [selectedRoleIds, setSelectedRoleIds] = useState<Set<string>>(new Set());
   const [encrypt, setEncrypt] = useState(false);
   const [storedCipherCheck, setStoredCipherCheck] = useState<CipherCheck | null>(null);
+  const [inheritAcl, setInheritAcl] = useState(true);
+  const [inheritCipher, setInheritCipher] = useState(true);
+  const [forceChildrenAcl, setForceChildrenAcl] = useState(false);
+  const [forceChildrenCipher, setForceChildrenCipher] = useState(false);
   const [cipherSource, setCipherSource] = useState<CipherSource>('existing');
   const [selectedCipherId, setSelectedCipherId] = useState('');
   const [newCipherName, setNewCipherName] = useState('');
@@ -100,11 +112,68 @@ export function CategorySettingsModal({
   const [loadingRoles, setLoadingRoles] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  const categoriesById = useMemo(
+    () => new Map(categories.map((c) => [c.id, c])),
+    [categories],
+  );
+  const effectiveParentId = isEdit
+    ? (category?.parentCategoryId ?? null)
+    : parentCategoryId;
+  const parentCategory = effectiveParentId
+    ? (categoriesById.get(effectiveParentId) ?? null)
+    : null;
+  const forceInfo = useMemo(
+    () => ancestorForceFlags(effectiveParentId, categoriesById),
+    [effectiveParentId, categoriesById],
+  );
+  const forceAclName = forceInfo.forceAclBy
+    ? resolveChannelDisplayName(forceInfo.forceAclBy, spaceCipher, {
+        encryptedChannel: t('spaces.encryptedChannelPlaceholder'),
+      })
+    : null;
+  const forceCipherName = forceInfo.forceCipherBy
+    ? resolveChannelDisplayName(forceInfo.forceCipherBy, spaceCipher, {
+        encryptedChannel: t('spaces.encryptedChannelPlaceholder'),
+      })
+    : null;
+
   const selectableRoles = useMemo(() => {
     const top = actorTopRolePosition(heldRoleIds, roles);
     if (top === null) return [];
     return rolesAtOrBelowHierarchy(roles, top).sort((a, b) => a.position - b.position);
   }, [heldRoleIds, roles]);
+
+  const applyParentAcl = useCallback(
+    (roleList: readonly PublicSpaceRole[]) => {
+      setSelectedRoleIds(new Set(resolveParentRoleIds(parentCategory, roleList)));
+    },
+    [parentCategory],
+  );
+
+  const applyParentCipher = useCallback(() => {
+    const parentCipher = resolveParentCipherCheck(space, parentCategory);
+    setEncrypt(!!parentCipher);
+    setStoredCipherCheck(parentCipher);
+    setCipherSource('existing');
+    setNewCipherName('');
+    setEntropyRows([{ id: '1', value: '' }]);
+    const linked = parentCategory
+      ? (getCategoryCipherLink(parentCategory.id) ?? getSpaceCipherLink(space.id) ?? '')
+      : (getSpaceCipherLink(space.id) ?? '');
+    setSelectedCipherId(parentCipher ? linked : '');
+  }, [space, parentCategory]);
+
+  // Keep role/encryption previews in sync while Inherit is on (including after
+  // roles finish loading, or when the user re-checks Inherit).
+  useEffect(() => {
+    if (!open || !inheritAcl || roles.length === 0) return;
+    applyParentAcl(roles);
+  }, [open, inheritAcl, roles, applyParentAcl]);
+
+  useEffect(() => {
+    if (!open || !inheritCipher) return;
+    applyParentCipher();
+  }, [open, inheritCipher, applyParentCipher]);
 
   useEffect(() => {
     if (!open) return;
@@ -127,8 +196,16 @@ export function CategorySettingsModal({
       const hasCipher = !!category.cipherCheck;
       setEncrypt(hasCipher || !!space.e2ee);
       setStoredCipherCheck(category.cipherCheck ?? null);
+      setInheritAcl(category.inheritAllowedRoleIds || forceInfo.forceAcl);
+      setInheritCipher(category.inheritCipherCheck || forceInfo.forceCipher);
+      setForceChildrenAcl(category.forceChildrenAcl);
+      setForceChildrenCipher(category.forceChildrenCipher);
     } else {
       setName('');
+      setInheritAcl(true);
+      setInheritCipher(true);
+      setForceChildrenAcl(false);
+      setForceChildrenCipher(false);
       setSelectedRoleIds(
         initialAllowedRoleIds?.length ? new Set(initialAllowedRoleIds) : new Set(),
       );
@@ -156,6 +233,8 @@ export function CategorySettingsModal({
         }
         const everyone = findEveryoneRole(list);
         setSelectedRoleIds(everyone ? new Set([everyone.id]) : new Set());
+      } else if (category.inheritAllowedRoleIds || forceInfo.forceAcl) {
+        setSelectedRoleIds(new Set(resolveParentRoleIds(parentCategory, list)));
       }
     });
     return () => {
@@ -170,6 +249,9 @@ export function CategorySettingsModal({
     spaceCipher,
     initialAllowedRoleIds,
     initialCipherCheck,
+    forceInfo.forceAcl,
+    forceInfo.forceCipher,
+    parentCategory,
   ]);
 
   const toggleRole = useCallback((roleId: string) => {
@@ -255,6 +337,10 @@ export function CategorySettingsModal({
     if (!canManageEncryption) {
       return { ok: true, value: { kind: 'unchanged' } };
     }
+    if (inheritCipher || forceInfo.forceCipher) {
+      // Server materializes from parent when inheritCipherCheck is true.
+      return { ok: true, value: { kind: 'unchanged' } };
+    }
     if (!encrypt) {
       return {
         ok: true,
@@ -324,6 +410,8 @@ export function CategorySettingsModal({
     }
   }, [
     canManageEncryption,
+    inheritCipher,
+    forceInfo.forceCipher,
     encrypt,
     storedCipherCheck,
     encryptionSelectionChanged,
@@ -342,6 +430,22 @@ export function CategorySettingsModal({
     name,
     t,
   ]);
+
+  const handleInheritAclChange = useCallback(
+    (value: boolean) => {
+      setInheritAcl(value);
+      if (value) applyParentAcl(roles);
+    },
+    [applyParentAcl, roles],
+  );
+
+  const handleInheritCipherChange = useCallback(
+    (value: boolean) => {
+      setInheritCipher(value);
+      if (value) applyParentCipher();
+    },
+    [applyParentCipher],
+  );
 
   const handleSubmit = useCallback(async () => {
     const trimmed = name.trim();
@@ -369,18 +473,30 @@ export function CategorySettingsModal({
         CreateSpaceChannelCategoryParams,
         'encrypt' | 'cipherCheck'
       > = {};
-      if (encResolved.value.kind === 'off') {
-        encryptionFields.encrypt = false;
-      } else if (encResolved.value.kind === 'on') {
-        encryptionFields.encrypt = true;
-        encryptionFields.cipherCheck = encResolved.value.cipherCheck;
+      if (!inheritCipher && !forceInfo.forceCipher) {
+        if (encResolved.value.kind === 'off') {
+          encryptionFields.encrypt = false;
+        } else if (encResolved.value.kind === 'on') {
+          encryptionFields.encrypt = true;
+          encryptionFields.cipherCheck = encResolved.value.cipherCheck;
+        }
       }
+
+      const inheritFields = {
+        inheritAllowedRoleIds: inheritAcl || forceInfo.forceAcl,
+        inheritCipherCheck: inheritCipher || forceInfo.forceCipher,
+        forceChildrenAcl,
+        forceChildrenCipher,
+      };
 
       if (isEdit && category) {
         const body: UpdateSpaceChannelCategoryParams = {
           ...nameFields,
-          allowedRoleIds: [...selectedRoleIds],
+          ...(inheritAcl || forceInfo.forceAcl
+            ? {}
+            : { allowedRoleIds: [...selectedRoleIds] }),
           ...encryptionFields,
+          ...inheritFields,
         };
         const res = await api.spaces.updateCategory(space.id, category.id, body);
         if (res.success && res.data?.category) {
@@ -397,9 +513,12 @@ export function CategorySettingsModal({
 
       const body: CreateSpaceChannelCategoryParams = {
         ...nameFields,
-        allowedRoleIds: [...selectedRoleIds],
+        ...(inheritAcl || forceInfo.forceAcl
+          ? {}
+          : { allowedRoleIds: [...selectedRoleIds] }),
         ...(parentCategoryId ? { parentCategoryId } : {}),
         ...encryptionFields,
+        ...inheritFields,
       };
       const res = await api.spaces.createCategory(space.id, body);
       if (res.success && res.data?.category) {
@@ -423,6 +542,12 @@ export function CategorySettingsModal({
     category,
     parentCategoryId,
     selectedRoleIds,
+    inheritAcl,
+    inheritCipher,
+    forceChildrenAcl,
+    forceChildrenCipher,
+    forceInfo.forceAcl,
+    forceInfo.forceCipher,
     api,
     space.id,
     onUpdated,
@@ -449,25 +574,31 @@ export function CategorySettingsModal({
                 {t(`${i18n}.title`)}
               </Dialog.Title>
             </div>
-            <div className="create-channel-modal-body">
-              <div className="create-channel-field">
+            <div className="confirm-dialog-body create-channel-modal-body">
+              <label className="create-channel-field">
+                <span className="create-channel-field-label">
+                  {t('spaces.createCategory.nameLabel')}
+                </span>
                 <Input
-                  label={t('spaces.createCategory.nameLabel')}
+                  inputSize="sm"
+                  placeholder={t('spaces.createCategory.namePlaceholder')}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder={t('spaces.createCategory.namePlaceholder')}
-                  inputSize="sm"
                   disabled={submitting}
                   autoFocus
                 />
-              </div>
+              </label>
               <ChannelRoleMultiselect
                 roles={selectableRoles}
+                catalogRoles={roles}
                 selectedRoleIds={selectedRoleIds}
                 onToggle={toggleRole}
                 spaceCipher={spaceCipher}
                 disabled={submitting}
                 loading={loadingRoles}
+                inheritFromParent={inheritAcl}
+                onInheritFromParentChange={handleInheritAclChange}
+                forcedByName={forceAclName}
               />
               {canManageEncryption && (
                 <ChannelSettingsEncryption
@@ -494,15 +625,55 @@ export function CategorySettingsModal({
                       ? t('spaces.createCategory.encryptSpaceE2eeHint')
                       : t('spaces.createCategory.encryptHint')
                   }
+                  inheritFromParent={inheritCipher}
+                  onInheritFromParentChange={handleInheritCipherChange}
+                  forcedByName={forceCipherName}
                 />
               )}
+              <fieldset className="create-channel-force-children" disabled={submitting}>
+                <legend className="create-channel-field-label">
+                  {t('spaces.createCategory.forceChildrenLabel')}
+                </legend>
+                <p className="create-channel-field-hint">
+                  {t('spaces.createCategory.forceChildrenHint')}
+                </p>
+                <div className="create-channel-force-children-options">
+                  <label className="create-channel-inherit">
+                    <input
+                      type="checkbox"
+                      checked={forceChildrenAcl}
+                      onChange={(e) => setForceChildrenAcl(e.target.checked)}
+                    />
+                    <span className="create-channel-field-label">
+                      {t('spaces.createCategory.forceChildrenAcl')}
+                    </span>
+                  </label>
+                  <label className="create-channel-inherit">
+                    <input
+                      type="checkbox"
+                      checked={forceChildrenCipher}
+                      onChange={(e) => setForceChildrenCipher(e.target.checked)}
+                      disabled={!canManageEncryption}
+                    />
+                    <span className="create-channel-field-label">
+                      {t('spaces.createCategory.forceChildrenCipher')}
+                    </span>
+                  </label>
+                </div>
+              </fieldset>
             </div>
-            <div className="confirm-dialog-actions">
-              <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={submitting}>
+            <div className="confirm-dialog-footer">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => onOpenChange(false)}
+                disabled={submitting}
+              >
                 {t('spaces.createChannel.cancel')}
               </Button>
               <Button
                 variant="primary"
+                size="sm"
                 onClick={() => void handleSubmit()}
                 disabled={submitting || !name.trim()}
               >

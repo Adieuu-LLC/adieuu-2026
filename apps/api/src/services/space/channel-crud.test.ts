@@ -346,6 +346,42 @@ describe('space/channel-crud', () => {
       expect(publishSpaceEvent.mock.calls[0]![1].type).toBe('space_channel_updated');
     });
 
+    test('rejects clearing inherit ACL when parent forces children', async () => {
+      const space = makeSpaceDoc();
+      spaceRepo.findById.mockResolvedValue(space);
+      const actor = new ObjectId();
+      const channelId = new ObjectId();
+      const categoryId = new ObjectId();
+      grantMember(space._id, actor, [ADMIN_ROLE, EVERYONE_ROLE]);
+      categoryRepo.findBySpace.mockResolvedValue([
+        {
+          _id: categoryId,
+          spaceId: space._id,
+          name: 'Forced',
+          position: 0,
+          allowedRoleIds: [EVERYONE_ROLE],
+          forceChildrenAcl: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]);
+      channelRepo.findByIdInSpace.mockResolvedValue({
+        _id: channelId,
+        spaceId: space._id,
+        type: 'text',
+        name: 'lounge',
+        position: 0,
+        categoryId,
+        allowedRoleIds: [EVERYONE_ROLE],
+        inheritAllowedRoleIds: true,
+      });
+
+      const r = await updateSpaceChannel(space._id, channelId, actor, {
+        inheritAllowedRoleIds: false,
+      });
+      expect(r).toMatchObject({ success: false, errorCode: 'FORBIDDEN' });
+    });
+
     test('clears cipherCheck when encrypt is false', async () => {
       const cipherCheck = { knownValue: 'kv', encryptedKnownValue: 'enc', nonce: 'n' };
       const space = makeSpaceDoc({ cipherCheck });

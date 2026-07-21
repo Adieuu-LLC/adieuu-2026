@@ -29,6 +29,14 @@ import {
 import { canReadSpace } from './access';
 import { publishSpaceEvent } from './redis-events';
 import type { SpaceChannelResult, SpaceChannelsResult } from './types';
+import {
+  ancestorForceFlags,
+  channelCategoryIdHex,
+  isInheritEnabled,
+  resolveParentAcl,
+  resolveParentCipher,
+} from './settings-inherit';
+import type { SpaceChannelCategoryDocument } from '../../models/space-channel-category';
 
 function parseObjId(raw: string | ObjectId): ObjectId | null {
   if (raw instanceof ObjectId) return raw;
@@ -45,6 +53,8 @@ export interface CreateSpaceChannelParams {
   cipherId?: string;
   encrypt?: boolean;
   cipherCheck?: CipherCheck;
+  inheritAllowedRoleIds?: boolean;
+  inheritCipherCheck?: boolean;
 }
 
 export interface UpdateSpaceChannelParams {
@@ -57,6 +67,8 @@ export interface UpdateSpaceChannelParams {
   cipherId?: string;
   encrypt?: boolean;
   cipherCheck?: CipherCheck;
+  inheritAllowedRoleIds?: boolean;
+  inheritCipherCheck?: boolean;
 }
 
 /**
@@ -262,33 +274,61 @@ export async function createSpaceChannel(
   }
 
   let categoryObjectId: ObjectId | null = null;
-  let inheritedRoleIds: ObjectId[] | undefined;
-  let categoryForCipher: { cipherCheck?: CipherCheck } | null = null;
+  let parentCategory: SpaceChannelCategoryDocument | null = null;
+  const allCategories = await getSpaceChannelCategoryRepository().findBySpace(spaceId);
+  const categoriesById = new Map(allCategories.map((c) => [c._id.toHexString(), c]));
+
   if (params.categoryId) {
     const categoryId = parseObjId(params.categoryId);
     if (!categoryId) {
       return { success: false, error: 'Invalid category id.', errorCode: 'INVALID_ID' };
     }
-    const category = await getSpaceChannelCategoryRepository().findByIdInSpace(spaceId, categoryId);
+    let category = categoriesById.get(categoryId.toHexString()) ?? null;
+    if (!category) {
+      category = await getSpaceChannelCategoryRepository().findByIdInSpace(spaceId, categoryId);
+      if (category) categoriesById.set(categoryId.toHexString(), category);
+    }
     if (!category) {
       return { success: false, error: 'Category not found.', errorCode: 'CATEGORY_NOT_FOUND' };
     }
     categoryObjectId = categoryId;
-    categoryForCipher = category;
-    if (params.allowedRoleIds === undefined && category.allowedRoleIds?.length) {
-      inheritedRoleIds = category.allowedRoleIds;
-    }
+    parentCategory = category;
   }
 
-  const rolesResult = await resolveAllowedRoleIds(
-    spaceId,
-    perms,
-    params.allowedRoleIds ??
-      (inheritedRoleIds ? inheritedRoleIds.map((id) => id.toHexString()) : undefined),
+  const force = ancestorForceFlags(
+    categoryObjectId?.toHexString() ?? null,
+    categoriesById,
   );
+  // Default inherit on; explicit ACL/cipher fields imply an override unless the
+  // client also sends inherit*: true.
+  let inheritAcl =
+    params.inheritAllowedRoleIds ?? params.allowedRoleIds === undefined;
+  let inheritCipher =
+    params.inheritCipherCheck ??
+    (params.encrypt === undefined && params.cipherCheck === undefined);
+  if (force.forceAcl) inheritAcl = true;
+  if (force.forceCipher) inheritCipher = true;
+
+  const roles = await getSpaceRoleRepository().findBySpace(spaceId);
+  const everyone = findEveryoneRole(roles);
+  if (!everyone) {
+    return { success: false, error: 'Everyone role missing.', errorCode: 'INVALID_CONTENT' };
+  }
+
+  let roleIdsInput: readonly string[] | undefined = params.allowedRoleIds;
+  if (inheritAcl) {
+    roleIdsInput = resolveParentAcl(parentCategory, everyone._id).map((id) => id.toHexString());
+  }
+
+  const rolesResult = await resolveAllowedRoleIds(spaceId, perms, roleIdsInput);
   if (!rolesResult.ok) return rolesResult.result;
 
-  const cipherCheck = resolveChannelCipherCheck(space, params, categoryForCipher);
+  let cipherCheck: CipherCheck | undefined;
+  if (inheritCipher) {
+    cipherCheck = resolveParentCipher(space, parentCategory);
+  } else {
+    cipherCheck = resolveChannelCipherCheck(space, params, parentCategory);
+  }
   if (params.encrypt === true && !cipherCheck) {
     return {
       success: false,
@@ -311,6 +351,8 @@ export async function createSpaceChannel(
     name: e2ee ? '' : plainName,
     position: maxPosition + 1,
     allowedRoleIds: rolesResult.allowedRoleIds,
+    inheritAllowedRoleIds: inheritAcl,
+    inheritCipherCheck: inheritCipher,
     ...(categoryObjectId ? { categoryId: categoryObjectId } : {}),
     ...(hasEncrypted
       ? {
@@ -364,8 +406,12 @@ export async function updateSpaceChannel(
     params.position !== undefined ||
     params.encryptedName !== undefined ||
     params.nameNonce !== undefined ||
-    params.cipherId !== undefined;
-  const touchesEncryption = params.encrypt !== undefined || params.cipherCheck !== undefined;
+    params.cipherId !== undefined ||
+    params.inheritAllowedRoleIds !== undefined;
+  const touchesEncryption =
+    params.encrypt !== undefined ||
+    params.cipherCheck !== undefined ||
+    params.inheritCipherCheck !== undefined;
 
   if (!touchesStructure && !touchesEncryption) {
     return { success: false, error: 'At least one field is required.', errorCode: 'INVALID_CONTENT' };
@@ -416,42 +462,114 @@ export async function updateSpaceChannel(
     return { success: false, error: 'Channel name is required.', errorCode: 'INVALID_CONTENT' };
   }
 
-  let allowedRoleIds: ObjectId[] | undefined;
-  if (params.allowedRoleIds !== undefined) {
-    const rolesResult = await resolveAllowedRoleIds(spaceId, perms, params.allowedRoleIds);
-    if (!rolesResult.ok) return rolesResult.result;
-    allowedRoleIds = rolesResult.allowedRoleIds;
-  }
+  const allCategories = await getSpaceChannelCategoryRepository().findBySpace(spaceId);
+  const categoriesById = new Map(allCategories.map((c) => [c._id.toHexString(), c]));
 
   let categoryId: ObjectId | null | undefined;
   let clearCategoryId = false;
+  let effectiveCategoryIdHex = channelCategoryIdHex(existing);
   if (params.categoryId !== undefined) {
     if (params.categoryId === null) {
       clearCategoryId = true;
       categoryId = null;
+      effectiveCategoryIdHex = null;
     } else {
       const parsed = parseObjId(params.categoryId);
       if (!parsed) {
         return { success: false, error: 'Invalid category id.', errorCode: 'INVALID_ID' };
       }
-      const category = await getSpaceChannelCategoryRepository().findByIdInSpace(spaceId, parsed);
-      if (!category) {
+      if (!categoriesById.has(parsed.toHexString())) {
         return { success: false, error: 'Category not found.', errorCode: 'CATEGORY_NOT_FOUND' };
       }
       categoryId = parsed;
+      effectiveCategoryIdHex = parsed.toHexString();
     }
+  }
+
+  const force = ancestorForceFlags(effectiveCategoryIdHex, categoriesById);
+  let inheritAcl =
+    params.inheritAllowedRoleIds !== undefined
+      ? params.inheritAllowedRoleIds
+      : isInheritEnabled(existing.inheritAllowedRoleIds);
+  let inheritCipher =
+    params.inheritCipherCheck !== undefined
+      ? params.inheritCipherCheck
+      : isInheritEnabled(existing.inheritCipherCheck);
+
+  if (force.forceAcl) {
+    if (params.inheritAllowedRoleIds === false) {
+      return {
+        success: false,
+        error: 'Roles are forced by a parent category and cannot be overridden.',
+        errorCode: 'FORBIDDEN',
+      };
+    }
+    inheritAcl = true;
+  }
+  if (force.forceCipher) {
+    if (params.inheritCipherCheck === false) {
+      return {
+        success: false,
+        error: 'Encryption is forced by a parent category and cannot be overridden.',
+        errorCode: 'FORBIDDEN',
+      };
+    }
+    inheritCipher = true;
+  }
+
+  if (force.forceAcl && params.allowedRoleIds !== undefined && params.inheritAllowedRoleIds !== true) {
+    return {
+      success: false,
+      error: 'Roles are forced by a parent category and cannot be overridden.',
+      errorCode: 'FORBIDDEN',
+    };
+  }
+
+  const roles = await getSpaceRoleRepository().findBySpace(spaceId);
+  const everyone = findEveryoneRole(roles);
+  if (!everyone) {
+    return { success: false, error: 'Everyone role missing.', errorCode: 'INVALID_CONTENT' };
+  }
+  const parentCategory = effectiveCategoryIdHex
+    ? (categoriesById.get(effectiveCategoryIdHex) ?? null)
+    : null;
+
+  const refreshAcl =
+    inheritAcl &&
+    (params.inheritAllowedRoleIds === true ||
+      params.categoryId !== undefined ||
+      force.forceAcl);
+  const refreshCipher =
+    inheritCipher &&
+    (params.inheritCipherCheck === true ||
+      params.categoryId !== undefined ||
+      force.forceCipher ||
+      params.encrypt !== undefined ||
+      params.cipherCheck !== undefined);
+
+  let allowedRoleIds: ObjectId[] | undefined;
+  if (refreshAcl) {
+    allowedRoleIds = resolveParentAcl(parentCategory, everyone._id);
+  } else if (!inheritAcl && params.allowedRoleIds !== undefined) {
+    const rolesResult = await resolveAllowedRoleIds(spaceId, perms, params.allowedRoleIds);
+    if (!rolesResult.ok) return rolesResult.result;
+    allowedRoleIds = rolesResult.allowedRoleIds;
   }
 
   let cipherCheck: CipherCheck | undefined;
   let clearCipherCheck = false;
-  if (touchesEncryption) {
+  if (refreshCipher) {
+    cipherCheck = resolveParentCipher(space, parentCategory);
+    if (!cipherCheck) clearCipherCheck = true;
+  } else if (!inheritCipher && (params.encrypt !== undefined || params.cipherCheck !== undefined)) {
     if (params.encrypt === false) {
       clearCipherCheck = true;
     } else {
-      cipherCheck = resolveChannelCipherCheck(space, {
-        encrypt: params.encrypt ?? true,
-        cipherCheck: params.cipherCheck,
-      });
+      cipherCheck = resolveChannelCipherCheck(
+        space,
+        { encrypt: params.encrypt ?? true, cipherCheck: params.cipherCheck },
+        parentCategory,
+      );
       if (!cipherCheck) {
         return {
           success: false,
@@ -478,6 +596,12 @@ export async function updateSpaceChannel(
     ...(params.position !== undefined ? { position: params.position } : {}),
     ...(clearCipherCheck ? { clearCipherCheck: true } : {}),
     ...(cipherCheck ? { cipherCheck } : {}),
+    ...(params.inheritAllowedRoleIds !== undefined || force.forceAcl
+      ? { inheritAllowedRoleIds: inheritAcl }
+      : {}),
+    ...(params.inheritCipherCheck !== undefined || force.forceCipher
+      ? { inheritCipherCheck: inheritCipher }
+      : {}),
   });
 
   if (!updated) {

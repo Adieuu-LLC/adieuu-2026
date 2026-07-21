@@ -47,6 +47,12 @@ export class SpaceChannelRepository extends BaseRepository<SpaceChannelDocument>
     } else if (fields.cipherCheck !== undefined) {
       $set.cipherCheck = fields.cipherCheck;
     }
+    if (fields.inheritAllowedRoleIds !== undefined) {
+      $set.inheritAllowedRoleIds = fields.inheritAllowedRoleIds;
+    }
+    if (fields.inheritCipherCheck !== undefined) {
+      $set.inheritCipherCheck = fields.inheritCipherCheck;
+    }
 
     const update: UpdateFilter<SpaceChannelDocument> = { $set };
     if (Object.keys($unset).length > 0) {

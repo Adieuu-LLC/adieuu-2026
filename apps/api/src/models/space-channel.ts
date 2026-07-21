@@ -29,6 +29,10 @@ export interface SpaceChannelDocument extends BaseDocument {
   cipherId?: string;
   /** Blind-relay cipher verification challenge for channel content E2EE. */
   cipherCheck?: CipherCheck;
+  /** Keep ACL in sync with parent; missing on legacy docs = false. */
+  inheritAllowedRoleIds?: boolean;
+  /** Keep cipherCheck in sync with parent; missing on legacy docs = false. */
+  inheritCipherCheck?: boolean;
 }
 
 export interface CreateSpaceChannelInput {
@@ -42,6 +46,8 @@ export interface CreateSpaceChannelInput {
   nameNonce?: string;
   cipherId?: string;
   cipherCheck?: CipherCheck;
+  inheritAllowedRoleIds?: boolean;
+  inheritCipherCheck?: boolean;
 }
 
 export interface UpdateSpaceChannelFields {
@@ -57,6 +63,8 @@ export interface UpdateSpaceChannelFields {
   cipherCheck?: CipherCheck;
   /** When true, remove `cipherCheck` from the document. */
   clearCipherCheck?: boolean;
+  inheritAllowedRoleIds?: boolean;
+  inheritCipherCheck?: boolean;
 }
 
 export function toPublicSpaceChannel(doc: SpaceChannelDocument): PublicSpaceChannel {
@@ -76,6 +84,8 @@ export function toPublicSpaceChannel(doc: SpaceChannelDocument): PublicSpaceChan
         }
       : {}),
     ...(doc.cipherCheck ? { cipherCheck: toPublicCipherCheck(doc.cipherCheck) } : {}),
+    inheritAllowedRoleIds: !!doc.inheritAllowedRoleIds,
+    inheritCipherCheck: !!doc.inheritCipherCheck,
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString(),
   };

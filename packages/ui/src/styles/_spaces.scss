@@ -527,7 +527,8 @@
   border-top: 1px solid var(--color-border);
 }
 
-.create-channel-encrypt {
+.create-channel-encrypt,
+.create-channel-inherit {
   display: flex;
   align-items: flex-start;
   gap: var(--spacing-sm);
@@ -535,7 +536,32 @@
   cursor: pointer;
 }
 
-.create-channel-encrypt input {
+.create-channel-force-children {
+  margin: 0;
+  padding: var(--spacing-xs) 0 0;
+  border: none;
+  border-top: 1px solid var(--color-border);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.create-channel-force-children legend.create-channel-field-label {
+  padding: 0;
+  margin: 0;
+  float: none;
+  width: 100%;
+}
+
+.create-channel-force-children-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.create-channel-encrypt input,
+.create-channel-inherit input {
   margin-top: 0.2rem;
 }
 
@@ -548,6 +574,13 @@
 
 .create-channel-encryption-warning {
   margin: 0;
+}
+
+.create-channel-encryption-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  min-width: 0;
 }
 
 .create-channel-encryption .space-create-cipher {

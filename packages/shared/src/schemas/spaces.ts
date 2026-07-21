@@ -325,6 +325,8 @@ export const CreateSpaceChannelSchema = z
      */
     encrypt: z.boolean().optional(),
     cipherCheck: CipherCheckSchema.optional(),
+    inheritAllowedRoleIds: z.boolean().optional(),
+    inheritCipherCheck: z.boolean().optional(),
   })
   .refine(
     (v) => {
@@ -351,6 +353,8 @@ export const UpdateSpaceChannelSchema = z
     /** Set/clear channel content encryption (`cipherCheck`). */
     encrypt: z.boolean().optional(),
     cipherCheck: CipherCheckSchema.optional(),
+    inheritAllowedRoleIds: z.boolean().optional(),
+    inheritCipherCheck: z.boolean().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, {
     message: 'At least one field is required',
@@ -386,6 +390,10 @@ const spaceCategoryNameFields = {
    */
   encrypt: z.boolean().optional(),
   cipherCheck: CipherCheckSchema.optional(),
+  inheritAllowedRoleIds: z.boolean().optional(),
+  inheritCipherCheck: z.boolean().optional(),
+  forceChildrenAcl: z.boolean().optional(),
+  forceChildrenCipher: z.boolean().optional(),
 };
 
 export const CreateSpaceChannelCategorySchema = z

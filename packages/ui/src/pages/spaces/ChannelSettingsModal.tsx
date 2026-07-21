@@ -11,6 +11,7 @@ import {
   type CreateSpaceChannelParams,
   type PublicSpace,
   type PublicSpaceChannel,
+  type PublicSpaceChannelCategory,
   type PublicSpaceRole,
   type UpdateSpaceChannelParams,
 } from '@adieuu/shared';
@@ -21,7 +22,7 @@ import { useAppConfig } from '../../config';
 import { useToast } from '../../components/Toast';
 import { useCipherStore } from '../../hooks/useCipherStore';
 import {
-  createSpaceCipherCheck,
+  getCategoryCipherLink,
   getChannelCipherLink,
   getSpaceCipherLink,
   registerChannelCipherLink,
@@ -37,9 +38,17 @@ import {
   rolesAtOrBelowHierarchy,
 } from './channelRoleHierarchy';
 import type { CipherSource, EntropyRow } from './SpaceCipherFormFields';
-import { resolveSpaceCipherSelection } from './resolveSpaceCipherSelection';
 import { ChannelSettingsEncryption } from './ChannelSettingsEncryption';
 import { ChannelRoleMultiselect } from './ChannelRoleMultiselect';
+import {
+  ancestorForceFlags,
+  resolveParentCipherCheck,
+  resolveParentRoleIds,
+} from './spaceSettingsInherit';
+import {
+  useChannelEncryptionPayload,
+  type ResolvedChannelEncryption,
+} from './useChannelEncryptionPayload';
 
 export interface ChannelSettingsModalProps {
   open: boolean;
@@ -49,6 +58,8 @@ export interface ChannelSettingsModalProps {
   canManageChannels?: boolean;
   canManageEncryption?: boolean;
   channel?: PublicSpaceChannel | null;
+  /** All categories in the Space (for parent / force resolution). */
+  categories?: readonly PublicSpaceChannelCategory[];
   /** When creating, place the channel in this category (inherits ACL if roles not overridden). */
   categoryId?: string | null;
   /** Prefill role ACL when creating (e.g. inherited from a category). */
@@ -59,10 +70,7 @@ export interface ChannelSettingsModalProps {
   onUpdated?: (channel: PublicSpaceChannel) => void;
 }
 
-type ResolvedEncryption =
-  | { kind: 'unchanged' }
-  | { kind: 'off' }
-  | { kind: 'on'; cipherCheck: CipherCheck; localCipherId: string; needsConfirm: boolean };
+type ResolvedEncryption = ResolvedChannelEncryption;
 
 export function ChannelSettingsModal({
   open,
@@ -72,6 +80,7 @@ export function ChannelSettingsModal({
   canManageChannels = true,
   canManageEncryption = false,
   channel = null,
+  categories = [],
   categoryId = null,
   initialAllowedRoleIds = null,
   initialCipherCheck: seedCipherCheck = null,
@@ -97,6 +106,8 @@ export function ChannelSettingsModal({
   const [selectedRoleIds, setSelectedRoleIds] = useState<Set<string>>(new Set());
   const [encrypt, setEncrypt] = useState(false);
   const [storedCipherCheck, setStoredCipherCheck] = useState<CipherCheck | null>(null);
+  const [inheritAcl, setInheritAcl] = useState(true);
+  const [inheritCipher, setInheritCipher] = useState(true);
   const [cipherSource, setCipherSource] = useState<CipherSource>('existing');
   const [selectedCipherId, setSelectedCipherId] = useState('');
   const [newCipherName, setNewCipherName] = useState('');
@@ -109,11 +120,65 @@ export function ChannelSettingsModal({
     { kind: 'on' }
   > | null>(null);
 
+  const categoriesById = useMemo(
+    () => new Map(categories.map((c) => [c.id, c])),
+    [categories],
+  );
+  const effectiveCategoryId = isEdit ? (channel?.categoryId ?? null) : categoryId;
+  const parentCategory = effectiveCategoryId
+    ? (categoriesById.get(effectiveCategoryId) ?? null)
+    : null;
+  const forceInfo = useMemo(
+    () => ancestorForceFlags(effectiveCategoryId, categoriesById),
+    [effectiveCategoryId, categoriesById],
+  );
+  const forceAclName = forceInfo.forceAclBy
+    ? resolveChannelDisplayName(forceInfo.forceAclBy, spaceCipher, {
+        encryptedChannel: t('spaces.encryptedChannelPlaceholder'),
+      })
+    : null;
+  const forceCipherName = forceInfo.forceCipherBy
+    ? resolveChannelDisplayName(forceInfo.forceCipherBy, spaceCipher, {
+        encryptedChannel: t('spaces.encryptedChannelPlaceholder'),
+      })
+    : null;
+
   const selectableRoles = useMemo(() => {
     const top = actorTopRolePosition(heldRoleIds, roles);
     if (top === null) return [];
     return rolesAtOrBelowHierarchy(roles, top).sort((a, b) => a.position - b.position);
   }, [heldRoleIds, roles]);
+
+  const applyParentAcl = useCallback(
+    (roleList: readonly PublicSpaceRole[]) => {
+      setSelectedRoleIds(new Set(resolveParentRoleIds(parentCategory, roleList)));
+    },
+    [parentCategory],
+  );
+
+  const applyParentCipher = useCallback(() => {
+    const parentCipher = resolveParentCipherCheck(space, parentCategory);
+    setEncrypt(!!parentCipher);
+    setStoredCipherCheck(parentCipher);
+    setCipherSource('existing');
+    setNewCipherName('');
+    setEntropyRows([{ id: '1', value: '' }]);
+    const linked = parentCategory
+      ? (getCategoryCipherLink(parentCategory.id) ?? getSpaceCipherLink(space.id) ?? '')
+      : (getSpaceCipherLink(space.id) ?? '');
+    setSelectedCipherId(parentCipher ? linked : '');
+  }, [space, parentCategory]);
+
+  // Keep role/encryption previews in sync while Inherit is on.
+  useEffect(() => {
+    if (!open || !inheritAcl || roles.length === 0) return;
+    applyParentAcl(roles);
+  }, [open, inheritAcl, roles, applyParentAcl]);
+
+  useEffect(() => {
+    if (!open || !inheritCipher) return;
+    applyParentCipher();
+  }, [open, inheritCipher, applyParentCipher]);
 
   useEffect(() => {
     if (!open) return;
@@ -135,8 +200,12 @@ export function ChannelSettingsModal({
       setEncrypt(hasChannelCipher || !!space.e2ee);
       setStoredCipherCheck(channel.cipherCheck ?? null);
       setSelectedRoleIds(new Set(channel.allowedRoleIds));
+      setInheritAcl(channel.inheritAllowedRoleIds || forceInfo.forceAcl);
+      setInheritCipher(channel.inheritCipherCheck || forceInfo.forceCipher);
     } else {
       setName('');
+      setInheritAcl(true);
+      setInheritCipher(true);
       const seedCipher = seedCipherCheck ?? null;
       setEncrypt(!!seedCipher || !!space.e2ee);
       setStoredCipherCheck(seedCipher);
@@ -160,9 +229,10 @@ export function ChannelSettingsModal({
           if (initialAllowedRoleIds && initialAllowedRoleIds.length > 0) {
             setSelectedRoleIds(new Set(initialAllowedRoleIds));
           } else {
-            const everyone = findEveryoneRole(list);
-            setSelectedRoleIds(everyone ? new Set([everyone.id]) : new Set());
+            applyParentAcl(list);
           }
+        } else if (channel.inheritAllowedRoleIds || forceInfo.forceAcl) {
+          applyParentAcl(list);
         }
       });
     } else {
@@ -182,6 +252,9 @@ export function ChannelSettingsModal({
     canManageChannels,
     initialAllowedRoleIds,
     seedCipherCheck,
+    forceInfo.forceAcl,
+    forceInfo.forceCipher,
+    applyParentAcl,
   ]);
 
   const toggleRole = useCallback((roleId: string) => {
@@ -262,88 +335,39 @@ export function ChannelSettingsModal({
     space.id,
   ]);
 
-  const resolveEncryptionPayload = useCallback(async (): Promise<
-    | { ok: true; value: ResolvedEncryption }
-    | { ok: false; error: string }
-  > => {
-    if (!encrypt) {
-      return {
-        ok: true,
-        value: storedCipherCheck ? { kind: 'off' } : { kind: 'unchanged' },
-      };
-    }
-
-    if (!encryptionSelectionChanged()) {
-      return { ok: true, value: { kind: 'unchanged' } };
-    }
-
-    if (!encryptionAvailable) {
-      return { ok: false, error: t('spaces.create.errors.cipherRequired') };
-    }
-
-    // Prefer an explicit picker selection; otherwise inherit the Space challenge.
-    // Confirm only on edit — create has no prior cipher/messages to warn about.
-    if (cipherSource === 'existing' && !selectedCipherId && space.cipherCheck) {
-      return {
-        ok: true,
-        value: {
-          kind: 'on',
-          cipherCheck: space.cipherCheck,
-          localCipherId: getSpaceCipherLink(space.id) ?? '',
-          needsConfirm: isEdit,
-        },
-      };
-    }
-
-    const resolved = await resolveSpaceCipherSelection({
-      cipherSource,
-      selectedCipherId,
-      getCipherKey,
-      entropyRows,
-      createCipher,
-      newCipherName,
-      fallbackName: name.trim() || space.name || 'Channel Cipher',
-      errors: {
-        cipherRequired: t('spaces.create.errors.cipherRequired'),
-        entropyRequired: t('spaces.create.errors.entropyRequired'),
-        createFailed: t('spaces.create.errors.createFailed'),
-      },
-    });
-    if ('error' in resolved) return { ok: false, error: resolved.error };
-
-    try {
-      const cipherCheck = await createSpaceCipherCheck(resolved.cipher, space.id);
-      return {
-        ok: true,
-        value: {
-          kind: 'on',
-          cipherCheck,
-          localCipherId: resolved.localId,
-          needsConfirm: isEdit,
-        },
-      };
-    } catch {
-      return { ok: false, error: t('spaces.create.errors.createFailed') };
-    }
-  }, [
+  const resolveEncryptionPayload = useChannelEncryptionPayload({
+    inheritCipher,
+    forceCipher: forceInfo.forceCipher,
     encrypt,
     storedCipherCheck,
     encryptionSelectionChanged,
     encryptionAvailable,
     cipherSource,
     selectedCipherId,
-    space.cipherCheck,
-    space.e2ee,
-    space.id,
-    space.name,
+    space,
     getCipherKey,
     entropyRows,
     createCipher,
     newCipherName,
     name,
     isEdit,
-    t,
-  ]);
+  });
+
+  const handleInheritAclChange = useCallback(
+    (value: boolean) => {
+      setInheritAcl(value);
+      if (value) applyParentAcl(roles);
+    },
+    [applyParentAcl, roles],
+  );
+
+  const handleInheritCipherChange = useCallback(
+    (value: boolean) => {
+      setInheritCipher(value);
+      if (value) applyParentCipher();
+    },
+    [applyParentCipher],
+  );
 
   const performSave = useCallback(async (resolvedEnc: ResolvedEncryption | null) => {
     const trimmed = name.trim();
@@ -364,11 +388,14 @@ export function ChannelSettingsModal({
       }
     }
 
+    const effectiveInheritAcl = inheritAcl || forceInfo.forceAcl;
+    const effectiveInheritCipher = inheritCipher || forceInfo.forceCipher;
+
     let encryption:
       | { encrypt: boolean; cipherCheck?: CipherCheck }
       | undefined;
     let localCipherId = '';
-    if (canManageEncryption && resolvedEnc) {
+    if (canManageEncryption && resolvedEnc && !effectiveInheritCipher) {
       if (resolvedEnc.kind === 'off') {
         encryption = { encrypt: false };
       } else if (resolvedEnc.kind === 'on') {
@@ -381,9 +408,18 @@ export function ChannelSettingsModal({
       if (isEdit && channel) {
         const body: UpdateSpaceChannelParams = {
           ...(canManageChannels
-            ? { ...nameFields, allowedRoleIds: [...selectedRoleIds] }
+            ? {
+                ...nameFields,
+                ...(effectiveInheritAcl ? {} : { allowedRoleIds: [...selectedRoleIds] }),
+                inheritAllowedRoleIds: effectiveInheritAcl,
+              }
             : {}),
-          ...(encryption ?? {}),
+          ...(canManageEncryption
+            ? {
+                ...(encryption ?? {}),
+                inheritCipherCheck: effectiveInheritCipher,
+              }
+            : {}),
         };
         if (Object.keys(body).length === 0) {
           onOpenChange(false);
@@ -405,18 +441,21 @@ export function ChannelSettingsModal({
         return;
       }
 
-      // Create always sends encryption intent when the actor can manage it.
       const createEncryption =
-        encryption ??
-        (canManageEncryption
-          ? encrypt
-            ? undefined // unresolved "unchanged" while encrypting shouldn't happen on create
-            : { encrypt: false as const }
-          : undefined);
+        effectiveInheritCipher
+          ? undefined
+          : (encryption ??
+            (canManageEncryption
+              ? encrypt
+                ? undefined
+                : { encrypt: false as const }
+              : undefined));
       const body: CreateSpaceChannelParams = {
         type: 'text',
         ...nameFields,
-        allowedRoleIds: [...selectedRoleIds],
+        ...(effectiveInheritAcl ? {} : { allowedRoleIds: [...selectedRoleIds] }),
+        inheritAllowedRoleIds: effectiveInheritAcl,
+        inheritCipherCheck: effectiveInheritCipher,
         ...(categoryId ? { categoryId } : {}),
         ...(createEncryption ?? {}),
       };
@@ -449,6 +488,10 @@ export function ChannelSettingsModal({
     channel,
     categoryId,
     selectedRoleIds,
+    inheritAcl,
+    inheritCipher,
+    forceInfo.forceAcl,
+    forceInfo.forceCipher,
     encrypt,
     api,
     space.id,
@@ -535,11 +578,15 @@ export function ChannelSettingsModal({
 
                     <ChannelRoleMultiselect
                       roles={selectableRoles}
+                      catalogRoles={roles}
                       selectedRoleIds={selectedRoleIds}
                       onToggle={toggleRole}
                       spaceCipher={spaceCipher}
                       disabled={submitting}
                       loading={loadingRoles}
+                      inheritFromParent={inheritAcl}
+                      onInheritFromParentChange={handleInheritAclChange}
+                      forcedByName={forceAclName}
                     />
                   </>
                 )}
@@ -562,6 +609,9 @@ export function ChannelSettingsModal({
                     onAddEntropyRow={onAddEntropyRow}
                     onRemoveEntropyRow={onRemoveEntropyRow}
                     disabled={submitting}
+                    inheritFromParent={inheritCipher}
+                    onInheritFromParentChange={handleInheritCipherChange}
+                    forcedByName={forceCipherName}
                   />
                 )}
               </div>

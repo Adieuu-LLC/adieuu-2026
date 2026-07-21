@@ -53,6 +53,18 @@ export class SpaceChannelCategoryRepository extends BaseRepository<SpaceChannelC
     } else if (fields.cipherCheck !== undefined) {
       $set.cipherCheck = fields.cipherCheck;
     }
+    if (fields.inheritAllowedRoleIds !== undefined) {
+      $set.inheritAllowedRoleIds = fields.inheritAllowedRoleIds;
+    }
+    if (fields.inheritCipherCheck !== undefined) {
+      $set.inheritCipherCheck = fields.inheritCipherCheck;
+    }
+    if (fields.forceChildrenAcl !== undefined) {
+      $set.forceChildrenAcl = fields.forceChildrenAcl;
+    }
+    if (fields.forceChildrenCipher !== undefined) {
+      $set.forceChildrenCipher = fields.forceChildrenCipher;
+    }
 
     const update: UpdateFilter<SpaceChannelCategoryDocument> = { $set };
     if (Object.keys($unset).length > 0) {

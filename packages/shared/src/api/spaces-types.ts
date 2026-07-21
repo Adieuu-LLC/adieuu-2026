@@ -221,6 +221,16 @@ export interface PublicSpaceChannel {
    * New channels in an e2ee Space inherit the Space's `cipherCheck` by default.
    */
   cipherCheck?: CipherCheck;
+  /**
+   * When true, keep `allowedRoleIds` in sync with the parent category (or Space
+   * Everyone role). Missing on legacy docs means false.
+   */
+  inheritAllowedRoleIds: boolean;
+  /**
+   * When true, keep `cipherCheck` in sync with the parent category / Space.
+   * Missing on legacy docs means false.
+   */
+  inheritCipherCheck: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -251,6 +261,20 @@ export interface PublicSpaceChannelCategory {
    * New channels inherit this when they do not set an explicit cipher.
    */
   cipherCheck?: CipherCheck;
+  /**
+   * When true, keep `allowedRoleIds` in sync with the parent category (or Space
+   * Everyone role). Missing on legacy docs means false.
+   */
+  inheritAllowedRoleIds: boolean;
+  /**
+   * When true, keep `cipherCheck` in sync with the parent category / Space.
+   * Missing on legacy docs means false.
+   */
+  inheritCipherCheck: boolean;
+  /** When true, descendants must inherit ACL and cannot override it. */
+  forceChildrenAcl: boolean;
+  /** When true, descendants must inherit encryption and cannot override it. */
+  forceChildrenCipher: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -464,6 +488,8 @@ export interface UpdateSpaceChannelParams {
    */
   encrypt?: boolean;
   cipherCheck?: CipherCheck;
+  inheritAllowedRoleIds?: boolean;
+  inheritCipherCheck?: boolean;
 }
 
 /** POST body for creating a Space text channel. */
@@ -482,6 +508,10 @@ export interface CreateSpaceChannelParams {
    */
   encrypt?: boolean;
   cipherCheck?: CipherCheck;
+  /** Defaults to true for new channels. */
+  inheritAllowedRoleIds?: boolean;
+  /** Defaults to true for new channels. */
+  inheritCipherCheck?: boolean;
 }
 
 /** POST body for creating a Space channel category. */
@@ -499,6 +529,12 @@ export interface CreateSpaceChannelCategoryParams {
    */
   encrypt?: boolean;
   cipherCheck?: CipherCheck;
+  /** Defaults to true for new categories. */
+  inheritAllowedRoleIds?: boolean;
+  /** Defaults to true for new categories. */
+  inheritCipherCheck?: boolean;
+  forceChildrenAcl?: boolean;
+  forceChildrenCipher?: boolean;
 }
 
 /** PATCH body for updating a Space channel category. */
@@ -512,6 +548,10 @@ export interface UpdateSpaceChannelCategoryParams {
   parentCategoryId?: string | null;
   encrypt?: boolean;
   cipherCheck?: CipherCheck;
+  inheritAllowedRoleIds?: boolean;
+  inheritCipherCheck?: boolean;
+  forceChildrenAcl?: boolean;
+  forceChildrenCipher?: boolean;
 }
 
 /** One interleaved child under a category (or Space root). */

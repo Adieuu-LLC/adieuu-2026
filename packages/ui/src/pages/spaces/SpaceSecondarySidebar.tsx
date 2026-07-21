@@ -41,8 +41,7 @@ import {
   resolveChannelDisplayName,
   resolveSpaceDisplayName,
 } from './spaceMetadataCipher';
-import { ChannelSettingsModal } from './ChannelSettingsModal';
-import { CategorySettingsModal } from './CategorySettingsModal';
+import { SpaceSidebarSettingsModals } from './SpaceSidebarSettingsModals';
 import {
   DraggableSpaceItem,
   DroppableSpaceTarget,
@@ -635,66 +634,33 @@ export function SpaceSecondarySidebar({
         </div>
       </aside>
 
-      {createChannelOpen && (
-        <ChannelSettingsModal
-          open={createChannelOpen}
-          onOpenChange={setCreateChannelOpen}
-          space={activeSpace}
-          heldRoleIds={activeSpaceRoleIds}
-          canManageChannels={canManageChannels}
-          canManageEncryption={canManageEncryption}
-          categoryId={createChannelCategoryId}
-          initialAllowedRoleIds={inheritRoleIds}
-          initialCipherCheck={inheritChannelCipherCheck}
-          onCreated={addChannelLocally}
-        />
-      )}
-
-      {editingChannel && (
-        <ChannelSettingsModal
-          open={!!editingChannel}
-          onOpenChange={(open) => {
-            if (!open) setEditingChannel(null);
-          }}
-          space={activeSpace}
-          heldRoleIds={activeSpaceRoleIds}
-          canManageChannels={canManageChannels}
-          canManageEncryption={canManageEncryption}
-          channel={editingChannel}
-          onUpdated={addChannelLocally}
-        />
-      )}
-
-      {createCategoryOpen && (
-        <CategorySettingsModal
-          open={createCategoryOpen}
-          onOpenChange={(open) => {
-            setCreateCategoryOpen(open);
-            if (!open) setCreateCategoryParentId(null);
-          }}
-          space={activeSpace}
-          heldRoleIds={activeSpaceRoleIds}
-          canManageEncryption={canManageEncryption}
-          parentCategoryId={createCategoryParentId}
-          initialAllowedRoleIds={createCategoryParent?.allowedRoleIds ?? null}
-          initialCipherCheck={createCategoryParent?.cipherCheck ?? null}
-          onCreated={addCategoryLocally}
-        />
-      )}
-
-      {editingCategory && (
-        <CategorySettingsModal
-          open={!!editingCategory}
-          onOpenChange={(open) => {
-            if (!open) setEditingCategory(null);
-          }}
-          space={activeSpace}
-          heldRoleIds={activeSpaceRoleIds}
-          canManageEncryption={canManageEncryption}
-          category={editingCategory}
-          onUpdated={addCategoryLocally}
-        />
-      )}
+      <SpaceSidebarSettingsModals
+        space={activeSpace}
+        heldRoleIds={activeSpaceRoleIds}
+        canManageChannels={canManageChannels}
+        canManageEncryption={canManageEncryption}
+        categories={categories}
+        createChannelOpen={createChannelOpen}
+        onCreateChannelOpenChange={setCreateChannelOpen}
+        createChannelCategoryId={createChannelCategoryId}
+        inheritRoleIds={inheritRoleIds}
+        inheritChannelCipherCheck={inheritChannelCipherCheck}
+        onChannelCreated={addChannelLocally}
+        editingChannel={editingChannel}
+        onEditingChannelChange={setEditingChannel}
+        onChannelUpdated={addChannelLocally}
+        createCategoryOpen={createCategoryOpen}
+        onCreateCategoryOpenChange={(open) => {
+          setCreateCategoryOpen(open);
+          if (!open) setCreateCategoryParentId(null);
+        }}
+        createCategoryParentId={createCategoryParentId}
+        createCategoryParent={createCategoryParent}
+        onCategoryCreated={addCategoryLocally}
+        editingCategory={editingCategory}
+        onEditingCategoryChange={setEditingCategory}
+        onCategoryUpdated={addCategoryLocally}
+      />
     </>
   );
 }

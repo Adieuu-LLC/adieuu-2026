@@ -29,6 +29,14 @@ export interface SpaceChannelCategoryDocument extends BaseDocument {
   cipherId?: string;
   /** Default content Cipher for channels created in this category. */
   cipherCheck?: CipherCheck;
+  /** Keep ACL in sync with parent; missing on legacy docs = false. */
+  inheritAllowedRoleIds?: boolean;
+  /** Keep cipherCheck in sync with parent; missing on legacy docs = false. */
+  inheritCipherCheck?: boolean;
+  /** Descendants must inherit ACL; missing on legacy docs = false. */
+  forceChildrenAcl?: boolean;
+  /** Descendants must inherit encryption; missing on legacy docs = false. */
+  forceChildrenCipher?: boolean;
 }
 
 export interface CreateSpaceChannelCategoryInput {
@@ -41,6 +49,10 @@ export interface CreateSpaceChannelCategoryInput {
   nameNonce?: string;
   cipherId?: string;
   cipherCheck?: CipherCheck;
+  inheritAllowedRoleIds?: boolean;
+  inheritCipherCheck?: boolean;
+  forceChildrenAcl?: boolean;
+  forceChildrenCipher?: boolean;
 }
 
 export interface UpdateSpaceChannelCategoryFields {
@@ -54,6 +66,10 @@ export interface UpdateSpaceChannelCategoryFields {
   clearParentCategoryId?: boolean;
   cipherCheck?: CipherCheck;
   clearCipherCheck?: boolean;
+  inheritAllowedRoleIds?: boolean;
+  inheritCipherCheck?: boolean;
+  forceChildrenAcl?: boolean;
+  forceChildrenCipher?: boolean;
 }
 
 export function toPublicSpaceChannelCategory(
@@ -74,6 +90,10 @@ export function toPublicSpaceChannelCategory(
         }
       : {}),
     ...(doc.cipherCheck ? { cipherCheck: toPublicCipherCheck(doc.cipherCheck) } : {}),
+    inheritAllowedRoleIds: !!doc.inheritAllowedRoleIds,
+    inheritCipherCheck: !!doc.inheritCipherCheck,
+    forceChildrenAcl: !!doc.forceChildrenAcl,
+    forceChildrenCipher: !!doc.forceChildrenCipher,
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString(),
   };

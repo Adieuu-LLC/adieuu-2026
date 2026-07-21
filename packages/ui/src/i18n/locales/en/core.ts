@@ -354,6 +354,11 @@ export const core = {
       create: 'Create',
       creating: 'Creating…',
       error: "Couldn't create category.",
+      forceChildrenLabel: 'Force children to use these settings',
+      forceChildrenHint:
+        'Choose which settings child categories and channels must follow. Forced settings cannot be changed on children.',
+      forceChildrenAcl: 'Force roles / permissions',
+      forceChildrenCipher: 'Force encryption',
     },
     editCategory: {
       title: 'Edit category',
@@ -376,6 +381,19 @@ export const core = {
       rolesEmpty: 'No roles available',
       rolesNoMatch: 'No roles match your search',
       rolesRemove: 'Remove {{name}}',
+      inheritRolesLabel: 'Inherit roles from parent',
+      inheritRolesHint: 'Use the parent category’s roles (or Everyone at the Space root).',
+      inheritRolesForced:
+        'Roles are forced by {{name}} and cannot be changed here.',
+      inheritEncryptionLabel: 'Inherit encryption from parent',
+      inheritEncryptionHint:
+        'Use the parent category’s encryption settings (or the Space when at the root).',
+      inheritEncryptionForced:
+        'Encryption is forced by {{name}} and cannot be changed here.',
+      inheritEncryptionPreviewOff: 'Not encrypted',
+      inheritEncryptionPreviewOn: 'Encrypted',
+      inheritEncryptionPreviewCipher: 'Cipher: {{name}}',
+      inheritEncryptionPreviewUnknownCipher: 'Encrypted with parent Cipher',
       encryptLabel: 'Encrypt channel',
       encryptHint: 'Encrypt messages in this channel with a Cipher on your device.',
       encryptSpaceE2eeHint:
