@@ -2,12 +2,16 @@
  * One channel row in the Space secondary sidebar (text or voice).
  */
 
-import type { ReactNode } from 'react';
+import { useEffect, useMemo, type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { CommunityCipher } from '@adieuu/crypto';
 import type { PublicSpaceChannel, PublicSpaceVoiceSession } from '@adieuu/shared';
+import { IdentityHoverCard } from '../../components/IdentityHoverCard';
+import { useIdentity } from '../../hooks/useIdentity';
+import { useSpaces } from '../../hooks/useSpaces';
 import type { SpaceChannelUnreadState } from '../../services/spaceSocketHandlers';
+import { resolveDisplayName } from '../conversations/conversationUtils';
 import { resolveChannelDisplayName } from './spaceMetadataCipher';
 import { DraggableSpaceItem, DroppableSpaceTarget } from './spaceSidebarDnd';
 
@@ -39,12 +43,25 @@ export function SpaceSidebarChannelItem({
   wrapWithMenu,
 }: SpaceSidebarChannelItemProps) {
   const { t } = useTranslation();
+  const { identity } = useIdentity();
+  const { participantProfiles, resolveProfiles } = useSpaces();
   const channelName = resolveChannelDisplayName(ch, spaceCipher, {
     encryptedChannel: t('spaces.encryptedChannelPlaceholder'),
   });
   const isVoice = ch.type === 'voice';
-  const presentPeople =
-    voiceSession?.participants.filter((p) => !p.leftAt).map((p) => p.identityId) ?? [];
+  const presentPeople = useMemo(
+    () => voiceSession?.participants.filter((p) => !p.leftAt).map((p) => p.identityId) ?? [],
+    [voiceSession?.participants],
+  );
+  const presentPeopleKey = presentPeople.join(',');
+
+  useEffect(() => {
+    if (!isVoice || presentPeople.length === 0) return;
+    const missing = presentPeople.filter((id) => !participantProfiles[id]);
+    if (missing.length > 0) resolveProfiles(missing);
+    // presentPeopleKey tracks identity-set changes without array identity churn.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional key + profiles
+  }, [isVoice, presentPeopleKey, participantProfiles, resolveProfiles]);
 
   const link = (
     <NavLink
@@ -84,9 +101,42 @@ export function SpaceSidebarChannelItem({
       {link}
       {isVoice && presentPeople.length > 0 && (
         <ul className="space-sidebar-voice-presence">
-          {presentPeople.map((id) => (
-            <li key={id}>{id.slice(-6)}</li>
-          ))}
+          {presentPeople.map((id) => {
+            const profile = participantProfiles[id];
+            const displayName = resolveDisplayName(
+              id,
+              participantProfiles,
+              {},
+              identity?.id,
+              t,
+            );
+            const row = (
+              <div className="space-sidebar-voice-presence-row">
+                <span className="space-sidebar-voice-presence-avatar" aria-hidden>
+                  {profile?.avatarUrl ? (
+                    <img src={profile.avatarUrl} alt="" />
+                  ) : (
+                    displayName.charAt(0).toUpperCase()
+                  )}
+                </span>
+                <span className="space-sidebar-voice-presence-name">{displayName}</span>
+              </div>
+            );
+            return (
+              <li key={id}>
+                {profile ? (
+                  <IdentityHoverCard
+                    identity={profile}
+                    positioning={{ placement: 'right-start', gutter: 8 }}
+                  >
+                    {row}
+                  </IdentityHoverCard>
+                ) : (
+                  row
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </>

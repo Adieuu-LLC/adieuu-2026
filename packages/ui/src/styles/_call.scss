@@ -1535,12 +1535,55 @@ $call-overlay-title-bar-height: 32px;
 .space-sidebar-voice-presence {
   list-style: none;
   margin: 0;
-  padding: 0 0 0.25rem 1.5rem;
+  padding: 0 0 0.25rem 1.35rem;
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
 }
 
 .space-sidebar-voice-presence li {
+  min-width: 0;
+}
+
+.space-sidebar-voice-presence-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--radius-sm, 4px);
+  cursor: default;
+}
+
+.space-sidebar-voice-presence-row:hover {
+  background: var(--color-surface-hover, rgb(127 127 127 / 12%));
+  color: var(--color-text);
+}
+
+.space-sidebar-voice-presence-avatar {
+  flex: 0 0 auto;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 600;
+  background: var(--color-surface-elevated, var(--color-surface));
+  color: var(--color-text);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.space-sidebar-voice-presence-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
