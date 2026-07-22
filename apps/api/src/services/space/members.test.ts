@@ -28,6 +28,16 @@ const memberRepo = {
   removeMember: mock(async (_s: ObjectId, _i: ObjectId) => true) as AnyMock,
   listBySpace: mock(async (_s: ObjectId, _l?: number, _c?: ObjectId) => [] as any[]) as AnyMock,
   countWithRole: mock(async (_s: ObjectId, _r: ObjectId) => 0) as AnyMock,
+  updateProfile: mock(async (_s: ObjectId, _i: ObjectId, patch: any) => ({
+    _id: new ObjectId(),
+    spaceId: _s,
+    identityId: _i,
+    roleIds: [],
+    status: 'active',
+    joinedAt: new Date(),
+    ...(patch.nickname ? { nickname: patch.nickname } : {}),
+    ...(patch.color ? { color: patch.color } : {}),
+  })) as AnyMock,
 };
 
 const roleRepo = {
@@ -52,6 +62,7 @@ import {
   joinSpace,
   leaveSpace,
   removeSpaceMember,
+  updateSpaceMemberProfile,
   listSpaceMembers,
   listSpaceRoles,
   resolveEffectiveTier,
@@ -104,6 +115,17 @@ describe('space/members', () => {
     memberRepo.removeMember.mockResolvedValue(true);
     memberRepo.listBySpace.mockResolvedValue([]);
     memberRepo.countWithRole.mockResolvedValue(0);
+    memberRepo.updateProfile.mockClear();
+    memberRepo.updateProfile.mockImplementation(async (_s: ObjectId, _i: ObjectId, patch: any) => ({
+      _id: new ObjectId(),
+      spaceId: _s,
+      identityId: _i,
+      roleIds: [],
+      status: 'active',
+      joinedAt: new Date(),
+      ...(patch.nickname ? { nickname: patch.nickname } : {}),
+      ...(patch.color ? { color: patch.color } : {}),
+    }));
     roleRepo.findDefaultMember.mockResolvedValue({ _id: DEFAULT_ROLE });
     roleRepo.findBySpace.mockResolvedValue([]);
     roleRepo.findBySystemKey.mockResolvedValue(null);
@@ -362,6 +384,175 @@ describe('space/members', () => {
       const r = await removeSpaceMember(space._id, acting, target);
       expect(r).toMatchObject({ success: false, errorCode: 'LAST_ADMIN' });
       expect(memberRepo.removeMember).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('updateSpaceMemberProfile', () => {
+    test('rejects when actor is not a member', async () => {
+      const space = makeSpaceDoc();
+      spaceRepo.findById.mockResolvedValue(space);
+      memberRepo.findMember.mockResolvedValue(null);
+      const r = await updateSpaceMemberProfile(space._id, new ObjectId(), new ObjectId(), {
+        nickname: 'Nick',
+      });
+      expect(r).toMatchObject({ success: false, errorCode: 'NOT_MEMBER' });
+    });
+
+    test('allows self nickname change with changeNickname', async () => {
+      const space = makeSpaceDoc();
+      spaceRepo.findById.mockResolvedValue(space);
+      const self = new ObjectId();
+      const roleId = new ObjectId();
+      memberRepo.findMember.mockResolvedValue({
+        _id: new ObjectId(),
+        spaceId: space._id,
+        identityId: self,
+        roleIds: [roleId],
+        status: 'active',
+        joinedAt: new Date(),
+      });
+      roleRepo.findBySpace.mockResolvedValue([
+        { _id: roleId, spaceId: space._id, permissions: ['changeNickname'], position: 1000 },
+      ]);
+      memberRepo.updateProfile.mockResolvedValue({
+        _id: new ObjectId(),
+        spaceId: space._id,
+        identityId: self,
+        roleIds: [roleId],
+        status: 'active',
+        joinedAt: new Date(),
+        nickname: 'Nick',
+      });
+
+      const r = await updateSpaceMemberProfile(space._id, self, self, { nickname: 'Nick' });
+      expect(r.success).toBe(true);
+      expect(r.member?.nickname).toBe('Nick');
+      expect(publishSpaceEvent).toHaveBeenCalledTimes(1);
+      expect(publishSpaceEvent.mock.calls[0]![1].type).toBe('space_member_updated');
+    });
+
+    test('rejects self change without changeNickname', async () => {
+      const space = makeSpaceDoc();
+      spaceRepo.findById.mockResolvedValue(space);
+      const self = new ObjectId();
+      const roleId = new ObjectId();
+      memberRepo.findMember.mockResolvedValue({
+        _id: new ObjectId(),
+        spaceId: space._id,
+        identityId: self,
+        roleIds: [roleId],
+        status: 'active',
+      });
+      roleRepo.findBySpace.mockResolvedValue([
+        { _id: roleId, spaceId: space._id, permissions: ['viewChannels'], position: 1000 },
+      ]);
+      const r = await updateSpaceMemberProfile(space._id, self, self, { nickname: 'Nick' });
+      expect(r).toMatchObject({ success: false, errorCode: 'FORBIDDEN' });
+    });
+
+    test('allows managing others with manageNicknames', async () => {
+      const space = makeSpaceDoc();
+      spaceRepo.findById.mockResolvedValue(space);
+      const acting = new ObjectId();
+      const target = new ObjectId();
+      const actorRole = new ObjectId();
+      const targetRole = new ObjectId();
+      memberRepo.findMember.mockImplementation(async (_s: ObjectId, id: ObjectId) => {
+        if (id.equals(acting)) {
+          return {
+            _id: new ObjectId(),
+            spaceId: space._id,
+            identityId: acting,
+            roleIds: [actorRole],
+            status: 'active',
+          };
+        }
+        if (id.equals(target)) {
+          return {
+            _id: new ObjectId(),
+            spaceId: space._id,
+            identityId: target,
+            roleIds: [targetRole],
+            status: 'active',
+          };
+        }
+        return null;
+      });
+      roleRepo.findBySpace.mockResolvedValue([
+        { _id: actorRole, spaceId: space._id, permissions: ['manageNicknames'], position: 0 },
+        { _id: targetRole, spaceId: space._id, permissions: ['changeNickname'], position: 1000 },
+      ]);
+      memberRepo.updateProfile.mockResolvedValue({
+        _id: new ObjectId(),
+        spaceId: space._id,
+        identityId: target,
+        roleIds: [targetRole],
+        status: 'active',
+        joinedAt: new Date(),
+        color: '#e57373',
+      });
+
+      const r = await updateSpaceMemberProfile(space._id, acting, target, { color: '#e57373' });
+      expect(r.success).toBe(true);
+      expect(r.member?.color).toBe('#e57373');
+    });
+
+    test('rejects managing a higher-ranked member', async () => {
+      const space = makeSpaceDoc();
+      spaceRepo.findById.mockResolvedValue(space);
+      const acting = new ObjectId();
+      const target = new ObjectId();
+      const actorRole = new ObjectId();
+      const targetRole = new ObjectId();
+      memberRepo.findMember.mockImplementation(async (_s: ObjectId, id: ObjectId) => {
+        if (id.equals(acting)) {
+          return {
+            _id: new ObjectId(),
+            spaceId: space._id,
+            identityId: acting,
+            roleIds: [actorRole],
+            status: 'active',
+          };
+        }
+        if (id.equals(target)) {
+          return {
+            _id: new ObjectId(),
+            spaceId: space._id,
+            identityId: target,
+            roleIds: [targetRole],
+            status: 'active',
+          };
+        }
+        return null;
+      });
+      roleRepo.findBySpace.mockResolvedValue([
+        { _id: actorRole, spaceId: space._id, permissions: ['manageNicknames'], position: 500 },
+        { _id: targetRole, spaceId: space._id, permissions: ['changeNickname'], position: 0 },
+      ]);
+
+      const r = await updateSpaceMemberProfile(space._id, acting, target, { nickname: 'Nope' });
+      expect(r).toMatchObject({ success: false, errorCode: 'ESCALATION' });
+      expect(memberRepo.updateProfile).not.toHaveBeenCalled();
+    });
+
+    test('rejects managing others without manageNicknames', async () => {
+      const space = makeSpaceDoc();
+      spaceRepo.findById.mockResolvedValue(space);
+      const acting = new ObjectId();
+      const target = new ObjectId();
+      const roleId = new ObjectId();
+      memberRepo.findMember.mockResolvedValue({
+        _id: new ObjectId(),
+        spaceId: space._id,
+        identityId: acting,
+        roleIds: [roleId],
+        status: 'active',
+      });
+      roleRepo.findBySpace.mockResolvedValue([
+        { _id: roleId, spaceId: space._id, permissions: ['changeNickname'], position: 1000 },
+      ]);
+      const r = await updateSpaceMemberProfile(space._id, acting, target, { nickname: 'Nope' });
+      expect(r).toMatchObject({ success: false, errorCode: 'FORBIDDEN' });
     });
   });
 

@@ -96,6 +96,91 @@
       flex-direction: column;
       padding: var(--spacing-xs);
     }
+
+    &-group {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: var(--spacing-md);
+
+      & + & {
+        margin-top: var(--spacing-sm);
+        padding-top: var(--spacing-sm);
+        border-top: 1px solid var(--color-border-muted);
+      }
+    }
+
+    &-color-display {
+      border-bottom: 1px solid var(--color-border-muted);
+      margin-bottom: var(--spacing-xs);
+    }
+
+    &-color-accordion {
+      &-trigger {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--spacing-sm);
+        width: 100%;
+        padding: var(--spacing-sm) var(--spacing-md);
+        margin: 0;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        text-align: left;
+        color: var(--color-text-primary);
+
+        &:hover {
+          background: var(--color-bg-hover);
+        }
+      }
+
+      &-title {
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-medium);
+        color: var(--color-text-primary);
+      }
+
+      &-indicator {
+        display: flex;
+        flex-shrink: 0;
+        color: var(--color-text-muted);
+        transition: transform var(--transition-fast);
+
+        svg {
+          width: 14px;
+          height: 14px;
+        }
+      }
+
+      &-item[data-state='open'] &-indicator {
+        transform: rotate(180deg);
+      }
+
+      &-content {
+        padding: 0 var(--spacing-md) var(--spacing-sm);
+      }
+    }
+
+    &-color-switches {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-xs);
+    }
+
+    &-close-btn {
+      margin-left: auto;
+    }
+
+    &-loading {
+      display: flex;
+      justify-content: center;
+      padding: var(--spacing-sm);
+    }
+
+    &-load-more {
+      align-self: center;
+      margin: var(--spacing-xs) 0;
+    }
   }
 
   &-member {
@@ -170,6 +255,13 @@
 
     &-username {
       font-size: var(--font-size-xs);
+      color: var(--color-text-muted);
+    }
+
+    &-you {
+      margin-left: var(--spacing-xs);
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-weight-regular);
       color: var(--color-text-muted);
     }
 
@@ -319,6 +411,12 @@
           background: var(--color-bg-hover);
           color: var(--color-text-primary);
         }
+      }
+
+      &-error {
+        margin: var(--spacing-xs) var(--spacing-sm) 0;
+        font-size: var(--font-size-xs);
+        color: var(--color-error);
       }
     }
 

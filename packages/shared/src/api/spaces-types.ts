@@ -322,6 +322,10 @@ export interface PublicSpaceMember {
   roleIds: string[];
   status: SpaceMemberStatus;
   joinedAt: string;
+  /** Space-scoped display nickname (plaintext). */
+  nickname?: string;
+  /** Space-scoped display colour (hex, e.g. `#e57373`). */
+  color?: string;
 }
 
 /** Viewer membership + effective permissions within a Space. */

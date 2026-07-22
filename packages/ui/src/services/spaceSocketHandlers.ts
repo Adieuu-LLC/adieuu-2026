@@ -7,7 +7,7 @@ import type {
   PublicSpaceMessage,
   PublicSpaceReaction,
 } from '@adieuu/shared';
-import { emitSpacesChanged } from './spacesMembershipEvents';
+import { emitSpaceMemberUpdated, emitSpacesChanged } from './spacesMembershipEvents';
 
 export interface SpaceChannelUnreadState {
   unread: number;
@@ -364,6 +364,12 @@ export function handleSpaceSocketMessage(
           ),
         );
       }
+      break;
+    }
+
+    case 'space_member_updated': {
+      const { spaceId, member } = message.data;
+      emitSpaceMemberUpdated(spaceId, member);
       break;
     }
 

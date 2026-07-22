@@ -49,7 +49,7 @@ function baseProps(overrides?: Record<string, unknown>) {
     participantProfiles: {},
     memberSettings: {},
     messagesById: new Map(),
-    memberColorDisplay: 'off' as never,
+    memberColorDisplay: { name: false, avatarAccent: false, messageBorder: false },
     loadPinnedMessagesPage: async () => null,
     scrollToMessageId: () => {},
     onUnpin: async () => {},

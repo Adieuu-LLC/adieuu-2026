@@ -115,6 +115,46 @@ export class SpaceMemberRepository extends BaseRepository<SpaceMemberDocument> {
     return (result as SpaceMemberDocument | null) ?? null;
   }
 
+  /**
+   * Patch Space-scoped nickname / colour. Pass `null` to unset a field;
+   * omit a key to leave it unchanged.
+   */
+  async updateProfile(
+    spaceId: ObjectId,
+    identityId: ObjectId,
+    patch: { nickname?: string | null; color?: string | null },
+  ): Promise<SpaceMemberDocument | null> {
+    const $set: Record<string, unknown> = { updatedAt: new Date() };
+    const $unset: Record<string, ''> = {};
+
+    if (patch.nickname !== undefined) {
+      if (patch.nickname === null || patch.nickname.trim() === '') {
+        $unset.nickname = '';
+      } else {
+        $set.nickname = patch.nickname.trim();
+      }
+    }
+    if (patch.color !== undefined) {
+      if (patch.color === null) {
+        $unset.color = '';
+      } else {
+        $set.color = patch.color;
+      }
+    }
+
+    const update: UpdateFilter<SpaceMemberDocument> = { $set };
+    if (Object.keys($unset).length > 0) {
+      update.$unset = $unset;
+    }
+
+    const result = await this.collection.findOneAndUpdate(
+      { spaceId, identityId } as Filter<SpaceMemberDocument>,
+      update,
+      { returnDocument: 'after' },
+    );
+    return (result as SpaceMemberDocument | null) ?? null;
+  }
+
   /** Count active members that hold a given role. */
   async countWithRole(spaceId: ObjectId, roleId: ObjectId): Promise<number> {
     return await this.count({

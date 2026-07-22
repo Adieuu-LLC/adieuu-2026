@@ -7,7 +7,13 @@ export function areChannelMessageBubblePropsEqual(
   if (prev.isOwn !== next.isOwn) return false;
   if (prev.layout !== next.layout) return false;
   if (prev.isFlashHighlight !== next.isFlashHighlight) return false;
-  if (prev.memberColorDisplay !== next.memberColorDisplay) return false;
+  if (
+    prev.memberColorDisplay.name !== next.memberColorDisplay.name ||
+    prev.memberColorDisplay.avatarAccent !== next.memberColorDisplay.avatarAccent ||
+    prev.memberColorDisplay.messageBorder !== next.memberColorDisplay.messageBorder
+  ) {
+    return false;
+  }
   if (prev.gifsEnabled !== next.gifsEnabled) return false;
   if (prev.gifAnimateOnHoverOnly !== next.gifAnimateOnHoverOnly) return false;
   if (prev.isPinned !== next.isPinned) return false;

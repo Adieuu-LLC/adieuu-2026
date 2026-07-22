@@ -242,6 +242,7 @@ describe('chat message types', () => {
       'space_message',
       'space_member_joined',
       'space_member_left',
+      'space_member_updated',
       'space_invite_received',
       'space_invite_accepted',
       'space_invite_revoked',
@@ -256,7 +257,7 @@ describe('chat message types', () => {
       'voice_channel_media_state_changed',
     ] as const satisfies readonly ChatMessageType[];
 
-    expect(spaceEvents).toHaveLength(24);
+    expect(spaceEvents).toHaveLength(25);
     expect(spaceEvents).toContain('space_pins_updated');
     expect(spaceEvents).toContain('space_created');
     expect(spaceEvents).toContain('voice_channel_call_started');

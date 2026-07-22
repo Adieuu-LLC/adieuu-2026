@@ -30,6 +30,7 @@ import {
   joinSpace,
   leaveSpace,
   removeSpaceMember,
+  updateSpaceMemberProfile,
   listSpaceMembers,
   listSpaceRoles,
   createSpaceRole,
@@ -52,6 +53,7 @@ import {
   CreateSpaceRoleSchema,
   UpdateSpaceRoleSchema,
   SetMemberRolesSchema,
+  UpdateSpaceMemberProfileSchema,
 } from '@adieuu/shared/schemas';
 import {
   sanitizeSpaceObjectId,
@@ -372,6 +374,26 @@ export async function removeMemberCtrl(ctx: RouteContext): Promise<SpaceRouteRes
     return mapSpaceError(result.errorCode, result.error ?? 'Failed to remove member.');
   }
   return { kind: 'ok', data: undefined, message: 'Member removed.' };
+}
+
+export async function updateMemberProfileCtrl(
+  ctx: RouteContext,
+): Promise<SpaceRouteResult<{ member: unknown }>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const id = sanitizeSpaceObjectId(ctx.params.id);
+  const target = sanitizeSpaceObjectId(ctx.params.identityId);
+  if (!id.ok || !target.ok) return { kind: 'bad_request', message: 'Invalid id.' };
+
+  const parsed = UpdateSpaceMemberProfileSchema.safeParse(ctx.body);
+  if (!parsed.success) return { kind: 'validation_failed' };
+
+  const result = await updateSpaceMemberProfile(id.id, identity._id, target.id, parsed.data);
+  if (!result.success) {
+    return mapSpaceError(result.errorCode, result.error ?? 'Failed to update member profile.');
+  }
+  return { kind: 'ok', data: { member: result.member }, message: 'Member profile updated.' };
 }
 
 export async function listRolesCtrl(

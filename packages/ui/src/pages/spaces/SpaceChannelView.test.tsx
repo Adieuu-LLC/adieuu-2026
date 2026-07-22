@@ -24,6 +24,29 @@ mock.module('../../hooks/useAuth', () => ({
 
 mock.module('../../config', () => ({
   useAppConfig: () => ({ apiBaseUrl: 'http://localhost:3000' }),
+  usePlatformCapabilities: () => ({
+    notifications: { permission: 'default', requestPermission: async () => 'default', show: () => {} },
+    audio: { play: () => {}, unlock: () => {} },
+    webauthn: null,
+    fileSystem: null,
+    appWindow: null,
+    openExternal: () => {},
+  }),
+}));
+
+mock.module('../../hooks/useFriends', () => ({
+  useFriends: () => ({
+    getFriendshipStatus: () => 'none',
+  }),
+  FriendsProvider: ({ children }: { children: import('react').ReactNode }) => children,
+}));
+
+mock.module('../../hooks/useMemberColorPreference', () => ({
+  useMemberColorPreference: () => ({ name: true, avatarAccent: true, messageBorder: true }),
+  getMemberColorDisplay: () => ({ name: true, avatarAccent: true, messageBorder: true }),
+  setMemberColorDisplay: () => {},
+  patchMemberColorDisplay: () => {},
+  DEFAULT_MEMBER_COLOR_DISPLAY: { name: true, avatarAccent: true, messageBorder: true },
 }));
 
 mock.module('../../components/Toast', () => ({
@@ -234,6 +257,19 @@ beforeEach(() => {
   g.requestAnimationFrame = happy.requestAnimationFrame.bind(happy);
   if (!g.IntersectionObserver) (g as any).IntersectionObserver = StubIO;
   if (!g.ResizeObserver) (g as any).ResizeObserver = StubRO;
+  // Prefetch of roles/members must not hang the test runner on a real network.
+  g.fetch = mock(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    const body = url.includes('/roles')
+      ? { success: true, data: { roles: [] } }
+      : url.includes('/members')
+        ? { success: true, data: { members: [], cursor: null } }
+        : { success: true, data: null };
+    return new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }) as typeof fetch;
 });
 
 afterEach(async () => {

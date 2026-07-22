@@ -66,7 +66,7 @@ function baseProps(overrides?: Record<string, unknown>) {
     fsInfo: { rotationLabel: '', readableWindow: '', tooltip: '' },
     lastMessageText: '',
     messageLayout: 'linear' as const,
-    memberColorDisplay: 'off' as never,
+    memberColorDisplay: { name: false, avatarAccent: false, messageBorder: false },
     favoriteEmojis: [],
     customEmojis: [],
     isFreeTier: false,

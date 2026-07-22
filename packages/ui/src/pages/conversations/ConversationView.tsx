@@ -657,7 +657,6 @@ export function ConversationView() {
             isCurrentUserAdmin={isCurrentUserAdmin}
             canEditMemberSettings={canEditMemberSettings}
             fsConfigEnabled={fsConfig.enabled}
-            memberColorDisplay={memberColorDisplay}
             dialogs={dialogs}
             adminSettings={adminSettings}
             prefs={prefs}

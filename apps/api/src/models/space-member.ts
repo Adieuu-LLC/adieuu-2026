@@ -15,6 +15,10 @@ export interface SpaceMemberDocument extends BaseDocument {
   roleIds: ObjectId[];
   status: SpaceMemberStatus;
   joinedAt: Date;
+  /** Space-scoped display nickname (plaintext). */
+  nickname?: string;
+  /** Space-scoped display colour (hex). */
+  color?: string;
 }
 
 export interface CreateSpaceMemberInput {
@@ -33,5 +37,7 @@ export function toPublicSpaceMember(doc: SpaceMemberDocument): PublicSpaceMember
     roleIds: doc.roleIds.map((r) => r.toHexString()),
     status: doc.status,
     joinedAt: doc.joinedAt.toISOString(),
+    ...(doc.nickname ? { nickname: doc.nickname } : {}),
+    ...(doc.color ? { color: doc.color } : {}),
   };
 }

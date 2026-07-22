@@ -27,6 +27,7 @@ export {
   joinSpace,
   leaveSpace,
   removeSpaceMember,
+  updateSpaceMemberProfile,
   listSpaceMembers,
   listSpaceRoles,
   addSpaceMembership,

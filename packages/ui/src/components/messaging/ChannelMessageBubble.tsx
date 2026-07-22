@@ -262,17 +262,27 @@ export const ChannelMessageBubble = memo(function ChannelMessageBubble({
   );
 
   const senderColor = memberSettings[message.fromIdentityId]?.color;
-  const senderNameStyle: React.CSSProperties | undefined = senderColor ? { color: senderColor } : undefined;
-  const bubbleTintStyle: React.CSSProperties | undefined =
-    senderColor && !isOwn && memberColorDisplay === 'name-and-bubble'
-      ? { background: `color-mix(in srgb, ${senderColor} 8%, var(--color-bg-tertiary))` } : undefined;
+  const senderNameStyle: React.CSSProperties | undefined =
+    senderColor && memberColorDisplay.name ? { color: senderColor } : undefined;
+  const bubbleBorderStyle: React.CSSProperties | undefined =
+    senderColor && !isOwn && memberColorDisplay.messageBorder
+      ? { boxShadow: `inset 3px 0 0 0 ${senderColor}` }
+      : undefined;
   const avatarAccentStyle: React.CSSProperties | undefined =
-    senderColor && !isOwn && memberColorDisplay === 'name-and-accent'
-      ? { boxShadow: `0 0 0 2px ${senderColor}` } : undefined;
+    senderColor && !isOwn && memberColorDisplay.avatarAccent
+      ? { boxShadow: `0 0 0 2px ${senderColor}` }
+      : undefined;
+  const anyColorCue =
+    memberColorDisplay.name ||
+    memberColorDisplay.avatarAccent ||
+    memberColorDisplay.messageBorder;
   const linearHoverStyle: React.CSSProperties | undefined =
-    senderColor && memberColorDisplay !== 'name-only'
-      ? ({ '--member-hover-bg': `color-mix(in srgb, ${senderColor} 6%, var(--color-bg-hover))` } as React.CSSProperties) : undefined;
-  const linearMessageTintMarker = senderColor && memberColorDisplay === 'name-and-bubble';
+    senderColor && anyColorCue
+      ? ({
+          '--member-hover-bg': `color-mix(in srgb, ${senderColor} 6%, var(--color-bg-hover))`,
+        } as React.CSSProperties)
+      : undefined;
+  const linearMessageBorderMarker = senderColor && memberColorDisplay.messageBorder;
 
   const mouseHandlers = {
     onMouseEnter: () => setShowActions(true),
@@ -302,7 +312,7 @@ export const ChannelMessageBubble = memo(function ChannelMessageBubble({
       // biome-ignore lint/a11y/noNoninteractiveTabindex: focusable row reveals the action bar for keyboard users
       <div tabIndex={0} className={`dm-message dm-message--linear${isPinned ? ' dm-message--pinned' : ''}${isFlashHighlight ? ' dm-message--flash-highlight' : ''}`}
         style={linearHoverStyle} {...mouseHandlers}>
-        {linearMessageTintMarker && <div className="dm-message-linear-tint-marker" style={{ background: senderColor }} aria-hidden />}
+        {linearMessageBorderMarker && <div className="dm-message-linear-tint-marker" style={{ background: senderColor }} aria-hidden />}
         {profile ? (
           <IdentityHoverCard identity={profile} positioning={{ placement: 'right', gutter: 8 }} extraFooter={memberSecurityHoverFooter}>
             <button type="button" className="dm-message-avatar-btn" style={avatarAccentStyle}>{avatarContent}</button>
@@ -365,7 +375,7 @@ export const ChannelMessageBubble = memo(function ChannelMessageBubble({
       )}
       <div className="dm-message-bubble-wrapper">
         {showActions && actionBar}
-        <div className={`dm-message-bubble${applyOwnAlignment ? ' dm-message-bubble--own' : ''}`} style={bubbleTintStyle}>
+        <div className={`dm-message-bubble${applyOwnAlignment ? ' dm-message-bubble--own' : ''}`} style={bubbleBorderStyle}>
           {replyQuote && <ReplyQuoteButton replyQuote={replyQuote} />}
           {bodyEl}
         </div>

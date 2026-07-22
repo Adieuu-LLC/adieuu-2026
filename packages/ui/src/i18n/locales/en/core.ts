@@ -638,6 +638,9 @@ export const core = {
         description: 'Allows members to mute other members in voice channels.',
       },
     },
+    members: {
+      profileSaveFailed: 'Could not save member settings.',
+    },
     channel: {
       noMessages: 'No messages yet. Start the conversation!',
       loadOlder: 'Load older messages',

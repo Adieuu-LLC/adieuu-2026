@@ -6,6 +6,7 @@ import type { ChannelMessage } from '../../components/messaging/channelMessage';
 import type { ChannelListItem } from '../../utils/buildFlatMessageItems';
 import type { GroupedReaction, ReactionCustomEmoji } from '../../hooks/useReactions';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
+import type { MemberColorDisplay } from '../../hooks/useMemberColorPreference';
 import type { ReplyQuotePayload } from '../conversations/conversationUtils';
 import type { EditHistoryEntry } from '../../components/messaging/EditHistoryLabel';
 import type { GifAttachment, MediaAttachment } from '../../services/messagePayload';
@@ -66,6 +67,7 @@ export interface SpaceChannelMainPanelProps {
   identity: { id: string; avatarUrl?: string; displayName?: string; username?: string } | null | undefined;
   participantProfiles: Record<string, PublicIdentity>;
   memberSettings: MemberSettingsMap;
+  memberColorDisplay?: MemberColorDisplay;
   favoriteEmojis: string[];
 
   getGroupedReactions: (messageId: string) => GroupedReaction[];
@@ -142,6 +144,7 @@ export function SpaceChannelMainPanel(props: SpaceChannelMainPanelProps): ReactN
     identity,
     participantProfiles,
     memberSettings,
+    memberColorDisplay = { name: true, avatarAccent: true, messageBorder: true },
     favoriteEmojis,
     getGroupedReactions,
     onDeleteMessage,
@@ -202,7 +205,7 @@ export function SpaceChannelMainPanel(props: SpaceChannelMainPanelProps): ReactN
           participantProfiles={participantProfiles}
           memberSettings={memberSettings}
           messageLayout="linear"
-          memberColorDisplay="name-only"
+          memberColorDisplay={memberColorDisplay}
           favoriteEmojis={favoriteEmojis}
           getGroupedReactions={getGroupedReactions}
           onDeleteMessage={onDeleteMessage}

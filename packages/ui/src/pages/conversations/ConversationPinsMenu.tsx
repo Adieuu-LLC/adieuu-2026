@@ -356,11 +356,12 @@ export function ConversationPinsMenu({
           items.map((msg) => {
             const isOwn = msg.fromIdentityId === identity?.id;
             const senderColor = memberSettings[msg.fromIdentityId]?.color;
-            const senderNameStyle: CSSProperties | undefined = senderColor
-              ? { color: senderColor }
-              : undefined;
+            const senderNameStyle: CSSProperties | undefined =
+              senderColor && memberColorDisplay.name
+                ? { color: senderColor }
+                : undefined;
             const avatarAccentStyle: CSSProperties | undefined =
-              senderColor && !isOwn && memberColorDisplay === 'name-and-accent'
+              senderColor && !isOwn && memberColorDisplay.avatarAccent
                 ? { boxShadow: `0 0 0 2px ${senderColor}` }
                 : undefined;
             const profile: PublicIdentity | undefined =

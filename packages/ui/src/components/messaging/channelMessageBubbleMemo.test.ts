@@ -43,7 +43,7 @@ function makeProps(overrides: Partial<ChannelMessageBubbleProps> = {}): ChannelM
     layout: 'linear' as const,
     participantProfiles: SHARED_PROFILES,
     memberSettings: SHARED_MEMBER_SETTINGS,
-    memberColorDisplay: 'name-only' as const,
+    memberColorDisplay: { name: true, avatarAccent: false, messageBorder: false },
     onLinkClick: noop,
     gifsEnabled: true,
     gifAnimateOnHoverOnly: false,
@@ -90,8 +90,12 @@ describe('areChannelMessageBubblePropsEqual', () => {
   });
 
   it('detects memberColorDisplay change', () => {
-    const a = makeProps({ memberColorDisplay: 'name-only' as const });
-    const b = makeProps({ memberColorDisplay: 'name-and-bubble' as const });
+    const a = makeProps({
+      memberColorDisplay: { name: true, avatarAccent: false, messageBorder: false },
+    });
+    const b = makeProps({
+      memberColorDisplay: { name: true, avatarAccent: false, messageBorder: true },
+    });
     expect(areChannelMessageBubblePropsEqual(a, b)).toBe(false);
   });
 

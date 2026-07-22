@@ -247,6 +247,113 @@ export async function removeSpaceMember(
   return { success: true };
 }
 
+/** Lowest role position among held roles (lower = higher rank), or null. */
+function topRolePosition(
+  roleIds: readonly ObjectId[],
+  roles: readonly { _id: ObjectId; position: number }[],
+): number | null {
+  const held = new Set(roleIds.map((id) => id.toHexString()));
+  let top: number | null = null;
+  for (const role of roles) {
+    if (!held.has(role._id.toHexString())) continue;
+    if (top === null || role.position < top) top = role.position;
+  }
+  return top;
+}
+
+/**
+ * Update a member's Space-scoped nickname and/or colour.
+ *
+ * - Self: requires `changeNickname`
+ * - Others: requires `manageNicknames`, and target must not outrank the actor
+ */
+export async function updateSpaceMemberProfile(
+  spaceIdRaw: string | ObjectId,
+  actingIdentityIdRaw: string | ObjectId,
+  targetIdentityIdRaw: string | ObjectId,
+  patch: { nickname?: string | null; color?: string | null },
+): Promise<SpaceMemberResult> {
+  const spaceId = parseObjId(spaceIdRaw);
+  const actingId = parseObjId(actingIdentityIdRaw);
+  const targetId = parseObjId(targetIdentityIdRaw);
+  if (!spaceId || !actingId || !targetId) {
+    return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
+  }
+
+  if (patch.nickname === undefined && patch.color === undefined) {
+    return {
+      success: false,
+      error: 'At least one of nickname or color is required.',
+      errorCode: 'INVALID_CONTENT',
+    };
+  }
+
+  const space = await getSpaceRepository().findById(spaceId);
+  if (!space) {
+    return { success: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' };
+  }
+
+  const memberRepo = getSpaceMemberRepository();
+  const actor = await memberRepo.findMember(spaceId, actingId);
+  if (!actor || actor.status !== 'active') {
+    return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
+  }
+
+  const perms = await resolveMemberPermissions(spaceId, actingId);
+  const isSelf = actingId.equals(targetId);
+
+  if (isSelf) {
+    if (!memberHasPermission(perms, 'changeNickname')) {
+      return {
+        success: false,
+        error: 'You do not have permission to change your nickname.',
+        errorCode: 'FORBIDDEN',
+      };
+    }
+  } else if (!memberHasPermission(perms, 'manageNicknames')) {
+    return {
+      success: false,
+      error: 'You do not have permission to manage nicknames.',
+      errorCode: 'FORBIDDEN',
+    };
+  }
+
+  const target = isSelf ? actor : await memberRepo.findMember(spaceId, targetId);
+  if (!target || target.status !== 'active') {
+    return { success: false, error: 'That member was not found.', errorCode: 'MEMBER_NOT_FOUND' };
+  }
+
+  if (!isSelf) {
+    const roles = await getSpaceRoleRepository().findBySpace(spaceId);
+    const actorTop = topRolePosition(actor.roleIds, roles);
+    const targetTop = topRolePosition(target.roleIds, roles);
+    if (
+      actorTop !== null &&
+      targetTop !== null &&
+      targetTop < actorTop
+    ) {
+      return {
+        success: false,
+        error: 'You cannot edit a member who outranks you.',
+        errorCode: 'ESCALATION',
+      };
+    }
+  }
+
+  const updated = await memberRepo.updateProfile(spaceId, targetId, patch);
+  if (!updated) {
+    return { success: false, error: 'That member was not found.', errorCode: 'MEMBER_NOT_FOUND' };
+  }
+
+  const member = toPublicSpaceMember(updated);
+  await publishSpaceEvent(spaceId.toHexString(), {
+    type: 'space_member_updated',
+    data: { spaceId: spaceId.toHexString(), member },
+  });
+
+  return { success: true, member };
+}
+
 /**
  * List a Space's members (oldest first, cursor-paginated). Visibility applies:
  * `public` is open; `listed`/`hidden` require membership.

@@ -90,7 +90,7 @@ function defaultProps(overrides: Record<string, unknown> = {}) {
     participantProfiles: {},
     memberSettings: {},
     messageLayout: 'bubble' as const,
-    memberColorDisplay: 'name-only' as const,
+    memberColorDisplay: { name: true, avatarAccent: false, messageBorder: false },
     favoriteEmojis: [],
     getGroupedReactions: () => [],
     onDeleteMessage: noopFn,

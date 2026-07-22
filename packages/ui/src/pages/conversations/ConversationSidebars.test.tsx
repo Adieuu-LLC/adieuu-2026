@@ -54,7 +54,6 @@ function baseProps(activePane: 'settings' | 'members' | 'search' | null, message
     canEditMemberSettings: true,
     otherParticipants: ['other'],
     fsConfigEnabled: false,
-    memberColorDisplay: 'off' as never,
     dialogs,
     adminSettings,
     prefs,

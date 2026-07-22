@@ -311,6 +311,16 @@ export const SetMemberRolesSchema = z.object({
   roleIds: z.array(z.string().length(24)).max(50),
 });
 
+/** Patch Space-scoped nickname / colour for a member. Null clears a field. */
+export const UpdateSpaceMemberProfileSchema = z
+  .object({
+    nickname: z.union([z.string().max(50), z.null()]).optional(),
+    color: z.union([z.string().regex(/^#[0-9a-fA-F]{6}$/), z.null()]).optional(),
+  })
+  .refine((v) => v.nickname !== undefined || v.color !== undefined, {
+    message: 'At least one of nickname or color is required',
+  });
+
 export const CreateSpaceChannelSchema = z
   .object({
     name: z.string().min(SPACE_CHANNEL_NAME_MIN_LENGTH).max(SPACE_CHANNEL_NAME_MAX_LENGTH).optional(),
@@ -468,3 +478,4 @@ export type UpdateSpaceChannelLayoutBody = z.infer<typeof UpdateSpaceChannelLayo
 export type CreateSpaceRoleBody = z.infer<typeof CreateSpaceRoleSchema>;
 export type UpdateSpaceRoleBody = z.infer<typeof UpdateSpaceRoleSchema>;
 export type SetMemberRolesBody = z.infer<typeof SetMemberRolesSchema>;
+export type UpdateSpaceMemberProfileBody = z.infer<typeof UpdateSpaceMemberProfileSchema>;

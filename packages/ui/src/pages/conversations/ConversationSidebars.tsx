@@ -8,7 +8,6 @@ import type { ReactNode } from 'react';
 import type { PublicIdentity } from '@adieuu/shared';
 import type { DisplayMessage } from '../../hooks/useConversations';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
-import type { MemberColorDisplay } from '../../hooks/useMemberColorPreference';
 import type { MessageSearchCacheMode } from '../../services/messageSearch/messageSearchCacheTypes';
 import type { useConversationDialogState } from '../../hooks/conversations/useConversationDialogState';
 import type { useConversationAdminSettings } from '../../hooks/conversations/useConversationAdminSettings';
@@ -32,7 +31,6 @@ export interface ConversationSidebarsProps {
   isCurrentUserAdmin: boolean;
   canEditMemberSettings: boolean;
   fsConfigEnabled: boolean;
-  memberColorDisplay: MemberColorDisplay;
 
   dialogs: ReturnType<typeof useConversationDialogState>;
   adminSettings: ReturnType<typeof useConversationAdminSettings>;
@@ -68,7 +66,6 @@ export function ConversationSidebars(props: ConversationSidebarsProps): ReactNod
     isCurrentUserAdmin,
     canEditMemberSettings,
     fsConfigEnabled,
-    memberColorDisplay,
     dialogs,
     adminSettings,
     prefs,
@@ -103,7 +100,6 @@ export function ConversationSidebars(props: ConversationSidebarsProps): ReactNod
           onRename={dialogs.handleRename}
           fsEnabled={prefs.convFsOverride ?? fsConfigEnabled}
           onFsToggle={prefs.handleConvFsToggle}
-          memberColorDisplay={memberColorDisplay}
           gifsDisabledByAdmin={conversation.gifsDisabled ?? false}
           onGifsDisabledByAdminToggle={adminSettings.handleGifsDisabledByAdminToggle}
           gifContentFilter={conversation.gifContentFilter}

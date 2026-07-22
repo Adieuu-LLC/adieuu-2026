@@ -106,6 +106,10 @@ router.delete('/spaces/:id/members/:identityId', async (ctx) => {
   return spaceRespond(ctx, await spaceController.removeMemberCtrl(ctx));
 });
 
+router.patch('/spaces/:id/members/:identityId/profile', async (ctx) => {
+  return spaceRespond(ctx, await spaceController.updateMemberProfileCtrl(ctx));
+});
+
 router.get('/spaces/:id/roles', async (ctx) => {
   return spaceRespond(ctx, await spaceController.listRolesCtrl(ctx));
 });

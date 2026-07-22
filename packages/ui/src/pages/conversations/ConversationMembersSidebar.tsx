@@ -10,6 +10,7 @@ import { Tooltip } from '../../components/Tooltip';
 import { Icon } from '../../icons/Icon';
 import { resolveDisplayName } from './conversationUtils';
 import { MemberEditPanel } from './MemberEditPanel';
+import { MemberColorDisplayControl } from '../../components/MemberColorDisplayControl';
 import { useFriends } from '../../hooks/useFriends';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
@@ -72,6 +73,7 @@ export function ConversationMembersSidebar({
           {participants.length}
         </span>
       </div>
+      <MemberColorDisplayControl />
       {conversationType === 'dm' && (
         <div className="conversation-members-invite-row">
           <Button

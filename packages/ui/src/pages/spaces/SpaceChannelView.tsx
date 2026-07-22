@@ -16,6 +16,7 @@ import { useOptionalVoiceChannelSession } from '../../hooks/useVoiceChannelSessi
 import { useIdentity } from '../../hooks/useIdentity';
 import { useAppConfig } from '../../config';
 import { useCipherStore } from '../../hooks/useCipherStore';
+import { useMemberColorPreference } from '../../hooks/useMemberColorPreference';
 import {
   bumpCipherLinkEpoch,
   getChannelCipherLink,
@@ -38,19 +39,17 @@ import { useReplyParentHydration, buildChannelReplyQuote } from '../../hooks/use
 import { createSpaceReplyAdapter } from '../../hooks/adapters/spaceReplyAdapter';
 import { scrollViewportCanScroll } from '../../utils/messageScrollUtils';
 import type { ReplyQuotePayload } from '../conversations/conversationUtils';
-import type { MemberSettingsMap } from '../../services/conversationCryptoService';
 
 import { decryptBody, type DecryptableMessage } from './spaceChannelCipher';
-import { resolveChannelDisplayName } from './spaceMetadataCipher';
+import { resolveChannelDisplayName, resolveRoleDisplayName } from './spaceMetadataCipher';
 import { resolveLatestPinInfo } from './spaceChannelViewModel';
 import { useSpaceChannelMessages } from '../../hooks/spaces/useSpaceChannelMessages';
 import { useSpaceChannelScrollToMessage } from '../../hooks/spaces/useSpaceChannelScrollToMessage';
 import { useSpaceChannelMessageActions } from '../../hooks/spaces/useSpaceChannelMessageActions';
 import { useSpaceChannelComposer } from '../../hooks/spaces/useSpaceChannelComposer';
+import { useSpaceChannelMembers } from '../../hooks/spaces/useSpaceChannelMembers';
 import { SpaceChannelToolbar } from './SpaceChannelToolbar';
 import { SpaceChannelMainPanel } from './SpaceChannelMainPanel';
-
-const EMPTY_MEMBER_SETTINGS: MemberSettingsMap = {};
 
 export function SpaceChannelView() {
   const { t } = useTranslation();
@@ -78,16 +77,17 @@ export function SpaceChannelView() {
     registerSocketCallbacks,
     isActiveSpaceMember,
     hasActiveSpacePermission,
+    activeSpaceRoleIds,
   } = useSpaces();
 
   const { identity } = useIdentity();
   const { getCipherKey } = useCipherStore();
+  const memberColorDisplay = useMemberColorPreference();
   const cipherLinkEpoch = useSyncExternalStore(
     subscribeCipherLinks,
     getCipherLinkEpoch,
     getCipherLinkEpoch,
   );
-  const [memberRoles, setMemberRoles] = useState<PublicSpaceRole[]>([]);
 
   const api = useMemo(
     () => createApiClient({ baseUrl: apiBaseUrl }),
@@ -423,30 +423,25 @@ export function SpaceChannelView() {
   }, [isAtBottom, activeMessages.length, trimActiveChannelBuffer]);
 
   // ---------------------------------------------------------------------------
-  // Members pane
+  // Members pane + nickname/colour settings for chat
   // ---------------------------------------------------------------------------
 
   const [showMembers, setShowMembers] = useState(false);
   const toggleMembers = useCallback(() => setShowMembers((v) => !v), []);
 
-  useEffect(() => {
-    if (!showMembers || !spaceId) {
-      setMemberRoles([]);
-      return;
-    }
-    let cancelled = false;
-    void api.spaces.listRoles(spaceId).then((res) => {
-      if (cancelled) return;
-      if (res.success && res.data) {
-        setMemberRoles(res.data.roles);
-      } else {
-        setMemberRoles([]);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [showMembers, spaceId, api]);
+  const { memberRoles, memberSettings, handleSidebarMembersChange } = useSpaceChannelMembers({
+    spaceId,
+    api,
+    resolveProfiles,
+  });
+
+  const resolveRoleName = useCallback(
+    (role: PublicSpaceRole) =>
+      resolveRoleDisplayName(role, spaceCipher, {
+        encryptedRole: t('spaces.encryptedRolePlaceholder', 'Encrypted role'),
+      }),
+    [spaceCipher, t],
+  );
 
   // ---------------------------------------------------------------------------
   // Pin preview for toolbar subtitle
@@ -502,7 +497,7 @@ export function SpaceChannelView() {
         onUnpin={async (msgId) => { await onUnpin(msgId); }}
         canManagePins={canManagePins}
         participantProfiles={participantProfiles}
-        memberSettings={EMPTY_MEMBER_SETTINGS}
+        memberSettings={memberSettings}
         identity={identity}
         showMembers={showMembers}
         onToggleMembers={toggleMembers}
@@ -532,7 +527,8 @@ export function SpaceChannelView() {
           visibleMessageCount={visibleMessageCount}
           identity={identity}
           participantProfiles={participantProfiles}
-          memberSettings={EMPTY_MEMBER_SETTINGS}
+          memberSettings={memberSettings}
+          memberColorDisplay={memberColorDisplay}
           favoriteEmojis={favoriteEmojis}
           getGroupedReactions={getGroupedReactions}
           onDeleteMessage={handleDeleteMessage}
@@ -595,8 +591,16 @@ export function SpaceChannelView() {
           spaceId={spaceId}
           roles={memberRoles}
           selfId={identity?.id}
+          actorRoleIds={activeSpaceRoleIds}
+          canChangeNickname={hasActiveSpacePermission('changeNickname')}
+          canManageNicknames={hasActiveSpacePermission('manageNicknames')}
           listMembers={(sid, opts) => api.spaces.listMembers(sid, opts)}
+          updateMemberProfile={(sid, identityId, body) =>
+            api.spaces.updateMemberProfile(sid, identityId, body)
+          }
           resolveProfile={(id) => participantProfiles[id]}
+          resolveRoleName={resolveRoleName}
+          onMembersChange={handleSidebarMembersChange}
           onClose={toggleMembers}
         />
       )}

@@ -162,7 +162,9 @@ mock.module('../../hooks/useFavoriteEmojis', () => ({
 mock.module('../../services/preKeyService', () => ({ loadShowMessageArtifacts: () => false }));
 mock.module('../../config/PlatformContext', () => ({ useAppConfig: () => ({ apiBaseUrl: 'http://localhost' }) }));
 mock.module('../../hooks/useMessageLayoutPreference', () => ({ useMessageLayoutPreference: () => 'linear' }));
-mock.module('../../hooks/useMemberColorPreference', () => ({ useMemberColorPreference: () => 'off' }));
+mock.module('../../hooks/useMemberColorPreference', () => ({
+  useMemberColorPreference: () => ({ name: false, avatarAccent: false, messageBorder: false }),
+}));
 mock.module('../../hooks/useE2EMediaDownload', () => ({ clearMediaCache: noop }));
 mock.module('../../hooks/useMessageAchievements', () => ({ useMessageAchievements: () => noop }));
 mock.module('../../hooks/useBlockContext', () => ({

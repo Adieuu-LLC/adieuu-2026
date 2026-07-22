@@ -35,6 +35,10 @@ const svc = {
   joinSpace: mock(async () => ({ success: true, member: { id: 'm1' } })) as AnyMock,
   leaveSpace: mock(async () => ({ success: true })) as AnyMock,
   removeSpaceMember: mock(async () => ({ success: true })) as AnyMock,
+  updateSpaceMemberProfile: mock(async () => ({
+    success: true,
+    member: { id: 'm1', nickname: 'Nick' },
+  })) as AnyMock,
   listSpaceMembers: mock(async () => ({ success: true, members: [], cursor: null })) as AnyMock,
   listSpaceRoles: mock(async () => ({ success: true, roles: [] })) as AnyMock,
   createSpaceRole: mock(async () => ({ success: true, role: { id: 'r1' } })) as AnyMock,
@@ -316,6 +320,28 @@ describe('membership controllers', () => {
     const r = await c.removeMemberCtrl(makeCtx({ params: { id: HEX, identityId: 'bad' } }));
     expect(r).toEqual({ kind: 'bad_request', message: 'Invalid id.' });
     expect(svc.removeSpaceMember).not.toHaveBeenCalled();
+  });
+
+  test('updateMemberProfileCtrl rejects malformed body', async () => {
+    const r = await c.updateMemberProfileCtrl(
+      makeCtx({ params: { id: HEX, identityId: HEX }, body: {} }),
+    );
+    expect(r).toEqual({ kind: 'validation_failed' });
+    expect(svc.updateSpaceMemberProfile).not.toHaveBeenCalled();
+  });
+
+  test('updateMemberProfileCtrl returns the member on success', async () => {
+    const r = await c.updateMemberProfileCtrl(
+      makeCtx({
+        params: { id: HEX, identityId: HEX },
+        body: { nickname: 'Nick', color: '#e57373' },
+      }),
+    );
+    expect(r).toMatchObject({
+      kind: 'ok',
+      data: { member: { id: 'm1', nickname: 'Nick' } },
+    });
+    expect(svc.updateSpaceMemberProfile).toHaveBeenCalled();
   });
 });
 

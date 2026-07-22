@@ -116,6 +116,18 @@ export class SpacesApi {
     );
   }
 
+  /** Update Space-scoped nickname / colour for a member. Null clears a field. */
+  async updateMemberProfile(
+    spaceId: string,
+    identityId: string,
+    body: { nickname?: string | null; color?: string | null },
+  ): Promise<ApiResponse<{ member: PublicSpaceMember }>> {
+    return this.client.patch(
+      `/api/spaces/${encodeURIComponent(spaceId)}/members/${encodeURIComponent(identityId)}/profile`,
+      body,
+    );
+  }
+
   // --- Roles ---
 
   async listRoles(spaceId: string): Promise<ApiResponse<{ roles: PublicSpaceRole[] }>> {

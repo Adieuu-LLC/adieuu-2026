@@ -56,6 +56,7 @@ export type ChatMessageType =
   | 'space_message'
   | 'space_member_joined'
   | 'space_member_left'
+  | 'space_member_updated'
   | 'space_invite_received'
   | 'space_invite_accepted'
   | 'space_invite_revoked'
@@ -477,6 +478,12 @@ export interface ChatSpaceMemberLeftMessage extends ChatMessageBase {
   data: { spaceId: string; identityId: string };
 }
 
+/** A member's Space profile (nickname/colour) changed. Fanned out on `space:{spaceId}`. */
+export interface ChatSpaceMemberUpdatedMessage extends ChatMessageBase {
+  type: 'space_member_updated';
+  data: { spaceId: string; member: PublicSpaceMember };
+}
+
 /**
  * A pending Space invite addressed to the current identity. Delivered on the
  * invitee's `identity:{id}` channel.
@@ -635,6 +642,7 @@ export type ChatIncomingMessage =
   | ChatSpaceMessageMessage
   | ChatSpaceMemberJoinedMessage
   | ChatSpaceMemberLeftMessage
+  | ChatSpaceMemberUpdatedMessage
   | ChatSpaceInviteReceivedMessage
   | ChatSpaceInviteAcceptedMessage
   | ChatSpaceInviteRevokedMessage
