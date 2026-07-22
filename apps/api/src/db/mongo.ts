@@ -737,6 +737,11 @@ export async function createIndexes(): Promise<void> {
     { identityId: 1, conversationIds: 1 },
     { unique: true },
   );
+  try { await conversationFolders.dropIndex('identityId_1_spaceIds_1'); } catch { /* index may not exist yet */ }
+  await conversationFolders.createIndex(
+    { identityId: 1, spaceIds: 1 },
+    { unique: true },
+  );
 
   // Stripe webhook idempotency — TTL auto-deletes after 30 days
   const stripeEvents = database.collection(Collections.STRIPE_PROCESSED_EVENTS);

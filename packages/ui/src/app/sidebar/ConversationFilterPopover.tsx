@@ -26,10 +26,13 @@ export function ConversationFilterPopover({
       trigger={
         <button
           type="button"
-          className="sidebar-filter-trigger"
-          aria-label={t('conversations.filter.button')}
+          className="sidebar-item sidebar-filter-trigger"
+          aria-label={t('conversations.filter.button', 'Filter')}
         >
-          <Icon name="filter" />
+          <span className="sidebar-item-icon">
+            <Icon name="filter" />
+          </span>
+          <span className="sidebar-item-label">{t('conversations.filter.button', 'Filter')}</span>
         </button>
       }
       positioning={{ placement: 'bottom-start' }}

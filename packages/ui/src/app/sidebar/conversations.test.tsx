@@ -5,6 +5,7 @@ import { GlobalWindow } from 'happy-dom';
 import { createRoot } from 'react-dom/client';
 import { resetReactRouterDomMock, mockNavigate } from '../../test/react-router-dom-mock';
 import { resetReactI18nextMock, setMockTranslate } from '../../test/react-i18next-mock';
+import { SidebarListViewProvider } from './sidebarListView';
 
 setMockTranslate((key, def) => (typeof def === 'string' ? def : key));
 
@@ -45,11 +46,6 @@ mock.module('../../components/FolderEditModal', () => ({
 mock.module('./invitations', () => ({
   ChatInvitationsSidebarButton: () =>
     createElement('div', { 'data-testid': 'chat-invites-button' }),
-}));
-
-mock.module('./spaces', () => ({
-  SpacesSidebarSection: () =>
-    createElement('div', { 'data-testid': 'spaces-sidebar-section' }, 'Spaces section'),
 }));
 
 mock.module('./SidebarConversationDmHoverCard', () => ({
@@ -100,10 +96,12 @@ mock.module('../../hooks/useConversationFolders', () => ({
   useConversationFolders: () => ({
     folders: [],
     folderedConversationIds: new Set<string>(),
+    folderedSpaceIds: new Set<string>(),
     createFolder: mock(async () => {}),
     deleteFolder: mock(async () => {}),
     updateFolder: mock(async () => {}),
     addConversationToFolder: mock(async () => {}),
+    addSpaceToFolder: mock(async () => {}),
     toggleFolderFavorite: mock(async () => {}),
   }),
 }));
@@ -124,6 +122,12 @@ mock.module('../../hooks/useTheme', () => ({
   }),
 }));
 
+mock.module('../../hooks/useCipherStore', () => ({
+  useCipherStore: () => ({
+    getCipherKey: () => null,
+  }),
+}));
+
 const configActual = await import('../../config');
 mock.module('../../config', () => ({
   ...configActual,
@@ -132,10 +136,36 @@ mock.module('../../config', () => ({
   }),
 }));
 
+function makeSpace(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'space-1',
+    slug: 'test-space',
+    name: 'Test Space',
+    description: 'A lovely place',
+    visibility: 'public',
+    e2ee: false,
+    encryptIdentity: false,
+    cipherRequired: false,
+    createdBy: 'id-owner',
+    ownerIdentityId: 'id-owner',
+    allowFreeMembers: true,
+    memberCount: 3,
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
 let mockUnreadBySpace: Record<string, number> = {};
+let mockSpaces: unknown[] = [];
+let mockSpacesLoading = false;
 
 mock.module('../../hooks/useSpaces', () => ({
-  useSpaces: () => ({ unreadBySpace: mockUnreadBySpace }),
+  useSpaces: () => ({
+    spaces: mockSpaces,
+    spacesLoading: mockSpacesLoading,
+    unreadBySpace: mockUnreadBySpace,
+  }),
 }));
 
 const { ConversationsSidebarSection } = await import('./conversations');
@@ -182,6 +212,8 @@ beforeEach(() => {
   mockActiveConversationId = null;
   mockLoading = false;
   mockUnreadBySpace = {};
+  mockSpaces = [];
+  mockSpacesLoading = false;
 
   const g = globalThis as G;
   prevWindow = g.window;
@@ -213,10 +245,14 @@ async function renderSection() {
   const root = createRoot(container as unknown as Element);
   await act(async () => {
     root.render(
-      createElement(ConversationsSidebarSection, {
-        isChatInvitesPanelOpen: false,
-        onToggleChatInvitesPanel: () => {},
-      }),
+      createElement(
+        SidebarListViewProvider,
+        null,
+        createElement(ConversationsSidebarSection, {
+          isChatInvitesPanelOpen: false,
+          onToggleChatInvitesPanel: () => {},
+        }),
+      ),
     );
     await new Promise((r) => setTimeout(r, 0));
   });
@@ -259,6 +295,37 @@ describe('ConversationsSidebarSection', () => {
     container.remove();
   });
 
+  it('shows New only on Conversations and Discover on Spaces/All', async () => {
+    const { root, container } = await renderSection();
+
+    const labels = () =>
+      [...happy.document.querySelectorAll('[data-testid="sidebar-item"]')].map((b) => b.textContent);
+
+    expect(labels().some((t) => t?.includes('New'))).toBe(true);
+    expect(labels().some((t) => t?.includes('Create Space'))).toBe(false);
+    expect(labels().some((t) => t?.includes('Discover'))).toBe(false);
+    expect(happy.document.querySelector('.sidebar-filter-trigger')?.textContent).toContain('Filter');
+
+    const spacesTab = [...happy.document.querySelectorAll('button[data-tab-id="spaces"]')][0];
+    await act(async () => {
+      (spacesTab as HTMLButtonElement).click();
+    });
+    expect(labels().some((t) => t?.includes('New'))).toBe(false);
+    expect(labels().some((t) => t?.includes('Create Space'))).toBe(false);
+    expect(labels().some((t) => t?.includes('Discover'))).toBe(true);
+
+    const allTab = [...happy.document.querySelectorAll('button[data-tab-id="all"]')][0];
+    await act(async () => {
+      (allTab as HTMLButtonElement).click();
+    });
+    expect(labels().some((t) => t?.includes('New'))).toBe(false);
+    expect(labels().some((t) => t?.includes('Create Space'))).toBe(false);
+    expect(labels().some((t) => t?.includes('Discover'))).toBe(true);
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
   it('shows conversation and spaces tab badges from unread totals', async () => {
     mockConversations = [
       makeConversation({ id: 'c1', unreadCount: 2, hasUnread: true }),
@@ -292,27 +359,64 @@ describe('ConversationsSidebarSection', () => {
     container.remove();
   });
 
-  it('shows the spaces section when the Spaces tab is selected', async () => {
+  it('shows spaces when the Spaces tab is selected', async () => {
+    mockSpaces = [makeSpace()];
     const { root, container } = await renderSection();
 
-    const spacesTab = [...happy.document.querySelectorAll('button')].find((b) =>
-      b.textContent?.includes('Spaces'),
-    );
+    const spacesTab = [...happy.document.querySelectorAll('button[data-tab-id="spaces"]')][0];
     expect(spacesTab).toBeDefined();
     await act(async () => {
       (spacesTab as HTMLButtonElement).click();
     });
-    expect(happy.document.querySelector('[data-testid="spaces-sidebar-section"]')).not.toBeNull();
+    expect(happy.document.body.textContent).toContain('Test Space');
+    expect(happy.document.body.textContent).not.toContain('Alice');
 
     await act(async () => root.unmount());
     container.remove();
   });
 
-  it('renders the filter popover trigger on the conversations tab', async () => {
+  it('shows conversations and spaces on the All tab', async () => {
+    mockSpaces = [makeSpace()];
     const { root, container } = await renderSection();
 
-    const filter = happy.document.querySelector('.sidebar-filter-trigger');
-    expect(filter).not.toBeNull();
+    const allTab = [...happy.document.querySelectorAll('button[data-tab-id="all"]')][0];
+    expect(allTab).toBeDefined();
+    await act(async () => {
+      (allTab as HTMLButtonElement).click();
+    });
+    expect(happy.document.body.textContent).toContain('Alice');
+    expect(happy.document.body.textContent).toContain('Test Space');
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  it('renders the filter popover trigger on all views', async () => {
+    const { root, container } = await renderSection();
+
+    expect(happy.document.querySelector('.sidebar-filter-trigger')).not.toBeNull();
+
+    const spacesTab = [...happy.document.querySelectorAll('button[data-tab-id="spaces"]')][0];
+    await act(async () => {
+      (spacesTab as HTMLButtonElement).click();
+    });
+    expect(happy.document.querySelector('.sidebar-filter-trigger')).not.toBeNull();
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  it('orders tabs Conversations, Spaces, All with Spaces icon after its label', async () => {
+    const { root, container } = await renderSection();
+
+    const tabIds = [...happy.document.querySelectorAll('button[data-tab-id]')].map((b) =>
+      b.getAttribute('data-tab-id'),
+    );
+    expect(tabIds).toEqual(['conversations', 'spaces', 'all']);
+
+    const spacesTab = happy.document.querySelector('button[data-tab-id="spaces"]');
+    expect(spacesTab?.classList.contains('sidebar-tab-icon-end')).toBe(true);
+    expect(happy.document.querySelector('button[data-tab-id="all"]')?.textContent).toContain('All');
 
     await act(async () => root.unmount());
     container.remove();

@@ -23,6 +23,8 @@ export interface ConversationListItemProps {
   onArchive: (conversationId: string, archived: boolean, keepArchived?: boolean) => void;
   onFavorite: (conversationId: string, favorited: boolean) => void;
   onLeave: (conversationId: string) => void;
+  /** Visually muted (still interactive) when out of the current sidebar view */
+  muted?: boolean;
 }
 
 /**
@@ -48,7 +50,8 @@ function conversationRowPropsEqual(
     prev.onEdit !== next.onEdit ||
     prev.onArchive !== next.onArchive ||
     prev.onFavorite !== next.onFavorite ||
-    prev.onLeave !== next.onLeave
+    prev.onLeave !== next.onLeave ||
+    prev.muted !== next.muted
   ) {
     return false;
   }
@@ -86,6 +89,7 @@ export const ConversationListItem = memo(function ConversationListItem({
   onArchive,
   onFavorite,
   onLeave,
+  muted,
 }: ConversationListItemProps) {
   const { t } = useTranslation();
 
@@ -184,6 +188,7 @@ export const ConversationListItem = memo(function ConversationListItem({
     'conversation-list-item',
     isActive && 'conversation-list-item-active',
     isArchived && 'conversation-list-item--archived',
+    muted && 'sidebar-list-item-muted',
   ]
     .filter(Boolean)
     .join(' ');

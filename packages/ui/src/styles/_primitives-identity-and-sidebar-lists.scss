@@ -345,6 +345,7 @@
   transition: background-color var(--transition-fast), color var(--transition-fast), flex var(--transition-fast);
   flex: 0 0 auto;
   justify-content: center;
+  min-width: 0;
 
   &:hover {
     background: var(--color-bg-hover);
@@ -389,6 +390,25 @@
     opacity: 0;
     transition: max-width var(--transition-fast), opacity var(--transition-fast);
   }
+
+  &-icon-end {
+    flex-direction: row;
+  }
+}
+
+// When hovering any tab, collapse sibling labels (including the active tab)
+// so only the hovered tab shows text.
+.sidebar-tabs:hover .sidebar-tab:not(:hover) {
+  flex: 0 0 auto;
+
+  .sidebar-tab-label {
+    max-width: 0;
+    opacity: 0;
+  }
+}
+
+.sidebar-list-item-muted {
+  opacity: 0.45;
 }
 
 .sidebar-tabs-collapsed .sidebar-tab {

@@ -1,5 +1,5 @@
 import { useCallback, type ReactNode } from 'react';
-import type { PublicIdentity, ConversationFolder } from '@adieuu/shared';
+import type { PublicIdentity, ConversationFolder, PublicSpace } from '@adieuu/shared';
 import { useTranslation } from 'react-i18next';
 import { Menu, Portal } from '@ark-ui/react';
 import { Icon } from '../../icons/Icon';
@@ -25,6 +25,9 @@ const FOLDER_ICON_MAP: Record<string, AppIconName> = {
 export function FolderListItem({
   folder,
   conversations,
+  spaces,
+  unreadBySpace,
+  resolveSpaceDisplayName,
   participantProfiles,
   selfId,
   onOpen,
@@ -34,6 +37,9 @@ export function FolderListItem({
 }: {
   folder: ConversationFolder;
   conversations: DecryptedConversation[];
+  spaces: PublicSpace[];
+  unreadBySpace: Record<string, number>;
+  resolveSpaceDisplayName: (space: PublicSpace) => string;
   participantProfiles: Record<string, PublicIdentity>;
   selfId: string | undefined;
   onOpen: (folderId: string) => void;
@@ -47,12 +53,17 @@ export function FolderListItem({
     .map((cid) => conversations.find((c) => c.id === cid))
     .filter(Boolean) as DecryptedConversation[];
 
+  const folderSpaces = folder.spaceIds
+    .map((sid) => spaces.find((s) => s.id === sid))
+    .filter(Boolean) as PublicSpace[];
+
   const dmCount = folderConversations.filter((c) => c.type === 'dm').length;
   const groupCount = folderConversations.filter((c) => c.type === 'group').length;
+  const spaceCount = folderSpaces.length;
 
-  const hasUnread = folderConversations.some(
-    (c) => c.unreadCount > 0 || c.hasUnread,
-  );
+  const hasUnread =
+    folderConversations.some((c) => c.unreadCount > 0 || c.hasUnread) ||
+    folderSpaces.some((s) => (unreadBySpace[s.id] ?? 0) > 0);
 
   const handleContextAction = useCallback(
     (details: { value: string }) => {
@@ -91,8 +102,12 @@ export function FolderListItem({
       </div>
     );
   } else {
-    // Dynamic: show up to 3 overlapping conversation avatars
-    const avatarPids: string[] = [];
+    // Dynamic: up to 3 overlapping avatars from conversations then spaces
+    type AvatarSlot =
+      | { key: string; kind: 'identity'; pid: string }
+      | { key: string; kind: 'space'; initial: string };
+
+    const slots: AvatarSlot[] = [];
     for (const conv of folderConversations) {
       const pids = getSidebarListAvatarMemberIds(
         conv.type === 'group',
@@ -100,20 +115,39 @@ export function FolderListItem({
         selfId,
       );
       for (const pid of pids) {
-        if (!avatarPids.includes(pid)) avatarPids.push(pid);
-        if (avatarPids.length >= 3) break;
+        if (!slots.some((s) => s.kind === 'identity' && s.pid === pid)) {
+          slots.push({ key: `i:${pid}`, kind: 'identity', pid });
+        }
+        if (slots.length >= 3) break;
       }
-      if (avatarPids.length >= 3) break;
+      if (slots.length >= 3) break;
+    }
+    if (slots.length < 3) {
+      for (const space of folderSpaces) {
+        const name = resolveSpaceDisplayName(space);
+        const initial = (name.charAt(0) || space.slug.charAt(0) || '?').toUpperCase();
+        slots.push({ key: `s:${space.id}`, kind: 'space', initial });
+        if (slots.length >= 3) break;
+      }
     }
 
-    if (avatarPids.length > 1) {
+    if (slots.length > 1) {
       avatarEl = (
         <div className="conversation-list-item-avatar-stack">
-          {avatarPids.map((pid) => {
-            const p = participantProfiles[pid];
-            const initial = resolveDisplay(pid).charAt(0).toUpperCase();
+          {slots.map((slot) => {
+            if (slot.kind === 'space') {
+              return (
+                <span key={slot.key} className="conversation-list-item-avatar-stack-item">
+                  <span className="conversation-list-item-avatar-stack-item-placeholder">
+                    {slot.initial}
+                  </span>
+                </span>
+              );
+            }
+            const p = participantProfiles[slot.pid];
+            const initial = resolveDisplay(slot.pid).charAt(0).toUpperCase();
             return (
-              <span key={pid} className="conversation-list-item-avatar-stack-item">
+              <span key={slot.key} className="conversation-list-item-avatar-stack-item">
                 {p?.avatarUrl ? (
                   <img src={p.avatarUrl} alt="" className="conversation-list-item-avatar-stack-item-img" />
                 ) : (
@@ -137,6 +171,12 @@ export function FolderListItem({
     }
   }
 
+  const countParts = [
+    dmCount > 0 ? t('conversations.folders.dmCount', { count: dmCount }) : null,
+    groupCount > 0 ? t('conversations.folders.groupCount', { count: groupCount }) : null,
+    spaceCount > 0 ? t('conversations.folders.spaceCount', { count: spaceCount }) : null,
+  ].filter(Boolean);
+
   const row = (
     <button
       type="button"
@@ -147,12 +187,7 @@ export function FolderListItem({
       <div className="conversation-list-item-info">
         <span className="conversation-list-item-title">{folder.name}</span>
         <span className="conversation-list-item-members">
-          {[
-            dmCount > 0 ? t('conversations.folders.dmCount', { count: dmCount }) : null,
-            groupCount > 0 ? t('conversations.folders.groupCount', { count: groupCount }) : null,
-          ]
-            .filter(Boolean)
-            .join(', ') || t('conversations.folders.emptyCount')}
+          {countParts.join(', ') || t('conversations.folders.emptyCount')}
         </span>
       </div>
       <div className="conversation-list-item-badges">

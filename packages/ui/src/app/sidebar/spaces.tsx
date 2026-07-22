@@ -1,10 +1,7 @@
 /**
- * Spaces sidebar tab content.
+ * Spaces sidebar list items and actions.
  *
- * Mirrors the Conversations tab: an actions row (Discover / Create) plus a
- * list of the Spaces the current Alias is a member of. Selecting a Space
- * resumes the last-viewed channel when known, otherwise opens Space Home.
- * Unreads and active highlighting are driven by the SpacesProvider context.
+ * Used by the unified Conversations / Spaces / All sidebar section.
  */
 
 function getLastChannelId(spaceId: string): string | null {
@@ -18,6 +15,7 @@ function getLastChannelId(spaceId: string): string | null {
 import { useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import type { PublicSpace } from '@adieuu/shared';
 import { SidebarItem, useSidebar } from '../../components/Sidebar';
 import { Icon } from '../../icons/Icon';
 import { useIdentity } from '../../hooks/useIdentity';
@@ -26,25 +24,118 @@ import { useCipherStore } from '../../hooks/useCipherStore';
 import { getSpaceCipherLink } from '../../services/spaceCipherService';
 import { resolveSpaceDisplayName } from '../../pages/spaces/spaceMetadataCipher';
 
-export function SpacesSidebarSection() {
+export { getLastChannelId };
+
+export function DiscoverSpacesSidebarItem() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const location = useLocation();
   const { closeMobile } = useSidebar();
-  const { status: identityStatus } = useIdentity();
-  const isIdentityLoggedIn = identityStatus === 'logged_in';
-  const { spaces, spacesLoading, unreadBySpace } = useSpaces();
-  const { getCipherKey } = useCipherStore();
 
   const handleDiscover = useCallback(() => {
     navigate('/spaces');
     closeMobile();
   }, [navigate, closeMobile]);
 
-  const handleCreate = useCallback(() => {
-    navigate('/spaces/new');
-    closeMobile();
-  }, [navigate, closeMobile]);
+  return (
+    <SidebarItem
+      icon={<Icon name="earth" />}
+      label={t('sidebar.discoverSpaces', 'Discover')}
+      onClick={handleDiscover}
+    />
+  );
+}
+
+/** Standalone Discover action row (Create Space lives on the Discover page). */
+export function SpacesSidebarActions() {
+  return (
+    <div className="sidebar-conversations-actions">
+      <DiscoverSpacesSidebarItem />
+    </div>
+  );
+}
+
+export function useSpaceSidebarDisplayName() {
+  const { t } = useTranslation();
+  const { getCipherKey } = useCipherStore();
+
+  return useCallback(
+    (space: PublicSpace) => {
+      const localCipherId = getSpaceCipherLink(space.id);
+      const cipher = localCipherId ? getCipherKey(localCipherId) : null;
+      return resolveSpaceDisplayName(space, cipher, {
+        encryptedSpace: t('spaces.encryptedSpacePlaceholder'),
+      });
+    },
+    [getCipherKey, t],
+  );
+}
+
+export function SpaceListItem({
+  space,
+  displayName,
+  unread,
+  muted,
+  onOpen,
+}: {
+  space: PublicSpace;
+  displayName: string;
+  unread: number;
+  muted?: boolean;
+  onOpen: (space: { id: string; slug: string }) => void;
+}) {
+  const { t } = useTranslation();
+  const location = useLocation();
+  const activeSlug = location.pathname.startsWith('/s/')
+    ? location.pathname.split('/')[2]
+    : null;
+  const isActive = activeSlug === space.slug;
+  const avatarChar = (displayName.charAt(0) || space.slug.charAt(0) || '?').toUpperCase();
+  const itemClasses = [
+    'conversation-list-item',
+    isActive && 'conversation-list-item-active',
+    muted && 'sidebar-list-item-muted',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  return (
+    <button
+      type="button"
+      className={itemClasses}
+      onClick={() => onOpen(space)}
+    >
+      <div className="conversation-list-item-avatar">
+        <span className="conversation-list-item-avatar-placeholder">
+          {avatarChar}
+        </span>
+      </div>
+      <div className="conversation-list-item-info">
+        <span className="conversation-list-item-title">{displayName}</span>
+        <span className="conversation-list-item-members">
+          {t('spaces.memberCount', { count: space.memberCount })}
+        </span>
+      </div>
+      {unread > 0 && (
+        <div className="conversation-list-item-badges">
+          <span className="conversation-list-item-badge">{unread}</span>
+        </div>
+      )}
+    </button>
+  );
+}
+
+/**
+ * Standalone Spaces list (actions + rows). The primary sidebar composes these
+ * pieces into the unified Conversations/Spaces/All section instead.
+ */
+export function SpacesSidebarSection() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { closeMobile } = useSidebar();
+  const { status: identityStatus } = useIdentity();
+  const isIdentityLoggedIn = identityStatus === 'logged_in';
+  const { spaces, spacesLoading, unreadBySpace } = useSpaces();
+  const resolveDisplayName = useSpaceSidebarDisplayName();
 
   const handleOpenSpace = useCallback(
     (space: { id: string; slug: string }) => {
@@ -55,26 +146,9 @@ export function SpacesSidebarSection() {
     [navigate, closeMobile],
   );
 
-  const activeSlug = location.pathname.startsWith('/s/')
-    ? location.pathname.split('/')[2]
-    : null;
-
   return (
     <>
-      <div className="sidebar-conversations-actions">
-        <SidebarItem
-          icon={<Icon name="globe" />}
-          label={t('sidebar.discoverSpaces', 'Discover')}
-          onClick={handleDiscover}
-        />
-        {isIdentityLoggedIn && (
-          <SidebarItem
-            icon={<Icon name="plus" />}
-            label={t('sidebar.createSpace', 'Create Space')}
-            onClick={handleCreate}
-          />
-        )}
-      </div>
+      <SpacesSidebarActions />
 
       {isIdentityLoggedIn && spacesLoading && spaces.length === 0 && (
         <div className="sidebar-conversations-loading">
@@ -83,48 +157,15 @@ export function SpacesSidebarSection() {
       )}
 
       <div className="sidebar-conversations-list">
-        {spaces.map((space) => {
-          const isActive = activeSlug === space.slug;
-          const unread = unreadBySpace[space.id] ?? 0;
-          const localCipherId = getSpaceCipherLink(space.id);
-          const cipher = localCipherId ? getCipherKey(localCipherId) : null;
-          const displayName = resolveSpaceDisplayName(space, cipher, {
-            encryptedSpace: t('spaces.encryptedSpacePlaceholder'),
-          });
-          const avatarChar = (displayName.charAt(0) || space.slug.charAt(0) || '?').toUpperCase();
-          const itemClasses = [
-            'conversation-list-item',
-            isActive && 'conversation-list-item-active',
-          ]
-            .filter(Boolean)
-            .join(' ');
-
-          return (
-            <button
-              key={space.id}
-              type="button"
-              className={itemClasses}
-              onClick={() => handleOpenSpace(space)}
-            >
-              <div className="conversation-list-item-avatar">
-                <span className="conversation-list-item-avatar-placeholder">
-                  {avatarChar}
-                </span>
-              </div>
-              <div className="conversation-list-item-info">
-                <span className="conversation-list-item-title">{displayName}</span>
-                <span className="conversation-list-item-members">
-                  {t('spaces.memberCount', { count: space.memberCount })}
-                </span>
-              </div>
-              {unread > 0 && (
-                <div className="conversation-list-item-badges">
-                  <span className="conversation-list-item-badge">{unread}</span>
-                </div>
-              )}
-            </button>
-          );
-        })}
+        {spaces.map((space) => (
+          <SpaceListItem
+            key={space.id}
+            space={space}
+            displayName={resolveDisplayName(space)}
+            unread={unreadBySpace[space.id] ?? 0}
+            onOpen={handleOpenSpace}
+          />
+        ))}
 
         {!spacesLoading && spaces.length === 0 && (
           <div className="sidebar-conversations-empty">
