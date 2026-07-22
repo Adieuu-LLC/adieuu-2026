@@ -105,7 +105,12 @@ mock.module('react-router-dom', () => ({
   useParams: () => _params,
   useMatch: () => _matchResult,
   useNavigationType: () => 'PUSH',
-  Navigate: () => null,
+  Navigate: ({ to, replace }: { to: string; replace?: boolean }) =>
+    createElement('div', {
+      'data-testid': 'rr-navigate',
+      'data-to': String(to),
+      'data-replace': replace ? 'true' : 'false',
+    }),
   Outlet: () => null,
   Link: ({
     to,

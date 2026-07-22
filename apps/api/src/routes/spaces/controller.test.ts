@@ -79,6 +79,30 @@ const svc = {
 
 mock.module('../../services/space.service', () => svc);
 
+const prefRepo = {
+  findForIdentity: mock(async () => [] as unknown[]) as AnyMock,
+  upsert: mock(async () => ({
+    _id: new ObjectId(),
+    identityId: ROUTE_TEST_IDENTITY_ID,
+    spaceId: new ObjectId(),
+    favorited: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  })) as AnyMock,
+};
+
+const memberRepo = {
+  findMember: mock(async () => ({ id: 'm1' })) as AnyMock,
+};
+
+mock.module('../../repositories/space-preferences.repository', () => ({
+  getSpacePreferencesRepository: () => prefRepo,
+}));
+
+mock.module('../../repositories/space-member.repository', () => ({
+  getSpaceMemberRepository: () => memberRepo,
+}));
+
 import * as c from './controller';
 import * as mc from './message-controller';
 import { spaceRoutes } from './index';
@@ -812,6 +836,61 @@ describe('getPinnedMessagesCtrl', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Space preferences
+// ---------------------------------------------------------------------------
+
+describe('space preferences controllers', () => {
+  beforeEach(() => {
+    prefRepo.findForIdentity.mockClear();
+    prefRepo.upsert.mockClear();
+    memberRepo.findMember.mockClear();
+    prefRepo.findForIdentity.mockResolvedValue([]);
+    memberRepo.findMember.mockResolvedValue({ id: 'm1' });
+  });
+
+  test('list returns unauthorized without a session', async () => {
+    const r = await c.listSpacePreferencesCtrl(makeCtx({ session: false }));
+    expect(r).toEqual({ kind: 'unauthorized' });
+  });
+
+  test('list returns preferences for the identity', async () => {
+    const spaceId = new ObjectId();
+    prefRepo.findForIdentity.mockResolvedValueOnce([
+      {
+        _id: new ObjectId(),
+        identityId: ROUTE_TEST_IDENTITY_ID,
+        spaceId,
+        favorited: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+    const r = await c.listSpacePreferencesCtrl(makeCtx());
+    expect(r).toMatchObject({
+      kind: 'ok',
+      data: [{ spaceId: spaceId.toHexString(), favorited: true }],
+    });
+  });
+
+  test('patch rejects non-members', async () => {
+    memberRepo.findMember.mockResolvedValueOnce(null);
+    const r = await c.patchSpacePreferencesCtrl(
+      makeCtx({ params: { spaceId: HEX }, body: { favorited: true } }),
+    );
+    expect(r).toEqual({ kind: 'forbidden', message: 'You are not a member of this Space.' });
+    expect(prefRepo.upsert).not.toHaveBeenCalled();
+  });
+
+  test('patch upserts favorited preference', async () => {
+    const r = await c.patchSpacePreferencesCtrl(
+      makeCtx({ params: { spaceId: HEX }, body: { favorited: true } }),
+    );
+    expect(r).toMatchObject({ kind: 'ok', message: 'Preferences updated.' });
+    expect(prefRepo.upsert).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Routes smoke tests (through the real router + a test identity middleware)
 // ---------------------------------------------------------------------------
 
@@ -850,6 +929,17 @@ describe('spaces routes smoke', () => {
     );
     expect(res.status).toBe(200);
     expect(svc.discoverSpaces).toHaveBeenCalled();
+    expect(svc.getSpaceById).not.toHaveBeenCalled();
+  });
+
+  test('GET /spaces/preferences resolves to preferences, not the :id route', async () => {
+    prefRepo.findForIdentity.mockClear();
+    prefRepo.findForIdentity.mockResolvedValue([]);
+    const res = await spaceRoutes.handler()(
+      makeRequest('/spaces/preferences', { cookies: 'adieuu_session=session' }),
+    );
+    expect(res.status).toBe(200);
+    expect(prefRepo.findForIdentity).toHaveBeenCalled();
     expect(svc.getSpaceById).not.toHaveBeenCalled();
   });
 

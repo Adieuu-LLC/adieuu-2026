@@ -6,9 +6,14 @@
  * Public API: {@link SidebarLogo}, {@link ConversationsSidebarSection}.
  */
 
-import { useState, useCallback, useRef } from 'react';
-import type { ConversationFolder, FolderIconName, FolderIconType } from '@adieuu/shared';
-import { useNavigate } from 'react-router-dom';
+import { useState, useCallback, useMemo, useRef } from 'react';
+import {
+  createApiClient,
+  type ConversationFolder,
+  type FolderIconName,
+  type FolderIconType,
+} from '@adieuu/shared';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   DndContext,
@@ -23,8 +28,11 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { FolderEditModal } from '../../components/FolderEditModal';
 import { Icon } from '../../icons/Icon';
 import { ChatConnectionBanner } from '../../components/ChatConnectionBanner';
+import { useToast } from '../../components/Toast';
+import { useAppConfig } from '../../config';
 import { useConversations } from '../../hooks/useConversations';
 import { useConversationPreferences } from '../../hooks/useConversationPreferences';
+import { useSpacePreferences } from '../../hooks/useSpacePreferences';
 import { useConversationFolders } from '../../hooks/useConversationFolders';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useGlobalCallEvents } from '../../hooks/useGlobalCallEvents';
@@ -71,6 +79,10 @@ export function ConversationsSidebarSection({
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
+  const toast = useToast();
+  const { apiBaseUrl } = useAppConfig();
+  const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
   const {
     conversations,
     loading,
@@ -80,6 +92,10 @@ export function ConversationsSidebarSection({
     setActiveConversation,
   } = useConversations();
   const { preferences, toggleArchive, toggleFavorite } = useConversationPreferences();
+  const {
+    preferences: spacePreferences,
+    toggleFavorite: toggleSpaceFavorite,
+  } = useSpacePreferences();
   const {
     folders,
     folderedConversationIds,
@@ -105,9 +121,13 @@ export function ConversationsSidebarSection({
   const [sortMode, setSortMode] = useState<SortMode>('recent');
   const [showArchived, setShowArchived] = useState(false);
 
-  // Leave dialog state
+  // Leave dialog state (group conversations)
   const [leaveTargetId, setLeaveTargetId] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
+
+  // Leave dialog state (spaces)
+  const [leaveSpaceTargetId, setLeaveSpaceTargetId] = useState<string | null>(null);
+  const [leavingSpace, setLeavingSpace] = useState(false);
 
   // Folder edit modal state
   const [editFolderId, setEditFolderId] = useState<string | null>(null);
@@ -115,29 +135,36 @@ export function ConversationsSidebarSection({
     ? folders.find((f) => f.id === editFolderId) ?? null
     : null;
 
-  const { spaces, spacesLoading, unreadBySpace } = useSpaces();
+  const { spaces, spacesLoading, unreadBySpace, markSpaceRead, removeSpaceLocally } = useSpaces();
   const resolveSpaceDisplayName = useSpaceSidebarDisplayName();
   const { totalUnread, totalSpacesUnread } = useConversationSidebarBadge(
     conversations,
     unreadBySpace,
   );
 
-  const { favoritesList, mainList, spaceList, favoritedFolders, mainFolders } =
-    useConversationSidebarList({
-      conversations,
-      spaces,
-      resolveSpaceDisplayName,
-      identityId: identity?.id,
-      participantProfiles,
-      preferences,
-      typeFilter,
-      sortMode,
-      showArchived,
-      folderedConversationIds,
-      folderedSpaceIds,
-      folders,
-      listView,
-    });
+  const {
+    favoritesList,
+    mainList,
+    favoriteSpaceList,
+    spaceList,
+    favoritedFolders,
+    mainFolders,
+  } = useConversationSidebarList({
+    conversations,
+    spaces,
+    resolveSpaceDisplayName,
+    identityId: identity?.id,
+    participantProfiles,
+    preferences,
+    spacePreferences,
+    typeFilter,
+    sortMode,
+    showArchived,
+    folderedConversationIds,
+    folderedSpaceIds,
+    folders,
+    listView,
+  });
 
   const tabs: SidebarTab[] = [
     {
@@ -178,6 +205,10 @@ export function ConversationsSidebarSection({
   toggleArchiveRef.current = toggleArchive;
   const toggleFavoriteRef = useRef(toggleFavorite);
   toggleFavoriteRef.current = toggleFavorite;
+  const toggleSpaceFavoriteRef = useRef(toggleSpaceFavorite);
+  toggleSpaceFavoriteRef.current = toggleSpaceFavorite;
+  const markSpaceReadRef = useRef(markSpaceRead);
+  markSpaceReadRef.current = markSpaceRead;
 
   const handleSelect = useCallback(
     (conversationId: string) => {
@@ -211,6 +242,18 @@ export function ConversationsSidebarSection({
     [],
   );
 
+  const handleSpaceFavorite = useCallback((spaceId: string, favorited: boolean) => {
+    void toggleSpaceFavoriteRef.current(spaceId, favorited);
+  }, []);
+
+  const handleSpaceMarkAllRead = useCallback((spaceId: string) => {
+    markSpaceReadRef.current(spaceId);
+  }, []);
+
+  const handleSpaceLeaveRequest = useCallback((spaceId: string) => {
+    setLeaveSpaceTargetId(spaceId);
+  }, []);
+
   const handleLeaveConfirm = useCallback(async () => {
     if (!leaveTargetId) return;
     setLeaving(true);
@@ -221,6 +264,37 @@ export function ConversationsSidebarSection({
       setLeaving(false);
     }
   }, [leaveTargetId, leaveGroup]);
+
+  const handleSpaceLeaveConfirm = useCallback(async () => {
+    if (!leaveSpaceTargetId) return;
+    setLeavingSpace(true);
+    try {
+      const res = await api.spaces.leave(leaveSpaceTargetId);
+      if (!res.success) {
+        toast.error(res.error?.message ?? t('spaces.leaveSpace.error', 'Could not leave Space.'));
+        return;
+      }
+      const left = spaces.find((s) => s.id === leaveSpaceTargetId);
+      removeSpaceLocally(leaveSpaceTargetId);
+      setLeaveSpaceTargetId(null);
+      if (left && location.pathname.startsWith(`/s/${left.slug}`)) {
+        navigate('/');
+      }
+    } catch {
+      toast.error(t('spaces.leaveSpace.error', 'Could not leave Space.'));
+    } finally {
+      setLeavingSpace(false);
+    }
+  }, [
+    leaveSpaceTargetId,
+    api,
+    toast,
+    t,
+    spaces,
+    removeSpaceLocally,
+    location.pathname,
+    navigate,
+  ]);
 
   const leaveTargetConversation = leaveTargetId
     ? conversations.find((c) => c.id === leaveTargetId)
@@ -336,7 +410,7 @@ export function ConversationsSidebarSection({
     );
   };
 
-  const renderSpaceItem = (item: (typeof spaceList)[number]) => {
+  const renderSpaceItem = (item: (typeof spaceList)[number] | (typeof favoriteSpaceList)[number]) => {
     const dndId = folderableDndId('space', item.space.id);
     return (
       <DraggableConversation key={item.space.id} id={dndId}>
@@ -346,7 +420,11 @@ export function ConversationsSidebarSection({
             displayName={item.displayName}
             unread={unreadBySpace[item.space.id] ?? 0}
             muted={spaceMuted}
+            isFavorited={!!item.pref?.favorited}
             onOpen={handleOpenSpace}
+            onFavorite={handleSpaceFavorite}
+            onMarkAllRead={handleSpaceMarkAllRead}
+            onLeave={handleSpaceLeaveRequest}
           />
         </DroppableTarget>
       </DraggableConversation>
@@ -378,6 +456,7 @@ export function ConversationsSidebarSection({
   const listEmpty =
     !listLoading &&
     favoritesList.length === 0 &&
+    favoriteSpaceList.length === 0 &&
     mainList.length === 0 &&
     spaceList.length === 0 &&
     favoritedFolders.length === 0 &&
@@ -433,6 +512,7 @@ export function ConversationsSidebarSection({
           <div className="sidebar-conversations-list">
             {favoritedFolders.map(renderFolderItem)}
             {favoritesList.map(renderConversationItem)}
+            {favoriteSpaceList.map(renderSpaceItem)}
             {mainFolders.map(renderFolderItem)}
             {mainList.map(renderConversationItem)}
             {spaceList.map(renderSpaceItem)}
@@ -482,6 +562,22 @@ export function ConversationsSidebarSection({
           variant={isSoleMember ? 'danger' : 'warning'}
           loading={leaving}
           onConfirm={handleLeaveConfirm}
+        />
+
+        <ConfirmDialog
+          open={!!leaveSpaceTargetId}
+          onOpenChange={(open) => {
+            if (!open) setLeaveSpaceTargetId(null);
+          }}
+          title={t('spaces.leaveSpace.title', 'Leave Space?')}
+          description={t(
+            'spaces.leaveSpace.confirm',
+            'You will need a new invite to rejoin this Space.',
+          )}
+          confirmLabel={t('spaces.leaveSpace.confirmBtn', 'Leave')}
+          variant="warning"
+          loading={leavingSpace}
+          onConfirm={handleSpaceLeaveConfirm}
         />
 
         <FolderEditModal

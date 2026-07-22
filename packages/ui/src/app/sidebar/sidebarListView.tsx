@@ -37,7 +37,7 @@ interface SidebarListViewContextValue {
 const SidebarListViewContext = createContext<SidebarListViewContextValue | null>(null);
 
 export function SidebarListViewProvider({ children }: { children: ReactNode }) {
-  const [listView, setListView] = useState<SidebarListView>('conversations');
+  const [listView, setListView] = useState<SidebarListView>('all');
   const value = useMemo(() => ({ listView, setListView }), [listView]);
   return (
     <SidebarListViewContext.Provider value={value}>

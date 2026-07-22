@@ -7,7 +7,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { useParams } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { CommunityCipher } from '@adieuu/crypto';
 import { createApiClient, type PublicSpaceRole } from '@adieuu/shared';
@@ -53,11 +53,12 @@ import { SpaceChannelMainPanel } from './SpaceChannelMainPanel';
 
 export function SpaceChannelView() {
   const { t } = useTranslation();
-  const { channelId } = useParams<{ channelId: string }>();
+  const { slug, channelId } = useParams<{ slug: string; channelId: string }>();
   const { apiBaseUrl } = useAppConfig();
   const toast = useToast();
   const {
     activeSpace,
+    activeSpaceLoading,
     channels,
     activeChannelId,
     activeMessages,
@@ -473,6 +474,16 @@ export function SpaceChannelView() {
   // ---------------------------------------------------------------------------
 
   if (!activeChannel) {
+    // After the Space finishes loading, a missing/inaccessible channel means
+    // the saved last-channel is stale — fall back to Space Home.
+    if (!activeSpaceLoading && activeSpace && channelId && slug) {
+      try {
+        localStorage.removeItem(`adieuu:lastChannel:${activeSpace.id}`);
+      } catch {
+        /* quota / SSR */
+      }
+      return <Navigate to={`/s/${slug}`} replace />;
+    }
     return (
       <div className="space-channel-loading">
         <Spinner size="lg" />

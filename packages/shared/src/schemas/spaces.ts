@@ -466,6 +466,10 @@ export const UpdateSpaceChannelLayoutSchema = z.object({
     .max(201),
 });
 
+export const UpdateSpacePreferencesSchema = z.object({
+  favorited: z.boolean().optional(),
+});
+
 export type CreateSpaceBody = z.infer<typeof CreateSpaceSchema>;
 export type UpdateSpaceBody = z.infer<typeof UpdateSpaceSchema>;
 export type CreateSpaceInviteBody = z.infer<typeof CreateSpaceInviteSchema>;
@@ -479,3 +483,4 @@ export type CreateSpaceRoleBody = z.infer<typeof CreateSpaceRoleSchema>;
 export type UpdateSpaceRoleBody = z.infer<typeof UpdateSpaceRoleSchema>;
 export type SetMemberRolesBody = z.infer<typeof SetMemberRolesSchema>;
 export type UpdateSpaceMemberProfileBody = z.infer<typeof UpdateSpaceMemberProfileSchema>;
+export type UpdateSpacePreferencesBody = z.infer<typeof UpdateSpacePreferencesSchema>;

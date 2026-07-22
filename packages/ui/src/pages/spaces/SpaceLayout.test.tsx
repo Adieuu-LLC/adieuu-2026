@@ -33,6 +33,14 @@ mock.module('../../hooks/useCipherStore', () => ({
 
 mock.module('../../config', () => ({
   useAppConfig: () => ({ apiBaseUrl: 'http://localhost:3000' }),
+  usePlatformCapabilities: () => ({
+    notifications: { permission: 'default', requestPermission: async () => 'default', show: () => {} },
+    audio: { play: () => {}, unlock: () => {} },
+    webauthn: null,
+    fileSystem: null,
+    appWindow: null,
+    openExternal: () => {},
+  }),
 }));
 
 mock.module('../../components/Toast', () => ({

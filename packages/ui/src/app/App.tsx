@@ -15,6 +15,7 @@ import { ConversationsProvider } from '../hooks/useConversations';
 import { SpacesProvider } from '../hooks/useSpaces';
 import { MediaOutboxProvider } from '../services/mediaOutbox';
 import { ConversationPreferencesProvider } from '../hooks/useConversationPreferences';
+import { SpacePreferencesProvider } from '../hooks/useSpacePreferences';
 import { ConversationFoldersProvider } from '../hooks/useConversationFolders';
 import { usePreKeys } from '../hooks/usePreKeys';
 import { KeyStorageBanner } from '../components/KeyStorageBanner';
@@ -156,21 +157,23 @@ function AuthenticatedShell() {
                 <FriendsProvider>
                   <BlockProvider>
                     <ConversationPreferencesProvider>
-                      <ConversationFoldersProvider>
-                        <ConversationsProvider>
-                          <SpacesProvider>
-                          <MediaOutboxProvider>
-                          <CallSessionProvider>
-                          <VoiceChannelSessionProvider>
-                            <GlobalCallEventsProvider>
-                              <AuthenticatedShellContent />
-                            </GlobalCallEventsProvider>
-                          </VoiceChannelSessionProvider>
-                          </CallSessionProvider>
-                          </MediaOutboxProvider>
-                          </SpacesProvider>
-                        </ConversationsProvider>
-                      </ConversationFoldersProvider>
+                      <SpacePreferencesProvider>
+                        <ConversationFoldersProvider>
+                          <ConversationsProvider>
+                            <SpacesProvider>
+                            <MediaOutboxProvider>
+                            <CallSessionProvider>
+                            <VoiceChannelSessionProvider>
+                              <GlobalCallEventsProvider>
+                                <AuthenticatedShellContent />
+                              </GlobalCallEventsProvider>
+                            </VoiceChannelSessionProvider>
+                            </CallSessionProvider>
+                            </MediaOutboxProvider>
+                            </SpacesProvider>
+                          </ConversationsProvider>
+                        </ConversationFoldersProvider>
+                      </SpacePreferencesProvider>
                     </ConversationPreferencesProvider>
                   </BlockProvider>
                 </FriendsProvider>

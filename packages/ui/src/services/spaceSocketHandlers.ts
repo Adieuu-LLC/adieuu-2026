@@ -12,6 +12,8 @@ import { emitSpaceMemberUpdated, emitSpacesChanged } from './spacesMembershipEve
 export interface SpaceChannelUnreadState {
   unread: number;
   mention: boolean;
+  /** Owning Space id — used to clear unread for a whole Space. */
+  spaceId: string;
 }
 
 export interface SpaceSocketHandlerContext {
@@ -153,6 +155,15 @@ export function handleSpaceSocketMessage(
       if (spaceId !== ctx.activeSpaceId) break;
       ctx.setCategories?.(() => categories);
       ctx.setChannels?.(() => channels);
+      try {
+        const key = `adieuu:lastChannel:${spaceId}`;
+        const last = localStorage.getItem(key);
+        if (last && !channels.some((ch) => ch.id === last)) {
+          localStorage.removeItem(key);
+        }
+      } catch {
+        /* quota / SSR */
+      }
       break;
     }
 
@@ -195,12 +206,17 @@ export function handleSpaceSocketMessage(
           !!ctx.identityId &&
           !!msg.mentionedIdentityIds?.includes(ctx.identityId);
         ctx.setUnreadByChannel?.((prev) => {
-          const cur = prev[msg.channelId] ?? { unread: 0, mention: false };
+          const cur = prev[msg.channelId] ?? {
+            unread: 0,
+            mention: false,
+            spaceId: msg.spaceId,
+          };
           return {
             ...prev,
             [msg.channelId]: {
               unread: cur.unread + 1,
               mention: cur.mention || isMention,
+              spaceId: cur.spaceId || msg.spaceId,
             },
           };
         });

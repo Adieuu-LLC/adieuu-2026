@@ -27,3 +27,8 @@ export {
   SpaceVoiceSessionRepository,
   getSpaceVoiceSessionRepository,
 } from './space-voice-session.repository';
+export {
+  SpacePreferencesRepository,
+  getSpacePreferencesRepository,
+  type SpacePreferencesPatch,
+} from './space-preferences.repository';

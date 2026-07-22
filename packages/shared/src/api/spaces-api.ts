@@ -16,6 +16,8 @@ import type {
   PublicSpaceVoiceSession,
   SendSpaceMessageParams,
   SpaceManageOverview,
+  SpacePreferences,
+  SpacePreferencesPatch,
   SpaceViewerPermissions,
   UpdateSpaceChannelCategoryParams,
   UpdateSpaceChannelLayoutParams,
@@ -95,6 +97,22 @@ export class SpacesApi {
 
   async leave(spaceId: string): Promise<ApiResponse<void>> {
     return this.client.post(`/api/spaces/${encodeURIComponent(spaceId)}/leave`, {});
+  }
+
+  // --- Preferences ---
+
+  async listPreferences(): Promise<ApiResponse<SpacePreferences[]>> {
+    return this.client.get('/api/spaces/preferences');
+  }
+
+  async updatePreferences(
+    spaceId: string,
+    patch: SpacePreferencesPatch,
+  ): Promise<ApiResponse<SpacePreferences>> {
+    return this.client.patch(
+      `/api/spaces/preferences/${encodeURIComponent(spaceId)}`,
+      patch,
+    );
   }
 
   async listMembers(

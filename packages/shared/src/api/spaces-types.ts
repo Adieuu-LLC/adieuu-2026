@@ -664,3 +664,14 @@ export interface UpdateSpaceVoiceMediaParams {
   video?: boolean;
   screenshare?: boolean;
 }
+
+/** Per-identity preferences for a Space (favorites). */
+export interface SpacePreferences {
+  id: string;
+  spaceId: string;
+  favorited: boolean;
+}
+
+export interface SpacePreferencesPatch {
+  favorited?: boolean;
+}

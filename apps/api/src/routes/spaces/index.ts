@@ -52,6 +52,18 @@ router.get('/spaces/slug/:slug', async (ctx) => {
 });
 
 // ---------------------------------------------------------------------------
+// Space preferences (must precede parameterised /spaces/:id)
+// ---------------------------------------------------------------------------
+
+router.get('/spaces/preferences', async (ctx) => {
+  return spaceRespond(ctx, await spaceController.listSpacePreferencesCtrl(ctx));
+});
+
+router.patch('/spaces/preferences/:spaceId', async (ctx) => {
+  return spaceRespond(ctx, await spaceController.patchSpacePreferencesCtrl(ctx));
+});
+
+// ---------------------------------------------------------------------------
 // Space lifecycle
 // ---------------------------------------------------------------------------
 

@@ -12,6 +12,7 @@
  * @module routes/spaces/controller
  */
 
+import { ObjectId } from 'mongodb';
 import type { RouteContext } from '../../router/types';
 import type { IdentityContext } from '../../middleware/identity-session';
 import type { SpaceRouteResult } from './space-route-result';
@@ -54,6 +55,7 @@ import {
   UpdateSpaceRoleSchema,
   SetMemberRolesSchema,
   UpdateSpaceMemberProfileSchema,
+  UpdateSpacePreferencesSchema,
 } from '@adieuu/shared/schemas';
 import {
   sanitizeSpaceObjectId,
@@ -64,6 +66,9 @@ import {
   parseSpaceListCursor,
   clampSpaceListLimit,
 } from './space-inputs';
+import { getSpacePreferencesRepository } from '../../repositories/space-preferences.repository';
+import { toPublicSpacePreferences } from '../../models/space-preferences';
+import { getSpaceMemberRepository } from '../../repositories/space-member.repository';
 
 /** Effective billing context for paid gating and join tier checks. */
 function billingFromSession(session: IdentityContext): SpaceBillingContext {
@@ -609,4 +614,56 @@ export async function revokeInviteCtrl(ctx: RouteContext): Promise<SpaceRouteRes
     return mapSpaceError(result.errorCode, result.error ?? 'Failed to revoke invite.');
   }
   return { kind: 'ok', data: result.invite, message: 'Invite revoked.' };
+}
+
+// ---------------------------------------------------------------------------
+// Space preferences
+// ---------------------------------------------------------------------------
+
+export async function listSpacePreferencesCtrl(
+  ctx: RouteContext,
+): Promise<SpaceRouteResult<unknown>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const repo = getSpacePreferencesRepository();
+  const docs = await repo.findForIdentity(identity._id);
+
+  return { kind: 'ok', data: docs.map(toPublicSpacePreferences) };
+}
+
+export async function patchSpacePreferencesCtrl(
+  ctx: RouteContext,
+): Promise<SpaceRouteResult<unknown>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const space = sanitizeSpaceObjectId(ctx.params.spaceId);
+  if (!space.ok) return { kind: 'bad_request', message: 'Invalid Space id.' };
+
+  const parseResult = UpdateSpacePreferencesSchema.safeParse(ctx.body);
+  if (!parseResult.success) return { kind: 'validation_failed' };
+
+  const patch = parseResult.data;
+  if (patch.favorited === undefined) {
+    return {
+      kind: 'bad_request',
+      message: 'At least one preference field is required.',
+    };
+  }
+
+  const spaceId = new ObjectId(space.id);
+  const member = await getSpaceMemberRepository().findMember(spaceId, identity._id);
+  if (!member) {
+    return { kind: 'forbidden', message: 'You are not a member of this Space.' };
+  }
+
+  const repo = getSpacePreferencesRepository();
+  const doc = await repo.upsert(identity._id, spaceId, patch);
+
+  return {
+    kind: 'ok',
+    data: toPublicSpacePreferences(doc),
+    message: 'Preferences updated.',
+  };
 }

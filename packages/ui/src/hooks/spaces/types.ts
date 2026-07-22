@@ -156,6 +156,8 @@ export interface SpacesContextValue {
   /** Drop a Space from the local membership list (e.g. after delete). */
   removeSpaceLocally: (spaceId: string) => void;
   clearChannelUnread: (channelId: string) => void;
+  /** Clear aggregate + per-channel unread for a Space (client-only). */
+  markSpaceRead: (spaceId: string) => void;
   registerSocketCallbacks: (callbacks: {
     onReactionAdded?: SpacesContextValue['onSocketReactionAdded'];
     onReactionRemoved?: SpacesContextValue['onSocketReactionRemoved'];

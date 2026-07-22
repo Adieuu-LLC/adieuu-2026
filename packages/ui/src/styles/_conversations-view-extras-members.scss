@@ -127,7 +127,7 @@
         background: transparent;
         cursor: pointer;
         text-align: left;
-        color: var(--color-text-primary);
+        color: var(--color-text-secondary);
 
         &:hover {
           background: var(--color-bg-hover);
@@ -137,7 +137,7 @@
       &-title {
         font-size: var(--font-size-sm);
         font-weight: var(--font-weight-medium);
-        color: var(--color-text-primary);
+        color: var(--color-text-secondary);
       }
 
       &-indicator {

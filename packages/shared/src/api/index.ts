@@ -403,6 +403,8 @@ export {
   type PublicSpaceVoiceParticipant,
   type PublicSpaceVoiceSession,
   type UpdateSpaceVoiceMediaParams,
+  type SpacePreferences,
+  type SpacePreferencesPatch,
 } from './spaces-types';
 
 export { CustomEmojiApi } from './custom-emoji-api';

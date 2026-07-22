@@ -15,6 +15,7 @@ function getLastChannelId(spaceId: string): string | null {
 import { useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { Menu, Portal } from '@ark-ui/react';
 import type { PublicSpace } from '@adieuu/shared';
 import { SidebarItem, useSidebar } from '../../components/Sidebar';
 import { Icon } from '../../icons/Icon';
@@ -75,13 +76,21 @@ export function SpaceListItem({
   displayName,
   unread,
   muted,
+  isFavorited,
   onOpen,
+  onFavorite,
+  onMarkAllRead,
+  onLeave,
 }: {
   space: PublicSpace;
   displayName: string;
   unread: number;
   muted?: boolean;
+  isFavorited?: boolean;
   onOpen: (space: { id: string; slug: string }) => void;
+  onFavorite?: (spaceId: string, favorited: boolean) => void;
+  onMarkAllRead?: (spaceId: string) => void;
+  onLeave?: (spaceId: string) => void;
 }) {
   const { t } = useTranslation();
   const location = useLocation();
@@ -98,7 +107,27 @@ export function SpaceListItem({
     .filter(Boolean)
     .join(' ');
 
-  return (
+  const handleContextAction = useCallback(
+    (details: { value: string }) => {
+      switch (details.value) {
+        case 'favorite':
+          onFavorite?.(space.id, true);
+          break;
+        case 'unfavorite':
+          onFavorite?.(space.id, false);
+          break;
+        case 'mark-all-read':
+          onMarkAllRead?.(space.id);
+          break;
+        case 'leave':
+          onLeave?.(space.id);
+          break;
+      }
+    },
+    [space.id, onFavorite, onMarkAllRead, onLeave],
+  );
+
+  const row = (
     <button
       type="button"
       className={itemClasses}
@@ -115,12 +144,57 @@ export function SpaceListItem({
           {t('spaces.memberCount', { count: space.memberCount })}
         </span>
       </div>
-      {unread > 0 && (
-        <div className="conversation-list-item-badges">
+      <div className="conversation-list-item-badges">
+        {isFavorited && (
+          <Icon name="star" className="conversation-list-item-star" />
+        )}
+        {unread > 0 && (
           <span className="conversation-list-item-badge">{unread}</span>
-        </div>
-      )}
+        )}
+      </div>
     </button>
+  );
+
+  if (!onFavorite && !onMarkAllRead && !onLeave) {
+    return row;
+  }
+
+  return (
+    <Menu.Root onSelect={handleContextAction}>
+      <Menu.ContextTrigger asChild>{row}</Menu.ContextTrigger>
+      <Portal>
+        <Menu.Positioner>
+          <Menu.Content className="conversation-context-menu">
+            {!isFavorited ? (
+              <Menu.Item value="favorite" className="conversation-context-menu-item">
+                <Icon name="star" className="conversation-context-menu-item-icon" />
+                {t('spaces.contextMenu.addFavorite', 'Add to Favourites')}
+              </Menu.Item>
+            ) : (
+              <Menu.Item value="unfavorite" className="conversation-context-menu-item">
+                <Icon name="star" className="conversation-context-menu-item-icon" />
+                {t('spaces.contextMenu.removeFavorite', 'Remove from Favourites')}
+              </Menu.Item>
+            )}
+
+            <Menu.Item value="mark-all-read" className="conversation-context-menu-item">
+              <Icon name="check" className="conversation-context-menu-item-icon" />
+              {t('spaces.contextMenu.markAllRead', 'Mark all as read')}
+            </Menu.Item>
+
+            {onLeave && (
+              <Menu.Item
+                value="leave"
+                className="conversation-context-menu-item conversation-context-menu-item--danger"
+              >
+                <Icon name="logout" className="conversation-context-menu-item-icon" />
+                {t('spaces.contextMenu.leave', 'Leave Space')}
+              </Menu.Item>
+            )}
+          </Menu.Content>
+        </Menu.Positioner>
+      </Portal>
+    </Menu.Root>
   );
 }
 

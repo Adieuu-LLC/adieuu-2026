@@ -73,10 +73,16 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   }>({});
 
   const activeSpaceIdRef = useRef<string | null>(null);
+  const activeSpaceSlugRef = useRef<string | null>(null);
+  const activeSpaceLoadingRef = useRef(false);
+  const channelsLengthRef = useRef(0);
   const activeChannelIdRef = useRef<string | null>(null);
   const identityIdRef = useRef<string | undefined>(identity?.id);
 
   activeSpaceIdRef.current = activeSpaceInternal?.id ?? null;
+  activeSpaceSlugRef.current = activeSpaceInternal?.slug ?? null;
+  activeSpaceLoadingRef.current = activeSpaceLoading;
+  channelsLengthRef.current = channels.length;
   activeChannelIdRef.current = activeChannelId;
   identityIdRef.current = identity?.id;
 
@@ -152,6 +158,23 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
         setIsActiveSpaceAdmin(false);
         setActiveSpacePermissionsLoading(false);
         setRolePermissionPreview(null);
+        return;
+      }
+      // Skip full reload when the same Space is already loaded (refs avoid
+      // changing this callback identity when channels finish loading).
+      if (
+        activeSpaceSlugRef.current === slug &&
+        !activeSpaceLoadingRef.current &&
+        channelsLengthRef.current > 0
+      ) {
+        const spaceId = activeSpaceIdRef.current;
+        if (spaceId) {
+          setUnreadBySpace((prev) => {
+            if (!prev[spaceId]) return prev;
+            const { [spaceId]: _, ...rest } = prev;
+            return rest;
+          });
+        }
         return;
       }
       const matchedSpace = spacesRef.current.find((s) => s.slug === slug);
@@ -377,6 +400,26 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     },
     [],
   );
+
+  const markSpaceRead = useCallback((spaceId: string) => {
+    setUnreadBySpace((prev) => {
+      if (!prev[spaceId]) return prev;
+      const { [spaceId]: _, ...rest } = prev;
+      return rest;
+    });
+    setUnreadByChannel((prev) => {
+      let changed = false;
+      const next: Record<string, SpaceChannelUnreadState> = {};
+      for (const [channelId, state] of Object.entries(prev)) {
+        if (state.spaceId === spaceId) {
+          changed = true;
+          continue;
+        }
+        next[channelId] = state;
+      }
+      return changed ? next : prev;
+    });
+  }, []);
 
   const registerSocketCallbacks = useCallback(
     (callbacks: {
@@ -655,6 +698,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       refresh: fetchSpaces,
       removeSpaceLocally,
       clearChannelUnread,
+      markSpaceRead,
       registerSocketCallbacks,
     }),
     [
@@ -695,6 +739,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       removeSpaceLocally,
       fetchSpaces,
       clearChannelUnread,
+      markSpaceRead,
       registerSocketCallbacks,
     ],
   );

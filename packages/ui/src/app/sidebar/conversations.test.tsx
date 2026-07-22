@@ -92,6 +92,13 @@ mock.module('../../hooks/useConversationPreferences', () => ({
   }),
 }));
 
+mock.module('../../hooks/useSpacePreferences', () => ({
+  useSpacePreferences: () => ({
+    preferences: {},
+    toggleFavorite: mock(async () => {}),
+  }),
+}));
+
 mock.module('../../hooks/useConversationFolders', () => ({
   useConversationFolders: () => ({
     folders: [],
@@ -122,6 +129,13 @@ mock.module('../../hooks/useTheme', () => ({
   }),
 }));
 
+mock.module('../../components/Toast', () => ({
+  useToast: () => ({
+    success: mock(() => {}),
+    error: mock(() => {}),
+  }),
+}));
+
 mock.module('../../hooks/useCipherStore', () => ({
   useCipherStore: () => ({
     getCipherKey: () => null,
@@ -131,6 +145,7 @@ mock.module('../../hooks/useCipherStore', () => ({
 const configActual = await import('../../config');
 mock.module('../../config', () => ({
   ...configActual,
+  useAppConfig: () => ({ apiBaseUrl: 'http://localhost:3000' }),
   usePlatformCapabilities: () => ({
     appWindow: { setBadgeCount },
   }),
@@ -165,6 +180,8 @@ mock.module('../../hooks/useSpaces', () => ({
     spaces: mockSpaces,
     spacesLoading: mockSpacesLoading,
     unreadBySpace: mockUnreadBySpace,
+    markSpaceRead: mock(() => {}),
+    removeSpaceLocally: mock(() => {}),
   }),
 }));
 
@@ -278,8 +295,26 @@ describe('ConversationsSidebarSection', () => {
     container.remove();
   });
 
+  it('defaults to the All tab', async () => {
+    const { root, container } = await renderSection();
+
+    const allTab = happy.document.querySelector('button[data-tab-id="all"]');
+    expect(allTab?.classList.contains('sidebar-tab-active')).toBe(true);
+    expect(allTab?.getAttribute('aria-pressed')).toBe('true');
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
   it('navigates to new conversation from the New action', async () => {
     const { root, container } = await renderSection();
+
+    const conversationsTab = [
+      ...happy.document.querySelectorAll('button[data-tab-id="conversations"]'),
+    ][0];
+    await act(async () => {
+      (conversationsTab as HTMLButtonElement).click();
+    });
 
     const newBtn = [...happy.document.querySelectorAll('[data-testid="sidebar-item"]')].find((b) =>
       b.textContent?.includes('New'),
@@ -301,10 +336,20 @@ describe('ConversationsSidebarSection', () => {
     const labels = () =>
       [...happy.document.querySelectorAll('[data-testid="sidebar-item"]')].map((b) => b.textContent);
 
-    expect(labels().some((t) => t?.includes('New'))).toBe(true);
+    // Default tab is All — Discover visible, New hidden
+    expect(labels().some((t) => t?.includes('New'))).toBe(false);
     expect(labels().some((t) => t?.includes('Create Space'))).toBe(false);
-    expect(labels().some((t) => t?.includes('Discover'))).toBe(false);
+    expect(labels().some((t) => t?.includes('Discover'))).toBe(true);
     expect(happy.document.querySelector('.sidebar-filter-trigger')?.textContent).toContain('Filter');
+
+    const conversationsTab = [
+      ...happy.document.querySelectorAll('button[data-tab-id="conversations"]'),
+    ][0];
+    await act(async () => {
+      (conversationsTab as HTMLButtonElement).click();
+    });
+    expect(labels().some((t) => t?.includes('New'))).toBe(true);
+    expect(labels().some((t) => t?.includes('Discover'))).toBe(false);
 
     const spacesTab = [...happy.document.querySelectorAll('button[data-tab-id="spaces"]')][0];
     await act(async () => {
@@ -379,11 +424,6 @@ describe('ConversationsSidebarSection', () => {
     mockSpaces = [makeSpace()];
     const { root, container } = await renderSection();
 
-    const allTab = [...happy.document.querySelectorAll('button[data-tab-id="all"]')][0];
-    expect(allTab).toBeDefined();
-    await act(async () => {
-      (allTab as HTMLButtonElement).click();
-    });
     expect(happy.document.body.textContent).toContain('Alice');
     expect(happy.document.body.textContent).toContain('Test Space');
 

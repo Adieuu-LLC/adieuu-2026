@@ -62,6 +62,7 @@ export {
   UpdateSpaceRoleSchema,
   SetMemberRolesSchema,
   UpdateSpaceMemberProfileSchema,
+  UpdateSpacePreferencesSchema,
   CreateSpaceChannelSchema,
   UpdateSpaceChannelSchema,
   CreateSpaceChannelCategorySchema,
@@ -77,6 +78,7 @@ export {
   type UpdateSpaceChannelCategoryBody,
   type UpdateSpaceChannelLayoutBody,
   type UpdateSpaceMemberProfileBody,
+  type UpdateSpacePreferencesBody,
 } from './spaces';
 
 // Re-export zod for convenience

@@ -442,6 +442,8 @@ export const Collections = {
   SPACE_PINS: 'space_channel_pins',
   /** Active/waiting voice-channel sessions (presence + optional LiveKit room) */
   SPACE_VOICE_SESSIONS: 'space_voice_sessions',
+  /** Per-identity Space preferences (favorites) */
+  SPACE_PREFERENCES: 'space_preferences',
 } as const;
 
 /**
@@ -941,6 +943,11 @@ export async function createIndexes(): Promise<void> {
     { endedAt: 1 },
     { expireAfterSeconds: 60 * 60, sparse: true },
   );
+
+  // Space preferences — per-identity favorites
+  const spacePreferences = database.collection(Collections.SPACE_PREFERENCES);
+  await spacePreferences.createIndex({ identityId: 1, spaceId: 1 }, { unique: true });
+  await spacePreferences.createIndex({ identityId: 1 });
 
   elog.debug('MongoDB indexes created/verified');
 }

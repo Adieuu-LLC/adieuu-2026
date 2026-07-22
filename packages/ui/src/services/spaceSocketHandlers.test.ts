@@ -337,6 +337,7 @@ describe('spaceSocketHandlers', () => {
     );
     expect(h.unreadByChannel['ch-1']!.unread).toBe(1);
     expect(h.unreadByChannel['ch-1']!.mention).toBe(false);
+    expect(h.unreadByChannel['ch-1']!.spaceId).toBe('space-1');
   });
 
   test('space_message: sets mention badge when user is mentioned', () => {

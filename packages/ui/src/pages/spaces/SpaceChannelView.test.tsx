@@ -207,6 +207,7 @@ function makeDefaultCtx(overrides: Record<string, unknown> = {}): Record<string,
     sending: false,
     participantProfiles: {},
     unreadByChannel: {},
+    activeSpaceLoading: false,
     resolveProfiles: mock(() => {}),
     setActiveChannel: mock(() => {}),
     sendMessage: mock(async () => null),
@@ -214,6 +215,7 @@ function makeDefaultCtx(overrides: Record<string, unknown> = {}): Record<string,
     fetchMessagesAround: mock(async () => null),
     trimActiveChannelBuffer: mock(() => {}),
     clearChannelUnread: mock(() => {}),
+    markSpaceRead: mock(() => {}),
     registerSocketCallbacks: mock(() => {}),
     ...overrides,
   };
@@ -235,7 +237,7 @@ beforeEach(() => {
   resetReactI18nextMock();
   setMockTranslate((key) => key);
   resetReactRouterDomMock();
-  setMockParams({ channelId: 'ch-1' });
+  setMockParams({ slug: 'test', channelId: 'ch-1' });
   mockSpacesContext = makeDefaultCtx();
   mockCipherStoreCtx = {
     getCipherKey: () => null,
@@ -446,6 +448,38 @@ describe('SpaceChannelView', () => {
 
     const { root, container } = await render();
     expect(setActiveChannel).toHaveBeenCalledWith('ch-1');
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  it('redirects to Space Home when the channel is missing after load', async () => {
+    setMockParams({ slug: 'test', channelId: 'gone-channel' });
+    mockSpacesContext = makeDefaultCtx({
+      channels: [{ id: 'ch-1', spaceId: 'space-1', type: 'text', name: 'general', position: 0, categoryId: null, allowedRoleIds: [] }],
+      activeSpaceLoading: false,
+    });
+
+    const { root, container } = await render();
+    const nav = happy.document.querySelector('[data-testid="rr-navigate"]');
+    expect(nav?.getAttribute('data-to')).toBe('/s/test');
+    expect(nav?.getAttribute('data-replace')).toBe('true');
+    expect(happy.document.querySelector('.space-channel-loading')).toBeNull();
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  it('shows loading while Space is still resolving a missing channel', async () => {
+    setMockParams({ slug: 'test', channelId: 'gone-channel' });
+    mockSpacesContext = makeDefaultCtx({
+      channels: [],
+      activeSpaceLoading: true,
+    });
+
+    const { root, container } = await render();
+    expect(happy.document.querySelector('.space-channel-loading')).not.toBeNull();
+    expect(happy.document.querySelector('[data-testid="rr-navigate"]')).toBeNull();
 
     await act(async () => root.unmount());
     container.remove();

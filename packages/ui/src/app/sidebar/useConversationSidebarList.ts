@@ -1,5 +1,10 @@
 import { useMemo } from 'react';
-import type { ConversationFolder, ConversationPreferences, PublicSpace } from '@adieuu/shared';
+import type {
+  ConversationFolder,
+  ConversationPreferences,
+  PublicSpace,
+  SpacePreferences,
+} from '@adieuu/shared';
 import type { DecryptedConversation } from '../../hooks/useConversations';
 import { resolveConversationDisplayName } from './resolveConversationDisplayName';
 import type { SortMode, TypeFilter } from './conversationSidebarTypes';
@@ -15,6 +20,7 @@ export interface ConversationSidebarListItem {
 export interface SpaceSidebarListItem {
   space: PublicSpace;
   displayName: string;
+  pref: SpacePreferences | undefined;
 }
 
 export interface UseConversationSidebarListParams {
@@ -24,6 +30,7 @@ export interface UseConversationSidebarListParams {
   identityId: string | undefined;
   participantProfiles: Record<string, { displayName?: string; username?: string }>;
   preferences: Record<string, ConversationPreferences | undefined>;
+  spacePreferences: Record<string, SpacePreferences | undefined>;
   typeFilter: TypeFilter;
   sortMode: SortMode;
   showArchived: boolean;
@@ -37,6 +44,7 @@ export interface UseConversationSidebarListResult {
   isFiltered: boolean;
   favoritesList: ConversationSidebarListItem[];
   mainList: ConversationSidebarListItem[];
+  favoriteSpaceList: SpaceSidebarListItem[];
   spaceList: SpaceSidebarListItem[];
   favoritedFolders: ConversationFolder[];
   mainFolders: ConversationFolder[];
@@ -56,6 +64,7 @@ export function useConversationSidebarList(
     identityId,
     participantProfiles,
     preferences,
+    spacePreferences,
     typeFilter,
     sortMode,
     showArchived,
@@ -67,7 +76,14 @@ export function useConversationSidebarList(
 
   const isFiltered = typeFilter !== 'all' || sortMode !== 'recent' || showArchived;
 
-  const { favoritesList, mainList, spaceList, favoritedFolders, mainFolders } = useMemo(() => {
+  const {
+    favoritesList,
+    mainList,
+    favoriteSpaceList,
+    spaceList,
+    favoritedFolders,
+    mainFolders,
+  } = useMemo(() => {
     const includeConversations = showConversationsInList(listView);
     const includeSpaces = showSpacesInList(listView);
 
@@ -113,6 +129,7 @@ export function useConversationSidebarList(
           .map((space) => ({
             space,
             displayName: resolveSpaceDisplayName(space),
+            pref: spacePreferences[space.id],
           }))
       : [];
 
@@ -131,6 +148,12 @@ export function useConversationSidebarList(
     const favFolders = visibleFolders.filter((f) => f.favorited);
     const restFolders = visibleFolders.filter((f) => !f.favorited);
 
+    const splitSpaces = !isFiltered && includeSpaces;
+    const favSpaces = splitSpaces ? spaceItems.filter((x) => x.pref?.favorited) : [];
+    const restSpaces = splitSpaces
+      ? spaceItems.filter((x) => !x.pref?.favorited)
+      : spaceItems;
+
     // Split conversations into favorites and the rest (only when no active filters)
     if (!isFiltered && includeConversations) {
       const favs = filtered.filter((x) => x.pref?.favorited);
@@ -138,7 +161,8 @@ export function useConversationSidebarList(
       return {
         favoritesList: favs,
         mainList: rest,
-        spaceList: spaceItems,
+        favoriteSpaceList: favSpaces,
+        spaceList: restSpaces,
         favoritedFolders: favFolders,
         mainFolders: restFolders,
       };
@@ -147,7 +171,8 @@ export function useConversationSidebarList(
     return {
       favoritesList: [],
       mainList: filtered,
-      spaceList: spaceItems,
+      favoriteSpaceList: isFiltered ? [] : favSpaces,
+      spaceList: restSpaces,
       favoritedFolders: isFiltered ? [] : favFolders,
       mainFolders: isFiltered ? visibleFolders : restFolders,
     };
@@ -158,6 +183,7 @@ export function useConversationSidebarList(
     identityId,
     participantProfiles,
     preferences,
+    spacePreferences,
     typeFilter,
     sortMode,
     showArchived,
@@ -168,5 +194,13 @@ export function useConversationSidebarList(
     listView,
   ]);
 
-  return { isFiltered, favoritesList, mainList, spaceList, favoritedFolders, mainFolders };
+  return {
+    isFiltered,
+    favoritesList,
+    mainList,
+    favoriteSpaceList,
+    spaceList,
+    favoritedFolders,
+    mainFolders,
+  };
 }
