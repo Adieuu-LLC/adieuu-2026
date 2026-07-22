@@ -15,7 +15,7 @@
   z-index: $z-content;
   height: 100vh;
   min-height: 100vh;
-  padding-left: min($sidebar-width, $sidebar-width-max);
+  padding-left: $sidebar-width-expanded;
   overflow-y: auto;
   background: var(--color-bg-primary);
   background-image: 
@@ -49,7 +49,7 @@
 .app-layout-sidebar-right {
   .app-content {
     padding-left: 0;
-    padding-right: min($sidebar-width, $sidebar-width-max);
+    padding-right: $sidebar-width-expanded;
   }
 
   &.sidebar-is-collapsed .app-content {
@@ -80,11 +80,16 @@
   flex-shrink: 0;
 
   &-expanded {
-    width: min($sidebar-width, $sidebar-width-max);
+    width: $sidebar-width-expanded;
   }
 
   &-collapsed {
     width: $sidebar-width-collapsed;
+  }
+
+  // Toggle-expanded + narrow drag: condensed chrome, but width still follows the CSS var.
+  &.sidebar-width-expanded {
+    width: $sidebar-width-expanded;
   }
 
   // Left sidebar (default)
@@ -1220,7 +1225,7 @@
 }
 
 .sidebar-toggle--left:not(.sidebar-toggle--collapsed) {
-  left: calc(min(#{$sidebar-width}, #{$sidebar-width-max}) - 12px);
+  left: calc(#{$sidebar-width-expanded} - 12px);
 }
 
 .sidebar-toggle--left.sidebar-toggle--collapsed {
@@ -1228,11 +1233,74 @@
 }
 
 .sidebar-toggle--right:not(.sidebar-toggle--collapsed) {
-  left: calc(100vw - min(#{$sidebar-width}, #{$sidebar-width-max}) - 12px);
+  left: calc(100vw - #{$sidebar-width-expanded} - 12px);
 }
 
 .sidebar-toggle--right.sidebar-toggle--collapsed {
   left: calc(100vw - #{$sidebar-width-collapsed} - 12px);
+}
+
+// ============================================================================
+// Horizontal panel resize handle (app nav + Space channel rail)
+// ============================================================================
+
+.panel-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0.75rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: ew-resize;
+  touch-action: none;
+  // Above panel content; below the collapse toggle (dropdown - 1).
+  z-index: 2;
+
+  &--end {
+    right: 0;
+  }
+
+  &--start {
+    left: 0;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 3px;
+    height: 2.5rem;
+    border-radius: 9999px;
+    background: var(--color-border);
+    opacity: 0;
+    transition:
+      background var(--transition-fast),
+      opacity var(--transition-fast);
+  }
+
+  &:hover::after,
+  &:active::after {
+    opacity: 1;
+    background: var(--color-accent-primary);
+  }
+}
+
+body.is-resizing-panel {
+  cursor: ew-resize;
+  user-select: none;
+
+  .sidebar,
+  .app-content,
+  .sidebar-toggle,
+  .call-overlay,
+  .modal-overlay,
+  .space-secondary-sidebar {
+    transition: none !important;
+  }
 }
 
 // ============================================================================

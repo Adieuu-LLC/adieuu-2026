@@ -7,8 +7,12 @@
 .space-sidebar-rail-body {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  min-height: 0;
   flex: 1;
+  overflow-x: hidden;
+  overflow-y: auto;
+  // Isolate scroll clipping from the sibling resize handle on the aside.
+  border-radius: 0;
 }
 
 .space-sidebar-rail-chrome {

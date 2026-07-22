@@ -1,6 +1,16 @@
 import { useState, createContext, useContext, useCallback, useEffect } from 'react';
 import type { ReactNode, HTMLAttributes } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useHorizontalPanelResize } from '../hooks/useHorizontalPanelResize';
+import { useIsMobile } from '../hooks/useIsMobile';
+import {
+  APP_SIDEBAR_CONDENSED_LAYOUT_BELOW_PX,
+  APP_SIDEBAR_MIN_WIDTH_PX,
+  getAppSidebarMaxWidthPx,
+  resolveInitialAppSidebarWidth,
+  setAppSidebarWidthCssVar,
+  writeStoredAppSidebarWidth,
+} from '../services/appSidebarWidthPreferences';
 
 // ============================================================================
 // Types
@@ -67,6 +77,7 @@ export function Sidebar({
   onExpandedChange,
 }: SidebarProps) {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
   const [isExpanded, setIsExpandedState] = useState(defaultExpanded);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
@@ -96,6 +107,20 @@ export function Sidebar({
   const closeMobile = useCallback(() => {
     setIsMobileOpen(false);
   }, []);
+
+  const resizeDisabled = !isExpanded || isMobile;
+  const { widthPx, resizeHandleProps } = useHorizontalPanelResize({
+    disabled: resizeDisabled,
+    minPx: APP_SIDEBAR_MIN_WIDTH_PX,
+    getMaxPx: getAppSidebarMaxWidthPx,
+    resolveInitial: resolveInitialAppSidebarWidth,
+    writeStored: writeStoredAppSidebarWidth,
+    setCssVar: setAppSidebarWidthCssVar,
+    edge: orientation === 'left' ? 'end' : 'start',
+  });
+
+  // Icon/label chrome follows condensed layout below the threshold even while still "expanded".
+  const showCondensedLayout = !isExpanded || widthPx < APP_SIDEBAR_CONDENSED_LAYOUT_BELOW_PX;
 
   // Close mobile sidebar on resize to desktop
   useEffect(() => {
@@ -133,7 +158,9 @@ export function Sidebar({
 
   const classNames = [
     'sidebar',
-    isExpanded ? 'sidebar-expanded' : 'sidebar-collapsed',
+    showCondensedLayout ? 'sidebar-collapsed' : 'sidebar-expanded',
+    // Keep resized width while toggle-expanded, even when chrome is condensed (< 100px).
+    isExpanded ? 'sidebar-width-expanded' : '',
     `sidebar-${orientation}`,
     isMobileOpen ? 'sidebar-mobile-open' : '',
   ].filter(Boolean).join(' ');
@@ -143,7 +170,8 @@ export function Sidebar({
     : t('nav.expandSidebar');
 
   const contextValue: SidebarContextValue = {
-    isExpanded,
+    // Consumers (logo, labels, flyouts) should match visible chrome, not toggle state alone.
+    isExpanded: !showCondensedLayout,
     isMobileOpen,
     orientation,
     toggleExpanded,
@@ -157,6 +185,10 @@ export function Sidebar({
     `sidebar-toggle--${orientation}`,
     isExpanded ? '' : 'sidebar-toggle--collapsed',
   ].filter(Boolean).join(' ');
+
+  const resizeEdgeClass = orientation === 'left'
+    ? 'panel-resize-handle--end'
+    : 'panel-resize-handle--start';
 
   return (
     <SidebarContext.Provider value={contextValue}>
@@ -196,6 +228,15 @@ export function Sidebar({
         {footer && <div className="sidebar-footer">{footer}</div>}
 
         {panel}
+
+        {!resizeDisabled && (
+          <hr
+            className={`panel-resize-handle ${resizeEdgeClass}`}
+            aria-orientation="vertical"
+            aria-label={t('nav.resizeSidebar')}
+            {...resizeHandleProps}
+          />
+        )}
       </aside>
 
       <button

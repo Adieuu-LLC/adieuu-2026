@@ -36,6 +36,7 @@ export const core = {
     logout: 'Logout',
     expandSidebar: 'Expand Sidebar',
     collapseSidebar: 'Collapse Sidebar',
+    resizeSidebar: 'Drag to resize navigation',
     goBack: 'Go back',
     goForward: 'Go forward',
     pageFallback: 'Page',
@@ -341,6 +342,7 @@ export const core = {
       selectChannel: 'Select a channel',
       unreadBadge: '{{count}} unread',
       mentionBadge: '{{count}} mentions',
+      resizeSidebar: 'Drag to resize Space sidebar',
     },
     createCategory: {
       title: 'Create category',

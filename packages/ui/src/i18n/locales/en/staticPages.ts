@@ -134,13 +134,17 @@ export const staticPages = {
       sectionSecondary: 'Recommendations',
       steps: {
         subscribe: {
-          title: "You're on our Free plan",
+          title: 'Choose a plan',
+          titleFree: "You're on our Free plan",
           titlePaid: "You're subscribed",
-          description:
-            'Upgrading unlocks additional features, massive upload limits, and exclusive perks.',
-          descriptionPaid: 'Thanks for supporting Adieuu! Manage your plan or billing details from the subscription page.',
-          action: 'View upgrade options',
-          promoAction: 'Have a promo code?',
+          description: 'An active subscription unlocks messaging and social features.',
+          descriptionFree:
+            'Paid plans unlock exclusive benefits — higher upload limits, extra features, and more. Upgrade anytime, or request community sponsorship if you need help.',
+          descriptionPaid:
+            'Thanks for supporting Adieuu! Manage your plan or billing details from the subscription page.',
+          action: 'View plans',
+          upgradeAction: 'View subscription options',
+          sponsorshipAction: 'View sponsorship options',
         },
         verifyAge: {
           title: 'Verify your age',

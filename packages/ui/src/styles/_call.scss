@@ -132,7 +132,7 @@ $call-overlay-title-bar-height: 32px;
   display: none;
   position: fixed;
   top: $call-overlay-top;
-  left: min($sidebar-width, $sidebar-width-max);
+  left: $sidebar-width-expanded;
   right: 0;
   min-height: 220px;
   // Height is set inline from persisted user preference (see useCallOverlayResize).

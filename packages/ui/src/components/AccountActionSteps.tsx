@@ -80,23 +80,27 @@ function PrimaryStepAction({
 
   switch (step.id) {
     case 'subscribe':
+      if (progress.isPaidPlan) return null;
       if (progress.isFreeTier) {
         return (
           <>
             <Link to="/account/subscription" className="btn btn-primary btn-sm">
-              {t('home.account.steps.subscribe.action')}
+              {t('home.account.steps.subscribe.upgradeAction')}
             </Link>
             <Link
-              to="/account/subscription/manage"
-              state={{ scrollToPromo: true }}
+              to="/account/subscription/sponsorships"
               className="btn btn-secondary btn-sm"
             >
-              {t('home.account.steps.subscribe.promoAction')}
+              {t('home.account.steps.subscribe.sponsorshipAction')}
             </Link>
           </>
         );
       }
-      return null;
+      return (
+        <Link to="/account/subscription" className="btn btn-primary btn-sm">
+          {t('home.account.steps.subscribe.action')}
+        </Link>
+      );
     case 'verifyAge':
       if (step.disabled) {
         return (
@@ -307,8 +311,12 @@ export function AccountActionSteps({ progress }: AccountActionStepsProps) {
               <StepCheckMark done={step.completed} />
               <div className="action-step-body">
                 <span className="action-step-title">
-                  {step.id === 'subscribe' && !progress.isFreeTier
-                    ? t('home.account.steps.subscribe.titlePaid')
+                  {step.id === 'subscribe'
+                    ? progress.isPaidPlan
+                      ? t('home.account.steps.subscribe.titlePaid')
+                      : progress.isFreeTier
+                        ? t('home.account.steps.subscribe.titleFree')
+                        : t('home.account.steps.subscribe.title')
                     : t(`home.account.steps.${step.id}.title`)}
                 </span>
                 {step.id === 'verifyAge' ? (
@@ -320,9 +328,13 @@ export function AccountActionSteps({ progress }: AccountActionStepsProps) {
                       primaryJurisdiction={progress.aliasGateJurisdiction}
                     />
                   </>
-                ) : step.id === 'subscribe' && !progress.isFreeTier ? (
+                ) : step.id === 'subscribe' ? (
                   <p className="action-step-description">
-                    {t('home.account.steps.subscribe.descriptionPaid')}
+                    {progress.isPaidPlan
+                      ? t('home.account.steps.subscribe.descriptionPaid')
+                      : progress.isFreeTier
+                        ? t('home.account.steps.subscribe.descriptionFree')
+                        : t('home.account.steps.subscribe.description')}
                   </p>
                 ) : (
                   <p className="action-step-description">

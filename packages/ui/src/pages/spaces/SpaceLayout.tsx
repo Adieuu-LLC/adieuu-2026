@@ -151,6 +151,7 @@ function SpaceLayoutSession() {
           <SpaceSecondarySidebar
             mobileOpen={isNarrow && isMobileNavOpen}
             onNavigate={closeMobileNav}
+            resizable={!isNarrow}
           />
         </>
       )}

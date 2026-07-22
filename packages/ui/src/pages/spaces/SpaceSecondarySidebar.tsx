@@ -32,9 +32,17 @@ import {
   type PublicSpaceChannelCategory,
 } from '@adieuu/shared';
 import { useSpaces } from '../../hooks/useSpaces';
+import { useHorizontalPanelResize } from '../../hooks/useHorizontalPanelResize';
 import { Icon } from '../../icons/Icon';
 import { useToast } from '../../components/Toast';
 import { useAppConfig } from '../../config';
+import {
+  SPACE_SIDEBAR_MIN_WIDTH_PX,
+  getSpaceSidebarMaxWidthPx,
+  resolveInitialSpaceSidebarWidth,
+  setSpaceSidebarWidthCssVar,
+  writeStoredSpaceSidebarWidth,
+} from '../../services/spaceSidebarWidthPreferences';
 import { useSpaceCipher } from './useSpaceCipher';
 import {
   encryptSpaceMetadataField,
@@ -60,6 +68,8 @@ import '../../styles/_spaces-sidebar.scss';
 interface SpaceSecondarySidebarProps {
   mobileOpen?: boolean;
   onNavigate?: () => void;
+  /** When false (narrow / off-canvas), width resize is disabled. */
+  resizable?: boolean;
 }
 
 function ContextMenu({
@@ -139,6 +149,7 @@ function SpaceSidebarDndShell({
 export function SpaceSecondarySidebar({
   mobileOpen = false,
   onNavigate,
+  resizable = true,
 }: SpaceSecondarySidebarProps) {
   const { t } = useTranslation();
   const { slug } = useParams<{ slug: string }>();
@@ -160,6 +171,15 @@ export function SpaceSecondarySidebar({
   } = useSpaces();
   const { spaceCipher } = useSpaceCipher(activeSpace?.id);
   const dropZoneRef = useRef<DropHighlight>(null);
+  const { resizeHandleProps } = useHorizontalPanelResize({
+    disabled: !resizable,
+    minPx: SPACE_SIDEBAR_MIN_WIDTH_PX,
+    getMaxPx: getSpaceSidebarMaxWidthPx,
+    resolveInitial: resolveInitialSpaceSidebarWidth,
+    writeStored: writeStoredSpaceSidebarWidth,
+    setCssVar: setSpaceSidebarWidthCssVar,
+    edge: 'end',
+  });
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
   const [createChannelCategoryId, setCreateChannelCategoryId] = useState<string | null>(null);
   const [editingChannel, setEditingChannel] = useState<PublicSpaceChannel | null>(null);
@@ -632,6 +652,14 @@ export function SpaceSecondarySidebar({
             sidebarInner
           )}
         </div>
+        {resizable && (
+          <hr
+            className="panel-resize-handle panel-resize-handle--end"
+            aria-orientation="vertical"
+            aria-label={t('spaces.sidebar.resizeSidebar')}
+            {...resizeHandleProps}
+          />
+        )}
       </aside>
 
       <SpaceSidebarSettingsModals

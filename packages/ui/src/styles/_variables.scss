@@ -6,6 +6,8 @@
 $sidebar-width: 20vw;
 $sidebar-width-max: 300px;
 $sidebar-width-collapsed: 64px;
+// Expanded width is driven by --app-sidebar-width (see appSidebarWidthPreferences).
+$sidebar-width-expanded: var(--app-sidebar-width, min(#{$sidebar-width}, #{$sidebar-width-max}));
 $mobile-breakpoint: 600px;
 
 // Z-Index Scale (layout-specific)
