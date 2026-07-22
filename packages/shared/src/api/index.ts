@@ -320,6 +320,8 @@ export { SpacesApi } from './spaces-api';
 export {
   SPACE_VISIBILITY_VALUES,
   SPACE_CHANNEL_TYPES,
+  SPACE_VOICE_EMPTY_GRACE_SEC,
+  SPACE_VOICE_SESSION_STATUSES,
   SPACE_MEMBER_STATUSES,
   SPACE_INVITE_STATUSES,
   SPACE_PERMISSIONS,
@@ -396,6 +398,11 @@ export {
   type EditSpaceMessageParams,
   type AddSpaceReactionParams,
   type PinSpaceMessageParams,
+  type SpaceVoiceSessionStatus,
+  type SpaceVoiceMediaState,
+  type PublicSpaceVoiceParticipant,
+  type PublicSpaceVoiceSession,
+  type UpdateSpaceVoiceMediaParams,
 } from './spaces-types';
 
 export { CustomEmojiApi } from './custom-emoji-api';

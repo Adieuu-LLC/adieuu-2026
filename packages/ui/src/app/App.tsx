@@ -28,8 +28,10 @@ import { UpdateProvider } from '../hooks/useUpdateContext';
 import { ToasterOutlet } from '../components/Toast';
 import { IdentityModalProvider } from '../hooks/useIdentityModal';
 import { CallSessionProvider } from '../hooks/useCallSession';
+import { VoiceChannelSessionProvider } from '../hooks/useVoiceChannelSession';
 import { GlobalCallEventsProvider } from '../hooks/useGlobalCallEvents';
 import { AppCallOverlay } from '../components/call/AppCallOverlay';
+import { VoiceChannelOverlay } from '../components/call/VoiceChannelOverlay';
 import { useIncomingCallRinger } from '../hooks/useIncomingCallRinger';
 import { AppSidebar } from './AppSidebar';
 import { RouteErrorBoundary } from '../components/RouteErrorBoundary';
@@ -159,9 +161,11 @@ function AuthenticatedShell() {
                           <SpacesProvider>
                           <MediaOutboxProvider>
                           <CallSessionProvider>
+                          <VoiceChannelSessionProvider>
                             <GlobalCallEventsProvider>
                               <AuthenticatedShellContent />
                             </GlobalCallEventsProvider>
+                          </VoiceChannelSessionProvider>
                           </CallSessionProvider>
                           </MediaOutboxProvider>
                           </SpacesProvider>
@@ -223,6 +227,7 @@ function AuthenticatedShellContent() {
         </AppLayout>
       </IdentityModalProvider>
       <AppCallOverlay />
+      <VoiceChannelOverlay />
       <UpdateOverlay />
       <AchievementListener />
       <SubscriptionChangeListener />

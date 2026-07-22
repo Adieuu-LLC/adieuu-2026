@@ -17,9 +17,12 @@
 export const SPACE_VISIBILITY_VALUES = ['public', 'listed', 'hidden'] as const;
 export type SpaceVisibility = (typeof SPACE_VISIBILITY_VALUES)[number];
 
-/** Channel kinds. Only text channels ship in the first pass. */
-export const SPACE_CHANNEL_TYPES = ['text'] as const;
+/** Channel kinds. Voice channels are text channels plus A/V presence. */
+export const SPACE_CHANNEL_TYPES = ['text', 'voice'] as const;
 export type SpaceChannelType = (typeof SPACE_CHANNEL_TYPES)[number];
+
+/** Empty LiveKit room grace before teardown (seconds). */
+export const SPACE_VOICE_EMPTY_GRACE_SEC = 60;
 
 /** Membership states. */
 export const SPACE_MEMBER_STATUSES = ['active', 'banned'] as const;
@@ -495,10 +498,10 @@ export interface UpdateSpaceChannelParams {
   inheritCipherCheck?: boolean;
 }
 
-/** POST body for creating a Space text channel. */
+/** POST body for creating a Space channel. */
 export interface CreateSpaceChannelParams {
   name?: string;
-  type: 'text';
+  type: SpaceChannelType;
   allowedRoleIds?: string[];
   /** When set, channel is created in this category (inherits ACL if roles omitted). */
   categoryId?: string;
@@ -613,4 +616,47 @@ export interface AddSpaceReactionParams {
 
 export interface PinSpaceMessageParams {
   messageId: string;
+}
+
+// --- Voice channel sessions ---
+
+export const SPACE_VOICE_SESSION_STATUSES = ['waiting', 'active', 'ended'] as const;
+export type SpaceVoiceSessionStatus = (typeof SPACE_VOICE_SESSION_STATUSES)[number];
+
+/** Media toggles for a voice-channel participant (mirrors conversation calls). */
+export interface SpaceVoiceMediaState {
+  audio: boolean;
+  video: boolean;
+  screenshare: boolean;
+}
+
+/** One identity currently present in a voice channel. */
+export interface PublicSpaceVoiceParticipant {
+  identityId: string;
+  joinedAt: string;
+  leftAt?: string;
+  mediaState: SpaceVoiceMediaState;
+}
+
+/** Public voice-session snapshot for a Space channel. */
+export interface PublicSpaceVoiceSession {
+  id: string;
+  spaceId: string;
+  channelId: string;
+  status: SpaceVoiceSessionStatus;
+  /** Set once a LiveKit room has been created for this session. */
+  roomName: string | null;
+  participants: PublicSpaceVoiceParticipant[];
+  startedAt?: string;
+  emptyAt?: string;
+  endedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** PATCH body for updating own media state in a voice channel. */
+export interface UpdateSpaceVoiceMediaParams {
+  audio?: boolean;
+  video?: boolean;
+  screenshare?: boolean;
 }

@@ -32,6 +32,7 @@ import {
   type PublicSpaceChannelCategory,
 } from '@adieuu/shared';
 import { useSpaces } from '../../hooks/useSpaces';
+import { useOptionalVoiceChannelSession } from '../../hooks/useVoiceChannelSession';
 import { useHorizontalPanelResize } from '../../hooks/useHorizontalPanelResize';
 import { Icon } from '../../icons/Icon';
 import { useToast } from '../../components/Toast';
@@ -63,6 +64,7 @@ import {
   layoutAfterCreateCategoryFromChannels,
   type SpaceSidebarTreeItem,
 } from './spaceSidebarLayout';
+import { SpaceSidebarChannelItem } from './SpaceSidebarChannelItem';
 import '../../styles/_spaces-sidebar.scss';
 
 interface SpaceSecondarySidebarProps {
@@ -169,6 +171,7 @@ export function SpaceSecondarySidebar({
     removeCategoryLocally,
     applyChannelLayout,
   } = useSpaces();
+  const voiceSession = useOptionalVoiceChannelSession();
   const { spaceCipher } = useSpaceCipher(activeSpace?.id);
   const dropZoneRef = useRef<DropHighlight>(null);
   const { resizeHandleProps } = useHorizontalPanelResize({
@@ -437,60 +440,36 @@ export function SpaceSecondarySidebar({
       : []),
   ];
 
-  const renderChannel = (ch: PublicSpaceChannel) => {
-    const unread = unreadByChannel[ch.id];
-    const channelName = resolveChannelDisplayName(ch, spaceCipher, {
-      encryptedChannel: t('spaces.encryptedChannelPlaceholder'),
-    });
-    const link = (
-      <NavLink
-        to={`/s/${slug}/c/${ch.id}`}
-        className={navLinkClass}
-        onClick={handleNav}
-      >
-        <span className="space-sidebar-channel-hash">#</span>
-        <span className="space-sidebar-channel-name">{channelName}</span>
-        {unread && unread.unread > 0 && (
-          <span
-            role="status"
-            className={`space-sidebar-unread-badge${unread.mention ? ' space-sidebar-unread-badge--mention' : ''}`}
-            aria-label={
-              unread.mention
-                ? t('spaces.sidebar.mentionBadge', { count: unread.unread })
-                : t('spaces.sidebar.unreadBadge', { count: unread.unread })
+  const renderChannel = (ch: PublicSpaceChannel) => (
+    <SpaceSidebarChannelItem
+      key={ch.id}
+      channel={ch}
+      slug={slug ?? ''}
+      spaceId={activeSpace?.id}
+      spaceCipher={spaceCipher}
+      unread={unreadByChannel[ch.id]}
+      voiceSession={voiceSession?.presenceByChannel[ch.id]}
+      canManageChannels={canManageChannels}
+      navLinkClass={navLinkClass}
+      onNavigate={handleNav}
+      onJoinVoice={
+        voiceSession
+          ? (spaceId, channelId) => {
+              void voiceSession.joinVoiceChannel(spaceId, channelId);
             }
-          >
-            {unread.unread}
-          </span>
-        )}
-      </NavLink>
-    );
-
-    const wrapped = (
-      <ContextMenu
-        onSelect={(value) => handleChannelMenu(ch, value)}
-        items={channelMenuItems}
-        isolate
-      >
-        {link}
-      </ContextMenu>
-    );
-
-    if (!canManageChannels) {
-      return <div key={ch.id}>{wrapped}</div>;
-    }
-
-    return (
-      <DraggableSpaceItem key={ch.id} id={`channel:${ch.id}`}>
-        <DroppableSpaceTarget
-          id={`channel:${ch.id}`}
-          data={{ kind: 'channel', id: ch.id }}
+          : undefined
+      }
+      wrapWithMenu={(node) => (
+        <ContextMenu
+          onSelect={(value) => handleChannelMenu(ch, value)}
+          items={channelMenuItems}
+          isolate
         >
-          {wrapped}
-        </DroppableSpaceTarget>
-      </DraggableSpaceItem>
-    );
-  };
+          {node}
+        </ContextMenu>
+      )}
+    />
+  );
 
   const renderTreeItems = (items: readonly SpaceSidebarTreeItem[], depth: number): ReactNode => (
     <div

@@ -88,3 +88,13 @@ export {
   unpinSpaceMessage,
   getSpacePinnedMessages,
 } from './pins';
+export {
+  joinVoiceChannel,
+  leaveVoiceChannel,
+  updateVoiceMediaState,
+  getVoiceSession,
+  listSpaceVoicePresence,
+  reapEmptyVoiceSessions,
+  type SpaceVoiceBillingAccess,
+  type SpaceVoiceSessionResult,
+} from './voice-session';

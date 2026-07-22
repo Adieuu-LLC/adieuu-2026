@@ -440,6 +440,8 @@ export const Collections = {
   SPACE_REACTIONS: 'space_message_reactions',
   /** Pinned messages in Space channels */
   SPACE_PINS: 'space_channel_pins',
+  /** Active/waiting voice-channel sessions (presence + optional LiveKit room) */
+  SPACE_VOICE_SESSIONS: 'space_voice_sessions',
 } as const;
 
 /**
@@ -920,6 +922,25 @@ export async function createIndexes(): Promise<void> {
     { unique: true },
   );
   await spacePins.createIndex({ channelId: 1, pinnedAt: -1 });
+
+  // Space voice sessions — one non-ended session per channel; lookup by room
+  const spaceVoiceSessions = database.collection(Collections.SPACE_VOICE_SESSIONS);
+  await spaceVoiceSessions.createIndex(
+    { channelId: 1 },
+    { unique: true, partialFilterExpression: { status: { $in: ['waiting', 'active'] } } },
+  );
+  await spaceVoiceSessions.createIndex({ spaceId: 1, status: 1 });
+  await spaceVoiceSessions.createIndex({ roomName: 1 }, { sparse: true });
+  await spaceVoiceSessions.createIndex({ emptyAt: 1 }, { sparse: true });
+  try {
+    await spaceVoiceSessions.dropIndex('endedAt_1');
+  } catch {
+    /* index may not exist yet */
+  }
+  await spaceVoiceSessions.createIndex(
+    { endedAt: 1 },
+    { expireAfterSeconds: 60 * 60, sparse: true },
+  );
 
   elog.debug('MongoDB indexes created/verified');
 }

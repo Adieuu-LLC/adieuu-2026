@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import type { CommunityCipher } from '@adieuu/crypto';
 import { createApiClient, type PublicSpaceRole } from '@adieuu/shared';
 import { useSpaces } from '../../hooks/useSpaces';
+import { useOptionalVoiceChannelSession } from '../../hooks/useVoiceChannelSession';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useAppConfig } from '../../config';
 import { useCipherStore } from '../../hooks/useCipherStore';
@@ -110,6 +111,12 @@ export function SpaceChannelView() {
     () => channels.find((c) => c.id === channelId) ?? null,
     [channels, channelId],
   );
+
+  const voiceSession = useOptionalVoiceChannelSession();
+  const isInVoice =
+    !!voiceSession?.joined &&
+    voiceSession.joined.channelId === channelId &&
+    voiceSession.joined.spaceId === activeSpace?.id;
 
   // ---------------------------------------------------------------------------
   // Cipher
@@ -499,6 +506,19 @@ export function SpaceChannelView() {
         identity={identity}
         showMembers={showMembers}
         onToggleMembers={toggleMembers}
+        isVoiceChannel={activeChannel.type === 'voice'}
+        isInVoice={isInVoice}
+        onToggleVoice={
+          activeChannel.type === 'voice' && activeSpace && voiceSession
+            ? () => {
+                if (isInVoice) {
+                  void voiceSession.leaveVoiceChannel();
+                } else {
+                  void voiceSession.joinVoiceChannel(activeSpace.id, activeChannel.id);
+                }
+              }
+            : undefined
+        }
         t={t}
       />
 

@@ -23,3 +23,7 @@ export { SpaceMemberRepository, getSpaceMemberRepository } from './space-member.
 export { SpaceRoleRepository, getSpaceRoleRepository } from './space-role.repository';
 export { SpaceInviteRepository, getSpaceInviteRepository } from './space-invite.repository';
 export { SpaceMessageRepository, getSpaceMessageRepository } from './space-message.repository';
+export {
+  SpaceVoiceSessionRepository,
+  getSpaceVoiceSessionRepository,
+} from './space-voice-session.repository';

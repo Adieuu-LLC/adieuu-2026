@@ -13,6 +13,8 @@ import type {
   PublicSpaceMember,
   PublicSpaceMessage,
   PublicSpaceReaction,
+  PublicSpaceVoiceSession,
+  SpaceVoiceMediaState,
 } from './spaces-types';
 
 export type ChatMessageType =
@@ -61,7 +63,11 @@ export type ChatMessageType =
   | 'space_message_deleted'
   | 'space_reaction_added'
   | 'space_reaction_removed'
-  | 'space_pins_updated';
+  | 'space_pins_updated'
+  | 'voice_channel_presence_updated'
+  | 'voice_channel_call_started'
+  | 'voice_channel_call_ended'
+  | 'voice_channel_media_state_changed';
 
 export interface ChatMessageBase {
   type: ChatMessageType;
@@ -545,6 +551,53 @@ export interface ChatSpacePinsUpdatedMessage extends ChatMessageBase {
   };
 }
 
+/** Voice-channel presence changed (join/leave). */
+export interface ChatVoiceChannelPresenceUpdatedMessage extends ChatMessageBase {
+  type: 'voice_channel_presence_updated';
+  data: {
+    spaceId: string;
+    channelId: string;
+    session: PublicSpaceVoiceSession;
+  };
+}
+
+/**
+ * LiveKit room created for a voice channel. Delivered per-identity so each
+ * waiter receives their own token without an extra round-trip.
+ */
+export interface ChatVoiceChannelCallStartedMessage extends ChatMessageBase {
+  type: 'voice_channel_call_started';
+  data: {
+    spaceId: string;
+    channelId: string;
+    session: PublicSpaceVoiceSession;
+    livekitToken: string;
+    livekitUrl: string;
+  };
+}
+
+/** Voice-channel LiveKit room torn down after empty grace. */
+export interface ChatVoiceChannelCallEndedMessage extends ChatMessageBase {
+  type: 'voice_channel_call_ended';
+  data: {
+    spaceId: string;
+    channelId: string;
+    sessionId: string;
+    reason?: string;
+  };
+}
+
+/** A voice-channel participant changed mute/camera/screenshare state. */
+export interface ChatVoiceChannelMediaStateChangedMessage extends ChatMessageBase {
+  type: 'voice_channel_media_state_changed';
+  data: {
+    spaceId: string;
+    channelId: string;
+    identityId: string;
+    mediaState: SpaceVoiceMediaState;
+  };
+}
+
 export type ChatIncomingMessage =
   | ChatPongMessage
   | ChatErrorMessage
@@ -589,7 +642,11 @@ export type ChatIncomingMessage =
   | ChatSpaceMessageDeletedMessage
   | ChatSpaceReactionAddedMessage
   | ChatSpaceReactionRemovedMessage
-  | ChatSpacePinsUpdatedMessage;
+  | ChatSpacePinsUpdatedMessage
+  | ChatVoiceChannelPresenceUpdatedMessage
+  | ChatVoiceChannelCallStartedMessage
+  | ChatVoiceChannelCallEndedMessage
+  | ChatVoiceChannelMediaStateChangedMessage;
 
 export type ChatOutgoingMessage =
   | ChatPingMessage;

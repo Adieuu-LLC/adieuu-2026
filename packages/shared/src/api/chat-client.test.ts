@@ -250,11 +250,16 @@ describe('chat message types', () => {
       'space_reaction_added',
       'space_reaction_removed',
       'space_pins_updated',
+      'voice_channel_presence_updated',
+      'voice_channel_call_started',
+      'voice_channel_call_ended',
+      'voice_channel_media_state_changed',
     ] as const satisfies readonly ChatMessageType[];
 
-    expect(spaceEvents).toHaveLength(20);
+    expect(spaceEvents).toHaveLength(24);
     expect(spaceEvents).toContain('space_pins_updated');
     expect(spaceEvents).toContain('space_created');
+    expect(spaceEvents).toContain('voice_channel_call_started');
   });
 
   test('ChatMessageType includes core protocol and conversation discriminants', () => {

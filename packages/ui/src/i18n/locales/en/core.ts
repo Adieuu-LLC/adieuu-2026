@@ -375,6 +375,7 @@ export const core = {
       namePlaceholder: 'new-channel',
       typeLabel: 'Channel type',
       typeText: 'Text',
+      typeVoice: 'Voice',
       rolesLabel: 'Restrict to roles',
       rolesHint: 'Defaults to Everyone if none selected.',
       rolesSearchPlaceholder: 'Search roles…',
@@ -616,6 +617,26 @@ export const core = {
         title: 'Bypass Slowmode',
         description: 'Allows members to send messages without waiting for the slowmode cooldown.',
       },
+      connect: {
+        title: 'Connect',
+        description: 'Allows members to join voice channels.',
+      },
+      speak: {
+        title: 'Speak',
+        description: 'Allows members to speak in voice channels.',
+      },
+      video: {
+        title: 'Video',
+        description: 'Allows members to share their camera in voice channels.',
+      },
+      stream: {
+        title: 'Screen Share',
+        description: 'Allows members to share their screen in voice channels.',
+      },
+      muteMembers: {
+        title: 'Mute Members',
+        description: 'Allows members to mute other members in voice channels.',
+      },
     },
     channel: {
       noMessages: 'No messages yet. Start the conversation!',
@@ -629,6 +650,21 @@ export const core = {
       cipherStillMissing: 'No matching Cipher found among your current Ciphers.',
       joinToPost: 'Join this Space to post messages.',
       joinCta: 'Join Space',
+    },
+    voice: {
+      barLabel: 'Voice channel controls',
+      statusLive: 'Connected',
+      statusConnecting: 'Connecting\u2026',
+      statusWaiting: 'Waiting for others',
+      mute: 'Mute',
+      unmute: 'Unmute',
+      cameraOn: 'Camera',
+      cameraOff: 'Camera off',
+      disconnect: 'Disconnect',
+      join: 'Join Voice',
+      leave: 'Leave Voice',
+      joinFailed: 'Could not join the voice channel.',
+      cipherRequired: 'You need the matching Community Cipher to join encrypted voice.',
     },
   },
 

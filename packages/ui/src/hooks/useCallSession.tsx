@@ -34,6 +34,10 @@ import {
   type CallKeyRecipient,
 } from '../services/callCryptoService';
 import { getDeviceKeysForIdentity, decryptDeviceKeys } from '../services/deviceKeyStorage';
+import {
+  clearOtherMediaSession,
+  registerConversationCallLeave,
+} from '../services/mediaSessionExclusive';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -138,6 +142,7 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
   const requestStartCall = useCallback(
     (conversationId: string, media: CallMediaOptions) => {
       if (isSessionActive) return;
+      void clearOtherMediaSession('conversation');
       setPendingCallType(media);
       setPendingConversationId(conversationId);
       setPendingIsJoin(false);
@@ -150,6 +155,7 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
   const requestJoinCall = useCallback(
     (conversationId: string, callId: string, media: CallMediaOptions) => {
       if (isSessionActive) return;
+      void clearOtherMediaSession('conversation');
       setPendingCallType(media);
       setPendingConversationId(conversationId);
       setPendingIsJoin(true);
@@ -416,6 +422,11 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
       // Best-effort server notification; session already cleaned up above
     }
   }, [client, cleanup]);
+
+  useEffect(() => {
+    registerConversationCallLeave(leaveCallAction);
+    return () => registerConversationCallLeave(null);
+  }, [leaveCallAction]);
 
   const endCallAction = useCallback(async () => {
     const currentSession = sessionRef.current;

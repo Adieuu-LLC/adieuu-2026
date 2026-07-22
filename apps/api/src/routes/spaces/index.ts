@@ -16,6 +16,7 @@ import { Router } from '../../router';
 import { spaceRespond } from './space-route-result';
 import * as spaceController from './controller';
 import * as messageController from './message-controller';
+import * as voiceController from './voice-controller';
 
 const router = new Router();
 
@@ -163,6 +164,30 @@ router.delete('/spaces/:id/categories/:categoryId', async (ctx) => {
 
 router.put('/spaces/:id/channel-layout', async (ctx) => {
   return spaceRespond(ctx, await messageController.updateChannelLayoutCtrl(ctx));
+});
+
+// ---------------------------------------------------------------------------
+// Voice channels
+// ---------------------------------------------------------------------------
+
+router.get('/spaces/:id/voice', async (ctx) => {
+  return spaceRespond(ctx, await voiceController.listVoicePresenceCtrl(ctx));
+});
+
+router.get('/spaces/:id/channels/:channelId/voice', async (ctx) => {
+  return spaceRespond(ctx, await voiceController.getVoiceSessionCtrl(ctx));
+});
+
+router.post('/spaces/:id/channels/:channelId/voice/join', async (ctx) => {
+  return spaceRespond(ctx, await voiceController.joinVoiceChannelCtrl(ctx));
+});
+
+router.post('/spaces/:id/channels/:channelId/voice/leave', async (ctx) => {
+  return spaceRespond(ctx, await voiceController.leaveVoiceChannelCtrl(ctx));
+});
+
+router.patch('/spaces/:id/channels/:channelId/voice/media', async (ctx) => {
+  return spaceRespond(ctx, await voiceController.updateVoiceMediaCtrl(ctx));
 });
 
 router.get('/spaces/:id/channels/:channelId/messages', async (ctx) => {

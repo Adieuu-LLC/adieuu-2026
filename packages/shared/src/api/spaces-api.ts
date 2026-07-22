@@ -13,6 +13,7 @@ import type {
   PublicSpaceMessage,
   PublicSpaceReaction,
   PublicSpaceRole,
+  PublicSpaceVoiceSession,
   SendSpaceMessageParams,
   SpaceManageOverview,
   SpaceViewerPermissions,
@@ -20,6 +21,7 @@ import type {
   UpdateSpaceChannelLayoutParams,
   UpdateSpaceChannelParams,
   UpdateSpaceParams,
+  UpdateSpaceVoiceMediaParams,
 } from './spaces-types';
 
 /**
@@ -459,6 +461,61 @@ export class SpacesApi {
   ): Promise<ApiResponse<PublicSpaceInvite>> {
     return this.client.delete(
       `/api/spaces/${encodeURIComponent(spaceId)}/invites/${encodeURIComponent(inviteId)}`
+    );
+  }
+
+  // --- Voice channels ---
+
+  async listVoicePresence(
+    spaceId: string,
+  ): Promise<ApiResponse<{ sessions: PublicSpaceVoiceSession[] }>> {
+    return this.client.get(`/api/spaces/${encodeURIComponent(spaceId)}/voice`);
+  }
+
+  async getVoiceSession(
+    spaceId: string,
+    channelId: string,
+  ): Promise<ApiResponse<{ session: PublicSpaceVoiceSession | null }>> {
+    return this.client.get(
+      `/api/spaces/${encodeURIComponent(spaceId)}/channels/${encodeURIComponent(channelId)}/voice`,
+    );
+  }
+
+  async joinVoiceChannel(
+    spaceId: string,
+    channelId: string,
+    media?: UpdateSpaceVoiceMediaParams,
+  ): Promise<
+    ApiResponse<{
+      session: PublicSpaceVoiceSession;
+      livekitToken?: string;
+      livekitUrl?: string;
+    }>
+  > {
+    return this.client.post(
+      `/api/spaces/${encodeURIComponent(spaceId)}/channels/${encodeURIComponent(channelId)}/voice/join`,
+      media ?? {},
+    );
+  }
+
+  async leaveVoiceChannel(
+    spaceId: string,
+    channelId: string,
+  ): Promise<ApiResponse<{ session: PublicSpaceVoiceSession | null }>> {
+    return this.client.post(
+      `/api/spaces/${encodeURIComponent(spaceId)}/channels/${encodeURIComponent(channelId)}/voice/leave`,
+      {},
+    );
+  }
+
+  async updateVoiceMedia(
+    spaceId: string,
+    channelId: string,
+    media: UpdateSpaceVoiceMediaParams,
+  ): Promise<ApiResponse<{ session: PublicSpaceVoiceSession }>> {
+    return this.client.patch(
+      `/api/spaces/${encodeURIComponent(spaceId)}/channels/${encodeURIComponent(channelId)}/voice/media`,
+      media,
     );
   }
 }

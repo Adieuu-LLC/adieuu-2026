@@ -68,7 +68,10 @@ export type SpaceErrorCode =
   | 'ROLE_IN_USE'
   | 'LAST_ADMIN'
   | 'ESCALATION'
-  | 'INVALID_PERMISSIONS';
+  | 'INVALID_PERMISSIONS'
+  | 'NOT_VOICE_CHANNEL'
+  | 'LIVEKIT_UNAVAILABLE'
+  | 'VOICE_SESSION_NOT_FOUND';
 
 export interface SpaceResult {
   success: boolean;

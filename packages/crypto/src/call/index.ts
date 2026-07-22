@@ -17,12 +17,16 @@ import { randomBytes, toBytes } from '../utils';
 import { hybridKeyExchange, hybridDecapsulate } from '../encrypt/hybrid';
 import { encrypt, decrypt } from '../encrypt/symmetric';
 import type { CryptoProfile, IdentityPublicKeys } from '../types';
+import type { CommunityCipher } from '../ciphers/types';
 
 /** HKDF info string for call E2EE key derivation. */
 export const CALL_E2EE_INFO = 'adieuu-call-e2ee-v1';
 
 /** Call E2EE key size (256 bits). */
 export const CALL_KEY_SIZE = 32;
+
+/** HKDF info for Space voice-channel media keys (alias of KDF_INFO). */
+export const VOICE_CHANNEL_MEDIA_INFO = KDF_INFO.VOICE_CHANNEL_MEDIA;
 
 /**
  * A call E2EE key wrapped for a single recipient.
@@ -80,6 +84,36 @@ export function deriveCallE2EEKey(
       length: CALL_KEY_SIZE,
     },
     profile
+  );
+}
+
+/**
+ * Derives a deterministic LiveKit media E2EE key from a Community Cipher.
+ *
+ * Every member with the channel's Cipher can derive the same key — no
+ * server-side key distribution. Bound to spaceId + channelId so keys are
+ * not reusable across channels.
+ */
+export function deriveVoiceChannelMediaKey(
+  cipher: CommunityCipher,
+  spaceId: string,
+  channelId: string,
+): Uint8Array {
+  if (!spaceId || !channelId) {
+    throw new Error('spaceId and channelId are required');
+  }
+  if (cipher.key.length < 16) {
+    throw new Error('Cipher key must be at least 16 bytes');
+  }
+
+  return deriveKey(
+    {
+      ikm: cipher.key,
+      salt: toBytes(`${spaceId}:${channelId}`),
+      info: VOICE_CHANNEL_MEDIA_INFO,
+      length: CALL_KEY_SIZE,
+    },
+    cipher.profile,
   );
 }
 

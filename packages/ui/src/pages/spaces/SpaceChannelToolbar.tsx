@@ -30,6 +30,10 @@ export interface SpaceChannelToolbarProps {
 
   showMembers: boolean;
   onToggleMembers: () => void;
+  /** Voice-channel join/leave (only when channel.type === 'voice'). */
+  isVoiceChannel?: boolean;
+  isInVoice?: boolean;
+  onToggleVoice?: () => void;
   t: TFunction;
 }
 
@@ -51,13 +55,16 @@ export function SpaceChannelToolbar(props: SpaceChannelToolbarProps): ReactNode 
     identity,
     showMembers,
     onToggleMembers,
+    isVoiceChannel = false,
+    isInVoice = false,
+    onToggleVoice,
     t,
   } = props;
 
   return (
     <div className="space-channel-toolbar">
       <div className="space-channel-toolbar-left">
-        <span className="space-channel-toolbar-hash">#</span>
+        <span className="space-channel-toolbar-hash">{isVoiceChannel ? '♪' : '#'}</span>
         <div className="space-channel-toolbar-info">
           <span className="space-channel-toolbar-name">
             {channelName}
@@ -83,6 +90,16 @@ export function SpaceChannelToolbar(props: SpaceChannelToolbarProps): ReactNode 
         </div>
       </div>
       <div className="space-channel-toolbar-actions">
+        {isVoiceChannel && onToggleVoice && (
+          <Button
+            variant="secondary"
+            size="sm"
+            type="button"
+            onClick={onToggleVoice}
+          >
+            {isInVoice ? t('spaces.voice.leave') : t('spaces.voice.join')}
+          </Button>
+        )}
         <ChannelPinsMenu
           channelId={channelId}
           pinnedCount={pinnedCount}

@@ -10,6 +10,7 @@
 import { z } from 'zod';
 import {
   SPACE_VISIBILITY_VALUES,
+  SPACE_CHANNEL_TYPES,
   SPACE_SLUG_MIN_LENGTH,
   SPACE_SLUG_MAX_LENGTH,
   SPACE_SLUG_PATTERN,
@@ -313,7 +314,7 @@ export const SetMemberRolesSchema = z.object({
 export const CreateSpaceChannelSchema = z
   .object({
     name: z.string().min(SPACE_CHANNEL_NAME_MIN_LENGTH).max(SPACE_CHANNEL_NAME_MAX_LENGTH).optional(),
-    type: z.literal('text'),
+    type: z.enum(SPACE_CHANNEL_TYPES),
     allowedRoleIds: z.array(z.string().length(24)).max(50).optional(),
     categoryId: z.string().length(24).optional(),
     encryptedName: z.string().min(1).max(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),

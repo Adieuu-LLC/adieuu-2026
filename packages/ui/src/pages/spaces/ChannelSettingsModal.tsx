@@ -13,6 +13,7 @@ import {
   type PublicSpaceChannel,
   type PublicSpaceChannelCategory,
   type PublicSpaceRole,
+  type SpaceChannelType,
   type UpdateSpaceChannelParams,
 } from '@adieuu/shared';
 import { Button } from '../../components/Button';
@@ -102,6 +103,7 @@ export function ChannelSettingsModal({
   const isEdit = !!channel;
 
   const [name, setName] = useState('');
+  const [channelType, setChannelType] = useState<SpaceChannelType>('text');
   const [roles, setRoles] = useState<PublicSpaceRole[]>([]);
   const [selectedRoleIds, setSelectedRoleIds] = useState<Set<string>>(new Set());
   const [encrypt, setEncrypt] = useState(false);
@@ -196,6 +198,7 @@ export function ChannelSettingsModal({
           encryptedChannel: '',
         }),
       );
+      setChannelType(channel.type);
       const hasChannelCipher = !!channel.cipherCheck;
       setEncrypt(hasChannelCipher || !!space.e2ee);
       setStoredCipherCheck(channel.cipherCheck ?? null);
@@ -204,6 +207,7 @@ export function ChannelSettingsModal({
       setInheritCipher(channel.inheritCipherCheck || forceInfo.forceCipher);
     } else {
       setName('');
+      setChannelType('text');
       setInheritAcl(true);
       setInheritCipher(true);
       const seedCipher = seedCipherCheck ?? null;
@@ -451,7 +455,7 @@ export function ChannelSettingsModal({
                 : { encrypt: false as const }
               : undefined));
       const body: CreateSpaceChannelParams = {
-        type: 'text',
+        type: channelType,
         ...nameFields,
         ...(effectiveInheritAcl ? {} : { allowedRoleIds: [...selectedRoleIds] }),
         inheritAllowedRoleIds: effectiveInheritAcl,
@@ -480,6 +484,7 @@ export function ChannelSettingsModal({
     }
   }, [
     name,
+    channelType,
     submitting,
     canManageChannels,
     canManageEncryption,
@@ -568,11 +573,15 @@ export function ChannelSettingsModal({
                       </span>
                       <select
                         className="create-channel-type-select"
-                        value="text"
-                        disabled
+                        value={isEdit ? (channel?.type ?? 'text') : channelType}
+                        disabled={isEdit || submitting}
+                        onChange={(e) =>
+                          setChannelType(e.target.value as SpaceChannelType)
+                        }
                         aria-label={t('spaces.createChannel.typeLabel')}
                       >
                         <option value="text">{t('spaces.createChannel.typeText')}</option>
+                        <option value="voice">{t('spaces.createChannel.typeVoice')}</option>
                       </select>
                     </label>
 

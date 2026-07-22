@@ -39,6 +39,12 @@ export const SPACE_PERMISSIONS = [
   'mentionRoles',
   'pinMessages',
   'bypassSlowmode',
+  // voice
+  'connect',
+  'speak',
+  'video',
+  'stream',
+  'muteMembers',
 ] as const;
 
 export type SpacePermission = (typeof SPACE_PERMISSIONS)[number];
@@ -78,7 +84,7 @@ export interface SpacePermissionDef {
 }
 
 /**
- * UI catalog. Voice/events are empty shells for later categories.
+ * UI catalog. Events remain an empty shell for a later category.
  * Every stored flag appears exactly once (as `permission` or `managePermission`).
  */
 export const SPACE_PERMISSION_DEFS: readonly SpacePermissionDef[] = [
@@ -131,6 +137,12 @@ export const SPACE_PERMISSION_DEFS: readonly SpacePermissionDef[] = [
   { id: 'mentionRoles', category: 'text', toggle: 'yesNo', permission: 'mentionRoles' },
   { id: 'pinMessages', category: 'text', toggle: 'yesNo', permission: 'pinMessages' },
   { id: 'bypassSlowmode', category: 'text', toggle: 'yesNo', permission: 'bypassSlowmode' },
+  // voice
+  { id: 'connect', category: 'voice', toggle: 'yesNo', permission: 'connect' },
+  { id: 'speak', category: 'voice', toggle: 'yesNo', permission: 'speak' },
+  { id: 'video', category: 'voice', toggle: 'yesNo', permission: 'video' },
+  { id: 'stream', category: 'voice', toggle: 'yesNo', permission: 'stream' },
+  { id: 'muteMembers', category: 'voice', toggle: 'yesNo', permission: 'muteMembers' },
 ] as const;
 
 /** Permissions that open the Space Manage shell. */
@@ -152,6 +164,10 @@ export const DEFAULT_MEMBER_PERMISSIONS: readonly SpacePermission[] = [
   'useGifsStickers',
   'changeNickname',
   'createInvite',
+  'connect',
+  'speak',
+  'video',
+  'stream',
 ] as const;
 
 /** Admin role gets every permission (no god-flag). */

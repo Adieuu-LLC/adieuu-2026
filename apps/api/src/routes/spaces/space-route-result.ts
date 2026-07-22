@@ -65,6 +65,7 @@ export function mapSpaceError(
     case 'REACTION_NOT_FOUND':
     case 'PIN_NOT_FOUND':
     case 'ROLE_NOT_FOUND':
+    case 'VOICE_SESSION_NOT_FOUND':
       return { kind: 'not_found', message };
     case 'TIER_REQUIRED':
     case 'INVITE_REQUIRED':
@@ -76,7 +77,10 @@ export function mapSpaceError(
     case 'CANNOT_REMOVE_OWNER':
     case 'SYSTEM_ROLE':
     case 'ESCALATION':
+    case 'NOT_VOICE_CHANNEL':
       return { kind: 'forbidden', message };
+    case 'LIVEKIT_UNAVAILABLE':
+      return { kind: 'named_error', code: errorCode, message, status: 503 };
     case 'ROLE_IN_USE':
     case 'LAST_ADMIN':
       return { kind: 'named_error', code: errorCode, message, status: 403 };

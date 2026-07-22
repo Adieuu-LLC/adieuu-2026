@@ -5,7 +5,8 @@
  */
 
 import { ObjectId } from 'mongodb';
-import type { CipherCheck } from '@adieuu/shared';
+import type { CipherCheck, SpaceChannelType } from '@adieuu/shared';
+import { SPACE_CHANNEL_TYPES } from '@adieuu/shared';
 import { getSpaceRepository } from '../../repositories/space.repository';
 import { getSpaceChannelRepository } from '../../repositories/space-channel.repository';
 import { getSpaceChannelCategoryRepository } from '../../repositories/space-channel-category.repository';
@@ -45,7 +46,7 @@ function parseObjId(raw: string | ObjectId): ObjectId | null {
 
 export interface CreateSpaceChannelParams {
   name?: string;
-  type: 'text';
+  type: SpaceChannelType;
   allowedRoleIds?: readonly string[];
   categoryId?: string;
   encryptedName?: string;
@@ -345,9 +346,13 @@ export async function createSpaceChannel(
   });
   const maxPosition = inBucket.reduce((max, ch) => Math.max(max, ch.position ?? 0), -1);
 
+  const channelType: SpaceChannelType = SPACE_CHANNEL_TYPES.includes(params.type)
+    ? params.type
+    : 'text';
+
   const channel = await getSpaceChannelRepository().createChannel({
     spaceId,
-    type: 'text',
+    type: channelType,
     name: e2ee ? '' : plainName,
     position: maxPosition + 1,
     allowedRoleIds: rolesResult.allowedRoleIds,

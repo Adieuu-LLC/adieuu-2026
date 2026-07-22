@@ -1,7 +1,7 @@
 /**
  * Space channel model
- * A channel within a Space. Only text channels ship in the first pass; voice
- * and other channel types come later.
+ * A channel within a Space. Text channels are chat-only; voice channels are
+ * chat plus optional A/V presence.
  */
 
 import type { ObjectId } from 'mongodb';

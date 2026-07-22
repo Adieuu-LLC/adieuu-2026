@@ -248,12 +248,14 @@ export {
 export {
   generateCallKey,
   deriveCallE2EEKey,
+  deriveVoiceChannelMediaKey,
   wrapCallKeyForRecipient,
   wrapCallKeyForRecipients,
   unwrapCallKey,
   findAndUnwrapCallKey,
   CALL_E2EE_INFO,
   CALL_KEY_SIZE,
+  VOICE_CHANNEL_MEDIA_INFO,
   type WrappedCallKey,
 } from './call';
 

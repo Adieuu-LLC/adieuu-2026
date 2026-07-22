@@ -546,13 +546,13 @@ describe('createChannelCtrl', () => {
 
   test('rejects malformed body', async () => {
     const r = await mc.createChannelCtrl(
-      makeCtx({ params: { id: HEX }, body: { type: 'voice' } }),
+      makeCtx({ params: { id: HEX }, body: { type: 'stage' } }),
     );
     expect(r).toEqual({ kind: 'validation_failed' });
     expect(svc.createSpaceChannel).not.toHaveBeenCalled();
   });
 
-  test('returns the created channel', async () => {
+  test('returns the created text channel', async () => {
     const r = await mc.createChannelCtrl(
       makeCtx({
         params: { id: HEX },
@@ -563,6 +563,24 @@ describe('createChannelCtrl', () => {
       kind: 'ok',
       data: { channel: { id: 'ch1' } },
       message: 'Channel created.',
+    });
+    expect(svc.createSpaceChannel).toHaveBeenCalled();
+  });
+
+  test('accepts voice channel type', async () => {
+    svc.createSpaceChannel.mockResolvedValueOnce({
+      success: true,
+      channel: { id: 'ch2', type: 'voice', name: 'hangout', allowedRoleIds: [] },
+    });
+    const r = await mc.createChannelCtrl(
+      makeCtx({
+        params: { id: HEX },
+        body: { type: 'voice', name: 'hangout' },
+      }),
+    );
+    expect(r).toMatchObject({
+      kind: 'ok',
+      data: { channel: { id: 'ch2', type: 'voice' } },
     });
     expect(svc.createSpaceChannel).toHaveBeenCalled();
   });
