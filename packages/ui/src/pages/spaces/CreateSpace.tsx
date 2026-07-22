@@ -8,38 +8,40 @@
  * name/description when `encryptIdentity` is on.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import { Steps } from '@ark-ui/react/steps';
+import type { CommunityCipher } from '@adieuu/crypto';
 import {
-  createApiClient,
-  isReservedSpaceSlug,
-  SPACE_SLUG_PATTERN,
-  SPACE_SLUG_MIN_LENGTH,
-  SPACE_SLUG_MAX_LENGTH,
-  type SpaceVisibility,
   type CipherCheck,
   type CreateSpaceParams,
+  createApiClient,
+  isReservedSpaceSlug,
+  SPACE_SLUG_MAX_LENGTH,
+  SPACE_SLUG_MIN_LENGTH,
+  SPACE_SLUG_PATTERN,
+  type SpaceVisibility,
 } from '@adieuu/shared';
-import type { CommunityCipher } from '@adieuu/crypto';
-import { useAppConfig } from '../../config';
-import { useIdentity } from '../../hooks/useIdentity';
-import { useCipherStore } from '../../hooks/useCipherStore';
-import { generateSpaceId, createSpaceCipherCheck } from '../../services/spaceCipherService';
-import { emitSpacesChanged } from '../../services/spacesMembershipEvents';
-import { useToast } from '../../components/Toast';
+import { Steps } from '@ark-ui/react/steps';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Link, useNavigate } from 'react-router-dom';
+import { Alert } from '../../components/Alert';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
-import { Alert } from '../../components/Alert';
-import {
-  type CipherSource,
-  type EntropyRow,
-} from './SpaceCipherFormFields';
-import { resolveSpaceCipherSelection } from './resolveSpaceCipherSelection';
+import { Spinner } from '../../components/Spinner';
+import { useToast } from '../../components/Toast';
+import { useAppConfig } from '../../config';
+import { useAuth } from '../../hooks/useAuth';
+import { useCipherStore } from '../../hooks/useCipherStore';
+import { useIdentity } from '../../hooks/useIdentity';
+import { createSpaceCipherCheck, generateSpaceId } from '../../services/spaceCipherService';
+import { emitSpacesChanged } from '../../services/spacesMembershipEvents';
 import { CreateSpaceAboutStep, type SlugState } from './CreateSpaceAboutStep';
-import { CreateSpaceVisibilityStep } from './CreateSpaceVisibilityStep';
 import { CreateSpaceEncryptionStep } from './CreateSpaceEncryptionStep';
+import { CreateSpaceVisibilityStep } from './CreateSpaceVisibilityStep';
+import { resolveSpaceCipherSelection } from './resolveSpaceCipherSelection';
+import type {
+  CipherSource,
+  EntropyRow,
+} from './SpaceCipherFormFields';
 import {
   buildEncryptedSpaceSeed,
   encryptSpaceMetadataField,
@@ -86,13 +88,18 @@ export function CreateSpace() {
   const navigate = useNavigate();
   const toast = useToast();
   const { apiBaseUrl } = useAppConfig();
+  const { session } = useAuth();
   const { status: identityStatus } = useIdentity();
   const isLoggedIn = identityStatus === 'logged_in';
+  const isPlatformAdmin = session?.isPlatformAdmin === true;
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
 
   const { ciphers, getCipherKey, createCipher, bookmarkSpaceCipher, encryptionAvailable } =
     useCipherStore();
 
+  const [creationPolicy, setCreationPolicy] = useState<'loading' | 'enabled' | 'disabled'>(
+    'loading',
+  );
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
@@ -135,6 +142,26 @@ export function CreateSpace() {
     ],
     [t],
   );
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setCreationPolicy('loading');
+      return;
+    }
+    if (isPlatformAdmin) {
+      setCreationPolicy('enabled');
+      return;
+    }
+    let cancelled = false;
+    setCreationPolicy('loading');
+    void api.spaces.getCreationEnabled().then((res) => {
+      if (cancelled) return;
+      setCreationPolicy(res.success && res.data?.enabled === true ? 'enabled' : 'disabled');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, isPlatformAdmin, api]);
 
   useEffect(() => {
     if (!canUseCipher) {
@@ -238,6 +265,8 @@ export function CreateSpace() {
       switch (code) {
         case 'TIER_REQUIRED':
           return t('spaces.create.errors.tierRequired');
+        case 'SPACE_CREATION_DISABLED':
+          return t('spaces.create.errors.creationDisabled');
         case 'SLUG_TAKEN':
         case 'SLUG_RESERVED':
           if (submittedSlug === slugRef.current) setSlugState('taken');
@@ -410,6 +439,40 @@ export function CreateSpace() {
             <p className="spaces-state-body">{t('spaces.signInBody')}</p>
             <Link to="/identity/profile" className="btn btn-primary btn-md">
               {t('spaces.signInCta')}
+            </Link>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (creationPolicy === 'loading') {
+    return (
+      <div className="page-content">
+        <div className="container">
+          <div className="page-header">
+            <h1 className="page-title">{t('spaces.create.title')}</h1>
+          </div>
+          <div className="spaces-loading">
+            <Spinner size="lg" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (creationPolicy === 'disabled') {
+    return (
+      <div className="page-content">
+        <div className="container">
+          <div className="page-header">
+            <h1 className="page-title">{t('spaces.create.title')}</h1>
+          </div>
+          <Card variant="elevated" className="spaces-state">
+            <p className="spaces-state-heading">{t('spaces.create.disabled.heading')}</p>
+            <p className="spaces-state-body">{t('spaces.create.disabled.body')}</p>
+            <Link to="/spaces" className="btn btn-secondary btn-md">
+              {t('spaces.create.disabled.back')}
             </Link>
           </Card>
         </div>

@@ -183,6 +183,9 @@ export function resolveRouteChrome(pathname: string): RouteChromeDescriptor {
   if (pathname === '/admin/age-verification') {
     return { icon: 'shield', titleKey: 'admin.nav.ageVerification', titleDefault: 'Age/Geofencing' };
   }
+  if (pathname === '/admin/spaces') {
+    return { icon: 'shield', titleKey: 'admin.spaces.title', titleDefault: 'Spaces' };
+  }
   if (pathname.startsWith('/admin/users/')) {
     return { icon: 'shield', titleKey: 'admin.users.title', titleDefault: 'User Management' };
   }

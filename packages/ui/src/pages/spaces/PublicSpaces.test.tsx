@@ -11,6 +11,7 @@ setMockTranslate((key) => key);
 
 // Mutable identity status — read at render time by the mocked hook.
 let mockIdentityStatus = 'logged_in';
+let mockIsPlatformAdmin = false;
 
 mock.module('../../config', () => ({
   useAppConfig: () => ({ apiBaseUrl: 'http://localhost:3000' }),
@@ -34,18 +35,34 @@ const mockJoin = mock(
     }>,
 );
 
+const mockGetCreationEnabled = mock(
+  () =>
+    Promise.resolve({ success: true, data: { enabled: false } }) as Promise<{
+      success: boolean;
+      data?: { enabled: boolean };
+      error?: { code: string; message: string };
+    }>,
+);
+
 mock.module('@adieuu/shared', () => ({
   ...sharedActual,
   createApiClient: () => ({
     spaces: {
       discover: mockDiscover,
       join: mockJoin,
+      getCreationEnabled: mockGetCreationEnabled,
     },
   }),
 }));
 
 mock.module('../../hooks/useIdentity', () => ({
   useIdentity: () => ({ status: mockIdentityStatus }),
+}));
+
+mock.module('../../hooks/useAuth', () => ({
+  useAuth: () => ({
+    session: mockIsPlatformAdmin ? { isPlatformAdmin: true } : { isPlatformAdmin: false },
+  }),
 }));
 
 let mockJoinedSpaces: Array<{ id: string; slug: string }> = [];
@@ -137,15 +154,20 @@ beforeEach(() => {
   setMockTranslate((key) => key);
   resetReactRouterDomMock();
   mockIdentityStatus = 'logged_in';
+  mockIsPlatformAdmin = false;
   mockJoinedSpaces = [];
   mockDiscover.mockClear();
   mockJoin.mockClear();
+  mockGetCreationEnabled.mockClear();
   toastSuccess.mockClear();
   toastError.mockClear();
   mockDiscover.mockImplementation(() =>
     Promise.resolve({ success: true, data: { spaces: [], cursor: null } }),
   );
   mockJoin.mockImplementation(() => Promise.resolve({ success: true, data: {} }));
+  mockGetCreationEnabled.mockImplementation(() =>
+    Promise.resolve({ success: true, data: { enabled: false } }),
+  );
 
   const g = globalThis as G;
   prevWindow = g.window;
@@ -171,6 +193,10 @@ async function renderDirectory() {
   const root = createRoot(container as unknown as Element);
   await act(async () => {
     root.render(createElement(PublicSpaces));
+    await new Promise((r) => setTimeout(r, 0));
+  });
+  // Flush creation-policy fetch used for the Create CTA.
+  await act(async () => {
     await new Promise((r) => setTimeout(r, 0));
   });
   return { root, container };
@@ -239,6 +265,52 @@ describe('PublicSpaces directory', () => {
 
     expect(mockDiscover).not.toHaveBeenCalled();
     expect(happy.document.body.textContent).toContain('spaces.signInHeading');
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('hides the Create Space CTA when creation is disabled for non-admins', async () => {
+    mockGetCreationEnabled.mockImplementation(() =>
+      Promise.resolve({ success: true, data: { enabled: false } }),
+    );
+    const { root, container } = await renderDirectory();
+
+    expect(happy.document.querySelector('.spaces-create-cta')).toBeNull();
+    expect(happy.document.body.textContent).not.toContain('spaces.create.cta');
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('shows the Create Space CTA when creation is enabled', async () => {
+    mockGetCreationEnabled.mockImplementation(() =>
+      Promise.resolve({ success: true, data: { enabled: true } }),
+    );
+    const { root, container } = await renderDirectory();
+
+    expect(happy.document.querySelector('.spaces-create-cta')).not.toBeNull();
+    expect(happy.document.body.textContent).toContain('spaces.create.cta');
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('shows the Create Space CTA for platform admins even when creation is disabled', async () => {
+    mockIsPlatformAdmin = true;
+    mockGetCreationEnabled.mockImplementation(() =>
+      Promise.resolve({ success: true, data: { enabled: false } }),
+    );
+    const { root, container } = await renderDirectory();
+
+    expect(happy.document.querySelector('.spaces-create-cta')).not.toBeNull();
+    expect(mockGetCreationEnabled).not.toHaveBeenCalled();
 
     await act(async () => {
       root.unmount();

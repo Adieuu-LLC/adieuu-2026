@@ -13,6 +13,7 @@ import {
   ensureAgeVerificationPlatformSettingsExist,
   ensureCsamHashServicesPlatformSettingExists,
   ensureNcmecCyberTiplinePlatformSettingExists,
+  ensureSpaceCreationPlatformSettingExists,
 } from './services/platform-settings.service';
 import { elog } from './utils';
 import { verifyStripeCredentials } from './services/billing/stripe.client';
@@ -56,6 +57,7 @@ async function start(): Promise<void> {
     await ensureAgeVerificationPlatformSettingsExist();
     await ensureCsamHashServicesPlatformSettingExists();
     await ensureNcmecCyberTiplinePlatformSettingExists();
+    await ensureSpaceCreationPlatformSettingExists();
   } catch (error) {
     elog.warn('Could not ensure platform settings exist', { error });
     if (config.features.requireDatabase) {

@@ -19,6 +19,8 @@ export const PLATFORM_SETTING_KEYS = {
   GEOFENCE_BLOCKED_JURISDICTIONS: 'platform-geofence-blocked-jurisdictions',
   GEOFENCE_LAW_LINKS: 'platform-geofence-law-links',
   NCMEC_CYBERTIPLINE_ENV: 'platform-ncmec-cybertipline-env',
+  /** Whether non-admin identities may create new Spaces. Platform admins always can. */
+  SPACE_CREATION_ENABLED: 'platform-space-creation-enabled',
 } as const;
 
 export type PlatformSettingKey = (typeof PLATFORM_SETTING_KEYS)[keyof typeof PLATFORM_SETTING_KEYS];

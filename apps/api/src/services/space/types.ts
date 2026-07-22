@@ -30,6 +30,7 @@ export interface SpaceBillingContext {
 
 export type SpaceErrorCode =
   | 'TIER_REQUIRED'
+  | 'SPACE_CREATION_DISABLED'
   | 'SLUG_RESERVED'
   | 'SLUG_TAKEN'
   | 'SLUG_REQUIRED'

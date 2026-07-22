@@ -40,6 +40,14 @@ export class SpacesApi {
     return this.client.post('/api/spaces', params);
   }
 
+  /**
+   * Whether non-admin Space creation is enabled on the platform.
+   * Platform admins can create regardless; combine with session.isPlatformAdmin in UI.
+   */
+  async getCreationEnabled(): Promise<ApiResponse<{ enabled: boolean }>> {
+    return this.client.get('/api/spaces/creation-enabled');
+  }
+
   /** Spaces the current identity is a member of. */
   async listMine(): Promise<ApiResponse<{ spaces: PublicSpace[] }>> {
     return this.client.get('/api/spaces');

@@ -183,7 +183,7 @@ export function ConversationsSidebarSection({
     {
       id: 'all',
       icon: <Icon name="swap" />,
-      label: t('sidebar.allTab', 'All'),
+      label: t('sidebar.allTab', 'Show All'),
     },
   ];
 

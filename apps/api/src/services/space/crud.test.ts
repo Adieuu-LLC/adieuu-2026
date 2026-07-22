@@ -11,6 +11,14 @@ import { ObjectId } from 'mongodb';
 type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
 
 const mockHasPaidAccess = mock((_ctx: any) => true) as AnyMock;
+const mockIsSpaceCreationEnabled = mock(async () => true) as AnyMock;
+const mockGetPlatformCapabilities = mock(async () => ({
+  isPlatformAdmin: false,
+  isPlatformModerator: false,
+  isPlatformSupportAgent: false,
+  roles: [],
+  permissions: [],
+})) as AnyMock;
 
 const spaceRepo = {
   findBySlug: mock(async (_slug: string) => null) as AnyMock,
@@ -98,6 +106,10 @@ const inviteRepo = {
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 mock.module('../billing/resolve-access', () => ({ hasPaidAccess: mockHasPaidAccess }));
+mock.module('./space-settings', () => ({ isSpaceCreationEnabled: mockIsSpaceCreationEnabled }));
+mock.module('../platform-capabilities.service', () => ({
+  getPlatformCapabilities: mockGetPlatformCapabilities,
+}));
 mock.module('../../repositories/space.repository', () => ({ getSpaceRepository: () => spaceRepo }));
 mock.module('../../repositories/space-role.repository', () => ({ getSpaceRoleRepository: () => roleRepo }));
 mock.module('../../repositories/space-member.repository', () => ({ getSpaceMemberRepository: () => memberRepo }));
@@ -183,6 +195,16 @@ describe('space/crud', () => {
   beforeEach(() => {
     mockHasPaidAccess.mockReset();
     mockHasPaidAccess.mockReturnValue(true);
+    mockIsSpaceCreationEnabled.mockReset();
+    mockIsSpaceCreationEnabled.mockResolvedValue(true);
+    mockGetPlatformCapabilities.mockReset();
+    mockGetPlatformCapabilities.mockResolvedValue({
+      isPlatformAdmin: false,
+      isPlatformModerator: false,
+      isPlatformSupportAgent: false,
+      roles: [],
+      permissions: [],
+    });
     for (const repo of [
       spaceRepo, roleRepo, memberRepo, channelRepo, categoryRepo,
       messageRepo, reactionRepo, pinRepo, inviteRepo,
@@ -233,6 +255,48 @@ describe('space/crud', () => {
       }, { subscriptions: ['free'] });
       expect(r).toMatchObject({ success: false, errorCode: 'TIER_REQUIRED' });
       expect(spaceRepo.createSpace).not.toHaveBeenCalled();
+    });
+
+    test('rejects non-admins when Space creation is disabled', async () => {
+      mockIsSpaceCreationEnabled.mockResolvedValue(false);
+      mockGetPlatformCapabilities.mockResolvedValue({
+        isPlatformAdmin: false,
+        isPlatformModerator: false,
+        isPlatformSupportAgent: false,
+        roles: [],
+        permissions: [],
+      });
+      const r = await createSpace(CREATOR, {
+        slug: 'my-space', name: 'My Space', visibility: 'public',
+      }, PAID);
+      expect(r).toMatchObject({ success: false, errorCode: 'SPACE_CREATION_DISABLED' });
+      expect(spaceRepo.createSpace).not.toHaveBeenCalled();
+    });
+
+    test('allows platform admins when Space creation is disabled', async () => {
+      mockIsSpaceCreationEnabled.mockResolvedValue(false);
+      mockGetPlatformCapabilities.mockResolvedValue({
+        isPlatformAdmin: true,
+        isPlatformModerator: false,
+        isPlatformSupportAgent: false,
+        roles: ['admin'],
+        permissions: [],
+      });
+      const r = await createSpace(CREATOR, {
+        slug: 'admin-space', name: 'Admin Space', visibility: 'public',
+      }, PAID);
+      expect(r.success).toBe(true);
+      expect(spaceRepo.createSpace).toHaveBeenCalled();
+    });
+
+    test('allows paid non-admins when Space creation is enabled', async () => {
+      mockIsSpaceCreationEnabled.mockResolvedValue(true);
+      const r = await createSpace(CREATOR, {
+        slug: 'open-space', name: 'Open Space', visibility: 'public',
+      }, PAID);
+      expect(r.success).toBe(true);
+      expect(mockGetPlatformCapabilities).not.toHaveBeenCalled();
+      expect(spaceRepo.createSpace).toHaveBeenCalled();
     });
 
     test('rejects reserved slugs', async () => {

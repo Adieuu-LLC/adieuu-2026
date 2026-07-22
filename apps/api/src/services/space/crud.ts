@@ -21,12 +21,14 @@ import { getSpaceReactionRepository } from '../../repositories/space-reaction.re
 import { getSpacePinRepository } from '../../repositories/space-pin.repository';
 import { getSpaceInviteRepository } from '../../repositories/space-invite.repository';
 import { hasPaidAccess } from '../billing/resolve-access';
+import { getPlatformCapabilities } from '../platform-capabilities.service';
 import { isValidObjectId } from '../../utils';
 import elog from '../../utils/adieuuLogger';
 import { toPublicSpace } from '../../models/space';
 import { resolveMemberPermissions, memberHasPermission } from './permissions';
 import { publishSpaceEvent, publishSpaceEventToIdentity } from './redis-events';
 import { seedNewSpace } from './space-seed';
+import { isSpaceCreationEnabled } from './space-settings';
 import type { PublicSpace, SpaceVisibility } from '@adieuu/shared';
 import { isReservedSpaceSlug } from '../../constants/spaces';
 import type {
@@ -64,6 +66,19 @@ export async function createSpace(
       error: 'Upgrade to a paid plan to create a Space.',
       errorCode: 'TIER_REQUIRED',
     };
+  }
+
+  // Platform setting gate — when disabled, only platform admins may create.
+  const creationEnabled = await isSpaceCreationEnabled();
+  if (!creationEnabled) {
+    const caps = await getPlatformCapabilities(creatorIdentityId);
+    if (!caps.isPlatformAdmin) {
+      return {
+        success: false,
+        error: 'Creating new Spaces is currently disabled.',
+        errorCode: 'SPACE_CREATION_DISABLED',
+      };
+    }
   }
 
   const { description, visibility } = params;

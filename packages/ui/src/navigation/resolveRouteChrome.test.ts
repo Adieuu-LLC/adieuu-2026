@@ -53,6 +53,10 @@ describe('resolveRouteChrome', () => {
   });
 
   test('maps admin sub-routes', () => {
+    expect(resolveRouteChrome('/admin/spaces')).toMatchObject({
+      icon: 'shield',
+      titleKey: 'admin.spaces.title',
+    });
     expect(resolveRouteChrome('/admin/users')).toMatchObject({
       icon: 'shield',
       titleKey: 'admin.users.title',

@@ -456,7 +456,9 @@ describe('ConversationsSidebarSection', () => {
 
     const spacesTab = happy.document.querySelector('button[data-tab-id="spaces"]');
     expect(spacesTab?.classList.contains('sidebar-tab-icon-end')).toBe(true);
-    expect(happy.document.querySelector('button[data-tab-id="all"]')?.textContent).toContain('All');
+    expect(happy.document.querySelector('button[data-tab-id="all"]')?.textContent).toContain(
+      'Show All',
+    );
 
     await act(async () => root.unmount());
     container.remove();

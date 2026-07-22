@@ -58,6 +58,9 @@ export const core = {
     tabs: {
       spaces: 'Spaces',
     },
+    conversationsTab: 'Conversations',
+    spacesTab: 'Spaces',
+    allTab: 'Show All',
     newConversation: 'Start New',
     signInForConversations: 'Sign into an Alias to see Conversations',
     discoverSpaces: 'Discover',
@@ -315,7 +318,13 @@ export const core = {
         cipherRequired: 'Select or create a Cipher for this Space.',
         entropyRequired: 'Add at least one secret phrase.',
         tierRequired: 'Upgrade to a paid plan to create a Space.',
+        creationDisabled: 'Creating new Spaces is currently unavailable.',
         createFailed: "Couldn't create the Space. Please try again.",
+      },
+      disabled: {
+        heading: 'Space creation unavailable',
+        body: 'Creating new Spaces is currently unavailable. Check back later.',
+        back: 'Back to Spaces',
       },
     },
     empty: {

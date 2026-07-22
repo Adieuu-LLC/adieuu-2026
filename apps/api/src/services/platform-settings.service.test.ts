@@ -46,6 +46,7 @@ import {
   ensureAgeVerificationPlatformSettingsExist,
   ensureCsamHashServicesPlatformSettingExists,
   ensureNcmecCyberTiplinePlatformSettingExists,
+  ensureSpaceCreationPlatformSettingExists,
   isAuthIdentifierAllowed,
   mergeUpsertPlatformSettingDescription,
   sanitizePlatformSettingValueAfterCoerce,
@@ -527,6 +528,48 @@ describe('CSAM hash services setting', () => {
     });
 
     await ensureCsamHashServicesPlatformSettingExists();
+    expect(mockUpsertByKey).not.toHaveBeenCalled();
+  });
+
+  test('ensureSpaceCreationPlatformSettingExists creates setting when missing', async () => {
+    mockFindByKey.mockResolvedValue(null);
+    mockUpsertByKey.mockImplementation(() =>
+      Promise.resolve({
+        _id: new ObjectId(),
+        key: PLATFORM_SETTING_KEYS.SPACE_CREATION_ENABLED,
+        description: '',
+        valueType: 'boolean',
+        value: false,
+        lastUpdatedBy: 'system',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+    );
+    await ensureSpaceCreationPlatformSettingExists();
+    expect(mockUpsertByKey).toHaveBeenCalledTimes(1);
+    expect(mockUpsertByKey).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: PLATFORM_SETTING_KEYS.SPACE_CREATION_ENABLED,
+        valueType: 'boolean',
+        value: false,
+        lastUpdatedBy: 'system',
+      }),
+    );
+  });
+
+  test('ensureSpaceCreationPlatformSettingExists skips when setting exists', async () => {
+    mockFindByKey.mockResolvedValue({
+      _id: new ObjectId(),
+      key: PLATFORM_SETTING_KEYS.SPACE_CREATION_ENABLED,
+      description: 'existing',
+      valueType: 'boolean',
+      value: true,
+      lastUpdatedBy: 'admin',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    await ensureSpaceCreationPlatformSettingExists();
     expect(mockUpsertByKey).not.toHaveBeenCalled();
   });
 });

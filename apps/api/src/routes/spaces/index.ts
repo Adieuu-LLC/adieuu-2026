@@ -5,9 +5,9 @@
  * and non-E2EE channel messaging. All endpoints require an authenticated
  * identity session (enforced in the controllers).
  *
- * Route ordering: literal paths (`/spaces/discover`, `/spaces/invites`,
- * `/spaces/slug/...`) are registered before the parameterised `/spaces/:id`
- * routes so the `:id` pattern does not swallow them.
+ * Route ordering: literal paths (`/spaces/discover`, `/spaces/creation-enabled`,
+ * `/spaces/invites`, `/spaces/slug/...`) are registered before the parameterised
+ * `/spaces/:id` routes so the `:id` pattern does not swallow them.
  *
  * @module routes/spaces
  */
@@ -26,6 +26,10 @@ const router = new Router();
 
 router.get('/spaces/discover', async (ctx) => {
   return spaceRespond(ctx, await spaceController.discoverSpacesCtrl(ctx));
+});
+
+router.get('/spaces/creation-enabled', async (ctx) => {
+  return spaceRespond(ctx, await spaceController.getSpaceCreationEnabledCtrl(ctx));
 });
 
 router.get('/spaces/invites', async (ctx) => {

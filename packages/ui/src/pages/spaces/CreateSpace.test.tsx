@@ -17,6 +17,7 @@ import {
 setMockTranslate((key) => key);
 
 let mockIdentityStatus = 'logged_in';
+let mockIsPlatformAdmin = false;
 
 mock.module('../../config', () => ({
   useAppConfig: () => ({ apiBaseUrl: 'http://localhost:3000' }),
@@ -40,15 +41,38 @@ const mockCheckSlug = mock(
     }>,
 );
 
+const mockGetCreationEnabled = mock(
+  () =>
+    Promise.resolve({ success: true, data: { enabled: true } }) as Promise<{
+      success: boolean;
+      data?: { enabled: boolean };
+      error?: { code: string; message: string };
+    }>,
+);
+
 mock.module('@adieuu/shared', () => ({
   ...sharedActual,
   createApiClient: () => ({
-    spaces: { create: mockCreate, checkSlugAvailability: mockCheckSlug },
+    spaces: {
+      create: mockCreate,
+      checkSlugAvailability: mockCheckSlug,
+      getCreationEnabled: mockGetCreationEnabled,
+    },
   }),
 }));
 
 mock.module('../../hooks/useIdentity', () => ({
   useIdentity: () => ({ status: mockIdentityStatus }),
+}));
+
+mock.module('../../hooks/useAuth', () => ({
+  useAuth: () => ({
+    session: mockIsPlatformAdmin ? { isPlatformAdmin: true } : { isPlatformAdmin: false },
+  }),
+}));
+
+mock.module('../../icons/Icon', () => ({
+  Icon: ({ name }: { name: string }) => createElement('span', { 'data-icon': name }),
 }));
 
 // Mutable cipher-store surface consumed by the create flow.
@@ -110,8 +134,13 @@ beforeEach(() => {
   resetReactRouterDomMock();
   clearSpaceCipherState();
   mockIdentityStatus = 'logged_in';
+  mockIsPlatformAdmin = false;
   mockCreate.mockClear();
   mockCheckSlug.mockClear();
+  mockGetCreationEnabled.mockClear();
+  mockGetCreationEnabled.mockImplementation(() =>
+    Promise.resolve({ success: true, data: { enabled: true } }),
+  );
   mockCreateCipher.mockClear();
   mockBookmarkSpaceCipher.mockClear();
   toastSuccess.mockClear();
@@ -168,6 +197,10 @@ async function renderCreate() {
   const root = createRoot(container as unknown as Element);
   await act(async () => {
     root.render(createElement(CreateSpace));
+    await new Promise((r) => setTimeout(r, 0));
+  });
+  // Flush the creation-policy fetch so the wizard (or disabled state) mounts.
+  await act(async () => {
     await new Promise((r) => setTimeout(r, 0));
   });
   return { root, container };
@@ -295,6 +328,15 @@ async function submitCreate() {
   await clickButton(btn!);
 }
 
+/** Select an existing Cipher from the inline combobox list (role=option). */
+async function selectExistingCipher(cipherName: string) {
+  const option = [...happy.document.querySelectorAll('[role="option"]')].find((el) =>
+    el.textContent?.includes(cipherName),
+  ) as HTMLButtonElement | undefined;
+  expect(option).toBeTruthy();
+  await clickButton(option!);
+}
+
 function byId<T extends Element = HTMLElement>(id: string): T {
   return happy.document.getElementById(id) as unknown as T;
 }
@@ -313,6 +355,34 @@ describe('CreateSpace flow', () => {
 
     expect(happy.document.body.textContent).toContain('spaces.signInHeading');
     expect(mockCheckSlug).not.toHaveBeenCalled();
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  it('shows the disabled state when platform creation is off for non-admins', async () => {
+    mockGetCreationEnabled.mockImplementation(() =>
+      Promise.resolve({ success: true, data: { enabled: false } }),
+    );
+    const { root, container } = await renderCreate();
+
+    expect(happy.document.body.textContent).toContain('spaces.create.disabled.heading');
+    expect(happy.document.querySelector('.space-create-card')).toBeNull();
+    expect(mockCreate).not.toHaveBeenCalled();
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  it('shows the wizard for platform admins even when creation is disabled', async () => {
+    mockIsPlatformAdmin = true;
+    mockGetCreationEnabled.mockImplementation(() =>
+      Promise.resolve({ success: true, data: { enabled: false } }),
+    );
+    const { root, container } = await renderCreate();
+
+    expect(happy.document.body.textContent).toContain('spaces.create.stepVisibility');
+    expect(mockGetCreationEnabled).not.toHaveBeenCalled();
 
     await act(async () => root.unmount());
     container.remove();
@@ -517,6 +587,29 @@ describe('CreateSpace flow', () => {
     container.remove();
   });
 
+  it('maps SPACE_CREATION_DISABLED onto a friendly message', async () => {
+    mockCreate.mockImplementation(() =>
+      Promise.resolve({
+        success: false,
+        error: { code: 'SPACE_CREATION_DISABLED', message: 'disabled' },
+      }),
+    );
+    const { root, container } = await renderCreate();
+
+    await reachEncryptionStep({ name: 'Locked Space' });
+    await submitCreate();
+    await waitFor(
+      () =>
+        happy.document.body.textContent?.includes('spaces.create.errors.creationDisabled') ?? false,
+    );
+
+    expect(happy.document.body.textContent).toContain('spaces.create.errors.creationDisabled');
+    expect(mockNavigate).not.toHaveBeenCalled();
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
   it('binds an existing Cipher into an E2EE Space with a valid cipherCheck + local link', async () => {
     const cipher = deriveCommunityCipher([createTextEntropy('existing space secret')]);
     mockCiphers = [{ id: 'c1', name: 'My Key', shortId: 'abc123' }];
@@ -526,7 +619,7 @@ describe('CreateSpace flow', () => {
 
     await reachEncryptionStep({ name: 'Secret Space', visibility: 'listed' });
     await check(byId<HTMLInputElement>('space-encrypt'));
-    await selectValue(byId<HTMLSelectElement>('create-cipher-select'), 'c1');
+    await selectExistingCipher('My Key');
 
     await submitCreate();
     await waitFor(() => mockNavigate.mock.calls.length > 0);
@@ -571,7 +664,7 @@ describe('CreateSpace flow', () => {
     expect(happy.document.body.textContent).toContain('spaces.create.encryptIdentityListedUrlNote');
     await check(byId<HTMLInputElement>('space-encrypt'));
     await check(byId<HTMLInputElement>('space-encrypt-identity'));
-    await selectValue(byId<HTMLSelectElement>('create-cipher-select'), 'c1');
+    await selectExistingCipher('My Key');
 
     await submitCreate();
     await waitFor(() => mockNavigate.mock.calls.length > 0);
@@ -644,7 +737,7 @@ describe('CreateSpace flow', () => {
 
     await reachEncryptionStep({ name: 'Gated Space', visibility: 'listed' });
     await check(byId<HTMLInputElement>('space-cipher-required'));
-    await selectValue(byId<HTMLSelectElement>('create-cipher-select'), 'c1');
+    await selectExistingCipher('My Key');
 
     await submitCreate();
     await waitFor(() => mockNavigate.mock.calls.length > 0);

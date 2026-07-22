@@ -4,6 +4,7 @@ export { AdminDashboard } from './Dashboard';
 export { AdminPlatformAdmins } from './PlatformAdmins';
 export { AdminAuthAllowlist } from './AuthAllowlist';
 export { AdminAgeVerification } from './AgeVerification';
+export { AdminSpaces } from './Spaces';
 export { AdminUserSearch } from './UserSearch';
 export { AdminUserProfile } from './UserProfile';
 export { AdminIdentitySearch } from './IdentitySearch';

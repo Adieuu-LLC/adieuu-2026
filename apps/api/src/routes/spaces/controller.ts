@@ -28,6 +28,7 @@ import {
   listMySpaces,
   discoverSpaces,
   isSlugAvailable,
+  isSpaceCreationEnabled,
   joinSpace,
   leaveSpace,
   removeSpaceMember,
@@ -82,6 +83,18 @@ function billingFromSession(session: IdentityContext): SpaceBillingContext {
 // ---------------------------------------------------------------------------
 // Space lifecycle
 // ---------------------------------------------------------------------------
+
+/**
+ * Returns whether non-admin Space creation is currently enabled on the platform.
+ * Auth required (same as other Spaces routes); clients combine with isPlatformAdmin.
+ */
+export async function getSpaceCreationEnabledCtrl(
+  ctx: RouteContext,
+): Promise<SpaceRouteResult<{ enabled: boolean }>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const enabled = await isSpaceCreationEnabled();
+  return { kind: 'ok', data: { enabled } };
+}
 
 export async function createSpaceCtrl(ctx: RouteContext): Promise<SpaceRouteResult<unknown>> {
   if (!ctx.identitySession) return { kind: 'unauthorized' };

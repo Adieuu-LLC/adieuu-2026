@@ -17,6 +17,7 @@ export {
   discoverSpaces,
   isSlugAvailable,
 } from './crud';
+export { isSpaceCreationEnabled } from './space-settings';
 export {
   resolveMemberPermissions,
   memberHasPermission,

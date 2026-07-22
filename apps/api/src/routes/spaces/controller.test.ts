@@ -32,6 +32,7 @@ const svc = {
   listMySpaces: mock(async () => ({ spaces: [], cursor: null })) as AnyMock,
   discoverSpaces: mock(async () => ({ spaces: [], cursor: null })) as AnyMock,
   isSlugAvailable: mock(async () => true) as AnyMock,
+  isSpaceCreationEnabled: mock(async () => false) as AnyMock,
   joinSpace: mock(async () => ({ success: true, member: { id: 'm1' } })) as AnyMock,
   leaveSpace: mock(async () => ({ success: true })) as AnyMock,
   removeSpaceMember: mock(async () => ({ success: true })) as AnyMock,
@@ -175,6 +176,23 @@ describe('createSpaceCtrl', () => {
     expect(r).toEqual({ kind: 'forbidden', message: 'pay up' });
   });
 
+  test('maps SPACE_CREATION_DISABLED to a named 403 error', async () => {
+    svc.createSpace.mockResolvedValueOnce({
+      success: false,
+      errorCode: 'SPACE_CREATION_DISABLED',
+      error: 'Creating new Spaces is currently disabled.',
+    });
+    const r = await c.createSpaceCtrl(
+      makeCtx({ body: { slug: 'my-space', name: 'My Space', visibility: 'public' } }),
+    );
+    expect(r).toEqual({
+      kind: 'named_error',
+      code: 'SPACE_CREATION_DISABLED',
+      message: 'Creating new Spaces is currently disabled.',
+      status: 403,
+    });
+  });
+
   test('maps SLUG_TAKEN to a 409 conflict result', async () => {
     svc.createSpace.mockResolvedValueOnce({
       success: false, errorCode: 'SLUG_TAKEN', error: 'taken',
@@ -213,6 +231,31 @@ describe('checkSlugAvailabilityCtrl', () => {
     const r = await c.checkSlugAvailabilityCtrl(makeCtx({ params: { slug: 'good-slug' } }));
     expect(r).toEqual({ kind: 'ok', data: { available: true } });
     expect(svc.isSlugAvailable).toHaveBeenCalledWith('good-slug');
+  });
+});
+
+describe('getSpaceCreationEnabledCtrl', () => {
+  beforeEach(() => {
+    svc.isSpaceCreationEnabled.mockClear();
+    svc.isSpaceCreationEnabled.mockResolvedValue(false);
+  });
+
+  test('unauthorized without a session', async () => {
+    expect(await c.getSpaceCreationEnabledCtrl(makeCtx({ session: false }))).toEqual({
+      kind: 'unauthorized',
+    });
+    expect(svc.isSpaceCreationEnabled).not.toHaveBeenCalled();
+  });
+
+  test('returns enabled:false when creation is disabled', async () => {
+    const r = await c.getSpaceCreationEnabledCtrl(makeCtx());
+    expect(r).toEqual({ kind: 'ok', data: { enabled: false } });
+  });
+
+  test('returns enabled:true when creation is enabled', async () => {
+    svc.isSpaceCreationEnabled.mockResolvedValueOnce(true);
+    const r = await c.getSpaceCreationEnabledCtrl(makeCtx());
+    expect(r).toEqual({ kind: 'ok', data: { enabled: true } });
   });
 });
 
@@ -929,6 +972,17 @@ describe('spaces routes smoke', () => {
     );
     expect(res.status).toBe(200);
     expect(svc.discoverSpaces).toHaveBeenCalled();
+    expect(svc.getSpaceById).not.toHaveBeenCalled();
+  });
+
+  test('GET /spaces/creation-enabled resolves to the policy endpoint, not the :id route', async () => {
+    svc.isSpaceCreationEnabled.mockReset();
+    svc.isSpaceCreationEnabled.mockResolvedValue(false);
+    const res = await spaceRoutes.handler()(
+      makeRequest('/spaces/creation-enabled', { cookies: 'adieuu_session=session' }),
+    );
+    expect(res.status).toBe(200);
+    expect(svc.isSpaceCreationEnabled).toHaveBeenCalled();
     expect(svc.getSpaceById).not.toHaveBeenCalled();
   });
 

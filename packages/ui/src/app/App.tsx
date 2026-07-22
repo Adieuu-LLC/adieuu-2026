@@ -95,6 +95,7 @@ const ConversationView = lazyRoute(() => import('../pages/conversations/Conversa
 const NewConversation = lazyRoute(() => import('../pages/conversations/NewConversation'), 'NewConversation');
 const AdminAuthAllowlist = lazyRoute(() => import('../pages/admin'), 'AdminAuthAllowlist');
 const AdminAgeVerification = lazyRoute(() => import('../pages/admin'), 'AdminAgeVerification');
+const AdminSpaces = lazyRoute(() => import('../pages/admin'), 'AdminSpaces');
 const AdminDashboard = lazyRoute(() => import('../pages/admin'), 'AdminDashboard');
 const AdminGate = lazyRoute(() => import('../pages/admin'), 'AdminGate');
 const AdminLayout = lazyRoute(() => import('../pages/admin'), 'AdminLayout');
@@ -462,6 +463,7 @@ export function App() {
               <Route path="platform-admins" element={<AdminPlatformAdmins />} />
               <Route path="auth-allowlist" element={<AdminAuthAllowlist />} />
               <Route path="age-verification" element={<AdminAgeVerification />} />
+              <Route path="spaces" element={<AdminSpaces />} />
               <Route path="users" element={<AdminUserSearch />} />
               <Route path="users/:id" element={<AdminUserProfile />} />
               <Route path="identities" element={<AdminIdentitySearch />} />

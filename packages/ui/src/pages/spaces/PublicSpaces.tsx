@@ -7,18 +7,19 @@
  * calling the join API; Browse navigates without joining for non-E2EE Spaces.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import { createApiClient, type PublicSpace } from '@adieuu/shared';
-import { useAppConfig } from '../../config';
-import { useIdentity } from '../../hooks/useIdentity';
-import { useSpaces } from '../../hooks/useSpaces';
-import { useCipherStore } from '../../hooks/useCipherStore';
-import { useToast } from '../../components/Toast';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { Spinner } from '../../components/Spinner';
+import { useToast } from '../../components/Toast';
+import { useAppConfig } from '../../config';
+import { useAuth } from '../../hooks/useAuth';
+import { useCipherStore } from '../../hooks/useCipherStore';
+import { useIdentity } from '../../hooks/useIdentity';
+import { useSpaces } from '../../hooks/useSpaces';
 import { getSpaceCipherLink } from '../../services/spaceCipherService';
 import { JoinSpaceInterstitial } from './JoinSpaceInterstitial';
 import { canBrowseSpace } from './joinSpaceGate';
@@ -35,8 +36,10 @@ export function PublicSpaces() {
   const { t } = useTranslation();
   const toast = useToast();
   const { apiBaseUrl } = useAppConfig();
+  const { session } = useAuth();
   const { status: identityStatus } = useIdentity();
   const isLoggedIn = identityStatus === 'logged_in';
+  const isPlatformAdmin = session?.isPlatformAdmin === true;
   const { spaces: joinedSpaces } = useSpaces();
   const { getCipherKey } = useCipherStore();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
@@ -54,6 +57,7 @@ export function PublicSpaces() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [joinTarget, setJoinTarget] = useState<PublicSpace | null>(null);
+  const [canCreateSpace, setCanCreateSpace] = useState(false);
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fetchSeq = useRef(0);
@@ -98,10 +102,27 @@ export function PublicSpaces() {
   useEffect(() => {
     if (!isLoggedIn) {
       setLoading(false);
+      setCanCreateSpace(false);
       return;
     }
     void fetchSpaces();
   }, [isLoggedIn, fetchSpaces]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    if (isPlatformAdmin) {
+      setCanCreateSpace(true);
+      return;
+    }
+    let cancelled = false;
+    void api.spaces.getCreationEnabled().then((res) => {
+      if (cancelled) return;
+      setCanCreateSpace(res.success && res.data?.enabled === true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, isPlatformAdmin, api]);
 
   const handleLoadMore = useCallback(async () => {
     if (loadingMore || !cursor) return;
@@ -166,9 +187,11 @@ export function PublicSpaces() {
             value={search}
             onChange={(e) => handleSearchInput(e.target.value)}
           />
-          <Link to="/spaces/new" className="btn btn-primary btn-md spaces-create-cta">
-            {t('spaces.create.cta')}
-          </Link>
+          {canCreateSpace ? (
+            <Link to="/spaces/new" className="btn btn-primary btn-md spaces-create-cta">
+              {t('spaces.create.cta')}
+            </Link>
+          ) : null}
         </div>
 
         {loading ? (

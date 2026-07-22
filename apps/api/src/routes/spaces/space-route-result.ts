@@ -83,6 +83,7 @@ export function mapSpaceError(
       return { kind: 'named_error', code: errorCode, message, status: 503 };
     case 'ROLE_IN_USE':
     case 'LAST_ADMIN':
+    case 'SPACE_CREATION_DISABLED':
       return { kind: 'named_error', code: errorCode, message, status: 403 };
     case 'SLUG_TAKEN':
       return { kind: 'conflict', code: 'SLUG_TAKEN', message };
