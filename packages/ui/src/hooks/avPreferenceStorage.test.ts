@@ -11,6 +11,13 @@ import {
   setAvInputVolume,
   getAvOutputVolume,
   setAvOutputVolume,
+  getAvJoinMicOff,
+  setAvJoinMicOff,
+  getAvJoinCameraOff,
+  setAvJoinCameraOff,
+  getAvShowDeviceSetup,
+  setAvShowDeviceSetup,
+  getAvJoinMediaFlags,
 } from './avPreferenceStorage';
 
 class MemoryStorage implements Storage {
@@ -75,5 +82,22 @@ describe('avPreferenceStorage', () => {
     expect(getAvOutputVolume()).toBe(MAX_AV_GAIN);
     setAvOutputVolume(-1);
     expect(getAvOutputVolume()).toBe(0);
+  });
+
+  test('join defaults: mic on, camera off, device setup hidden', () => {
+    expect(getAvJoinMicOff()).toBe(false);
+    expect(getAvJoinCameraOff()).toBe(true);
+    expect(getAvShowDeviceSetup()).toBe(false);
+    expect(getAvJoinMediaFlags()).toEqual({ audio: true, video: false });
+  });
+
+  test('join mute / camera / device-setup prefs round-trip', () => {
+    setAvJoinMicOff(true);
+    setAvJoinCameraOff(false);
+    setAvShowDeviceSetup(true);
+    expect(getAvJoinMicOff()).toBe(true);
+    expect(getAvJoinCameraOff()).toBe(false);
+    expect(getAvShowDeviceSetup()).toBe(true);
+    expect(getAvJoinMediaFlags()).toEqual({ audio: false, video: true });
   });
 });

@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import type { ChatIncomingMessage, StreamQualityCaps, SerializedWrappedCallKey } from '@adieuu/shared';
 import { createApiClient } from '@adieuu/shared';
 import { useAppConfig } from '../config';
+import { useToast } from '../components/Toast';
 import { useIdentity } from './useIdentity';
 import { useChatSocket } from './useChatSocket';
 import {
@@ -38,7 +39,14 @@ import {
   clearOtherMediaSession,
   registerConversationCallLeave,
 } from '../services/mediaSessionExclusive';
-import { setAvMicDeviceId } from './avPreferenceStorage';
+import {
+  getAvJoinMediaFlags,
+  getAvShowDeviceSetup,
+  setAvMicDeviceId,
+  setAvCameraDeviceId,
+  setAvSpeakerDeviceId,
+} from './avPreferenceStorage';
+import type { CallDeviceSelection } from '../components/call/CallDeviceSetupModal';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -87,7 +95,7 @@ export interface CallSessionContextValue {
   requestStartCall: (conversationId: string, media: CallMediaOptions) => void;
   requestJoinCall: (conversationId: string, callId: string, media: CallMediaOptions) => void;
 
-  confirmDeviceSetup: (devices: { audioDeviceId?: string }) => Promise<void>;
+  confirmDeviceSetup: (devices: CallDeviceSelection) => Promise<void>;
   cancelDeviceSetup: () => void;
 
   leaveCall: () => Promise<void>;
@@ -114,6 +122,7 @@ export function useCallSession(): CallSessionContextValue {
 
 export function CallSessionProvider({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
+  const toast = useToast();
   const { identity, getCurrentDeviceId, getWrappingKey } = useIdentity();
   const { apiBaseUrl } = useAppConfig();
   const { subscribe } = useChatSocket();
@@ -137,6 +146,30 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
   sessionRef.current = session;
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
+
+  // Synchronous pending snapshot so we can connect without waiting for setState.
+  const pendingRef = useRef<{
+    callType: CallMediaOptions | null;
+    conversationId: string | null;
+    isJoin: boolean;
+    callId: string | null;
+  }>({ callType: null, conversationId: null, isJoin: false, callId: null });
+
+  const setPending = useCallback(
+    (next: {
+      callType: CallMediaOptions | null;
+      conversationId: string | null;
+      isJoin: boolean;
+      callId: string | null;
+    }) => {
+      pendingRef.current = next;
+      setPendingCallType(next.callType);
+      setPendingConversationId(next.conversationId);
+      setPendingIsJoin(next.isJoin);
+      setPendingCallId(next.callId);
+    },
+    [],
+  );
 
   // ---- Leave (defined early so request handlers can leave-then-join) ----
 
@@ -167,49 +200,30 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
 
   // ---- Single call at a time: leave any current session, then set up ----
 
-  const requestStartCall = useCallback(
-    (conversationId: string, media: CallMediaOptions) => {
-      // Don't interrupt an in-flight setup/connect; only switch from idle/active.
-      if (phaseRef.current === 'device-setup' || phaseRef.current === 'connecting') return;
-      void (async () => {
-        if (sessionRef.current !== null) {
-          await leaveCallAction();
-        }
-        await clearOtherMediaSession('conversation');
-        setPendingCallType(media);
-        setPendingConversationId(conversationId);
-        setPendingIsJoin(false);
-        setPendingCallId(null);
-        setPhase('device-setup');
-      })();
-    },
-    [leaveCallAction],
-  );
-
-  const requestJoinCall = useCallback(
-    (conversationId: string, callId: string, media: CallMediaOptions) => {
-      if (phaseRef.current === 'device-setup' || phaseRef.current === 'connecting') return;
-      void (async () => {
-        if (sessionRef.current !== null) {
-          await leaveCallAction();
-        }
-        await clearOtherMediaSession('conversation');
-        setPendingCallType(media);
-        setPendingConversationId(conversationId);
-        setPendingIsJoin(true);
-        setPendingCallId(callId);
-        setPhase('device-setup');
-      })();
-    },
-    [leaveCallAction],
-  );
+  const resolveJoinMedia = useCallback((_media: CallMediaOptions): CallMediaOptions => {
+    const flags = getAvJoinMediaFlags();
+    return {
+      audio: flags.audio,
+      video: flags.video,
+      screenshare: false,
+    };
+  }, []);
 
   const cancelDeviceSetup = useCallback(() => {
-    setPendingCallType(null);
-    setPendingConversationId(null);
-    setPendingIsJoin(false);
-    setPendingCallId(null);
+    setPending({ callType: null, conversationId: null, isJoin: false, callId: null });
     setPhase('idle');
+  }, [setPending]);
+
+  const persistDeviceSelection = useCallback((devices: CallDeviceSelection) => {
+    if (devices.audioDeviceId !== undefined) {
+      setAvMicDeviceId(devices.audioDeviceId);
+    }
+    if (devices.videoDeviceId !== undefined) {
+      setAvCameraDeviceId(devices.videoDeviceId);
+    }
+    if (devices.speakerDeviceId !== undefined) {
+      setAvSpeakerDeviceId(devices.speakerDeviceId);
+    }
   }, []);
 
   // ---- Load device private keys for E2EE unwrapping ----
@@ -283,19 +297,17 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
   // ---- Confirm device setup -> initiate or join ----
 
   const confirmDeviceSetup = useCallback(
-    async (devices: { audioDeviceId?: string }) => {
-      if (!pendingCallType || !pendingConversationId || !identity) {
+    async (devices: CallDeviceSelection = {}) => {
+      const pending = pendingRef.current;
+      if (!pending.callType || !pending.conversationId || !identity) {
         cancelDeviceSetup();
         return;
       }
 
-      // Honour the chosen mic and remember it as the Audio & Video default so
-      // the LiveKit room (CallRoom) captures from it on connect.
-      if (devices.audioDeviceId) {
-        setAvMicDeviceId(devices.audioDeviceId);
-      }
-
+      persistDeviceSelection(devices);
       setPhase('connecting');
+
+      const { callType, conversationId, isJoin, callId } = pending;
 
       try {
         let call: PublicCall;
@@ -304,8 +316,8 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
         let streamQualityCaps: StreamQualityCaps | undefined;
         let callE2EEKey: Uint8Array | undefined;
 
-        if (pendingIsJoin && pendingCallId) {
-          const resp = await apiJoinCall(client, pendingConversationId, pendingCallId, pendingCallType);
+        if (isJoin && callId) {
+          const resp = await apiJoinCall(client, conversationId, callId, callType);
           if (!resp.success || !resp.data) {
             if (resp.error?.code === 'ALREADY_IN_CALL') {
               throw new CallSessionError(t('call.alreadyJoinedCall'), 'ALREADY_IN_CALL');
@@ -338,7 +350,7 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
               callE2EEKey = unwrapped;
             } catch (e2eeErr) {
               try {
-                await apiLeaveCall(client, pendingConversationId, call.id);
+                await apiLeaveCall(client, conversationId, call.id);
               } catch {
                 /* Best-effort rollback so a failed unwrap does not leave a ghost participant */
               }
@@ -354,7 +366,7 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
           if (e2eeSupported) {
             callE2EEKey = generateCallE2EEKey();
             try {
-              const recipients = await buildCallKeyRecipients(pendingConversationId);
+              const recipients = await buildCallKeyRecipients(conversationId);
               if (recipients.length > 0) {
                 wrappedE2EEKeys = wrapAndSerializeCallKey(callE2EEKey, recipients);
               } else {
@@ -371,7 +383,7 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
             }
           }
 
-          const resp = await apiInitiateCall(client, pendingConversationId, pendingCallType, wrappedE2EEKeys);
+          const resp = await apiInitiateCall(client, conversationId, callType, wrappedE2EEKeys);
           if (!resp.success || !resp.data) {
             if (callE2EEKey) {
               zeroCallKey(callE2EEKey);
@@ -405,7 +417,7 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
         }
 
         const newSession: CallSession = {
-          conversationId: pendingConversationId,
+          conversationId,
           call,
           livekitToken,
           livekitUrl,
@@ -420,17 +432,10 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
         setPhase('idle');
         throw err;
       } finally {
-        setPendingCallType(null);
-        setPendingConversationId(null);
-        setPendingIsJoin(false);
-        setPendingCallId(null);
+        setPending({ callType: null, conversationId: null, isJoin: false, callId: null });
       }
     },
     [
-      pendingCallType,
-      pendingConversationId,
-      pendingIsJoin,
-      pendingCallId,
       identity,
       client,
       t,
@@ -438,7 +443,73 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
       cancelDeviceSetup,
       loadDevicePrivateKeys,
       buildCallKeyRecipients,
+      persistDeviceSelection,
+      setPending,
     ],
+  );
+
+  const beginCallRequest = useCallback(
+    async (opts: {
+      conversationId: string;
+      media: CallMediaOptions;
+      isJoin: boolean;
+      callId: string | null;
+    }) => {
+      if (phaseRef.current === 'device-setup' || phaseRef.current === 'connecting') return;
+      if (sessionRef.current !== null) {
+        await leaveCallAction();
+      }
+      await clearOtherMediaSession('conversation');
+
+      const callType = resolveJoinMedia(opts.media);
+      setPending({
+        callType,
+        conversationId: opts.conversationId,
+        isJoin: opts.isJoin,
+        callId: opts.callId,
+      });
+
+      if (getAvShowDeviceSetup()) {
+        setPhase('device-setup');
+        return;
+      }
+
+      try {
+        await confirmDeviceSetup({});
+      } catch (err) {
+        if (err instanceof CallSessionError && err.code === 'ALREADY_IN_CALL') {
+          toast.error(t('call.alreadyJoinedCall'));
+          return;
+        }
+        const message = err instanceof Error ? err.message : t('call.callStartFailed');
+        toast.error(message);
+      }
+    },
+    [leaveCallAction, resolveJoinMedia, setPending, confirmDeviceSetup, toast, t],
+  );
+
+  const requestStartCall = useCallback(
+    (conversationId: string, media: CallMediaOptions) => {
+      void beginCallRequest({
+        conversationId,
+        media,
+        isJoin: false,
+        callId: null,
+      });
+    },
+    [beginCallRequest],
+  );
+
+  const requestJoinCall = useCallback(
+    (conversationId: string, callId: string, media: CallMediaOptions) => {
+      void beginCallRequest({
+        conversationId,
+        media,
+        isJoin: true,
+        callId,
+      });
+    },
+    [beginCallRequest],
   );
 
   // ---- End ----

@@ -10,11 +10,21 @@
 export const MAX_AV_GAIN = 2;
 const DEFAULT_VOLUME = 1;
 
+/** New users join with microphone on. */
+const DEFAULT_JOIN_MIC_OFF = false;
+/** New users join with camera off. */
+const DEFAULT_JOIN_CAMERA_OFF = true;
+/** Skip the pre-join device modal unless the user opts in. */
+const DEFAULT_SHOW_DEVICE_SETUP = false;
+
 const STORAGE_KEY_MIC = 'adieuu.app.av.micDeviceId';
 const STORAGE_KEY_CAMERA = 'adieuu.app.av.cameraDeviceId';
 const STORAGE_KEY_SPEAKER = 'adieuu.app.av.speakerDeviceId';
 const STORAGE_KEY_INPUT_VOLUME = 'adieuu.app.av.inputVolume';
 const STORAGE_KEY_OUTPUT_VOLUME = 'adieuu.app.av.outputVolume';
+const STORAGE_KEY_JOIN_MIC_OFF = 'adieuu.app.av.joinMicOff';
+const STORAGE_KEY_JOIN_CAMERA_OFF = 'adieuu.app.av.joinCameraOff';
+const STORAGE_KEY_SHOW_DEVICE_SETUP = 'adieuu.app.av.showDeviceSetup';
 
 const listeners = new Set<() => void>();
 
@@ -118,12 +128,68 @@ export function setAvOutputVolume(gain: number): void {
   setVolume(STORAGE_KEY_OUTPUT_VOLUME, gain);
 }
 
+function getBool(key: string, defaultValue: boolean): boolean {
+  if (typeof localStorage === 'undefined') return defaultValue;
+  try {
+    const v = localStorage.getItem(key);
+    if (v === null) return defaultValue;
+    return v === '1';
+  } catch {
+    return defaultValue;
+  }
+}
+
+function setBool(key: string, value: boolean): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(key, value ? '1' : '0');
+  } catch {
+    return;
+  }
+  emit();
+}
+
+/** When true, join calls / voice channels with the microphone muted. Default: false. */
+export function getAvJoinMicOff(): boolean {
+  return getBool(STORAGE_KEY_JOIN_MIC_OFF, DEFAULT_JOIN_MIC_OFF);
+}
+export function setAvJoinMicOff(off: boolean): void {
+  setBool(STORAGE_KEY_JOIN_MIC_OFF, off);
+}
+
+/** When true, join calls / voice channels with the camera off. Default: true. */
+export function getAvJoinCameraOff(): boolean {
+  return getBool(STORAGE_KEY_JOIN_CAMERA_OFF, DEFAULT_JOIN_CAMERA_OFF);
+}
+export function setAvJoinCameraOff(off: boolean): void {
+  setBool(STORAGE_KEY_JOIN_CAMERA_OFF, off);
+}
+
+/** When true, show the device-selection modal before joining. Default: false. */
+export function getAvShowDeviceSetup(): boolean {
+  return getBool(STORAGE_KEY_SHOW_DEVICE_SETUP, DEFAULT_SHOW_DEVICE_SETUP);
+}
+export function setAvShowDeviceSetup(show: boolean): void {
+  setBool(STORAGE_KEY_SHOW_DEVICE_SETUP, show);
+}
+
+/** Initial publish flags for LiveKit / presence media state. */
+export function getAvJoinMediaFlags(): { audio: boolean; video: boolean } {
+  return {
+    audio: !getAvJoinMicOff(),
+    video: !getAvJoinCameraOff(),
+  };
+}
+
 export interface AvPreferenceSnapshot {
   micDeviceId: string | null;
   cameraDeviceId: string | null;
   speakerDeviceId: string | null;
   inputVolume: number;
   outputVolume: number;
+  joinMicOff: boolean;
+  joinCameraOff: boolean;
+  showDeviceSetup: boolean;
 }
 
 export function subscribeAvPreferences(onStoreChange: () => void): () => void {
@@ -135,6 +201,9 @@ export function subscribeAvPreferences(onStoreChange: () => void): () => void {
       e.key === STORAGE_KEY_SPEAKER ||
       e.key === STORAGE_KEY_INPUT_VOLUME ||
       e.key === STORAGE_KEY_OUTPUT_VOLUME ||
+      e.key === STORAGE_KEY_JOIN_MIC_OFF ||
+      e.key === STORAGE_KEY_JOIN_CAMERA_OFF ||
+      e.key === STORAGE_KEY_SHOW_DEVICE_SETUP ||
       e.key === null
     ) {
       onStoreChange();

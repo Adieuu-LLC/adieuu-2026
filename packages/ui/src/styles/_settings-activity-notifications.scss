@@ -227,6 +227,15 @@
   margin-bottom: var(--spacing-md);
 }
 
+.app-settings-card .app-settings-toggle + .app-settings-toggle {
+  margin-top: var(--spacing-md);
+}
+
+.app-settings-av-field + .app-settings-toggle {
+  margin-top: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
 .app-settings-toggle {
   display: flex;
   align-items: flex-start;

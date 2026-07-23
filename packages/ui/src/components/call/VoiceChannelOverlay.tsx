@@ -1,31 +1,58 @@
 /**
- * LiveKit host for Space voice channels (auto-connect, no device modal).
+ * LiveKit host for Space voice channels.
  *
  * The in-call UI (name, duration, controls) lives in the primary sidebar via
- * `SidebarCallWidget`; this overlay only mounts the (hidden) LiveKit room so
- * audio keeps flowing across navigation.
+ * `SidebarCallWidget`; this overlay mounts the (hidden) LiveKit room so audio
+ * keeps flowing across navigation, and hosts the optional pre-join device modal.
  */
 
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useCallback, useEffect } from 'react';
 import { useVoiceChannelSession } from '../../hooks/useVoiceChannelSession';
+import { CallDeviceSetupModal, type CallDeviceSelection } from './CallDeviceSetupModal';
 
 const CallRoom = lazy(() => import('./CallRoom'));
 
 export function VoiceChannelOverlay() {
-  const { joined, phase, livekitUrl, livekitToken, callE2EEKey, e2eeSupported } =
-    useVoiceChannelSession();
+  const {
+    joined,
+    phase,
+    pendingDeviceSetup,
+    livekitUrl,
+    livekitToken,
+    callE2EEKey,
+    e2eeSupported,
+    confirmVoiceDeviceSetup,
+    cancelVoiceDeviceSetup,
+  } = useVoiceChannelSession();
 
   useEffect(() => {
-    if (phase === 'connecting' || phase === 'live' || (livekitUrl && livekitToken)) {
+    if (
+      phase === 'device-setup' ||
+      phase === 'connecting' ||
+      phase === 'live' ||
+      (livekitUrl && livekitToken)
+    ) {
       void import('./CallRoom');
     }
   }, [phase, livekitUrl, livekitToken]);
 
-  if (!joined) return null;
+  const handleConfirmDevices = useCallback(
+    async (devices: CallDeviceSelection) => {
+      await confirmVoiceDeviceSetup(devices);
+    },
+    [confirmVoiceDeviceSetup],
+  );
 
   return (
     <>
-      {livekitUrl && livekitToken && (
+      <CallDeviceSetupModal
+        open={phase === 'device-setup' && pendingDeviceSetup !== null}
+        variant="voice"
+        onConfirm={(devices) => void handleConfirmDevices(devices)}
+        onCancel={cancelVoiceDeviceSetup}
+      />
+
+      {joined && livekitUrl && livekitToken && (
         <div className="voice-channel-livekit" aria-hidden>
           <Suspense fallback={null}>
             <CallRoom

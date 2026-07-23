@@ -49,7 +49,7 @@ export function CallControlsRow({ className, onMediaChange }: CallControlsRowPro
     <div className={rowClass} role="group" aria-label={t('call.controlsLabel')}>
       <button
         type="button"
-        className={`call-controls-row__btn${micEnabled ? '' : ' call-controls-row__btn--muted'}`}
+        className={`call-controls-row__btn${micEnabled ? ' call-controls-row__btn--active' : ' call-controls-row__btn--muted'}`}
         onClick={() => void toggleMic()}
         disabled={!hasRoom}
         aria-pressed={!micEnabled}
@@ -61,7 +61,7 @@ export function CallControlsRow({ className, onMediaChange }: CallControlsRowPro
 
       <button
         type="button"
-        className={`call-controls-row__btn${cameraEnabled ? ' call-controls-row__btn--active' : ''}`}
+        className={`call-controls-row__btn${cameraEnabled ? ' call-controls-row__btn--active' : ' call-controls-row__btn--off'}`}
         onClick={() => void toggleCamera()}
         disabled={!hasRoom}
         aria-pressed={cameraEnabled}
@@ -73,7 +73,7 @@ export function CallControlsRow({ className, onMediaChange }: CallControlsRowPro
 
       <button
         type="button"
-        className={`call-controls-row__btn${screenShareEnabled ? ' call-controls-row__btn--active' : ''}`}
+        className={`call-controls-row__btn${screenShareEnabled ? ' call-controls-row__btn--active' : ' call-controls-row__btn--off'}`}
         onClick={() => void toggleScreenShare()}
         disabled={!hasRoom}
         aria-pressed={screenShareEnabled}
@@ -85,7 +85,7 @@ export function CallControlsRow({ className, onMediaChange }: CallControlsRowPro
 
       <button
         type="button"
-        className={`call-controls-row__btn${deafened ? ' call-controls-row__btn--muted' : ''}`}
+        className={`call-controls-row__btn${deafened ? ' call-controls-row__btn--muted' : ' call-controls-row__btn--active'}`}
         onClick={() => void toggleDeafen()}
         disabled={!hasRoom}
         aria-pressed={deafened}

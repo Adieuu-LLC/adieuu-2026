@@ -35,8 +35,16 @@ import {
   registerVoiceChannelLeave,
 } from '../services/mediaSessionExclusive';
 import { useToast } from '../components/Toast';
+import {
+  getAvJoinMediaFlags,
+  getAvShowDeviceSetup,
+  setAvMicDeviceId,
+  setAvCameraDeviceId,
+  setAvSpeakerDeviceId,
+} from './avPreferenceStorage';
+import type { CallDeviceSelection } from '../components/call/CallDeviceSetupModal';
 
-export type VoiceChannelPhase = 'idle' | 'present' | 'connecting' | 'live';
+export type VoiceChannelPhase = 'idle' | 'device-setup' | 'present' | 'connecting' | 'live';
 
 interface VoiceChannelSessionState {
   spaceId: string;
@@ -54,6 +62,8 @@ export interface VoiceChannelSessionContextValue {
   /** Locally joined voice channel (presence), if any. */
   joined: VoiceChannelSessionState | null;
   phase: VoiceChannelPhase;
+  /** Pending space/channel while the pre-join device modal is open. */
+  pendingDeviceSetup: { spaceId: string; channelId: string } | null;
   livekitUrl: string | null;
   livekitToken: string | null;
   callE2EEKey: Uint8Array | null;
@@ -61,6 +71,8 @@ export interface VoiceChannelSessionContextValue {
   mediaState: SpaceVoiceMediaState;
 
   joinVoiceChannel: (spaceId: string, channelId: string) => Promise<void>;
+  confirmVoiceDeviceSetup: (devices: CallDeviceSelection) => Promise<void>;
+  cancelVoiceDeviceSetup: () => void;
   leaveVoiceChannel: () => Promise<void>;
   setMediaState: (patch: Partial<SpaceVoiceMediaState>) => Promise<void>;
 }
@@ -81,7 +93,8 @@ export function useOptionalVoiceChannelSession(): VoiceChannelSessionContextValu
 }
 
 function defaultMedia(): SpaceVoiceMediaState {
-  return { audio: true, video: false, screenshare: false };
+  const flags = getAvJoinMediaFlags();
+  return { audio: flags.audio, video: flags.video, screenshare: false };
 }
 
 function resolveVoiceCipher(
@@ -111,9 +124,17 @@ export function VoiceChannelSessionProvider({ children }: { children: ReactNode 
   >({});
   const [joined, setJoined] = useState<VoiceChannelSessionState | null>(null);
   const [phase, setPhase] = useState<VoiceChannelPhase>('idle');
+  const [pendingDeviceSetup, setPendingDeviceSetup] = useState<{
+    spaceId: string;
+    channelId: string;
+  } | null>(null);
 
   const joinedRef = useRef(joined);
   joinedRef.current = joined;
+  const pendingDeviceSetupRef = useRef(pendingDeviceSetup);
+  pendingDeviceSetupRef.current = pendingDeviceSetup;
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
 
   const deriveMediaKey = useCallback(
     (spaceId: string, channelId: string, channelHasCipher: boolean): Uint8Array | null => {
@@ -171,11 +192,13 @@ export function VoiceChannelSessionProvider({ children }: { children: ReactNode 
   const leaveVoiceChannel = useCallback(async () => {
     const current = joinedRef.current;
     if (!current) {
+      setPendingDeviceSetup(null);
       setPhase('idle');
       return;
     }
     const { spaceId, channelId } = current;
     setJoined(null);
+    setPendingDeviceSetup(null);
     setPhase('idle');
     try {
       await api.spaces.leaveVoiceChannel(spaceId, channelId);
@@ -291,26 +314,8 @@ export function VoiceChannelSessionProvider({ children }: { children: ReactNode 
     });
   }, [subscribe, activeSpace?.id, applyLiveConnection]);
 
-  const joinVoiceChannel = useCallback(
+  const completeVoiceJoin = useCallback(
     async (spaceId: string, channelId: string) => {
-      if (!identity?.id) return;
-
-      const channel = channels.find((c) => c.id === channelId);
-      if (channel?.cipherCheck) {
-        const cipher = resolveVoiceCipher(spaceId, channelId, getCipherKey);
-        if (!cipher) {
-          toast.error(t('spaces.voice.cipherRequired'));
-          return;
-        }
-      }
-
-      const current = joinedRef.current;
-      if (current && (current.channelId !== channelId || current.spaceId !== spaceId)) {
-        await leaveVoiceChannel();
-      }
-
-      await clearOtherMediaSession('voice');
-
       const mediaState = defaultMedia();
       setPhase('connecting');
 
@@ -346,6 +351,59 @@ export function VoiceChannelSessionProvider({ children }: { children: ReactNode 
       });
       setPhase('present');
     },
+    [api, applyLiveConnection, toast, t],
+  );
+
+  const cancelVoiceDeviceSetup = useCallback(() => {
+    setPendingDeviceSetup(null);
+    setPhase(joinedRef.current ? (joinedRef.current.livekitToken ? 'live' : 'present') : 'idle');
+  }, []);
+
+  const confirmVoiceDeviceSetup = useCallback(
+    async (devices: CallDeviceSelection) => {
+      const pending = pendingDeviceSetupRef.current;
+      if (!pending) {
+        cancelVoiceDeviceSetup();
+        return;
+      }
+      if (devices.audioDeviceId !== undefined) setAvMicDeviceId(devices.audioDeviceId);
+      if (devices.videoDeviceId !== undefined) setAvCameraDeviceId(devices.videoDeviceId);
+      if (devices.speakerDeviceId !== undefined) setAvSpeakerDeviceId(devices.speakerDeviceId);
+      setPendingDeviceSetup(null);
+      await completeVoiceJoin(pending.spaceId, pending.channelId);
+    },
+    [cancelVoiceDeviceSetup, completeVoiceJoin],
+  );
+
+  const joinVoiceChannel = useCallback(
+    async (spaceId: string, channelId: string) => {
+      if (!identity?.id) return;
+      if (phaseRef.current === 'device-setup' || phaseRef.current === 'connecting') return;
+
+      const channel = channels.find((c) => c.id === channelId);
+      if (channel?.cipherCheck) {
+        const cipher = resolveVoiceCipher(spaceId, channelId, getCipherKey);
+        if (!cipher) {
+          toast.error(t('spaces.voice.cipherRequired'));
+          return;
+        }
+      }
+
+      const current = joinedRef.current;
+      if (current && (current.channelId !== channelId || current.spaceId !== spaceId)) {
+        await leaveVoiceChannel();
+      }
+
+      await clearOtherMediaSession('voice');
+
+      if (getAvShowDeviceSetup()) {
+        setPendingDeviceSetup({ spaceId, channelId });
+        setPhase('device-setup');
+        return;
+      }
+
+      await completeVoiceJoin(spaceId, channelId);
+    },
     [
       identity?.id,
       channels,
@@ -353,8 +411,7 @@ export function VoiceChannelSessionProvider({ children }: { children: ReactNode 
       toast,
       t,
       leaveVoiceChannel,
-      api,
-      applyLiveConnection,
+      completeVoiceJoin,
     ],
   );
 
@@ -378,12 +435,15 @@ export function VoiceChannelSessionProvider({ children }: { children: ReactNode 
       presenceByChannel,
       joined,
       phase,
+      pendingDeviceSetup,
       livekitUrl: joined?.livekitUrl ?? null,
       livekitToken: joined?.livekitToken ?? null,
       callE2EEKey: joined?.callE2EEKey ?? null,
       e2eeSupported,
       mediaState: joined?.mediaState ?? defaultMedia(),
       joinVoiceChannel,
+      confirmVoiceDeviceSetup,
+      cancelVoiceDeviceSetup,
       leaveVoiceChannel,
       setMediaState,
     }),
@@ -391,8 +451,11 @@ export function VoiceChannelSessionProvider({ children }: { children: ReactNode 
       presenceByChannel,
       joined,
       phase,
+      pendingDeviceSetup,
       e2eeSupported,
       joinVoiceChannel,
+      confirmVoiceDeviceSetup,
+      cancelVoiceDeviceSetup,
       leaveVoiceChannel,
       setMediaState,
     ],

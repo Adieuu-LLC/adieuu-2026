@@ -32,55 +32,19 @@ import {
   setAvSpeakerDeviceId,
   setAvInputVolume,
   setAvOutputVolume,
+  setAvJoinMicOff,
+  setAvJoinCameraOff,
+  setAvShowDeviceSetup,
 } from '../../hooks/avPreferenceStorage';
 import {
   DEFAULT_CALL_RINGTONE_SOUND_ID,
   getBuiltinNotificationSoundSrc,
 } from '../../constants/builtinNotificationSounds';
+import { CameraPreviewVideo } from '../../components/call/CameraPreviewVideo';
 
 type AudioElementWithSink = HTMLAudioElement & {
   setSinkId?: (deviceId: string) => Promise<void>;
 };
-
-/** Attaches a live camera stream to a video element (same pattern as call local preview). */
-function CameraPreviewVideo({ stream }: { stream: MediaStream }) {
-  const ref = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-
-    el.srcObject = stream;
-    el.muted = true;
-    el.playsInline = true;
-
-    const tryPlay = () => {
-      void el.play().catch(() => {});
-    };
-
-    if (el.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-      tryPlay();
-    } else {
-      el.addEventListener('loadeddata', tryPlay, { once: true });
-    }
-
-    return () => {
-      el.removeEventListener('loadeddata', tryPlay);
-      el.srcObject = null;
-    };
-  }, [stream]);
-
-  return (
-    <video
-      ref={ref}
-      autoPlay
-      playsInline
-      muted
-      controls={false}
-      className="app-settings-av-preview-video"
-    />
-  );
-}
 
 export function IdentityAudioVideo() {
   const { t } = useTranslation();
@@ -391,6 +355,22 @@ export function IdentityAudioVideo() {
                 </select>
               </div>
 
+              <label className="app-settings-toggle">
+                <input
+                  type="checkbox"
+                  checked={prefs.joinMicOff}
+                  onChange={(e) => setAvJoinMicOff(e.target.checked)}
+                />
+                <span className="app-settings-toggle-label">
+                  <span className="app-settings-toggle-title">
+                    {t('identity.audioVideo.joinMicOff')}
+                  </span>
+                  <span className="app-settings-toggle-hint">
+                    {t('identity.audioVideo.joinMicOffHint')}
+                  </span>
+                </span>
+              </label>
+
               <div className="app-settings-test-notification">
                 <button
                   type="button"
@@ -557,6 +537,22 @@ export function IdentityAudioVideo() {
                 </select>
               </div>
 
+              <label className="app-settings-toggle">
+                <input
+                  type="checkbox"
+                  checked={prefs.joinCameraOff}
+                  onChange={(e) => setAvJoinCameraOff(e.target.checked)}
+                />
+                <span className="app-settings-toggle-label">
+                  <span className="app-settings-toggle-title">
+                    {t('identity.audioVideo.joinCameraOff')}
+                  </span>
+                  <span className="app-settings-toggle-hint">
+                    {t('identity.audioVideo.joinCameraOffHint')}
+                  </span>
+                </span>
+              </label>
+
               <div className="app-settings-test-notification">
                 <button
                   type="button"
@@ -580,7 +576,10 @@ export function IdentityAudioVideo() {
                 >
                   {cameraStream ? (
                     <div className="app-settings-av-preview-mirror">
-                      <CameraPreviewVideo stream={cameraStream} />
+                      <CameraPreviewVideo
+                        stream={cameraStream}
+                        className="app-settings-av-preview-video"
+                      />
                     </div>
                   ) : (
                     <p className="app-settings-av-preview-placeholder">
@@ -615,6 +614,22 @@ export function IdentityAudioVideo() {
             >
               <h2 className="app-settings-section-title">{t('identity.audioVideo.advancedTitle')}</h2>
               <p className="app-settings-section-desc">{t('identity.audioVideo.advancedDescription')}</p>
+
+              <label className="app-settings-toggle">
+                <input
+                  type="checkbox"
+                  checked={prefs.showDeviceSetup}
+                  onChange={(e) => setAvShowDeviceSetup(e.target.checked)}
+                />
+                <span className="app-settings-toggle-label">
+                  <span className="app-settings-toggle-title">
+                    {t('identity.audioVideo.showDeviceSetup')}
+                  </span>
+                  <span className="app-settings-toggle-hint">
+                    {t('identity.audioVideo.showDeviceSetupHint')}
+                  </span>
+                </span>
+              </label>
 
               <label className="app-settings-toggle app-settings-toggle--disabled">
                 <input type="checkbox" checked={false} disabled />

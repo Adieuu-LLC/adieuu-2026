@@ -95,6 +95,42 @@ function useElapsed(resetKey: string): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
+function CallWidgetEndActions({
+  leaveTitle,
+  onLeave,
+}: {
+  leaveTitle: string;
+  onLeave: () => void;
+}) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+
+  return (
+    <div className="sidebar-call-widget__actions">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="sidebar-call-widget__settings"
+        onClick={() => navigate('/identity/audio-video')}
+        title={t('identity.audioVideo.title')}
+        aria-label={t('identity.audioVideo.title')}
+      >
+        <Icon name="settings" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="sidebar-call-widget__leave"
+        onClick={onLeave}
+        title={leaveTitle}
+        aria-label={leaveTitle}
+      >
+        <Icon name="phoneHangup" />
+      </Button>
+    </div>
+  );
+}
+
 function ActiveCallWidget({
   conversationId,
   conversationName,
@@ -126,15 +162,7 @@ function ActiveCallWidget({
             <span className="sidebar-call-widget__duration">{timeDisplay}</span>
           </div>
         </button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="sidebar-call-widget__leave"
-          onClick={onLeave}
-          title={t('call.leave', 'Leave call')}
-        >
-          <Icon name="phoneHangup" />
-        </Button>
+        <CallWidgetEndActions leaveTitle={t('call.leave', 'Leave call')} onLeave={onLeave} />
       </div>
       <CallControlsRow className="sidebar-call-widget__controls-row" />
     </div>
@@ -205,15 +233,10 @@ function VoiceActiveWidget() {
             </span>
           </div>
         </button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="sidebar-call-widget__leave"
-          onClick={() => void leaveVoiceChannel()}
-          title={t('spaces.voice.disconnect')}
-        >
-          <Icon name="phoneHangup" />
-        </Button>
+        <CallWidgetEndActions
+          leaveTitle={t('spaces.voice.disconnect')}
+          onLeave={() => void leaveVoiceChannel()}
+        />
       </div>
       <CallControlsRow
         className="sidebar-call-widget__controls-row"

@@ -19,6 +19,7 @@ import {
   getAvMicDeviceId,
   getAvCameraDeviceId,
   getAvSpeakerDeviceId,
+  getAvJoinMediaFlags,
 } from '../../hooks/avPreferenceStorage';
 
 export interface CallRoomProps {
@@ -136,13 +137,17 @@ export function CallRoom({
     return Object.keys(opts).length > 0 ? opts : undefined;
   }, [streamQualityCaps, callE2EEKey, e2eeWorker]);
 
+  // Capture join mute/camera prefs once at mount — LiveKitRoom only applies
+  // these on connect; later preference changes should not remount the room.
+  const initialJoinMedia = useMemo(() => getAvJoinMediaFlags(), []);
+
   return (
     <LiveKitRoom
       serverUrl={serverUrl}
       token={token}
       connect={true}
-      audio={true}
-      video={false}
+      audio={initialJoinMedia.audio}
+      video={initialJoinMedia.video}
       onConnected={onConnected}
       onDisconnected={onDisconnected}
       options={roomOptions}

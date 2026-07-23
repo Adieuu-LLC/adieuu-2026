@@ -85,13 +85,33 @@
     background: var(--color-bg-tertiary);
     aspect-ratio: 16 / 9;
     max-height: 200px;
+  }
 
-    video {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      transform: scaleX(-1);
-    }
+  &__preview-mirror {
+    position: absolute;
+    inset: 0;
+    transform: scaleX(-1);
+  }
+
+  &__preview-video {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background: #000;
+  }
+
+  &__preview-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: var(--spacing-md);
+    text-align: center;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
   }
 
   &__note {
@@ -1321,7 +1341,7 @@ $call-overlay-title-bar-height: 32px;
   &__actions {
     display: flex;
     align-items: center;
-    gap: var(--spacing-xs);
+    gap: var(--spacing-xxs, 2px);
     flex-shrink: 0;
   }
 
@@ -1329,9 +1349,23 @@ $call-overlay-title-bar-height: 32px;
     color: var(--color-error);
   }
 
+  &__settings,
+  &__leave {
+    flex-shrink: 0;
+    min-width: 0;
+    padding-inline: var(--spacing-xs);
+  }
+
+  &__settings {
+    color: var(--color-text-secondary);
+
+    &:hover:not(:disabled) {
+      color: var(--color-text);
+    }
+  }
+
   &__leave {
     color: var(--color-error);
-    flex-shrink: 0;
   }
 
   &--stacked {
@@ -1360,16 +1394,17 @@ $call-overlay-title-bar-height: 32px;
     align-items: center;
     justify-content: center;
     flex: 1 1 auto;
-    padding: var(--spacing-xs) var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
     background: var(--color-bg-secondary);
-    color: var(--color-text);
+    color: var(--color-text-secondary);
     cursor: pointer;
     transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 
     &:hover:not(:disabled) {
       background: var(--color-surface-hover, var(--color-bg-tertiary));
+      color: var(--color-text);
     }
 
     &:disabled {
@@ -1377,15 +1412,33 @@ $call-overlay-title-bar-height: 32px;
       cursor: not-allowed;
     }
 
+    // Media currently publishing / hearing (mic on, camera on, etc.)
     &--active {
-      background: var(--color-accent-bg, var(--color-success-bg));
-      border-color: var(--color-accent, var(--color-success));
-      color: var(--color-accent, var(--color-success));
+      background: color-mix(
+        in srgb,
+        var(--color-accent-primary, var(--color-accent, var(--color-success))) 16%,
+        var(--color-bg-secondary)
+      );
+      border-color: color-mix(
+        in srgb,
+        var(--color-accent-primary, var(--color-accent, var(--color-success))) 55%,
+        var(--color-border)
+      );
+      color: var(--color-accent-primary, var(--color-accent, var(--color-success)));
     }
 
+    // Intentionally off but not an error state (camera/screenshare idle)
+    &--off {
+      background: var(--color-bg-tertiary, var(--color-bg-secondary));
+      border-color: var(--color-border);
+      color: var(--color-text-muted);
+    }
+
+    // Mic muted / deafened
     &--muted {
+      background: color-mix(in srgb, var(--color-error) 14%, var(--color-bg-secondary));
+      border-color: color-mix(in srgb, var(--color-error) 50%, var(--color-border));
       color: var(--color-error);
-      border-color: var(--color-error);
     }
   }
 }

@@ -10,6 +10,9 @@ import {
   getAvSpeakerDeviceId,
   getAvInputVolume,
   getAvOutputVolume,
+  getAvJoinMicOff,
+  getAvJoinCameraOff,
+  getAvShowDeviceSetup,
   subscribeAvPreferences,
   type AvPreferenceSnapshot,
 } from './avPreferenceStorage';
@@ -20,6 +23,9 @@ let cached: AvPreferenceSnapshot = {
   speakerDeviceId: null,
   inputVolume: 1,
   outputVolume: 1,
+  joinMicOff: false,
+  joinCameraOff: true,
+  showDeviceSetup: false,
 };
 
 function getSnapshot(): AvPreferenceSnapshot {
@@ -29,13 +35,19 @@ function getSnapshot(): AvPreferenceSnapshot {
     speakerDeviceId: getAvSpeakerDeviceId(),
     inputVolume: getAvInputVolume(),
     outputVolume: getAvOutputVolume(),
+    joinMicOff: getAvJoinMicOff(),
+    joinCameraOff: getAvJoinCameraOff(),
+    showDeviceSetup: getAvShowDeviceSetup(),
   };
   if (
     next.micDeviceId === cached.micDeviceId &&
     next.cameraDeviceId === cached.cameraDeviceId &&
     next.speakerDeviceId === cached.speakerDeviceId &&
     next.inputVolume === cached.inputVolume &&
-    next.outputVolume === cached.outputVolume
+    next.outputVolume === cached.outputVolume &&
+    next.joinMicOff === cached.joinMicOff &&
+    next.joinCameraOff === cached.joinCameraOff &&
+    next.showDeviceSetup === cached.showDeviceSetup
   ) {
     return cached;
   }
