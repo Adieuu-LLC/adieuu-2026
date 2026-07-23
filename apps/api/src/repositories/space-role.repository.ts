@@ -92,11 +92,12 @@ export class SpaceRoleRepository extends BaseRepository<SpaceRoleDocument> {
     if (keyed) return keyed;
 
     // Legacy `member` key + pre-systemKey seeds: recognize via resolve helpers.
+    // `"member"` is intentionally outside SpaceRoleSystemKey (pre-rename DB docs).
     if (systemKey === 'everyone') {
       const legacyKeyed = await this.findOne({
         spaceId,
         systemKey: 'member',
-      } as Filter<SpaceRoleDocument>);
+      } as unknown as Filter<SpaceRoleDocument>);
       if (legacyKeyed) {
         await this.repairLegacySystemRoles([legacyKeyed]);
         return legacyKeyed;
