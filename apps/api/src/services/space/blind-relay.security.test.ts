@@ -67,14 +67,21 @@ const channelRepo = {
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 mock.module('../billing/resolve-access', () => ({ hasPaidAccess: mockHasPaidAccess }));
+mock.module('./space-settings', () => ({
+  isSpaceCreationEnabled: mock(async () => true),
+}));
 mock.module('../../repositories/space.repository', () => ({ getSpaceRepository: () => spaceRepo }));
 mock.module('../../repositories/space-role.repository', () => ({ getSpaceRoleRepository: () => roleRepo }));
 mock.module('../../repositories/space-member.repository', () => ({ getSpaceMemberRepository: () => memberRepo }));
 mock.module('../../repositories/space-channel.repository', () => ({ getSpaceChannelRepository: () => channelRepo }));
+const categoryRepo = {
+  createCategory: mock(async (input: Record<string, unknown>) => ({
+    ...input, _id: new ObjectId(), createdAt: new Date(), updatedAt: new Date(),
+  })) as AnyMock,
+  deleteBySpace: mock(async () => 0) as AnyMock,
+};
 mock.module('../../repositories/space-channel-category.repository', () => ({
-  getSpaceChannelCategoryRepository: () => ({
-    deleteBySpace: mock(async () => 0),
-  }),
+  getSpaceChannelCategoryRepository: () => categoryRepo,
 }));
 
 const publishSpaceEvent = mock(async () => {}) as AnyMock;
@@ -233,7 +240,7 @@ describe('spaces blind-relay: create route stores/echoes only the challenge', ()
   beforeEach(() => {
     mockHasPaidAccess.mockReset();
     mockHasPaidAccess.mockReturnValue(true);
-    for (const repo of [spaceRepo, roleRepo, memberRepo, channelRepo]) {
+    for (const repo of [spaceRepo, roleRepo, memberRepo, channelRepo, categoryRepo]) {
       for (const fn of Object.values(repo)) (fn as AnyMock).mockClear();
     }
     spaceRepo.findBySlug.mockResolvedValue(null);
@@ -293,19 +300,22 @@ describe('spaces blind-relay: create route stores/echoes only the challenge', ()
   });
 
   test('no key material is stored even when the challenge itself is hostile', async () => {
-    await createSpaceCtrl(
+    const result = await createSpaceCtrl(
       makeCtx({
-        slug: 'hostile-space',
+        // Hidden Spaces route by a client-generated ObjectId, never a vanity slug.
+        id: new ObjectId().toHexString(),
         name: 'Hostile',
         visibility: 'hidden',
         cipherCheck: POLLUTED_CIPHER_CHECK,
       }),
     );
+    expect(result.kind).toBe('ok');
     const storedDoc = spaceRepo.createSpace.mock.calls[0]![0];
-    // Everything the roles/members/channels repos received must be clean too.
+    // Everything the roles/members/channels/categories repos received must be clean too.
     expect(findKeyMaterial(storedDoc)).toEqual([]);
     expect(findKeyMaterial(channelRepo.createChannel.mock.calls[0]?.[0])).toEqual([]);
     expect(findKeyMaterial(roleRepo.createRole.mock.calls.map((c) => c[0]))).toEqual([]);
+    expect(findKeyMaterial(categoryRepo.createCategory.mock.calls[0]?.[0])).toEqual([]);
   });
 });
 

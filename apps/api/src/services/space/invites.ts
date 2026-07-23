@@ -72,9 +72,19 @@ export async function createSpaceInvite(
     return { success: false, error: 'You do not have permission to invite members.', errorCode: 'FORBIDDEN' };
   }
 
+  // Anti-oracle: a nonexistent identity and a banned identity return the same
+  // generic error, so invite creation cannot be used to probe identity
+  // existence or ban status. (ALREADY_MEMBER stays distinct — the member list
+  // is already visible to any inviter.)
+  const inviteNotAllowed: SpaceInviteResult = {
+    success: false,
+    error: 'That identity cannot be invited to this Space.',
+    errorCode: 'INVITE_NOT_ALLOWED',
+  };
+
   const invited = await getIdentityRepository().findByIdentityId(invitedId);
   if (!invited) {
-    return { success: false, error: 'That identity was not found.', errorCode: 'IDENTITY_NOT_FOUND' };
+    return inviteNotAllowed;
   }
 
   const memberRepo = getSpaceMemberRepository();
@@ -83,11 +93,7 @@ export async function createSpaceInvite(
     return { success: false, error: 'That identity is already a member.', errorCode: 'ALREADY_MEMBER' };
   }
   if (alreadyMember && isSpaceBanActive(alreadyMember)) {
-    return {
-      success: false,
-      error: 'That identity is banned from this Space.',
-      errorCode: 'MEMBER_BANNED',
-    };
+    return inviteNotAllowed;
   }
 
   const inviteRepo = getSpaceInviteRepository();
@@ -310,7 +316,7 @@ export async function listPendingInvitesForSpace(
   }
 
   const member = await getSpaceMemberRepository().findMember(spaceId, requesterId);
-  if (!member) {
+  if (!member || member.status !== 'active') {
     return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
   }
 

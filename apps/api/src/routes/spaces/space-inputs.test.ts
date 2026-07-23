@@ -15,6 +15,10 @@ import {
   sanitizeSpaceMessageContent,
   sanitizeClientMessageId,
   sanitizeSpaceSearchTerm,
+  sanitizeSpaceRoleName,
+  sanitizeSpaceChannelName,
+  sanitizeSpaceNickname,
+  sanitizeSpaceBanReason,
 } from './space-inputs';
 
 const VALID_ID = '507f1f77bcf86cd799439011';
@@ -139,6 +143,88 @@ describe('space-inputs', () => {
     });
     test('rejects non-UUID', () => {
       expect(sanitizeClientMessageId('not-a-uuid')).toEqual({ ok: false });
+    });
+  });
+
+  describe('sanitizeSpaceRoleName', () => {
+    test('undefined passes through (field not updated)', () => {
+      expect(sanitizeSpaceRoleName(undefined)).toEqual({ ok: true, name: undefined });
+    });
+    test('keeps international text and emoji', () => {
+      expect(sanitizeSpaceRoleName('Modérateur 🛡️')).toEqual({ ok: true, name: 'Modérateur 🛡️' });
+    });
+    test('strips template-literal injection', () => {
+      const r = sanitizeSpaceRoleName('Admin ${evil}');
+      expect(r.ok).toBe(true);
+      if (r.ok) expect(r.name).not.toContain('${');
+    });
+    test('rejects empty after sanitize', () => {
+      expect(sanitizeSpaceRoleName('\u200b\u0000')).toEqual({ ok: false });
+    });
+    test('rejects over-long names', () => {
+      expect(sanitizeSpaceRoleName('x'.repeat(101))).toEqual({ ok: false });
+    });
+  });
+
+  describe('sanitizeSpaceChannelName', () => {
+    test('undefined passes through', () => {
+      expect(sanitizeSpaceChannelName(undefined)).toEqual({ ok: true, name: undefined });
+    });
+    test('keeps clean names', () => {
+      expect(sanitizeSpaceChannelName('general-chat')).toEqual({ ok: true, name: 'general-chat' });
+    });
+    test('rejects control-character-only names', () => {
+      expect(sanitizeSpaceChannelName('\u0000\u200b')).toEqual({ ok: false });
+    });
+    test('rejects over-long names', () => {
+      expect(sanitizeSpaceChannelName('x'.repeat(101))).toEqual({ ok: false });
+    });
+  });
+
+  describe('sanitizeSpaceNickname', () => {
+    test('undefined passes through (not updated)', () => {
+      expect(sanitizeSpaceNickname(undefined)).toEqual({ ok: true, nickname: undefined });
+    });
+    test('null passes through (clears the nickname)', () => {
+      expect(sanitizeSpaceNickname(null)).toEqual({ ok: true, nickname: null });
+    });
+    test('keeps clean nicknames', () => {
+      expect(sanitizeSpaceNickname('Cool Cat 😺')).toEqual({ ok: true, nickname: 'Cool Cat 😺' });
+    });
+    test('strips template injection', () => {
+      const r = sanitizeSpaceNickname('nick${x}');
+      expect(r.ok).toBe(true);
+      if (r.ok) expect(r.nickname).not.toContain('${');
+    });
+    test('rejects nicknames that empty out after sanitize', () => {
+      expect(sanitizeSpaceNickname('\u200b')).toEqual({ ok: false });
+    });
+    test('rejects over-long nicknames', () => {
+      expect(sanitizeSpaceNickname('x'.repeat(51))).toEqual({ ok: false });
+    });
+  });
+
+  describe('sanitizeSpaceBanReason', () => {
+    test('keeps real reasons', () => {
+      expect(sanitizeSpaceBanReason('Repeated harassment')).toEqual({
+        ok: true,
+        reason: 'Repeated harassment',
+      });
+    });
+    test('strips control characters and injection', () => {
+      const r = sanitizeSpaceBanReason('spam\u0000 ${payload}');
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        expect(r.reason).not.toContain('\u0000');
+        expect(r.reason).not.toContain('${');
+      }
+    });
+    test('rejects undefined/empty reasons', () => {
+      expect(sanitizeSpaceBanReason(undefined)).toEqual({ ok: false });
+      expect(sanitizeSpaceBanReason('\u200b')).toEqual({ ok: false });
+    });
+    test('rejects over-long reasons', () => {
+      expect(sanitizeSpaceBanReason('x'.repeat(501))).toEqual({ ok: false });
     });
   });
 

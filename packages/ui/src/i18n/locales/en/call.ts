@@ -30,12 +30,15 @@ export const call = {
   minimize: 'Minimize',
 
   // Call controls
+  controlsLabel: 'Call controls',
   muteAudio: 'Mute',
   unmuteAudio: 'Unmute',
   disableVideo: 'Turn off camera',
   enableVideo: 'Turn on camera',
   stopScreenshare: 'Stop sharing',
   startScreenshareControl: 'Share screen',
+  deafen: 'Deafen',
+  undeafen: 'Undeafen',
   leave: 'Leave call',
   end: 'End call for everyone',
   endForAll: 'End',

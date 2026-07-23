@@ -48,6 +48,8 @@ export type MediaOutboxStage =
 export interface MediaOutboxJobRecord {
   id: string;
   conversationId: string;
+  /** When set, send via Space channel API instead of DM conversations. */
+  spaceId?: string;
   stage: MediaOutboxStage;
   errorMessage?: string;
   createdAt: number;
@@ -89,6 +91,8 @@ export interface MediaOutboxJobRecord {
 
 export interface MediaOutboxEnqueueInput {
   conversationId: string;
+  /** When set, send via Space channel API (channelId = conversationId). */
+  spaceId?: string;
   caption: string;
   mentions: MediaOutboxMention[];
   pageTags?: MediaOutboxPageTag[];

@@ -23,7 +23,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
-    "test": "bun test src/messaging/messagePagination.test.ts src/messaging/signatureBinding.test.ts src/api/http-client.test.ts src/api/auth-api.test.ts src/api/account-data-api.test.ts src/api/moderation-types.test.ts src/api/chat-client.test.ts src/constants/moderation-reason-map.test.ts src/constants/feedback.test.ts src/constants/space-access-rules.test.ts src/feedback/roadmap-timeline.test.ts src/feedback/feedback-display.test.ts src/geo/jurisdiction-lookup.test.ts src/geo/effective-age-verification-jurisdictions.test.ts src/custom-emoji-shortcode.test.ts src/schemas/spaces.test.ts src/api/space-permissions.test.ts",
+    "test": "bun test src/messaging/messagePagination.test.ts src/messaging/signatureBinding.test.ts src/api/http-client.test.ts src/api/auth-api.test.ts src/api/account-data-api.test.ts src/api/moderation-types.test.ts src/api/chat-client.test.ts src/constants/moderation-reason-map.test.ts src/constants/feedback.test.ts src/constants/space-access-rules.test.ts src/feedback/roadmap-timeline.test.ts src/feedback/feedback-display.test.ts src/geo/jurisdiction-lookup.test.ts src/geo/effective-age-verification-jurisdictions.test.ts src/custom-emoji-shortcode.test.ts src/reaction-emoji.test.ts src/schemas/spaces.test.ts src/api/space-permissions.test.ts src/api/space-system-roles.test.ts",
     "clean": "rm -rf dist"
   },
   "dependencies": {

@@ -30,12 +30,12 @@ export interface SeedNewSpaceParams {
   encryptedSeed?: CreateSpaceEncryptedSeed;
 }
 
-/** Create Admin/Member roles, creator membership, Text Channels, and #general. */
+/** Create Admin/Everyone roles, creator membership, Text Channels, and #general. */
 export async function seedNewSpace(params: SeedNewSpaceParams): Promise<void> {
   const { spaceId, creatorIdentityId, e2ee, cipherCheck, encryptedSeed: seed } = params;
   const roleRepo = getSpaceRoleRepository();
   const adminSeed = seed?.roles.find((r) => r.system === 'admin');
-  const memberSeed = seed?.roles.find((r) => r.system === 'member');
+  const everyoneSeed = seed?.roles.find((r) => r.system === 'everyone');
 
   const adminRole = await roleRepo.createRole({
     spaceId,
@@ -65,12 +65,12 @@ export async function seedNewSpace(params: SeedNewSpaceParams): Promise<void> {
     position: 1000,
     isDefaultMember: true,
     isSystem: true,
-    systemKey: 'member',
-    ...(memberSeed
+    systemKey: 'everyone',
+    ...(everyoneSeed
       ? {
-          encryptedName: memberSeed.encryptedName,
-          nameNonce: memberSeed.nameNonce,
-          cipherId: memberSeed.cipherId,
+          encryptedName: everyoneSeed.encryptedName,
+          nameNonce: everyoneSeed.nameNonce,
+          cipherId: everyoneSeed.cipherId,
         }
       : {}),
   });

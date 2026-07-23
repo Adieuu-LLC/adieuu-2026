@@ -40,6 +40,19 @@ export interface MediaOutboxProcessDeps {
       signal?: AbortSignal;
     }
   ) => Promise<unknown>;
+  /** Space-channel send (encrypt + API) when {@link MediaOutboxJobRecord.spaceId} is set. */
+  sendSpaceForOutbox?: (
+    spaceId: string,
+    channelId: string,
+    plaintext: string,
+    options: {
+      replyToMessageId?: string;
+      expiresInSeconds?: number;
+      e2eMediaIds?: string[];
+      mentionedIdentityIds?: string[];
+      signal?: AbortSignal;
+    }
+  ) => Promise<unknown>;
   editForOutbox: (
     conversationId: string,
     messageId: string,
@@ -236,21 +249,37 @@ async function sendMessageForJob(job: MediaOutboxJobRecord, deps: MediaOutboxPro
         ? [...new Set(mentions.map((m) => m.id).filter((id) => !isGroupMentionId(id)))]
         : undefined;
 
-    const result = await deps.sendForOutbox(job.conversationId, plaintext, {
-      useForwardSecrecy: job.useForwardSecrecy,
-      ...(job.replyToMessageId ? { replyToMessageId: job.replyToMessageId } : {}),
-      ...(job.ttlSeconds != null ? { expiresInSeconds: job.ttlSeconds } : {}),
-      e2eMediaIds,
-      moderationEnabled: job.moderationEnabled,
-      mentionedIdentityIds,
-      signal: deps.abortSignal,
-    });
+    if (job.spaceId) {
+      if (!deps.sendSpaceForOutbox) {
+        throw new Error(deps.t('conversations.uploadFailed', 'Upload failed'));
+      }
+      const result = await deps.sendSpaceForOutbox(job.spaceId, job.conversationId, plaintext, {
+        ...(job.replyToMessageId ? { replyToMessageId: job.replyToMessageId } : {}),
+        ...(job.ttlSeconds != null ? { expiresInSeconds: job.ttlSeconds } : {}),
+        e2eMediaIds,
+        mentionedIdentityIds,
+        signal: deps.abortSignal,
+      });
+      if (result == null || (typeof result === 'object' && 'errorCode' in result)) {
+        throw new Error(deps.t('conversations.uploadFailed', 'Upload failed'));
+      }
+    } else {
+      const result = await deps.sendForOutbox(job.conversationId, plaintext, {
+        useForwardSecrecy: job.useForwardSecrecy,
+        ...(job.replyToMessageId ? { replyToMessageId: job.replyToMessageId } : {}),
+        ...(job.ttlSeconds != null ? { expiresInSeconds: job.ttlSeconds } : {}),
+        e2eMediaIds,
+        moderationEnabled: job.moderationEnabled,
+        mentionedIdentityIds,
+        signal: deps.abortSignal,
+      });
 
-    if (result != null && typeof result === 'object' && 'errorCode' in result && result.errorCode === 'BLOCKED') {
-      throw new Error(deps.t('conversations.sendBlocked', 'Message could not be sent'));
-    }
-    if (result == null || (typeof result === 'object' && 'errorCode' in result)) {
-      throw new Error(deps.t('conversations.uploadFailed', 'Upload failed'));
+      if (result != null && typeof result === 'object' && 'errorCode' in result && result.errorCode === 'BLOCKED') {
+        throw new Error(deps.t('conversations.sendBlocked', 'Message could not be sent'));
+      }
+      if (result == null || (typeof result === 'object' && 'errorCode' in result)) {
+        throw new Error(deps.t('conversations.uploadFailed', 'Upload failed'));
+      }
     }
   }
 }

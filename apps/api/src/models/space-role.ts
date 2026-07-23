@@ -10,6 +10,7 @@ import {
   DEFAULT_CUSTOM_ROLE_COLOR,
   DEFAULT_MEMBER_ROLE_NAME,
   normalizeSpacePermissions,
+  resolveSpaceRoleSystemKey,
   type PublicSpaceRole,
   type SpacePermission,
   type SpaceRoleSystemKey,
@@ -57,9 +58,10 @@ export interface CreateSpaceRoleInput {
 }
 
 export function toPublicSpaceRole(doc: SpaceRoleDocument): PublicSpaceRole {
+  const systemKey = resolveSpaceRoleSystemKey(doc);
   // Legacy seed name for the default system role was "Member".
   const legacyMemberName =
-    doc.systemKey === 'member' && !doc.encryptedName && doc.name === 'Member'
+    systemKey === 'everyone' && !doc.encryptedName && doc.name === 'Member'
       ? DEFAULT_MEMBER_ROLE_NAME
       : doc.name;
 
@@ -71,7 +73,7 @@ export function toPublicSpaceRole(doc: SpaceRoleDocument): PublicSpaceRole {
     color: doc.color || DEFAULT_CUSTOM_ROLE_COLOR,
     displaySeparately: doc.displaySeparately ?? false,
     mentionable: doc.mentionable ?? false,
-    position: doc.position ?? 0,
+    position: doc.position ?? (systemKey === 'everyone' ? 1000 : 0),
     ...(doc.encryptedName
       ? {
           encryptedName: doc.encryptedName,
@@ -81,7 +83,7 @@ export function toPublicSpaceRole(doc: SpaceRoleDocument): PublicSpaceRole {
       : {}),
     isDefaultMember: doc.isDefaultMember,
     isSystem: doc.isSystem,
-    ...(doc.systemKey ? { systemKey: doc.systemKey } : {}),
+    ...(systemKey ? { systemKey } : {}),
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString(),
   };

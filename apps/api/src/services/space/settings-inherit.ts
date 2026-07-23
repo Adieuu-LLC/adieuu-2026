@@ -23,6 +23,7 @@ import {
 } from '../../models/space-channel-category';
 import { getSpaceChannelRepository } from '../../repositories/space-channel.repository';
 import { getSpaceChannelCategoryRepository } from '../../repositories/space-channel-category.repository';
+import { resolveChannelAudience } from './channel-access';
 import { publishSpaceEvent } from './redis-events';
 
 export function isInheritEnabled(flag: boolean | undefined): boolean {
@@ -282,10 +283,23 @@ export async function cascadeCategorySettings(
     const updated = await categoryRepo.updateCategory(spaceId, cat._id, fields);
     if (updated) {
       catMap.set(catId, updated);
-      await publishSpaceEvent(spaceIdHex, {
-        type: 'space_category_updated',
-        data: { category: toPublicSpaceChannelCategory(updated) },
-      });
+      // Union of old + new audiences: members losing access still learn of it.
+      const [oldAud, newAud] = await Promise.all([
+        resolveChannelAudience(spaceId, cat),
+        resolveChannelAudience(spaceId, updated),
+      ]);
+      const audienceIdentityIds =
+        oldAud === null || newAud === null
+          ? null
+          : [...new Set([...oldAud, ...newAud])];
+      await publishSpaceEvent(
+        spaceIdHex,
+        {
+          type: 'space_category_updated',
+          data: { category: toPublicSpaceChannelCategory(updated) },
+        },
+        { audienceIdentityIds },
+      );
     } else {
       catMap.set(catId, {
         ...cat,
@@ -315,10 +329,22 @@ export async function cascadeCategorySettings(
 
     const updated = await channelRepo.updateChannel(spaceId, channel._id, fields);
     if (updated) {
-      await publishSpaceEvent(spaceIdHex, {
-        type: 'space_channel_updated',
-        data: { channel: toPublicSpaceChannel(updated) },
-      });
+      const [oldAud, newAud] = await Promise.all([
+        resolveChannelAudience(spaceId, channel),
+        resolveChannelAudience(spaceId, updated),
+      ]);
+      const audienceIdentityIds =
+        oldAud === null || newAud === null
+          ? null
+          : [...new Set([...oldAud, ...newAud])];
+      await publishSpaceEvent(
+        spaceIdHex,
+        {
+          type: 'space_channel_updated',
+          data: { channel: toPublicSpaceChannel(updated) },
+        },
+        { audienceIdentityIds },
+      );
     }
   }
 }

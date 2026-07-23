@@ -21,6 +21,7 @@ import { SidebarItem, useSidebar } from '../../components/Sidebar';
 import { Icon } from '../../icons/Icon';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useSpaces } from '../../hooks/useSpaces';
+import { useOptionalVoiceChannelSession } from '../../hooks/useVoiceChannelSession';
 import { useCipherStore } from '../../hooks/useCipherStore';
 import { getSpaceCipherLink } from '../../services/spaceCipherService';
 import { resolveSpaceDisplayName } from '../../pages/spaces/spaceMetadataCipher';
@@ -94,6 +95,8 @@ export function SpaceListItem({
 }) {
   const { t } = useTranslation();
   const location = useLocation();
+  const voice = useOptionalVoiceChannelSession();
+  const isInVoiceHere = voice?.joined?.spaceId === space.id;
   const activeSlug = location.pathname.startsWith('/s/')
     ? location.pathname.split('/')[2]
     : null;
@@ -145,6 +148,13 @@ export function SpaceListItem({
         </span>
       </div>
       <div className="conversation-list-item-badges">
+        {isInVoiceHere && (
+          <Icon
+            name="phone"
+            className="conversation-list-item-call-icon conversation-list-item-call-icon--joined"
+            aria-hidden
+          />
+        )}
         {isFavorited && (
           <Icon name="star" className="conversation-list-item-star" />
         )}

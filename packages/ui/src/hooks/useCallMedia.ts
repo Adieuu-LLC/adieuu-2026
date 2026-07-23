@@ -239,37 +239,64 @@ export function useCallMedia(): UseCallMediaReturn {
 }
 
 /**
+ * Chromium (and some other browsers) expose virtual entries for the OS default
+ * and Windows "communications" devices. When the UI already has a "System
+ * default" option, listing these is redundant and confusing.
+ */
+export function isBrowserDefaultDeviceId(deviceId: string): boolean {
+  return deviceId === 'default' || deviceId === 'communications';
+}
+
+/**
  * Enumerate available media devices grouped by kind.
  * Requests a temporary stream first so labels are populated (browsers
  * hide labels until permission is granted).
+ *
+ * Prefers an audio-only permission prompt so we do not open the camera just to
+ * list devices — grabbing then releasing video first can leave subsequent
+ * previews black on some Linux/PipeWire stacks.
  */
 export async function enumerateMediaDevices(): Promise<MediaDeviceInfo[]> {
   let tempStream: MediaStream | null = null;
-  try {
-    tempStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-  } catch {
-    try {
-      tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch {
-      // No permission at all; labels will be empty
+
+  const releaseTemp = () => {
+    if (tempStream) {
+      stopTracks(tempStream);
+      tempStream = null;
     }
+  };
+
+  try {
+    tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch {
+    // Mic permission denied or unavailable; try video-only for camera labels.
   }
 
   try {
-    const devices = await navigator.mediaDevices.enumerateDevices();
+    let devices = await navigator.mediaDevices.enumerateDevices();
+    const videoLabelsMissing = devices.some((d) => d.kind === 'videoinput' && !d.label);
+
+    if (videoLabelsMissing) {
+      releaseTemp();
+      try {
+        tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        devices = await navigator.mediaDevices.enumerateDevices();
+      } catch {
+        // Camera permission denied; video labels may stay empty.
+      }
+    }
 
     return devices
       .filter((d): d is globalThis.MediaDeviceInfo & { kind: MediaDeviceInfo['kind'] } =>
         d.kind === 'audioinput' || d.kind === 'videoinput' || d.kind === 'audiooutput'
       )
+      .filter((d) => !isBrowserDefaultDeviceId(d.deviceId))
       .map((d) => ({
         deviceId: d.deviceId,
         label: d.label || `${d.kind} (${d.deviceId.slice(0, 8)})`,
         kind: d.kind as MediaDeviceInfo['kind'],
       }));
   } finally {
-    if (tempStream) {
-      stopTracks(tempStream);
-    }
+    releaseTemp();
   }
 }

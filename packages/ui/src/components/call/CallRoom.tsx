@@ -14,6 +14,12 @@ import { ExternalE2EEKeyProvider } from 'livekit-client';
 import '@livekit/components-styles';
 import type { StreamQualityCaps } from '@adieuu/shared';
 import { CallConferenceView } from './CallConferenceView';
+import { RoomHandleRegistrar } from './RoomHandleRegistrar';
+import {
+  getAvMicDeviceId,
+  getAvCameraDeviceId,
+  getAvSpeakerDeviceId,
+} from '../../hooks/avPreferenceStorage';
 
 export interface CallRoomProps {
   serverUrl: string;
@@ -80,13 +86,25 @@ export function CallRoom({
   const roomOptions = useMemo(() => {
     const opts: Record<string, unknown> = {};
 
+    // Preferred capture / output devices from Audio & Video settings. Read once
+    // at connect time; live changes are handled via `room.switchActiveDevice`.
+    const micDeviceId = getAvMicDeviceId();
+    const cameraDeviceId = getAvCameraDeviceId();
+    const speakerDeviceId = getAvSpeakerDeviceId();
+
+    const audioCaptureDefaults: Record<string, unknown> = {};
+    if (micDeviceId) audioCaptureDefaults.deviceId = micDeviceId;
+    if (Object.keys(audioCaptureDefaults).length > 0) {
+      opts.audioCaptureDefaults = audioCaptureDefaults;
+    }
+
+    const videoCaptureDefaults: Record<string, unknown> = {};
+    if (cameraDeviceId) videoCaptureDefaults.deviceId = cameraDeviceId;
     if (streamQualityCaps) {
-      opts.videoCaptureDefaults = {
-        resolution: {
-          width: streamQualityCaps.camera.width,
-          height: streamQualityCaps.camera.height,
-          frameRate: 30,
-        },
+      videoCaptureDefaults.resolution = {
+        width: streamQualityCaps.camera.width,
+        height: streamQualityCaps.camera.height,
+        frameRate: 30,
       };
       opts.publishDefaults = {
         videoSimulcastLayers: [],
@@ -99,6 +117,13 @@ export function CallRoom({
           frameRate: 15,
         },
       };
+    }
+    if (Object.keys(videoCaptureDefaults).length > 0) {
+      opts.videoCaptureDefaults = videoCaptureDefaults;
+    }
+
+    if (speakerDeviceId) {
+      opts.audioOutput = { deviceId: speakerDeviceId };
     }
 
     if (callE2EEKey && keyProviderRef.current && e2eeWorker) {
@@ -122,6 +147,7 @@ export function CallRoom({
       onDisconnected={onDisconnected}
       options={roomOptions}
     >
+      <RoomHandleRegistrar />
       <CallConferenceView
         e2eeActive={!!callE2EEKey}
         isDm={isDm}

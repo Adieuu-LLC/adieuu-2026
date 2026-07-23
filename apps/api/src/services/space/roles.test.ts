@@ -68,6 +68,12 @@ const memberRepo = {
 mock.module('../../repositories/space.repository', () => ({ getSpaceRepository: () => spaceRepo }));
 mock.module('../../repositories/space-role.repository', () => ({ getSpaceRoleRepository: () => roleRepo }));
 mock.module('../../repositories/space-member.repository', () => ({ getSpaceMemberRepository: () => memberRepo }));
+mock.module('../../repositories/space-audit.repository', () => ({
+  getSpaceAuditLogRepository: () => ({
+    create: mock(async () => ({})),
+    listBySpace: mock(async () => []),
+  }),
+}));
 
 import { createSpaceRole, updateSpaceRole, deleteSpaceRole, setMemberRoles } from './roles';
 
@@ -88,7 +94,11 @@ function seedSpace() {
   });
 }
 
-function seedActorWithPerms(permissions: string[], systemKey?: 'admin' | 'member') {
+function seedActorWithPerms(
+  permissions: string[],
+  systemKey?: 'admin' | 'everyone',
+  position = 0,
+) {
   const roleId = new ObjectId();
   memberRepo.findMember.mockImplementation(async (_s: ObjectId, id: ObjectId) =>
     id.equals(ACTOR)
@@ -103,11 +113,11 @@ function seedActorWithPerms(permissions: string[], systemKey?: 'admin' | 'member
       permissions,
       ...(systemKey ? { systemKey } : {}),
       isSystem: !!systemKey,
-      isDefaultMember: systemKey === 'member',
+      isDefaultMember: systemKey === 'everyone',
       color: '#fff',
       displaySeparately: false,
       mentionable: false,
-      position: 0,
+      position,
       createdAt: new Date(),
       updatedAt: new Date(),
     },
@@ -160,6 +170,169 @@ describe('space/roles', () => {
     expect(roleRepo.createRole).toHaveBeenCalled();
   });
 
+  test('createSpaceRole blocks a non-admin creating a role at or above their own rank', async () => {
+    seedSpace();
+    seedActorWithPerms(['manageRoles', 'sendMessages'], undefined, 5);
+    const r = await createSpaceRole(SPACE, ACTOR, {
+      name: 'Sneaky',
+      permissions: ['sendMessages'],
+      position: 5,
+    });
+    expect(r).toMatchObject({ success: false, errorCode: 'ESCALATION' });
+    expect(roleRepo.createRole).not.toHaveBeenCalled();
+  });
+
+  test('createSpaceRole allows a non-admin creating a role below their own rank', async () => {
+    seedSpace();
+    seedActorWithPerms(['manageRoles', 'sendMessages'], undefined, 5);
+    const r = await createSpaceRole(SPACE, ACTOR, {
+      name: 'Junior',
+      permissions: ['sendMessages'],
+      position: 6,
+    });
+    expect(r.success).toBe(true);
+    expect(roleRepo.createRole).toHaveBeenCalled();
+  });
+
+  test('updateSpaceRole blocks a non-admin editing a role at or above their own rank', async () => {
+    seedSpace();
+    seedActorWithPerms(['manageRoles'], undefined, 5);
+    roleRepo.findByIdInSpace.mockResolvedValue({
+      _id: CUSTOM_ROLE,
+      spaceId: SPACE,
+      name: 'Senior',
+      permissions: [],
+      isSystem: false,
+      isDefaultMember: false,
+      color: '#000000',
+      displaySeparately: false,
+      mentionable: false,
+      position: 2,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const r = await updateSpaceRole(SPACE, CUSTOM_ROLE, ACTOR, { name: 'Hijacked' });
+    expect(r).toMatchObject({ success: false, errorCode: 'ESCALATION' });
+    expect(roleRepo.updateRole).not.toHaveBeenCalled();
+  });
+
+  test('updateSpaceRole blocks a non-admin moving a role to or above their own rank', async () => {
+    seedSpace();
+    seedActorWithPerms(['manageRoles'], undefined, 5);
+    roleRepo.findByIdInSpace.mockResolvedValue({
+      _id: CUSTOM_ROLE,
+      spaceId: SPACE,
+      name: 'Junior',
+      permissions: [],
+      isSystem: false,
+      isDefaultMember: false,
+      color: '#000000',
+      displaySeparately: false,
+      mentionable: false,
+      position: 10,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const r = await updateSpaceRole(SPACE, CUSTOM_ROLE, ACTOR, { position: 3 });
+    expect(r).toMatchObject({ success: false, errorCode: 'ESCALATION' });
+    expect(roleRepo.updateRole).not.toHaveBeenCalled();
+  });
+
+  test('updateSpaceRole lets an Admin edit any role', async () => {
+    seedSpace();
+    seedActorWithPerms(['manageRoles'], 'admin', 3);
+    roleRepo.findByIdInSpace.mockResolvedValue({
+      _id: CUSTOM_ROLE,
+      spaceId: SPACE,
+      name: 'Above Admin Position',
+      permissions: [],
+      isSystem: false,
+      isDefaultMember: false,
+      color: '#000000',
+      displaySeparately: false,
+      mentionable: false,
+      position: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const r = await updateSpaceRole(SPACE, CUSTOM_ROLE, ACTOR, { name: 'Renamed' });
+    expect(r.success).toBe(true);
+    expect(roleRepo.updateRole).toHaveBeenCalled();
+  });
+
+  test('updateSpaceRole lets a legacy isSystem Admin edit roles at position 0', async () => {
+    seedSpace();
+    // Pre-systemKey Admin: isSystem + name, no systemKey / position.
+    const legacyAdminId = new ObjectId();
+    memberRepo.findMember.mockImplementation(async (_s: ObjectId, id: ObjectId) =>
+      id.equals(ACTOR)
+        ? {
+            _id: new ObjectId(),
+            spaceId: SPACE,
+            identityId: ACTOR,
+            roleIds: [legacyAdminId],
+            status: 'active',
+          }
+        : null,
+    );
+    roleRepo.findBySpace.mockResolvedValue([
+      {
+        _id: legacyAdminId,
+        spaceId: SPACE,
+        name: 'Admin',
+        permissions: ['admin', 'manageRoles'],
+        isSystem: true,
+        isDefaultMember: false,
+        color: '#e74c3c',
+        displaySeparately: true,
+        mentionable: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+    roleRepo.findByIdInSpace.mockResolvedValue({
+      _id: CUSTOM_ROLE,
+      spaceId: SPACE,
+      name: 'Member',
+      permissions: ['viewChannels'],
+      isSystem: true,
+      isDefaultMember: true,
+      color: '#99aab5',
+      displaySeparately: false,
+      mentionable: false,
+      // Missing position → treated as 0, same as legacy Admin.
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const r = await updateSpaceRole(SPACE, CUSTOM_ROLE, ACTOR, {
+      permissions: ['viewChannels', 'connect', 'speak'],
+    });
+    expect(r.success).toBe(true);
+    expect(roleRepo.updateRole).toHaveBeenCalled();
+  });
+
+  test('deleteSpaceRole blocks a non-admin deleting a role at or above their own rank', async () => {
+    seedSpace();
+    seedActorWithPerms(['manageRoles'], undefined, 5);
+    roleRepo.findByIdInSpace.mockResolvedValue({
+      _id: CUSTOM_ROLE,
+      spaceId: SPACE,
+      name: 'Senior',
+      permissions: [],
+      isSystem: false,
+      isDefaultMember: false,
+      color: '#000000',
+      displaySeparately: false,
+      mentionable: false,
+      position: 5,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const r = await deleteSpaceRole(SPACE, CUSTOM_ROLE, ACTOR);
+    expect(r).toMatchObject({ success: false, errorCode: 'ESCALATION' });
+    expect(roleRepo.deleteRole).not.toHaveBeenCalled();
+  });
+
   test('deleteSpaceRole rejects Admin system role even with no holders', async () => {
     seedSpace();
     seedActorWithPerms(['manageRoles']);
@@ -193,7 +366,7 @@ describe('space/roles', () => {
       name: 'Everyone',
       permissions: [],
       isSystem: true,
-      systemKey: 'member',
+      systemKey: 'everyone',
       color: '#99aab5',
       displaySeparately: false,
       mentionable: false,
@@ -232,7 +405,7 @@ describe('space/roles', () => {
       spaceId: SPACE,
       name: 'Everyone',
       permissions: ['viewChannels', 'sendMessages'],
-      systemKey: 'member' as const,
+      systemKey: 'everyone' as const,
       isSystem: true,
       isDefaultMember: true,
       color: '#99aab5',
@@ -523,6 +696,133 @@ describe('space/roles', () => {
       MEMBER_ROLE.toHexString(),
       CUSTOM_ROLE.toHexString(),
     ]);
+    expect(r).toMatchObject({ success: false, errorCode: 'ESCALATION' });
+    expect(memberRepo.setRoles).not.toHaveBeenCalled();
+  });
+
+  test('setMemberRoles blocks a non-admin assigning a role at or above their own rank', async () => {
+    seedSpace();
+    const actorRole = new ObjectId();
+    const seniorRole = new ObjectId();
+    memberRepo.findMember.mockImplementation(async (_s: ObjectId, id: ObjectId) => {
+      if (id.equals(ACTOR)) {
+        return {
+          _id: new ObjectId(),
+          spaceId: SPACE,
+          identityId: ACTOR,
+          roleIds: [actorRole, MEMBER_ROLE],
+          status: 'active',
+        };
+      }
+      if (id.equals(TARGET)) {
+        return {
+          _id: new ObjectId(),
+          spaceId: SPACE,
+          identityId: TARGET,
+          roleIds: [MEMBER_ROLE],
+          status: 'active',
+        };
+      }
+      return null;
+    });
+    roleRepo.findBySpace.mockResolvedValue([
+      {
+        _id: seniorRole,
+        spaceId: SPACE,
+        name: 'Senior',
+        permissions: ['viewChannels', 'sendMessages'],
+        isSystem: false,
+        isDefaultMember: false,
+        color: '#aa0000',
+        displaySeparately: false,
+        mentionable: false,
+        position: 2,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        _id: actorRole,
+        spaceId: SPACE,
+        name: 'Role Editor',
+        permissions: ['manageRoles', 'viewChannels', 'sendMessages'],
+        isSystem: false,
+        isDefaultMember: false,
+        color: '#112233',
+        displaySeparately: false,
+        mentionable: false,
+        position: 5,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      memberRoleDoc(),
+    ]);
+
+    const r = await setMemberRoles(SPACE, TARGET, ACTOR, [
+      MEMBER_ROLE.toHexString(),
+      seniorRole.toHexString(),
+    ]);
+    expect(r).toMatchObject({ success: false, errorCode: 'ESCALATION' });
+    expect(memberRepo.setRoles).not.toHaveBeenCalled();
+  });
+
+  test('setMemberRoles blocks a non-admin stripping a role at or above their own rank', async () => {
+    seedSpace();
+    const actorRole = new ObjectId();
+    const seniorRole = new ObjectId();
+    memberRepo.findMember.mockImplementation(async (_s: ObjectId, id: ObjectId) => {
+      if (id.equals(ACTOR)) {
+        return {
+          _id: new ObjectId(),
+          spaceId: SPACE,
+          identityId: ACTOR,
+          roleIds: [actorRole, MEMBER_ROLE],
+          status: 'active',
+        };
+      }
+      if (id.equals(TARGET)) {
+        return {
+          _id: new ObjectId(),
+          spaceId: SPACE,
+          identityId: TARGET,
+          roleIds: [seniorRole, MEMBER_ROLE],
+          status: 'active',
+        };
+      }
+      return null;
+    });
+    roleRepo.findBySpace.mockResolvedValue([
+      {
+        _id: seniorRole,
+        spaceId: SPACE,
+        name: 'Senior',
+        permissions: ['viewChannels', 'sendMessages'],
+        isSystem: false,
+        isDefaultMember: false,
+        color: '#aa0000',
+        displaySeparately: false,
+        mentionable: false,
+        position: 2,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        _id: actorRole,
+        spaceId: SPACE,
+        name: 'Role Editor',
+        permissions: ['manageRoles', 'viewChannels', 'sendMessages'],
+        isSystem: false,
+        isDefaultMember: false,
+        color: '#112233',
+        displaySeparately: false,
+        mentionable: false,
+        position: 5,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      memberRoleDoc(),
+    ]);
+
+    const r = await setMemberRoles(SPACE, TARGET, ACTOR, [MEMBER_ROLE.toHexString()]);
     expect(r).toMatchObject({ success: false, errorCode: 'ESCALATION' });
     expect(memberRepo.setRoles).not.toHaveBeenCalled();
   });

@@ -47,6 +47,7 @@ import {
 import {
   sanitizeSpaceObjectId,
   sanitizeSpaceMessageContent,
+  sanitizeSpaceChannelName,
   sanitizeClientMessageId,
   parseSpaceListCursor,
   clampSpaceListLimit,
@@ -84,7 +85,13 @@ export async function createChannelCtrl(
   const parsed = CreateSpaceChannelSchema.safeParse(ctx.body);
   if (!parsed.success) return { kind: 'validation_failed' };
 
-  const result = await createSpaceChannel(id.id, identity._id, parsed.data);
+  const name = sanitizeSpaceChannelName(parsed.data.name);
+  if (!name.ok) return { kind: 'validation_failed' };
+
+  const result = await createSpaceChannel(id.id, identity._id, {
+    ...parsed.data,
+    ...(name.name !== undefined ? { name: name.name } : {}),
+  });
   if (!result.success) {
     return mapSpaceError(result.errorCode, result.error ?? 'Failed to create channel.');
   }
@@ -104,7 +111,13 @@ export async function updateChannelCtrl(
   const parsed = UpdateSpaceChannelSchema.safeParse(ctx.body);
   if (!parsed.success) return { kind: 'validation_failed' };
 
-  const result = await updateSpaceChannel(id.id, channelId.id, identity._id, parsed.data);
+  const name = sanitizeSpaceChannelName(parsed.data.name);
+  if (!name.ok) return { kind: 'validation_failed' };
+
+  const result = await updateSpaceChannel(id.id, channelId.id, identity._id, {
+    ...parsed.data,
+    ...(name.name !== undefined ? { name: name.name } : {}),
+  });
   if (!result.success) {
     return mapSpaceError(result.errorCode, result.error ?? 'Failed to update channel.');
   }
@@ -143,7 +156,13 @@ export async function createCategoryCtrl(
   const parsed = CreateSpaceChannelCategorySchema.safeParse(ctx.body);
   if (!parsed.success) return { kind: 'validation_failed' };
 
-  const result = await createSpaceChannelCategory(id.id, identity._id, parsed.data);
+  const name = sanitizeSpaceChannelName(parsed.data.name);
+  if (!name.ok) return { kind: 'validation_failed' };
+
+  const result = await createSpaceChannelCategory(id.id, identity._id, {
+    ...parsed.data,
+    ...(name.name !== undefined ? { name: name.name } : {}),
+  });
   if (!result.success) {
     return mapSpaceError(result.errorCode, result.error ?? 'Failed to create category.');
   }
@@ -163,12 +182,13 @@ export async function updateCategoryCtrl(
   const parsed = UpdateSpaceChannelCategorySchema.safeParse(ctx.body);
   if (!parsed.success) return { kind: 'validation_failed' };
 
-  const result = await updateSpaceChannelCategory(
-    id.id,
-    categoryId.id,
-    identity._id,
-    parsed.data,
-  );
+  const name = sanitizeSpaceChannelName(parsed.data.name);
+  if (!name.ok) return { kind: 'validation_failed' };
+
+  const result = await updateSpaceChannelCategory(id.id, categoryId.id, identity._id, {
+    ...parsed.data,
+    ...(name.name !== undefined ? { name: name.name } : {}),
+  });
   if (!result.success) {
     return mapSpaceError(result.errorCode, result.error ?? 'Failed to update category.');
   }
@@ -286,14 +306,20 @@ export async function sendMessageCtrl(ctx: RouteContext): Promise<SpaceRouteResu
   if (!clientMessageId.ok) return { kind: 'validation_failed' };
 
   const hasCipher = !!(parsed.data.ciphertext && parsed.data.nonce && parsed.data.cipherId);
+  const hasClearAttachments = !!(parsed.data.attachmentMediaIds?.length);
+  const hasE2eAttachments = !!(parsed.data.e2eMediaIds?.length);
 
   let bodyFields: { content?: string; ciphertext?: string; nonce?: string; cipherId?: string };
   if (hasCipher) {
     bodyFields = { ciphertext: parsed.data.ciphertext, nonce: parsed.data.nonce, cipherId: parsed.data.cipherId };
-  } else {
+  } else if (parsed.data.content !== undefined) {
     const content = sanitizeSpaceMessageContent(parsed.data.content);
     if (!content.ok) return { kind: 'validation_failed' };
     bodyFields = { content: content.content };
+  } else if (hasClearAttachments) {
+    bodyFields = { content: '' };
+  } else {
+    return { kind: 'validation_failed' };
   }
 
   const result = await sendSpaceMessage(id.id, channelId.id, identity._id, {
@@ -304,6 +330,8 @@ export async function sendMessageCtrl(ctx: RouteContext): Promise<SpaceRouteResu
       ? { mentionedIdentityIds: parsed.data.mentionedIdentityIds }
       : {}),
     ...(parsed.data.expiresInSeconds != null ? { expiresInSeconds: parsed.data.expiresInSeconds } : {}),
+    ...(hasClearAttachments ? { attachmentMediaIds: parsed.data.attachmentMediaIds } : {}),
+    ...(hasE2eAttachments ? { e2eMediaIds: parsed.data.e2eMediaIds } : {}),
   });
   if (!result.success) {
     return mapSpaceError(result.errorCode, result.error ?? 'Failed to send message.');
@@ -330,14 +358,33 @@ export async function editMessageCtrl(ctx: RouteContext): Promise<SpaceRouteResu
   if (!parsed.success) return { kind: 'validation_failed' };
 
   const hasCipher = !!(parsed.data.ciphertext && parsed.data.nonce && parsed.data.cipherId);
+  const hasClearAttachments = parsed.data.attachmentMediaIds !== undefined;
+  const hasE2eAttachments = parsed.data.e2eMediaIds !== undefined;
 
-  let bodyFields: { content?: string; ciphertext?: string; nonce?: string; cipherId?: string };
+  let bodyFields: {
+    content?: string;
+    ciphertext?: string;
+    nonce?: string;
+    cipherId?: string;
+    attachmentMediaIds?: string[];
+    e2eMediaIds?: string[];
+  };
   if (hasCipher) {
     bodyFields = { ciphertext: parsed.data.ciphertext, nonce: parsed.data.nonce, cipherId: parsed.data.cipherId };
-  } else {
+  } else if (parsed.data.content !== undefined) {
     const content = sanitizeSpaceMessageContent(parsed.data.content);
     if (!content.ok) return { kind: 'validation_failed' };
     bodyFields = { content: content.content };
+  } else if (hasClearAttachments && (parsed.data.attachmentMediaIds?.length ?? 0) > 0) {
+    bodyFields = { content: '' };
+  } else {
+    return { kind: 'validation_failed' };
+  }
+  if (hasClearAttachments) {
+    bodyFields.attachmentMediaIds = parsed.data.attachmentMediaIds;
+  }
+  if (hasE2eAttachments) {
+    bodyFields.e2eMediaIds = parsed.data.e2eMediaIds;
   }
 
   const result = await editSpaceMessage(

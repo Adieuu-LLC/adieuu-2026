@@ -18,7 +18,15 @@ import {
   SPACE_NAME_MAX_LENGTH,
   SPACE_DESCRIPTION_MAX_LENGTH,
   SPACE_MESSAGE_MAX_LENGTH,
+  SPACE_CHANNEL_NAME_MAX_LENGTH,
 } from '@adieuu/shared';
+
+/** Max length for Space role names (mirrors the shared Zod schema). */
+const SPACE_ROLE_NAME_MAX_LENGTH = 100;
+/** Max length for member nicknames (mirrors the shared Zod schema). */
+const SPACE_NICKNAME_MAX_LENGTH = 50;
+/** Max length for ban reasons (mirrors the shared Zod schema). */
+const SPACE_BAN_REASON_MAX_LENGTH = 500;
 
 /** Valid Mongo ObjectId hex string after `sanitizeString(..., 'id')`. */
 export function sanitizeSpaceObjectId(
@@ -123,6 +131,68 @@ export function sanitizeClientMessageId(
     return { ok: false };
   }
   return { ok: true, clientMessageId: value };
+}
+
+/**
+ * Role name: general-text sanitize, must be non-empty and within the shared
+ * max length after stripping. `undefined` passes through (field not updated).
+ */
+export function sanitizeSpaceRoleName(
+  raw: string | undefined,
+): { ok: true; name: string | undefined } | { ok: false } {
+  if (raw === undefined) return { ok: true, name: undefined };
+  const name = sanitizeString(raw, 'general').value.trim();
+  if (!name || name.length > SPACE_ROLE_NAME_MAX_LENGTH) {
+    return { ok: false };
+  }
+  return { ok: true, name };
+}
+
+/**
+ * Channel or category name: general-text sanitize, must be non-empty and
+ * within the shared max length after stripping. `undefined` passes through.
+ */
+export function sanitizeSpaceChannelName(
+  raw: string | undefined,
+): { ok: true; name: string | undefined } | { ok: false } {
+  if (raw === undefined) return { ok: true, name: undefined };
+  const name = sanitizeString(raw, 'general').value.trim();
+  if (!name || name.length > SPACE_CHANNEL_NAME_MAX_LENGTH) {
+    return { ok: false };
+  }
+  return { ok: true, name };
+}
+
+/**
+ * Member nickname: general-text sanitize. `null` (clear) and `undefined`
+ * (not updated) pass through; a provided string must stay non-empty and
+ * within the shared max length after stripping.
+ */
+export function sanitizeSpaceNickname(
+  raw: string | null | undefined,
+): { ok: true; nickname: string | null | undefined } | { ok: false } {
+  if (raw === undefined) return { ok: true, nickname: undefined };
+  if (raw === null) return { ok: true, nickname: null };
+  const nickname = sanitizeString(raw, 'general').value.trim();
+  if (!nickname || nickname.length > SPACE_NICKNAME_MAX_LENGTH) {
+    return { ok: false };
+  }
+  return { ok: true, nickname };
+}
+
+/**
+ * Ban reason: general-text sanitize, must be non-empty and within the shared
+ * max length after stripping (shown to moderators; must never carry
+ * control/injection characters).
+ */
+export function sanitizeSpaceBanReason(
+  raw: string | undefined,
+): { ok: true; reason: string } | { ok: false } {
+  const reason = sanitizeString(raw ?? '', 'general').value.trim();
+  if (!reason || reason.length > SPACE_BAN_REASON_MAX_LENGTH) {
+    return { ok: false };
+  }
+  return { ok: true, reason };
 }
 
 /**

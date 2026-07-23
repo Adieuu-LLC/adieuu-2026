@@ -281,8 +281,8 @@ export async function getSpaceBySlug(
         ? requesterIdentityId
         : new ObjectId(requesterIdentityId);
     const member = await getSpaceMemberRepository().findMember(space._id, requesterObjId);
-    if (!member) {
-      // Do not reveal that a hidden Space exists.
+    if (!member || member.status !== 'active') {
+      // Do not reveal that a hidden Space exists (banned members included).
       return { success: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' };
     }
   }
@@ -322,8 +322,8 @@ export async function getSpaceById(
         ? requesterIdentityId
         : new ObjectId(requesterIdentityId);
     const member = await getSpaceMemberRepository().findMember(space._id, requesterObjId);
-    if (!member) {
-      // Do not reveal that a hidden Space exists.
+    if (!member || member.status !== 'active') {
+      // Do not reveal that a hidden Space exists (banned members included).
       return { success: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' };
     }
   }

@@ -5,9 +5,11 @@
  */
 
 import type { ObjectId } from 'mongodb';
+import { isSpaceAdminRole, isSpaceEveryoneRole, normalizeSpacePermissions } from '@adieuu/shared';
 import type { SpaceChannelDocument } from '../../models/space-channel';
 import type { SpaceRoleDocument } from '../../models/space-role';
 import { getSpaceRoleRepository } from '../../repositories/space-role.repository';
+import { getSpaceMemberRepository } from '../../repositories/space-member.repository';
 import {
   memberHasPermission,
   resolveMemberPermissions,
@@ -80,7 +82,46 @@ export function rolesAtOrBelowHierarchy(
 export function findEveryoneRole(
   roles: readonly SpaceRoleDocument[],
 ): SpaceRoleDocument | undefined {
-  return roles.find((r) => r.isDefaultMember || r.systemKey === 'member');
+  return roles.find((r) => r.isDefaultMember || isSpaceEveryoneRole(r));
+}
+
+/**
+ * Resolves the audience for a restricted-channel realtime event.
+ *
+ * Returns `null` when the channel is open to everyone (legacy/empty ACL or
+ * includes the Everyone role) — callers should broadcast space-wide. Otherwise
+ * returns the hex identity ids of active members who may view the channel:
+ * members whose roles intersect `allowedRoleIds`, plus members holding a role
+ * that grants `manageChannels` (which bypasses channel ACLs, e.g. Admin).
+ */
+export async function resolveChannelAudience(
+  spaceId: ObjectId,
+  channel: Pick<SpaceChannelDocument, 'allowedRoleIds'>,
+): Promise<string[] | null> {
+  const roles = await getSpaceRoleRepository().findBySpace(spaceId);
+  const everyone = findEveryoneRole(roles);
+  if (channelIsEveryoneOpen(channel, everyone?._id ?? null)) {
+    return null;
+  }
+
+  const audienceRoleIds = new Map<string, ObjectId>();
+  for (const id of channel.allowedRoleIds ?? []) {
+    audienceRoleIds.set(id.toHexString(), id);
+  }
+  // manageChannels (and the Admin system role, which holds all permissions)
+  // can always view any channel, so their holders must remain in the audience.
+  for (const role of roles) {
+    const grantsManage =
+      isSpaceAdminRole(role) ||
+      normalizeSpacePermissions(role.permissions).includes('manageChannels');
+    if (grantsManage) audienceRoleIds.set(role._id.toHexString(), role._id);
+  }
+
+  const members = await getSpaceMemberRepository().listByAnyRole(
+    spaceId,
+    [...audienceRoleIds.values()],
+  );
+  return members.map((m) => m.identityId.toHexString());
 }
 
 /** Resolve perms + roles and enforce channel view ACL (hides as not found). */

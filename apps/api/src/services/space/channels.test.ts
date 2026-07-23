@@ -16,6 +16,8 @@ const spaceRepo = {
 
 const memberRepo = {
   findMember: mock(async (_s: ObjectId, _i: ObjectId) => null as any) as AnyMock,
+  listByAnyRole: mock(async (_s: ObjectId, _r: ObjectId[]) => [] as any[]) as AnyMock,
+  findActiveByIdentityIds: mock(async (_s: ObjectId, _ids: ObjectId[]) => [] as any[]) as AnyMock,
 };
 
 const roleRepo = {
@@ -40,6 +42,15 @@ const messageRepo = {
 const reactionRepo = {
   messageIdsWithReactions: mock(async (_ids: ObjectId[]) => new Set<string>()) as AnyMock,
 };
+
+const mediaUploadRepo = {
+  findByMediaId: mock(async (_id: string) => null as any) as AnyMock,
+};
+
+const e2eMediaRepo = {
+  findManyByE2EMediaIds: mock(async (_ids: string[]) => [] as any[]) as AnyMock,
+  setExpiresAt: mock(async () => {}) as AnyMock,
+};
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 mock.module('../../repositories/space.repository', () => ({ getSpaceRepository: () => spaceRepo }));
@@ -54,6 +65,12 @@ mock.module('../../repositories/space-channel-category.repository', () => ({
 }));
 mock.module('../../repositories/space-message.repository', () => ({ getSpaceMessageRepository: () => messageRepo }));
 mock.module('../../repositories/space-reaction.repository', () => ({ getSpaceReactionRepository: () => reactionRepo }));
+mock.module('../../repositories/media-upload.repository', () => ({
+  getMediaUploadRepository: () => mediaUploadRepo,
+}));
+mock.module('../../repositories/e2e-media.repository', () => ({
+  getE2EMediaRepository: () => e2eMediaRepo,
+}));
 
 const publishSpaceEvent = mock(async () => {}) as AnyMock;
 mock.module('./redis-events', () => ({
@@ -106,11 +123,22 @@ describe('space/channels', () => {
   afterAll(() => mock.restore());
 
   beforeEach(() => {
-    for (const repo of [spaceRepo, memberRepo, roleRepo, channelRepo, messageRepo, reactionRepo]) {
+    for (const repo of [
+      spaceRepo,
+      memberRepo,
+      roleRepo,
+      channelRepo,
+      messageRepo,
+      reactionRepo,
+      mediaUploadRepo,
+      e2eMediaRepo,
+    ]) {
       for (const fn of Object.values(repo)) (fn as AnyMock).mockClear();
     }
     spaceRepo.findById.mockResolvedValue(null);
     memberRepo.findMember.mockResolvedValue(null);
+    memberRepo.listByAnyRole.mockResolvedValue([]);
+    memberRepo.findActiveByIdentityIds.mockResolvedValue([]);
     roleRepo.findBySpace.mockResolvedValue([]);
     channelRepo.findBySpace.mockResolvedValue([]);
     channelRepo.findByIdInSpace.mockResolvedValue(null);
@@ -121,6 +149,8 @@ describe('space/channels', () => {
     messageRepo.findByIdInChannel.mockResolvedValue(null);
     messageRepo.findAround.mockResolvedValue([]);
     reactionRepo.messageIdsWithReactions.mockResolvedValue(new Set<string>());
+    mediaUploadRepo.findByMediaId.mockResolvedValue(null);
+    e2eMediaRepo.findManyByE2EMediaIds.mockResolvedValue([]);
     publishSpaceEvent.mockClear();
     createNotificationMock.mockClear();
   });
@@ -187,7 +217,7 @@ describe('space/channels', () => {
           permissions: ['sendMessages', 'viewChannels'],
           position: 1000,
           isDefaultMember: true,
-          systemKey: 'member',
+          systemKey: 'everyone',
         },
         {
           _id: mods,
@@ -363,6 +393,181 @@ describe('space/channels', () => {
       expect(event.type).toBe('space_message');
     });
 
+    test('drops mentions of identities that are not active Space members', async () => {
+      const space = makeSpaceDoc({ visibility: 'public' });
+      spaceRepo.findById.mockResolvedValue(space);
+      const sender = new ObjectId();
+      grantPermissions(space._id, sender, ['sendMessages']);
+      const channel = makeChannelDoc(space._id);
+      channelRepo.findByIdInSpace.mockResolvedValue(channel);
+
+      const memberMention = new ObjectId();
+      const outsiderMention = new ObjectId();
+      memberRepo.findActiveByIdentityIds.mockResolvedValue([
+        { _id: new ObjectId(), spaceId: space._id, identityId: memberMention, status: 'active' },
+      ]);
+
+      const r = await sendSpaceMessage(space._id, channel._id, sender, {
+        content: 'hi',
+        clientMessageId: 'c1',
+        mentionedIdentityIds: [memberMention.toHexString(), outsiderMention.toHexString()],
+      });
+      expect(r.success).toBe(true);
+
+      // Only the member mention is persisted…
+      const [input] = messageRepo.createMessage.mock.calls[0]!;
+      expect(input.mentionedIdentityIds).toHaveLength(1);
+      expect(input.mentionedIdentityIds[0].equals(memberMention)).toBe(true);
+
+      // …and only the member is notified.
+      expect(createNotificationMock).toHaveBeenCalledTimes(1);
+      const [target, kind] = createNotificationMock.mock.calls[0]!;
+      expect(target.equals(memberMention)).toBe(true);
+      expect(kind).toBe('space_message_mention');
+    });
+
+    test('sends no notifications when every mentioned identity is a non-member', async () => {
+      const space = makeSpaceDoc({ visibility: 'public' });
+      spaceRepo.findById.mockResolvedValue(space);
+      const sender = new ObjectId();
+      grantPermissions(space._id, sender, ['sendMessages']);
+      const channel = makeChannelDoc(space._id);
+      channelRepo.findByIdInSpace.mockResolvedValue(channel);
+      memberRepo.findActiveByIdentityIds.mockResolvedValue([]);
+
+      const r = await sendSpaceMessage(space._id, channel._id, sender, {
+        content: 'hi',
+        clientMessageId: 'c1',
+        mentionedIdentityIds: [new ObjectId().toHexString(), new ObjectId().toHexString()],
+      });
+      expect(r.success).toBe(true);
+      expect(createNotificationMock).not.toHaveBeenCalled();
+      const [input] = messageRepo.createMessage.mock.calls[0]!;
+      expect(input.mentionedIdentityIds).toBeUndefined();
+    });
+
+    test('skips the reply notification when the reply author is no longer an active member', async () => {
+      const space = makeSpaceDoc({ visibility: 'public' });
+      spaceRepo.findById.mockResolvedValue(space);
+      const sender = new ObjectId();
+      grantPermissions(space._id, sender, ['sendMessages']);
+      const channel = makeChannelDoc(space._id);
+      channelRepo.findByIdInSpace.mockResolvedValue(channel);
+
+      const departedAuthor = new ObjectId();
+      const replyTarget = { _id: new ObjectId(), fromIdentityId: departedAuthor, deleted: false };
+      messageRepo.findByIdInChannel.mockResolvedValue(replyTarget);
+      memberRepo.findActiveByIdentityIds.mockResolvedValue([]);
+
+      const r = await sendSpaceMessage(space._id, channel._id, sender, {
+        content: 'hi',
+        clientMessageId: 'c1',
+        replyToMessageId: replyTarget._id.toHexString(),
+      });
+      expect(r.success).toBe(true);
+      expect(createNotificationMock).not.toHaveBeenCalled();
+    });
+
+    test('notifies the reply author while they remain an active member', async () => {
+      const space = makeSpaceDoc({ visibility: 'public' });
+      spaceRepo.findById.mockResolvedValue(space);
+      const sender = new ObjectId();
+      grantPermissions(space._id, sender, ['sendMessages']);
+      const channel = makeChannelDoc(space._id);
+      channelRepo.findByIdInSpace.mockResolvedValue(channel);
+
+      const author = new ObjectId();
+      const replyTarget = { _id: new ObjectId(), fromIdentityId: author, deleted: false };
+      messageRepo.findByIdInChannel.mockResolvedValue(replyTarget);
+      memberRepo.findActiveByIdentityIds.mockResolvedValue([
+        { _id: new ObjectId(), spaceId: space._id, identityId: author, status: 'active' },
+      ]);
+
+      const r = await sendSpaceMessage(space._id, channel._id, sender, {
+        content: 'hi',
+        clientMessageId: 'c1',
+        replyToMessageId: replyTarget._id.toHexString(),
+      });
+      expect(r.success).toBe(true);
+      expect(createNotificationMock).toHaveBeenCalledTimes(1);
+      const [target, kind] = createNotificationMock.mock.calls[0]!;
+      expect(target.equals(author)).toBe(true);
+      expect(kind).toBe('space_message_reply');
+    });
+
+    test('scopes the realtime publish to the channel audience on a restricted channel', async () => {
+      const space = makeSpaceDoc({ visibility: 'public' });
+      spaceRepo.findById.mockResolvedValue(space);
+      const sender = new ObjectId();
+      const everyone = new ObjectId();
+      const mods = new ObjectId();
+      memberRepo.findMember.mockImplementation(async (_s: ObjectId, id: ObjectId) =>
+        id.equals(sender)
+          ? {
+              _id: new ObjectId(),
+              spaceId: space._id,
+              identityId: sender,
+              roleIds: [mods],
+              status: 'active',
+              joinedAt: new Date(),
+            }
+          : null,
+      );
+      roleRepo.findBySpace.mockResolvedValue([
+        {
+          _id: everyone,
+          spaceId: space._id,
+          permissions: ['sendMessages', 'viewChannels'],
+          position: 1000,
+          isDefaultMember: true,
+          systemKey: 'everyone',
+        },
+        {
+          _id: mods,
+          spaceId: space._id,
+          permissions: ['sendMessages', 'viewChannels'],
+          position: 100,
+          isDefaultMember: false,
+        },
+      ]);
+      const otherMod = new ObjectId();
+      memberRepo.listByAnyRole.mockResolvedValue([
+        { _id: new ObjectId(), spaceId: space._id, identityId: sender, roleIds: [mods], status: 'active' },
+        { _id: new ObjectId(), spaceId: space._id, identityId: otherMod, roleIds: [mods], status: 'active' },
+      ]);
+      const channel = makeChannelDoc(space._id, { allowedRoleIds: [mods] });
+      channelRepo.findByIdInSpace.mockResolvedValue(channel);
+
+      const r = await sendSpaceMessage(space._id, channel._id, sender, {
+        content: 'mods only',
+        clientMessageId: 'c1',
+      });
+      expect(r.success).toBe(true);
+      expect(publishSpaceEvent).toHaveBeenCalledTimes(1);
+      const [, event, options] = publishSpaceEvent.mock.calls[0]!;
+      expect(event.type).toBe('space_message');
+      expect(options.audienceIdentityIds).toEqual([
+        sender.toHexString(),
+        otherMod.toHexString(),
+      ]);
+    });
+
+    test('broadcasts without an audience list for an everyone-open channel', async () => {
+      const space = makeSpaceDoc({ visibility: 'public' });
+      spaceRepo.findById.mockResolvedValue(space);
+      const sender = new ObjectId();
+      grantPermissions(space._id, sender, ['sendMessages']);
+      const channel = makeChannelDoc(space._id);
+      channelRepo.findByIdInSpace.mockResolvedValue(channel);
+      const r = await sendSpaceMessage(space._id, channel._id, sender, {
+        content: 'hi all',
+        clientMessageId: 'c1',
+      });
+      expect(r.success).toBe(true);
+      const [, , options] = publishSpaceEvent.mock.calls[0]!;
+      expect(options.audienceIdentityIds).toBeNull();
+    });
+
     test('is idempotent on clientMessageId', async () => {
       const space = makeSpaceDoc({ visibility: 'public' });
       spaceRepo.findById.mockResolvedValue(space);
@@ -379,6 +584,134 @@ describe('space/channels', () => {
       expect(messageRepo.createMessage).not.toHaveBeenCalled();
       // No fan-out for an idempotent replay.
       expect(publishSpaceEvent).not.toHaveBeenCalled();
+    });
+
+    test('forbids attachments without attachFiles', async () => {
+      const space = makeSpaceDoc({ visibility: 'public' });
+      spaceRepo.findById.mockResolvedValue(space);
+      const sender = new ObjectId();
+      grantPermissions(space._id, sender, ['sendMessages']);
+      const channel = makeChannelDoc(space._id);
+      channelRepo.findByIdInSpace.mockResolvedValue(channel);
+      const r = await sendSpaceMessage(space._id, channel._id, sender, {
+        content: 'hi',
+        clientMessageId: 'c1',
+        attachmentMediaIds: ['m1'],
+      });
+      expect(r).toMatchObject({ success: false, errorCode: 'FORBIDDEN' });
+    });
+
+    test('rejects cleartext attachment from the wrong Space', async () => {
+      const space = makeSpaceDoc({ visibility: 'public' });
+      spaceRepo.findById.mockResolvedValue(space);
+      const sender = new ObjectId();
+      grantPermissions(space._id, sender, ['sendMessages', 'attachFiles']);
+      const channel = makeChannelDoc(space._id);
+      channelRepo.findByIdInSpace.mockResolvedValue(channel);
+      mediaUploadRepo.findByMediaId.mockResolvedValue({
+        mediaId: 'm1',
+        purpose: 'space_media',
+        status: 'ready',
+        cdnUrl: 'https://cdn.example/m1.webp',
+        contentType: 'image/webp',
+        identityId: sender,
+        spaceId: new ObjectId(),
+      });
+      const r = await sendSpaceMessage(space._id, channel._id, sender, {
+        content: 'hi',
+        clientMessageId: 'c1',
+        attachmentMediaIds: ['m1'],
+      });
+      expect(r).toMatchObject({ success: false, errorCode: 'INVALID_MEDIA' });
+    });
+
+    test('sends plaintext message with valid attachmentMediaIds', async () => {
+      const space = makeSpaceDoc({ visibility: 'public' });
+      spaceRepo.findById.mockResolvedValue(space);
+      const sender = new ObjectId();
+      grantPermissions(space._id, sender, ['sendMessages', 'attachFiles']);
+      const channel = makeChannelDoc(space._id);
+      channelRepo.findByIdInSpace.mockResolvedValue(channel);
+      mediaUploadRepo.findByMediaId.mockResolvedValue({
+        mediaId: 'm1',
+        purpose: 'space_media',
+        status: 'ready',
+        cdnUrl: 'https://cdn.example/m1.webp',
+        contentType: 'image/webp',
+        identityId: sender,
+        spaceId: space._id,
+      });
+      const r = await sendSpaceMessage(space._id, channel._id, sender, {
+        content: 'hi',
+        clientMessageId: 'c1',
+        attachmentMediaIds: ['m1'],
+      });
+      expect(r.success).toBe(true);
+      expect(messageRepo.createMessage).toHaveBeenCalled();
+      const input = messageRepo.createMessage.mock.calls[0]![0] as Record<string, unknown>;
+      expect(input.attachmentMediaIds).toEqual(['m1']);
+      expect(r.message?.attachmentMediaIds).toEqual(['m1']);
+    });
+
+    test('rejects e2e media not owned by sender', async () => {
+      const space = makeSpaceDoc({
+        visibility: 'public',
+        e2ee: true,
+        cipherCheck: CIPHER_CHECK,
+      });
+      spaceRepo.findById.mockResolvedValue(space);
+      const sender = new ObjectId();
+      grantPermissions(space._id, sender, ['sendMessages', 'attachFiles']);
+      const channel = makeChannelDoc(space._id);
+      channelRepo.findByIdInSpace.mockResolvedValue(channel);
+      e2eMediaRepo.findManyByE2EMediaIds.mockResolvedValue([
+        {
+          e2eMediaId: 'e1',
+          identityId: new ObjectId(),
+          status: 'available',
+          moderationStatus: 'passed',
+        },
+      ]);
+      const r = await sendSpaceMessage(space._id, channel._id, sender, {
+        ciphertext: 'Y3Q=',
+        nonce: 'bm9uY2U=',
+        cipherId: 'ab'.repeat(32),
+        clientMessageId: 'c1',
+        e2eMediaIds: ['e1'],
+      });
+      expect(r).toMatchObject({ success: false, errorCode: 'INVALID_MEDIA' });
+    });
+
+    test('sends encrypted message with valid e2eMediaIds', async () => {
+      const space = makeSpaceDoc({
+        visibility: 'public',
+        e2ee: true,
+        cipherCheck: CIPHER_CHECK,
+      });
+      spaceRepo.findById.mockResolvedValue(space);
+      const sender = new ObjectId();
+      grantPermissions(space._id, sender, ['sendMessages', 'attachFiles']);
+      const channel = makeChannelDoc(space._id);
+      channelRepo.findByIdInSpace.mockResolvedValue(channel);
+      e2eMediaRepo.findManyByE2EMediaIds.mockResolvedValue([
+        {
+          e2eMediaId: 'e1',
+          identityId: sender,
+          status: 'available',
+          moderationStatus: 'passed',
+        },
+      ]);
+      const r = await sendSpaceMessage(space._id, channel._id, sender, {
+        ciphertext: 'Y3Q=',
+        nonce: 'bm9uY2U=',
+        cipherId: 'ab'.repeat(32),
+        clientMessageId: 'c1',
+        e2eMediaIds: ['e1'],
+      });
+      expect(r.success).toBe(true);
+      const input = messageRepo.createMessage.mock.calls[0]![0] as Record<string, unknown>;
+      expect(input.e2eMediaIds).toEqual(['e1']);
+      expect(r.message?.e2eMediaIds).toEqual(['e1']);
     });
   });
 

@@ -60,7 +60,6 @@ export function mapSpaceError(
     case 'CATEGORY_NOT_FOUND':
     case 'MEMBER_NOT_FOUND':
     case 'INVITE_NOT_FOUND':
-    case 'IDENTITY_NOT_FOUND':
     case 'MESSAGE_NOT_FOUND':
     case 'REACTION_NOT_FOUND':
     case 'PIN_NOT_FOUND':
@@ -108,8 +107,10 @@ export function mapSpaceError(
     case 'INVALID_ENCRYPTION':
     case 'INVALID_ID':
     case 'INVALID_CONTENT':
+    case 'INVALID_MEDIA':
     case 'INVALID_PERMISSIONS':
     case 'CANNOT_INVITE_SELF':
+    case 'INVITE_NOT_ALLOWED':
     case 'INVALID_REPLY_TARGET':
     case 'MAX_EDITS_REACHED':
     case 'MESSAGE_DELETED':

@@ -162,7 +162,7 @@ const VALID_ENCRYPTED_SEED = {
       cipherId: 'cipher-hex',
     },
     {
-      system: 'member' as const,
+      system: 'everyone' as const,
       encryptedName: 'ZW5jLW1lbWJlcg',
       nameNonce: 'bm9uY2U',
       cipherId: 'cipher-hex',
@@ -359,7 +359,7 @@ describe('space/crud', () => {
       expect(adminArg.systemKey).toBe('admin');
       expect(memberArg.name).toBe('Everyone');
       expect(memberArg.isDefaultMember).toBe(true);
-      expect(memberArg.systemKey).toBe('member');
+      expect(memberArg.systemKey).toBe('everyone');
       expect(memberArg.permissions).toContain('viewChannels');
       expect(memberArg.permissions).toContain('sendMessages');
       expect(memberArg.permissions).not.toContain('manageRoles');
@@ -531,12 +531,19 @@ describe('space/crud', () => {
       expect(r).toMatchObject({ success: false, errorCode: 'SPACE_NOT_FOUND' });
     });
 
-    test('reveals hidden Spaces to members', async () => {
+    test('reveals hidden Spaces to active members', async () => {
       spaceRepo.findBySlug.mockResolvedValue(makeSpaceDoc({ slug: 'secret', visibility: 'hidden' }));
-      memberRepo.findMember.mockResolvedValue({ _id: new ObjectId() });
+      memberRepo.findMember.mockResolvedValue({ _id: new ObjectId(), status: 'active' });
       const r = await getSpaceBySlug('secret', CREATOR);
       expect(r).toMatchObject({ success: true });
       expect(r.space?.slug).toBe('secret');
+    });
+
+    test('hides hidden Spaces from banned members', async () => {
+      spaceRepo.findBySlug.mockResolvedValue(makeSpaceDoc({ slug: 'secret', visibility: 'hidden' }));
+      memberRepo.findMember.mockResolvedValue({ _id: new ObjectId(), status: 'banned' });
+      const r = await getSpaceBySlug('secret', CREATOR);
+      expect(r).toMatchObject({ success: false, errorCode: 'SPACE_NOT_FOUND' });
     });
 
     test('returns SPACE_NOT_FOUND when missing', async () => {
@@ -561,6 +568,13 @@ describe('space/crud', () => {
     test('hides hidden Spaces from non-members', async () => {
       spaceRepo.findById.mockResolvedValue(makeSpaceDoc({ visibility: 'hidden' }));
       memberRepo.findMember.mockResolvedValue(null);
+      const r = await getSpaceById(new ObjectId(), CREATOR);
+      expect(r).toMatchObject({ success: false, errorCode: 'SPACE_NOT_FOUND' });
+    });
+
+    test('hides hidden Spaces from banned members', async () => {
+      spaceRepo.findById.mockResolvedValue(makeSpaceDoc({ visibility: 'hidden' }));
+      memberRepo.findMember.mockResolvedValue({ _id: new ObjectId(), status: 'banned' });
       const r = await getSpaceById(new ObjectId(), CREATOR);
       expect(r).toMatchObject({ success: false, errorCode: 'SPACE_NOT_FOUND' });
     });

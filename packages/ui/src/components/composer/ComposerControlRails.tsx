@@ -20,6 +20,7 @@ export type ComposerRailSharedProps = {
   onSelectTtl: (seconds: number | undefined) => void;
   attachmentCount: number;
   gifsDisabled?: boolean;
+  attachmentsDisabled?: boolean;
   showMediaPicker: boolean;
   onMediaPickerOpenChange: (open: boolean) => void;
   lastMediaTab: ContentTab;
@@ -49,6 +50,7 @@ function useRenderComposerControl(props: ComposerRailSharedProps) {
     onSelectTtl,
     attachmentCount,
     gifsDisabled,
+    attachmentsDisabled,
     showMediaPicker,
     onMediaPickerOpenChange,
     lastMediaTab,
@@ -103,6 +105,7 @@ function useRenderComposerControl(props: ComposerRailSharedProps) {
           />
         );
       case 'upload':
+        if (attachmentsDisabled) return null;
         return (
           <Tooltip key={control.id} content={t('conversations.attachMedia')} position="top">
             <button

@@ -99,6 +99,15 @@ export function useE2EMediaDownload(
       return () => { mountedRef.current = false; };
     }
 
+    // Cleartext Space attachments already have a CDN URL — no E2E download.
+    if (attachment.cdnUrl) {
+      setState('available');
+      setImageUrl(attachment.cdnUrl);
+      setRejectionReason(null);
+      setErrorMessage(null);
+      return () => { mountedRef.current = false; };
+    }
+
     if (mediaCache.has(mediaId)) {
       const c = mediaCache.get(mediaId)!;
       setState(c.state);

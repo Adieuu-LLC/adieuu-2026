@@ -444,6 +444,8 @@ export const Collections = {
   SPACE_VOICE_SESSIONS: 'space_voice_sessions',
   /** Per-identity Space preferences (favorites) */
   SPACE_PREFERENCES: 'space_preferences',
+  /** Space-scoped moderation / management audit logs */
+  SPACE_AUDIT_LOGS: 'space_audit_logs',
 } as const;
 
 /**
@@ -908,6 +910,7 @@ export async function createIndexes(): Promise<void> {
   await spaceMessages.createIndex({ channelId: 1, _id: -1 });
   await spaceMessages.createIndex({ channelId: 1, clientMessageId: 1 }, { unique: true });
   await spaceMessages.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, sparse: true });
+  await spaceMessages.createIndex({ e2eMediaIds: 1 }, { sparse: true });
 
   // Space reactions — one reaction per emoji per user per message
   const spaceReactions = database.collection(Collections.SPACE_REACTIONS);
@@ -948,6 +951,10 @@ export async function createIndexes(): Promise<void> {
   const spacePreferences = database.collection(Collections.SPACE_PREFERENCES);
   await spacePreferences.createIndex({ identityId: 1, spaceId: 1 }, { unique: true });
   await spacePreferences.createIndex({ identityId: 1 });
+
+  // Space audit logs — newest-first listing per Space
+  const spaceAuditLogs = database.collection(Collections.SPACE_AUDIT_LOGS);
+  await spaceAuditLogs.createIndex({ spaceId: 1, createdAt: -1 });
 
   elog.debug('MongoDB indexes created/verified');
 }

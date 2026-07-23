@@ -29,6 +29,8 @@ export {
   leaveSpace,
   removeSpaceMember,
   banSpaceMember,
+  unbanSpaceMember,
+  listBannedSpaceMembers,
   updateSpaceMemberProfile,
   listSpaceMembers,
   listSpaceRoles,
@@ -93,6 +95,12 @@ export {
   unpinSpaceMessage,
   getSpacePinnedMessages,
 } from './pins';
+export {
+  recordSpaceAudit,
+  listSpaceAuditLog,
+  type RecordSpaceAuditParams,
+  type SpaceAuditLogListResult,
+} from './audit';
 export {
   joinVoiceChannel,
   leaveVoiceChannel,

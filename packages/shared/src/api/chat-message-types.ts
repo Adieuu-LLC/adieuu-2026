@@ -521,6 +521,12 @@ export interface ChatSpaceMessageEditedMessage extends ChatMessageBase {
     messageId: string;
     fromIdentityId: string;
     content?: string;
+    ciphertext?: string;
+    nonce?: string;
+    cipherId?: string;
+    attachmentMediaIds?: string[];
+    attachments?: import('./spaces-types').SpaceMessageAttachment[];
+    e2eMediaIds?: string[];
     lastEditedAt?: string;
     revisionCount: number;
   };

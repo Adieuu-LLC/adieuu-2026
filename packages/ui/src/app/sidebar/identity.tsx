@@ -311,6 +311,9 @@ export function IdentityFlyout({ supportUnreadCount = 0 }: { supportUnreadCount?
       <Link to="/identity/notifications" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/notifications') ? 'sidebar-flyout-item-active' : ''}`}>
         {t('identity.menu.notifications')}
       </Link>
+      <Link to="/identity/audio-video" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/audio-video') ? 'sidebar-flyout-item-active' : ''}`}>
+        {t('identity.menu.audioVideo')}
+      </Link>
       <Link to="/identity/ciphers" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/ciphers') ? 'sidebar-flyout-item-active' : ''}`}>
         {t('identity.menu.ciphers')}
       </Link>

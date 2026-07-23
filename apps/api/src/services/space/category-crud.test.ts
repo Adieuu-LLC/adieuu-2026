@@ -16,6 +16,7 @@ const spaceRepo = {
 
 const memberRepo = {
   findMember: mock(async (_s: ObjectId, _i: ObjectId) => null as any) as AnyMock,
+  listByAnyRole: mock(async (_s: ObjectId, _r: ObjectId[]) => [] as any[]) as AnyMock,
 };
 
 const roleRepo = {
@@ -85,6 +86,12 @@ mock.module('./redis-events', () => ({
   publishSpaceEvent,
   publishSpaceEventToIdentity: mock(async () => {}),
 }));
+mock.module('../../repositories/space-audit.repository', () => ({
+  getSpaceAuditLogRepository: () => ({
+    create: mock(async () => ({})),
+    listBySpace: mock(async () => []),
+  }),
+}));
 
 import {
   createSpaceChannelCategory,
@@ -136,7 +143,7 @@ function makeRoles() {
       _id: EVERYONE_ROLE,
       spaceId: new ObjectId(),
       name: 'Everyone',
-      systemKey: 'member' as const,
+      systemKey: 'everyone' as const,
       permissions: ['viewChannels', 'sendMessages'],
       position: 100,
       isDefaultMember: true,

@@ -17,6 +17,7 @@ const mockCollection = {
   ) as AnyMock,
   findOne: mock(() => Promise.resolve(null)) as AnyMock,
   updateOne: mock(() => Promise.resolve({ modifiedCount: 1 })) as AnyMock,
+  updateMany: mock(() => Promise.resolve({ modifiedCount: 0 })) as AnyMock,
   deleteMany: mock(() => Promise.resolve({ deletedCount: 0 })) as AnyMock,
   find: mock((filter: any) => {
     lastFindFilter = filter;
@@ -49,6 +50,7 @@ describe('SpaceRoleRepository', () => {
     mockCollection.insertOne.mockClear();
     mockCollection.findOne.mockClear();
     mockCollection.updateOne.mockClear();
+    mockCollection.updateMany.mockClear();
     mockCollection.deleteMany.mockClear();
     mockCollection.deleteMany.mockResolvedValue({ deletedCount: 0 });
     mockCollection.find.mockClear();
@@ -57,6 +59,38 @@ describe('SpaceRoleRepository', () => {
     findResult.toArray.mockClear();
     findResult.toArray.mockResolvedValue([]);
     lastFindFilter = null;
+  });
+
+  test('findBySpace backfills systemKey and position on legacy Admin/Member', async () => {
+    const repo = new SpaceRoleRepository();
+    const spaceId = new ObjectId();
+    const adminId = new ObjectId();
+    const memberId = new ObjectId();
+    findResult.toArray.mockResolvedValueOnce([
+      {
+        _id: adminId,
+        spaceId,
+        name: 'Admin',
+        permissions: ['admin', 'manageRoles'],
+        isSystem: true,
+        isDefaultMember: false,
+      },
+      {
+        _id: memberId,
+        spaceId,
+        name: 'Member',
+        permissions: ['read', 'post'],
+        isSystem: true,
+        isDefaultMember: true,
+      },
+    ]);
+
+    const roles = await repo.findBySpace(spaceId);
+    expect(roles[0]!.systemKey).toBe('admin');
+    expect(roles[0]!.position).toBe(0);
+    expect(roles[1]!.systemKey).toBe('everyone');
+    expect(roles[1]!.position).toBe(1000);
+    expect(mockCollection.updateOne).toHaveBeenCalled();
   });
 
   test('createRole defaults isDefaultMember and isSystem to false', async () => {

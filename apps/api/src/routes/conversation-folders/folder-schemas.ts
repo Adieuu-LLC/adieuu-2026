@@ -43,7 +43,8 @@ export const UpdateFolderSchema = z.object({
   iconName: z.enum(FOLDER_ICON_NAMES).optional(),
   iconColor: z.string().max(20).nullable().optional(),
   favorited: z.boolean().optional(),
-  sortOrder: z.number().int().min(0).optional(),
+  // Upper-bounded so stored sort keys stay in a sane range (no Infinity/2^53).
+  sortOrder: z.number().int().min(0).max(1_000_000).optional(),
 });
 
 export const AddConversationToFolderSchema = z.object({

@@ -12,6 +12,7 @@
 import type { ObjectId } from 'mongodb';
 import {
   DEFAULT_ADMIN_PERMISSIONS,
+  isSpaceAdminRole,
   normalizeSpacePermissions,
   type SpacePermission,
 } from '@adieuu/shared';
@@ -57,7 +58,8 @@ export async function resolveMemberPermissions(
   for (const roleId of member.roleIds) {
     const role = roleById.get(roleId.toHexString());
     if (!role) continue;
-    if (role.systemKey === 'admin') {
+    // Includes legacy isSystem Admin docs that predate `systemKey`.
+    if (isSpaceAdminRole(role)) {
       isAdmin = true;
       for (const perm of DEFAULT_ADMIN_PERMISSIONS) {
         permissions.add(perm);

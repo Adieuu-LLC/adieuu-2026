@@ -47,6 +47,23 @@ export class SpaceMemberRepository extends BaseRepository<SpaceMemberDocument> {
       .toArray()) as SpaceMemberDocument[];
   }
 
+  /** Banned members of a Space, most recently banned first, cursor-paginated by _id. */
+  async listBannedBySpace(
+    spaceId: ObjectId,
+    limit = 50,
+    cursor?: ObjectId,
+  ): Promise<SpaceMemberDocument[]> {
+    const filter: Record<string, unknown> = { spaceId, status: 'banned' };
+    if (cursor) {
+      filter._id = { $lt: cursor };
+    }
+    return (await this.collection
+      .find(filter as Filter<SpaceMemberDocument>)
+      .sort({ _id: -1 })
+      .limit(limit)
+      .toArray()) as SpaceMemberDocument[];
+  }
+
   /** Most recently joined active members of a Space (by joinedAt, then _id). */
   async listRecentBySpace(
     spaceId: ObjectId,
@@ -211,6 +228,43 @@ export class SpaceMemberRepository extends BaseRepository<SpaceMemberDocument> {
       { returnDocument: 'after' },
     );
     return (result as SpaceMemberDocument | null) ?? null;
+  }
+
+  /**
+   * Active members holding any of the given roles. Used to resolve the audience
+   * for restricted-channel realtime events. Returns an empty list when no roles
+   * are supplied.
+   */
+  async listByAnyRole(
+    spaceId: ObjectId,
+    roleIds: readonly ObjectId[],
+  ): Promise<SpaceMemberDocument[]> {
+    if (roleIds.length === 0) return [];
+    return (await this.collection
+      .find({
+        spaceId,
+        status: 'active',
+        roleIds: { $in: [...roleIds] },
+      } as Filter<SpaceMemberDocument>)
+      .toArray()) as SpaceMemberDocument[];
+  }
+
+  /**
+   * Active memberships among the given identity ids. Used to restrict mention
+   * and reply notifications to actual Space members.
+   */
+  async findActiveByIdentityIds(
+    spaceId: ObjectId,
+    identityIds: readonly ObjectId[],
+  ): Promise<SpaceMemberDocument[]> {
+    if (identityIds.length === 0) return [];
+    return (await this.collection
+      .find({
+        spaceId,
+        status: 'active',
+        identityId: { $in: [...identityIds] },
+      } as Filter<SpaceMemberDocument>)
+      .toArray()) as SpaceMemberDocument[];
   }
 
   /** Count active members that hold a given role. */

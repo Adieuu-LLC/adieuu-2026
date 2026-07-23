@@ -48,8 +48,8 @@ import {
 } from './connections';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-function makeSocket(spaceIds: string[] = []) {
-  const userData = { identityId: '', spaceIds: [...spaceIds] };
+function makeSocket(spaceIds: string[] = [], identityId = '') {
+  const userData = { identityId, spaceIds: [...spaceIds] };
   return {
     send: vi.fn(() => 1),
     getUserData: () => userData,
@@ -192,6 +192,67 @@ describe('chat connections - space fan-out', () => {
 
     await unregisterConnection('joiner', joiner, joiner.getUserData().spaceIds);
     await unregisterConnection('member', member, ['space-join']);
+  });
+
+  it('delivers audience-scoped events only to identities in the allow-list', async () => {
+    const privileged = makeSocket(['space-acl'], 'privileged');
+    const regular = makeSocket(['space-acl'], 'regular');
+    await registerConnection('privileged', privileged, ['space-acl']);
+    await registerConnection('regular', regular, ['space-acl']);
+
+    // Restricted-channel event: only 'privileged' is in the audience.
+    deliver('space:space-acl', {
+      type: 'space_message',
+      audienceIdentityIds: ['privileged'],
+      data: { message: { id: 'm-restricted' } },
+    });
+
+    expect(privileged.send).toHaveBeenCalledTimes(1);
+    expect(regular.send).not.toHaveBeenCalled();
+
+    // Open-channel event without an audience still reaches everyone.
+    deliver('space:space-acl', {
+      type: 'space_message',
+      data: { message: { id: 'm-open' } },
+    });
+    expect(privileged.send).toHaveBeenCalledTimes(2);
+    expect(regular.send).toHaveBeenCalledTimes(1);
+
+    await unregisterConnection('privileged', privileged, ['space-acl']);
+    await unregisterConnection('regular', regular, ['space-acl']);
+  });
+
+  it('delivers nothing for an empty audience allow-list', async () => {
+    const member = makeSocket(['space-empty'], 'member');
+    await registerConnection('member', member, ['space-empty']);
+
+    deliver('space:space-empty', {
+      type: 'space_message',
+      audienceIdentityIds: [],
+      data: { message: { id: 'm1' } },
+    });
+    expect(member.send).not.toHaveBeenCalled();
+
+    await unregisterConnection('member', member, ['space-empty']);
+  });
+
+  it('skips identities on the exclusion list but delivers to everyone else', async () => {
+    const excluded = makeSocket(['space-excl'], 'excluded');
+    const included = makeSocket(['space-excl'], 'included');
+    await registerConnection('excluded', excluded, ['space-excl']);
+    await registerConnection('included', included, ['space-excl']);
+
+    deliver('space:space-excl', {
+      type: 'space_channel_layout_updated',
+      excludeIdentityIds: ['excluded'],
+      data: { spaceId: 'space-excl', categories: [], channels: [] },
+    });
+
+    expect(included.send).toHaveBeenCalledTimes(1);
+    expect(excluded.send).not.toHaveBeenCalled();
+
+    await unregisterConnection('excluded', excluded, ['space-excl']);
+    await unregisterConnection('included', included, ['space-excl']);
   });
 
   it('revokes space fan-out after space_member_left while delivering the leave event', async () => {

@@ -115,8 +115,8 @@ export function ConversationHeader(props: ConversationHeaderProps): ReactNode {
       callSlot={
         callEnabled ? (
           <ConversationCallButton
-            disabled={isInCallElsewhere}
-            disabledReason={isInCallElsewhere ? t('call.alreadyInCall') : undefined}
+            disabled={false}
+            disabledReason={isInCallElsewhere ? t('call.alreadyInActiveCall') : undefined}
             inCallForThisConversation={isInCallHere}
             onStartCall={onStartCall}
             onFocusOverlay={undefined}
@@ -125,7 +125,7 @@ export function ConversationHeader(props: ConversationHeaderProps): ReactNode {
       }
       showCallInMenu={callEnabled}
       onCallMenuClick={onStartCall}
-      callMenuDisabled={isInCallElsewhere && !isInCallHere}
+      callMenuDisabled={false}
       callMenuLabel={isInCallHere ? t('call.active') : t('call.startCall')}
       pinsSlot={
         <ConversationPinsMenu

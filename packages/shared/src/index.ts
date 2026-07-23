@@ -28,3 +28,8 @@ export {
   filenameToShortcode,
   filenameToDisplayName,
 } from './custom-emoji-shortcode';
+export {
+  REACTION_EMOJI_MAX_LENGTH,
+  CUSTOM_REACTION_TOKEN_RE,
+  isValidReactionEmoji,
+} from './reaction-emoji';

@@ -108,10 +108,10 @@ export function SpaceMemberModerationMenu({
   const showEditNicknameColor = !!onEditNicknameColor;
   const hasMenu = showKick || showBan || showRoles || showEditNicknameColor;
 
-  /** Every space role except the default Member (always held; not toggled here). */
+  /** Every space role except Everyone (always held; not toggled here). */
   const manageableRoles = useMemo(() => {
     return roles
-      .filter((role) => !role.isDefaultMember && role.systemKey !== 'member')
+      .filter((role) => !role.isDefaultMember && role.systemKey !== 'everyone')
       .slice()
       .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
   }, [roles]);
@@ -128,7 +128,7 @@ export function SpaceMemberModerationMenu({
   );
 
   const defaultMemberRoleId = useMemo(
-    () => roles.find((r) => r.isDefaultMember || r.systemKey === 'member')?.id,
+    () => roles.find((r) => r.isDefaultMember || r.systemKey === 'everyone')?.id,
     [roles],
   );
 

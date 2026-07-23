@@ -25,10 +25,12 @@ import {
   actorTopRolePosition,
   canViewSpaceChannel,
   findEveryoneRole,
+  resolveChannelAudience,
   rolesAtOrBelowHierarchy,
 } from './channel-access';
 import { canReadSpace } from './access';
 import { publishSpaceEvent } from './redis-events';
+import { recordSpaceAudit } from './audit';
 import type { SpaceChannelResult, SpaceChannelsResult } from './types';
 import {
   ancestorForceFlags,
@@ -370,10 +372,14 @@ export async function createSpaceChannel(
   });
 
   const publicChannel = toPublicSpaceChannel(channel);
-  await publishSpaceEvent(spaceId.toHexString(), {
-    type: 'space_channel_created',
-    data: { channel: publicChannel },
-  });
+  await publishSpaceEvent(
+    spaceId.toHexString(),
+    {
+      type: 'space_channel_created',
+      data: { channel: publicChannel },
+    },
+    { audienceIdentityIds: await resolveChannelAudience(spaceId, channel) },
+  );
 
   return { success: true, channel: publicChannel };
 }
@@ -614,10 +620,37 @@ export async function updateSpaceChannel(
   }
 
   const publicChannel = toPublicSpaceChannel(updated);
-  await publishSpaceEvent(spaceId.toHexString(), {
-    type: 'space_channel_updated',
-    data: { channel: publicChannel },
-  });
+  // Deliver to the union of the old and new audiences so members who just lost
+  // access still learn the channel changed (and can drop it locally).
+  const [oldAudience, newAudience] = await Promise.all([
+    resolveChannelAudience(spaceId, existing),
+    resolveChannelAudience(spaceId, updated),
+  ]);
+  const audienceIdentityIds =
+    oldAudience === null || newAudience === null
+      ? null
+      : [...new Set([...oldAudience, ...newAudience])];
+  await publishSpaceEvent(
+    spaceId.toHexString(),
+    {
+      type: 'space_channel_updated',
+      data: { channel: publicChannel },
+    },
+    { audienceIdentityIds },
+  );
+
+  if (allowedRoleIds !== undefined) {
+    void recordSpaceAudit({
+      spaceId,
+      actorIdentityId: actingId,
+      action: 'channel_acl_update',
+      targetId: channelId,
+      channelId,
+      metadata: {
+        allowedRoleIds: allowedRoleIds.map((id) => id.toHexString()),
+      },
+    });
+  }
 
   return { success: true, channel: publicChannel };
 }

@@ -13,6 +13,8 @@ import {
 import { getSenderDeviceIdForPayload } from '../../services/deviceInfo';
 import type { PublicCustomEmoji } from '@adieuu/shared';
 import type { MediaOutboxEnqueueInput } from '../../services/mediaOutbox/mediaOutboxTypes';
+import type { createApiClient } from '@adieuu/shared';
+import { uploadSpaceCleartextMedia } from '../../hooks/spaces/uploadSpaceCleartextMedia';
 import type {
   ComposerSendFn,
   ComposerReplyContext,
@@ -22,6 +24,8 @@ import type {
   TrackedPageTag,
 } from './composerTypes';
 import { resolveMentionedIdentityIds } from './composerUtils';
+
+export type SpaceComposerMediaMode = 'e2e' | 'cleartext';
 
 export interface UseComposerSendParams {
   disabled?: boolean;
@@ -44,6 +48,9 @@ export interface UseComposerSendParams {
   sendMp4WithoutReencode: boolean;
   allVideosAreMp4: boolean;
   enqueueMediaSend: (input: MediaOutboxEnqueueInput) => Promise<string>;
+  /** When set, attachment sends target a Space channel (E2E outbox or cleartext upload). */
+  spaceMedia?: { spaceId: string; mode: SpaceComposerMediaMode };
+  api?: ReturnType<typeof createApiClient>;
   klipyShare: (params: { slug: string; type: GifAttachment['type']; searchTerm?: string }) => void;
   toastError: (title: string, description?: string) => void;
   t: TFunction;
@@ -86,6 +93,8 @@ export function useComposerSend(params: UseComposerSendParams): () => Promise<vo
     sendMp4WithoutReencode,
     allVideosAreMp4,
     enqueueMediaSend,
+    spaceMedia,
+    api,
     klipyShare,
     toastError,
     t,
@@ -232,26 +241,67 @@ export function useComposerSend(params: UseComposerSendParams): () => Promise<vo
       inputRef.current?.focus();
     } else if (pendingAttachments.length > 0) {
       try {
-        await enqueueMediaSend({
-          conversationId: channelId,
-          caption: text,
-          mentions: currentMentions,
-          pageTags: currentPageTags,
-          mentionedIdentityIds: resolveMentionedIdentityIds(
-            currentMentions.map((m) => ({ id: m.identityId, offset: m.offset, length: m.length })),
-            mentionSource,
-          ),
-          replyToMessageId: replyContext?.messageId,
-          ttlSeconds,
-          useForwardSecrecy: forwardSecrecy?.enabled ?? false,
-          stripExif,
-          moderationEnabled,
-          ...(sendMp4WithoutReencode && allVideosAreMp4 ? { sendMp4WithoutReencode: true } : {}),
-          ...(customEmojis?.length && !customEmojisDisabled
-            ? { composerCustomEmojisSnapshotJson: JSON.stringify(customEmojis) }
-            : {}),
-          files: pendingAttachments.map((a) => a.file),
-        });
+        if (spaceMedia?.mode === 'cleartext') {
+          if (!api) throw new Error('API client required for Space cleartext uploads');
+          const uploaded = [];
+          for (const att of pendingAttachments) {
+            uploaded.push(await uploadSpaceCleartextMedia(api, spaceMedia.spaceId, att.file));
+          }
+          const convertedText = convertShortcodes(text);
+          const mentions: MentionEntity[] = currentMentions.map((m) => ({
+            id: m.identityId,
+            offset: m.offset,
+            length: m.length,
+          }));
+          const pageTags: PageTagEntity[] = currentPageTags.map((p) => ({
+            id: p.pageId,
+            offset: p.offset,
+            length: p.length,
+          }));
+          const senderDeviceId = getSenderDeviceIdForPayload();
+          const customEmojiMap = buildCustomEmojiPayloadMap(
+            convertedText,
+            customEmojis,
+            customEmojisDisabled === true,
+          );
+          const plaintext = serializePayload({
+            version: 1,
+            text: convertedText,
+            ...(mentions.length > 0 ? { mentions } : {}),
+            ...(pageTags.length > 0 ? { pageTags } : {}),
+            ...(customEmojiMap ? { customEmojis: customEmojiMap } : {}),
+            ...(senderDeviceId ? { senderDeviceId } : {}),
+          });
+          const sent = await onSend(plaintext, {
+            attachmentMediaIds: uploaded.map((u) => u.mediaId),
+            ...(replyContext ? { replyToMessageId: replyContext.messageId } : {}),
+            ...(ttlSeconds ? { expiresInSeconds: ttlSeconds } : {}),
+            mentionedIdentityIds: resolveMentionedIdentityIds(mentions, mentionSource),
+          });
+          if (sent != null) onSendSucceeded?.();
+        } else {
+          await enqueueMediaSend({
+            conversationId: channelId,
+            ...(spaceMedia?.mode === 'e2e' ? { spaceId: spaceMedia.spaceId } : {}),
+            caption: text,
+            mentions: currentMentions,
+            pageTags: currentPageTags,
+            mentionedIdentityIds: resolveMentionedIdentityIds(
+              currentMentions.map((m) => ({ id: m.identityId, offset: m.offset, length: m.length })),
+              mentionSource,
+            ),
+            replyToMessageId: replyContext?.messageId,
+            ttlSeconds,
+            useForwardSecrecy: forwardSecrecy?.enabled ?? false,
+            stripExif,
+            moderationEnabled,
+            ...(sendMp4WithoutReencode && allVideosAreMp4 ? { sendMp4WithoutReencode: true } : {}),
+            ...(customEmojis?.length && !customEmojisDisabled
+              ? { composerCustomEmojisSnapshotJson: JSON.stringify(customEmojis) }
+              : {}),
+            files: pendingAttachments.map((a) => a.file),
+          });
+        }
       } catch (err) {
         console.error('[Composer] Media outbox enqueue failed:', err);
         toastError(
@@ -334,6 +384,8 @@ export function useComposerSend(params: UseComposerSendParams): () => Promise<vo
     t,
     ttlSeconds,
     enqueueMediaSend,
+    spaceMedia,
+    api,
     customEmojis,
     customEmojisDisabled,
     mentionSource,

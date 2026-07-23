@@ -33,7 +33,7 @@ describe('channelRoleHierarchy', () => {
   const admin = role('admin', 0, { systemKey: 'admin', isSystem: true });
   const mod = role('mod', 100);
   const everyone = role('everyone', 1000, {
-    systemKey: 'member',
+    systemKey: 'everyone',
     isDefaultMember: true,
     isSystem: true,
   });
@@ -48,7 +48,7 @@ describe('channelRoleHierarchy', () => {
     expect(rolesAtOrBelowHierarchy(roles, 100).map((r) => r.id)).toEqual(['mod']);
   });
 
-  test('findEveryoneRole prefers system member', () => {
+  test('findEveryoneRole prefers system Everyone role', () => {
     expect(findEveryoneRole(roles)?.id).toBe('everyone');
   });
 

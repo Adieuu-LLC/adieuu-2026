@@ -144,13 +144,24 @@ export function spaceMessageToChannel(
 ): ChannelMessage {
   const parsed = parsePayload(decryptedBody);
 
+  const cleartextAttachments =
+    msg.attachments?.map((a) => ({
+      e2eMediaId: a.mediaId,
+      scanHash: '',
+      contentType: a.contentType,
+      exifPreserved: false,
+      encryptionKey: '',
+      encryptionNonce: '',
+      cdnUrl: a.cdnUrl,
+    })) ?? [];
+
   return {
     id: msg.id,
     channelId: msg.channelId,
     fromIdentityId: msg.fromIdentityId,
     createdAt: msg.createdAt,
     body: parsed.text,
-    attachments: parsed.attachments,
+    attachments: cleartextAttachments.length > 0 ? cleartextAttachments : parsed.attachments,
     gifAttachments: parsed.gifAttachments,
     mentions: parsed.mentions,
     pageTags: parsed.pageTags,
@@ -162,6 +173,7 @@ export function spaceMessageToChannel(
     lastEditedAt: msg.lastEditedAt,
     expiresAt: msg.expiresAt,
     hasReactions: msg.hasReactions,
+    e2eMediaIds: msg.e2eMediaIds,
     _sourceSpace: msg,
   };
 }

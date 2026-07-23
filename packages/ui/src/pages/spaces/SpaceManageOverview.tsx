@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   createApiClient,
+  type ModerationSpaceMember,
   type PublicIdentity,
   type SpaceManageOverview as SpaceManageOverviewData,
 } from '@adieuu/shared';
@@ -28,8 +29,15 @@ export function SpaceManageOverview() {
   const { apiBaseUrl } = useAppConfig();
   const toast = useToast();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
-  const { activeSpace, resolveProfiles, participantProfiles, removeSpaceLocally } = useSpaces();
+  const {
+    activeSpace,
+    resolveProfiles,
+    participantProfiles,
+    removeSpaceLocally,
+    hasActiveSpacePermission,
+  } = useSpaces();
   const { spaceCipher } = useSpaceCipher(activeSpace?.id);
+  const canBan = hasActiveSpacePermission('banMembers');
 
   const [overview, setOverview] = useState<SpaceManageOverviewData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -37,6 +45,9 @@ export function SpaceManageOverview() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [banned, setBanned] = useState<ModerationSpaceMember[]>([]);
+  const [bannedLoading, setBannedLoading] = useState(false);
+  const [unbanningId, setUnbanningId] = useState<string | null>(null);
 
   const spaceName = activeSpace
     ? resolveSpaceDisplayName(activeSpace, spaceCipher, {
@@ -59,13 +70,46 @@ export function SpaceManageOverview() {
     setLoading(false);
   }, [activeSpace, api, resolveProfiles, t]);
 
+  const loadBanned = useCallback(async () => {
+    if (!activeSpace || !canBan) {
+      setBanned([]);
+      return;
+    }
+    setBannedLoading(true);
+    const res = await api.spaces.listBannedMembers(activeSpace.id, { limit: 50 });
+    if (res.success && res.data) {
+      setBanned(res.data.members);
+      resolveProfiles(res.data.members.map((m) => m.identityId));
+    } else {
+      setBanned([]);
+    }
+    setBannedLoading(false);
+  }, [activeSpace, api, canBan, resolveProfiles]);
+
   useEffect(() => {
     void load();
   }, [load]);
 
   useEffect(() => {
+    void loadBanned();
+  }, [loadBanned]);
+
+  useEffect(() => {
     if (!deleteOpen) setDeleteConfirmText('');
   }, [deleteOpen]);
+
+  const handleUnban = async (identityId: string) => {
+    if (!activeSpace) return;
+    setUnbanningId(identityId);
+    const res = await api.spaces.unbanMember(activeSpace.id, identityId);
+    if (res.success) {
+      setBanned((prev) => prev.filter((m) => m.identityId !== identityId));
+      toast.success(t('spaces.manage.banned.unbanSuccess'));
+    } else {
+      toast.error(res.error?.message ?? t('spaces.manage.banned.unbanError'));
+    }
+    setUnbanningId(null);
+  };
 
   const handleDelete = async () => {
     if (!activeSpace || deleteConfirmText !== DELETE_CONFIRM_TOKEN) return;
@@ -165,6 +209,45 @@ export function SpaceManageOverview() {
               </ul>
             )}
           </Card>
+
+          {canBan && (
+            <Card className="admin-card space-manage-banned">
+              <h2 className="admin-section-title">{t('spaces.manage.banned.title')}</h2>
+              {bannedLoading ? (
+                <Spinner size="sm" />
+              ) : banned.length === 0 ? (
+                <p className="space-manage-empty">{t('spaces.manage.banned.empty')}</p>
+              ) : (
+                <ul className="space-manage-join-list">
+                  {banned.map((member) => {
+                    const profile = participantProfiles[member.identityId];
+                    return (
+                      <li key={member.id} className="space-manage-join-row">
+                        <div className="space-manage-banned-info">
+                          <span className="space-manage-join-name">
+                            {joinDisplayName(member.identityId, profile)}
+                          </span>
+                          {member.banReason && (
+                            <span className="space-manage-banned-reason">{member.banReason}</span>
+                          )}
+                        </div>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={unbanningId === member.identityId}
+                          onClick={() => void handleUnban(member.identityId)}
+                        >
+                          {unbanningId === member.identityId
+                            ? t('common.loading')
+                            : t('spaces.manage.banned.unban')}
+                        </Button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </Card>
+          )}
 
           <Card className="admin-card space-manage-danger">
             <h2 className="admin-section-title">{t('spaces.manage.danger.title')}</h2>

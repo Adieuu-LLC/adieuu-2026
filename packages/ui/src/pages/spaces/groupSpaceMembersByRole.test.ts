@@ -76,7 +76,7 @@ describe('groupSpaceMembersByRole', () => {
     name: 'Mod',
   });
   const everyone = role('everyone', 1000, {
-    systemKey: 'member',
+    systemKey: 'everyone',
     isDefaultMember: true,
     isSystem: true,
     name: 'Members',
@@ -124,7 +124,7 @@ describe('resolveSpaceMemberColor', () => {
   const everyone = role('everyone', 1000, {
     color: '#99aab5',
     isDefaultMember: true,
-    systemKey: 'member',
+    systemKey: 'everyone',
     isSystem: true,
   });
 
@@ -160,7 +160,7 @@ describe('getMemberRoleBadges', () => {
   const everyone = role('everyone', 1000, {
     name: 'Members',
     isDefaultMember: true,
-    systemKey: 'member',
+    systemKey: 'everyone',
     isSystem: true,
   });
   const roles = [admin, mod, helper, vip, everyone];

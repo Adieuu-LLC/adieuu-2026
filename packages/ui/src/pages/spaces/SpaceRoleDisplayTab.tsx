@@ -122,7 +122,7 @@ export function SpaceRoleDisplayTab({
         <p className="admin-hint">{t('spaces.manage.roles.settings.mentionableHint')}</p>
       </div>
 
-      {role.systemKey === 'member' && (
+      {role.systemKey === 'everyone' && (
         <p className="admin-hint">{t('spaces.manage.roles.settings.everyoneAlwaysDefault')}</p>
       )}
 

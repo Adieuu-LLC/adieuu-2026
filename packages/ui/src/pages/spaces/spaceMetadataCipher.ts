@@ -84,7 +84,7 @@ export function buildEncryptedSpaceSeed(cipher: CommunityCipher): CreateSpaceEnc
         ...encryptSpaceMetadataField(cipher, DEFAULT_ADMIN_ROLE_NAME),
       },
       {
-        system: 'member',
+        system: 'everyone',
         ...encryptSpaceMetadataField(cipher, DEFAULT_MEMBER_ROLE_NAME),
       },
     ],

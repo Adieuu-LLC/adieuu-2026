@@ -12,6 +12,7 @@ const IDENTITY_SETTINGS_SEGMENTS = new Set([
   'profile',
   'appearance',
   'notifications',
+  'audio-video',
   'privacy',
   'devices',
   'ciphers',
@@ -115,6 +116,9 @@ export function resolveRouteChrome(pathname: string): RouteChromeDescriptor {
   }
   if (pathname.startsWith('/identity/notifications')) {
     return { icon: 'bell', titleKey: 'account.settings.title', titleDefault: 'Notification Settings' };
+  }
+  if (pathname.startsWith('/identity/audio-video')) {
+    return { icon: 'microphone', titleKey: 'identity.audioVideo.title', titleDefault: 'Audio & Video' };
   }
   if (pathname.startsWith('/identity/privacy')) {
     return { icon: 'lock', titleKey: 'identity.privacy.title', titleDefault: 'Privacy & Security' };

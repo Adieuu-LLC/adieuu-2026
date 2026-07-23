@@ -40,10 +40,9 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
 beforeEach(() => {
   gatherMock.mockClear();
   let counter = 0;
-  (globalThis as unknown as { URL: { createObjectURL: () => string; revokeObjectURL: () => void } }).URL = {
-    createObjectURL: () => `blob:mock-${counter++}`,
-    revokeObjectURL: () => {},
-  };
+  // Preserve the URL constructor (happy-dom needs `new URL(...)`); only stub object-URL helpers.
+  URL.createObjectURL = () => `blob:mock-${counter++}`;
+  URL.revokeObjectURL = () => {};
 });
 
 describe('useComposerAttachments', () => {

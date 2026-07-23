@@ -153,14 +153,45 @@ describe('space/invites', () => {
       expect(r).toMatchObject({ success: false, errorCode: 'FORBIDDEN' });
     });
 
-    test('rejects when the invited identity does not exist', async () => {
+    test('rejects when the invited identity does not exist, without revealing why', async () => {
       const space = makeSpaceDoc();
       spaceRepo.findById.mockResolvedValue(space);
       const inviter = new ObjectId();
       grantPermissions(space._id, inviter, ['createInvite']);
       identityRepo.findByIdentityId.mockResolvedValue(null);
       const r = await createSpaceInvite(space._id, inviter, new ObjectId());
-      expect(r).toMatchObject({ success: false, errorCode: 'IDENTITY_NOT_FOUND' });
+      expect(r).toMatchObject({ success: false, errorCode: 'INVITE_NOT_ALLOWED' });
+      expect(r.error).not.toMatch(/not found/i);
+    });
+
+    test('anti-oracle: nonexistent and banned invitees return identical errors', async () => {
+      const space = makeSpaceDoc();
+      spaceRepo.findById.mockResolvedValue(space);
+      const inviter = new ObjectId();
+      const banned = new ObjectId();
+      const roleId = new ObjectId();
+      roleRepo.findBySpace.mockResolvedValue([
+        { _id: roleId, spaceId: space._id, permissions: ['createInvite'] },
+      ]);
+      memberRepo.findMember.mockImplementation(async (_s: ObjectId, id: ObjectId) =>
+        id.equals(inviter)
+          ? { _id: new ObjectId(), spaceId: space._id, identityId: inviter, roleIds: [roleId], status: 'active', joinedAt: new Date() }
+          : id.equals(banned)
+            ? { _id: new ObjectId(), spaceId: space._id, identityId: banned, roleIds: [], status: 'banned', banExpiresAt: null, joinedAt: new Date() }
+            : null,
+      );
+
+      // Nonexistent identity.
+      identityRepo.findByIdentityId.mockResolvedValueOnce(null);
+      const missing = await createSpaceInvite(space._id, inviter, new ObjectId());
+
+      // Existing but banned identity.
+      identityRepo.findByIdentityId.mockResolvedValueOnce({ _id: banned });
+      const bannedResult = await createSpaceInvite(space._id, inviter, banned);
+
+      expect(missing).toEqual(bannedResult);
+      expect(missing).toMatchObject({ success: false, errorCode: 'INVITE_NOT_ALLOWED' });
+      expect(inviteRepo.createInvite).not.toHaveBeenCalled();
     });
 
     test('rejects inviting an existing member', async () => {

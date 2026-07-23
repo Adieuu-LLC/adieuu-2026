@@ -1,10 +1,13 @@
 /**
- * LiveKit overlay for Space voice channels (auto-connect, no device modal).
+ * LiveKit host for Space voice channels (auto-connect, no device modal).
+ *
+ * The in-call UI (name, duration, controls) lives in the primary sidebar via
+ * `SidebarCallWidget`; this overlay only mounts the (hidden) LiveKit room so
+ * audio keeps flowing across navigation.
  */
 
 import { lazy, Suspense, useEffect } from 'react';
 import { useVoiceChannelSession } from '../../hooks/useVoiceChannelSession';
-import { VoiceChannelBar } from './VoiceChannelBar';
 
 const CallRoom = lazy(() => import('./CallRoom'));
 
@@ -22,7 +25,6 @@ export function VoiceChannelOverlay() {
 
   return (
     <>
-      <VoiceChannelBar />
       {livekitUrl && livekitToken && (
         <div className="voice-channel-livekit" aria-hidden>
           <Suspense fallback={null}>

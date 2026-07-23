@@ -8,6 +8,8 @@
  * @module api/space-permissions
  */
 
+import { isSpaceAdminRole } from './space-system-roles';
+
 /** All Space permission flags (boolean, additive). */
 export const SPACE_PERMISSIONS = [
   // general
@@ -158,6 +160,7 @@ export const SPACE_MANAGE_UI_PERMISSIONS: readonly SpacePermission[] = [
   'manageRoles',
   'manageEncryption',
   'manageWebhooks',
+  'viewAuditLog',
 ] as const;
 
 /** Default Member role permissions. */
@@ -318,13 +321,19 @@ export function spacePermissionsSubsetOf(
  * - `manageMemberRoles` only: role permissions must be ⊆ actor's.
  */
 export function canGrantSpaceMemberRole(params: {
-  role: { systemKey?: string | null; permissions: readonly string[] };
+  role: {
+    systemKey?: string | null;
+    isSystem?: boolean;
+    isDefaultMember?: boolean;
+    name?: string | null;
+    permissions: readonly string[];
+  };
   actorPermissions: readonly string[];
   actorIsAdmin: boolean;
   actorCanManageRoles: boolean;
 }): boolean {
   const { role, actorPermissions, actorIsAdmin, actorCanManageRoles } = params;
-  if (role.systemKey === 'admin') return actorIsAdmin;
+  if (isSpaceAdminRole(role)) return actorIsAdmin;
   if (actorCanManageRoles) return true;
   return spacePermissionsSubsetOf(role.permissions, actorPermissions);
 }

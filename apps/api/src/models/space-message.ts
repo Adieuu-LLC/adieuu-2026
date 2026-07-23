@@ -2,14 +2,15 @@
  * Space message model
  * A message posted in a Space channel.
  *
- * Non-E2EE channels store plaintext in `content`. E2EE (Cipher-protected)
- * channels store `ciphertext`, `nonce`, and `cipherId` — the server acts as a
- * blind relay and never performs crypto.
+ * Non-E2EE channels store plaintext in `content` and optional cleartext
+ * `attachmentMediaIds` (`space_media`). E2EE (Cipher-protected) channels store
+ * `ciphertext`, `nonce`, `cipherId`, and optional `e2eMediaIds` — the server
+ * acts as a blind relay and never performs crypto.
  */
 
 import type { ObjectId } from 'mongodb';
 import type { BaseDocument } from './base';
-import type { PublicSpaceMessage, SpaceMessageRevision } from '@adieuu/shared';
+import type { PublicSpaceMessage, SpaceMessageAttachment, SpaceMessageRevision } from '@adieuu/shared';
 
 export interface SpaceMessageRevisionDoc {
   replacedAt: Date;
@@ -17,6 +18,12 @@ export interface SpaceMessageRevisionDoc {
   ciphertext?: string;
   nonce?: string;
   cipherId?: string;
+}
+
+export interface SpaceMessageAttachmentDoc {
+  mediaId: string;
+  cdnUrl: string;
+  contentType: string;
 }
 
 export interface SpaceMessageDocument extends BaseDocument {
@@ -31,6 +38,12 @@ export interface SpaceMessageDocument extends BaseDocument {
   nonce?: string;
   /** Public cipher fingerprint for E2EE messages. */
   cipherId?: string;
+  /** Cleartext `space_media` ids (plaintext channels). */
+  attachmentMediaIds?: string[];
+  /** Resolved cleartext attachment metadata (CDN URLs). */
+  attachments?: SpaceMessageAttachmentDoc[];
+  /** Server-visible E2E media ids (encrypted channels). */
+  e2eMediaIds?: string[];
   /** Client-generated dedup id (unique per channel). */
   clientMessageId: string;
   deleted: boolean;
@@ -50,6 +63,9 @@ export interface CreateSpaceMessageInput {
   ciphertext?: string;
   nonce?: string;
   cipherId?: string;
+  attachmentMediaIds?: string[];
+  attachments?: SpaceMessageAttachmentDoc[];
+  e2eMediaIds?: string[];
   clientMessageId: string;
   deleted?: boolean;
   revisionCount?: number;
@@ -63,6 +79,14 @@ function serializeRevision(r: SpaceMessageRevisionDoc): SpaceMessageRevision {
     replacedAt: r.replacedAt.toISOString(),
     ...(r.content !== undefined ? { content: r.content } : {}),
     ...(r.ciphertext ? { ciphertext: r.ciphertext, nonce: r.nonce, cipherId: r.cipherId } : {}),
+  };
+}
+
+function serializeAttachment(a: SpaceMessageAttachmentDoc): SpaceMessageAttachment {
+  return {
+    mediaId: a.mediaId,
+    cdnUrl: a.cdnUrl,
+    contentType: a.contentType,
   };
 }
 
@@ -80,6 +104,13 @@ export function toPublicSpaceMessage(
     ...(!deleted && doc.ciphertext
       ? { ciphertext: doc.ciphertext, nonce: doc.nonce, cipherId: doc.cipherId }
       : {}),
+    ...(!deleted && doc.attachmentMediaIds?.length
+      ? { attachmentMediaIds: doc.attachmentMediaIds }
+      : {}),
+    ...(!deleted && doc.attachments?.length
+      ? { attachments: doc.attachments.map(serializeAttachment) }
+      : {}),
+    ...(!deleted && doc.e2eMediaIds?.length ? { e2eMediaIds: doc.e2eMediaIds } : {}),
     clientMessageId: doc.clientMessageId,
     deleted,
     revisionCount: doc.revisionCount ?? 0,

@@ -37,6 +37,8 @@ const endWaitingSession = mock(async () => null) as AnyMock;
 const clearRoomAndEnd = mock(async () => null) as AnyMock;
 const clearEmpty = mock(async () => null) as AnyMock;
 const findAllNonEnded = mock(async () => []) as AnyMock;
+const findActiveForSpace = mock(async () => []) as AnyMock;
+const updateParticipantMediaState = mock(async () => null) as AnyMock;
 
 mock.module('../../repositories/space-channel.repository', () => ({
   getSpaceChannelRepository: () => ({ findByIdInSpace }),
@@ -54,8 +56,8 @@ mock.module('../../repositories/space-voice-session.repository', () => ({
     clearRoomAndEnd,
     clearEmpty,
     findAllNonEnded,
-    findActiveForSpace: mock(async () => []),
-    updateParticipantMediaState: mock(async () => null),
+    findActiveForSpace,
+    updateParticipantMediaState,
   }),
 }));
 
@@ -65,7 +67,7 @@ mock.module('../../repositories/space-role.repository', () => ({
       {
         _id: new ObjectId(),
         isDefaultMember: true,
-        systemKey: 'member',
+        systemKey: 'everyone',
       },
     ]),
   }),
@@ -100,10 +102,12 @@ mock.module('./permissions', () => ({
     ['connect', 'speak', 'video', 'stream', 'viewChannels'].includes(p),
 }));
 
+let canViewChannel = true;
 mock.module('./channel-access', () => ({
-  canViewSpaceChannel: () => true,
+  canViewSpaceChannel: () => canViewChannel,
   findEveryoneRole: (roles: { isDefaultMember?: boolean }[]) =>
     roles.find((r) => r.isDefaultMember),
+  resolveChannelAudience: mock(async () => null),
 }));
 
 const mintLiveKitToken = mock(async () => 'token') as AnyMock;
@@ -134,6 +138,8 @@ const {
   joinVoiceChannel,
   leaveVoiceChannel,
   reapEmptyVoiceSessions,
+  getVoiceSession,
+  listSpaceVoicePresence,
 } = await import('./voice-session');
 
 const access = { subscriptions: ['access'] as const, entitlements: [] as const };
@@ -155,7 +161,10 @@ describe('voice-session', () => {
     mintLiveKitToken.mockClear();
     livekitDeleteRoom.mockClear();
 
+    canViewChannel = true;
     findActiveForChannel.mockResolvedValue(null);
+    findActiveForSpace.mockClear();
+    findActiveForSpace.mockResolvedValue([]);
     findByIdInSpace.mockResolvedValue({
       _id: channelId,
       spaceId,
@@ -325,5 +334,98 @@ describe('voice-session', () => {
     );
     expect(result.success).toBe(false);
     expect(result.errorCode).toBe('NOT_VOICE_CHANNEL');
+  });
+
+  test('rejects joining a restricted voice channel the member cannot view', async () => {
+    canViewChannel = false;
+    const result = await joinVoiceChannel(
+      spaceId.toHexString(),
+      channelId.toHexString(),
+      user1.toHexString(),
+      access,
+    );
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('FORBIDDEN');
+    expect(createSession).not.toHaveBeenCalled();
+  });
+
+  test('getVoiceSession hides presence in a channel the member cannot view', async () => {
+    canViewChannel = false;
+    findActiveForChannel.mockResolvedValue({
+      _id: new ObjectId(),
+      spaceId,
+      channelId,
+      status: 'active',
+      roomName: 'room-abc',
+      participants: [
+        {
+          identityId: user1,
+          joinedAt: new Date(),
+          mediaState: { audio: true, video: false, screenshare: false },
+        },
+      ],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const result = await getVoiceSession(
+      spaceId.toHexString(),
+      channelId.toHexString(),
+      user2.toHexString(),
+    );
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('CHANNEL_NOT_FOUND');
+    expect(result.session).toBeUndefined();
+  });
+
+  test('listSpaceVoicePresence omits sessions in channels the member cannot view', async () => {
+    canViewChannel = false;
+    findActiveForSpace.mockResolvedValue([
+      {
+        _id: new ObjectId(),
+        spaceId,
+        channelId,
+        status: 'active',
+        roomName: 'room-abc',
+        participants: [
+          {
+            identityId: user1,
+            joinedAt: new Date(),
+            mediaState: { audio: true, video: false, screenshare: false },
+          },
+        ],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+
+    const result = await listSpaceVoicePresence(spaceId.toHexString(), user2.toHexString());
+    expect(result.success).toBe(true);
+    expect(result.sessions).toEqual([]);
+  });
+
+  test('listSpaceVoicePresence returns sessions in viewable channels', async () => {
+    findActiveForSpace.mockResolvedValue([
+      {
+        _id: new ObjectId(),
+        spaceId,
+        channelId,
+        status: 'active',
+        roomName: 'room-abc',
+        participants: [
+          {
+            identityId: user1,
+            joinedAt: new Date(),
+            mediaState: { audio: true, video: false, screenshare: false },
+          },
+        ],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+
+    const result = await listSpaceVoicePresence(spaceId.toHexString(), user2.toHexString());
+    expect(result.success).toBe(true);
+    expect(result.sessions).toHaveLength(1);
   });
 });

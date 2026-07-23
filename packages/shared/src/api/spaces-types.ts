@@ -44,6 +44,20 @@ export type SpaceMemberLeftReason = (typeof SPACE_MEMBER_LEFT_REASONS)[number];
 export const SPACE_INVITE_STATUSES = ['pending', 'accepted', 'declined', 'revoked'] as const;
 export type SpaceInviteStatus = (typeof SPACE_INVITE_STATUSES)[number];
 
+/** Space-scoped moderation / management audit actions. */
+export const SPACE_AUDIT_ACTIONS = [
+  'member_kick',
+  'member_ban',
+  'member_unban',
+  'member_roles_update',
+  'role_create',
+  'role_update',
+  'role_delete',
+  'channel_acl_update',
+  'message_mod_delete',
+] as const;
+export type SpaceAuditAction = (typeof SPACE_AUDIT_ACTIONS)[number];
+
 export {
   SPACE_PERMISSIONS,
   SPACE_PERMISSION_SET,
@@ -71,9 +85,17 @@ export {
 } from './space-permissions';
 
 import type { SpacePermission } from './space-permissions';
+import type { SpaceRoleSystemKey } from './space-system-roles';
 
-/** System role key stored on seeded Admin/Member roles. */
-export type SpaceRoleSystemKey = 'admin' | 'member';
+export {
+  DEFAULT_ADMIN_ROLE_NAME,
+  DEFAULT_MEMBER_ROLE_NAME,
+  resolveSpaceRoleSystemKey,
+  isSpaceAdminRole,
+  isSpaceEveryoneRole,
+  type SpaceRoleSystemKey,
+  type SpaceSystemRoleLike,
+} from './space-system-roles';
 
 // --- Shared field constraints (used by both client and server validation) ---
 
@@ -120,22 +142,24 @@ export const SPACE_CHANNEL_NAME_MAX_LENGTH = 100;
 export const DEFAULT_SPACE_CHANNEL_NAME = 'general';
 /** The root category auto-created with every new Space (holds `#general`). */
 export const DEFAULT_SPACE_CATEGORY_NAME = 'Text Channels';
-/** System role names seeded with every new Space (plaintext labels for client encrypt). */
-export const DEFAULT_ADMIN_ROLE_NAME = 'Admin';
-export const DEFAULT_MEMBER_ROLE_NAME = 'Everyone';
-
-/** System Everyone role — always held; never listed for assignment/membership display. */
-export function isSpaceEveryoneRole(role: {
-  systemKey?: string | null;
-}): boolean {
-  return role.systemKey === 'member';
-}
-
 /** Max length for plaintext (non-E2EE) channel messages. */
 export const SPACE_MESSAGE_MAX_LENGTH = 4000;
 
 /** Max length for the base64-encoded ciphertext field in E2EE messages. */
 export const SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH = 16384;
+
+/** Max self-destruct timer for ephemeral channel messages (30 days). */
+export const SPACE_MESSAGE_MAX_EXPIRES_SECONDS = 30 * 24 * 60 * 60;
+
+/** Max attachments per Space channel message (cleartext or E2E), mirrors DM cap. */
+export const SPACE_MESSAGE_MAX_ATTACHMENTS = 10;
+
+/** Cleartext Space message attachment (CDN-backed `space_media`). */
+export interface SpaceMessageAttachment {
+  mediaId: string;
+  cdnUrl: string;
+  contentType: string;
+}
 
 /**
  * Blind-relay cipher verification challenge stored on a Space (or channel).
@@ -170,7 +194,7 @@ export interface EncryptedSpaceDescription {
 }
 
 /** System role keys used when seeding encrypted role names at Space create. */
-export const SPACE_SEED_ROLE_SYSTEMS = ['admin', 'member'] as const;
+export const SPACE_SEED_ROLE_SYSTEMS = ['admin', 'everyone'] as const;
 export type SpaceSeedRoleSystem = (typeof SPACE_SEED_ROLE_SYSTEMS)[number];
 
 /** Client-encrypted seed payloads for default category/channel + system roles when e2ee. */
@@ -335,7 +359,7 @@ export interface PublicSpaceRole {
   isDefaultMember: boolean;
   /** System roles (Admin/Member) cannot be deleted. */
   isSystem: boolean;
-  /** Seeded system role identity (`admin` / `member`). */
+  /** Seeded system role identity (`admin` / `everyone`). */
   systemKey?: SpaceRoleSystemKey;
   createdAt: string;
   updatedAt: string;
@@ -353,10 +377,31 @@ export interface PublicSpaceMember {
   nickname?: string;
   /** Space-scoped display colour (hex, e.g. `#e57373`). */
   color?: string;
-  banReason?: string;
-  bannedAt?: string;
   /** ISO timestamp; null means permanent ban. */
   banExpiresAt?: string | null;
+}
+
+/**
+ * Moderation-scoped membership representation. Includes ban details that must
+ * never reach regular members or the banned user (the reason is a moderator
+ * note). Only returned from endpoints gated by `banMembers`/`admin`.
+ */
+export interface ModerationSpaceMember extends PublicSpaceMember {
+  banReason?: string;
+  bannedAt?: string;
+}
+
+/** Public Space audit-log entry (moderation / management actions). */
+export interface PublicSpaceAuditEntry {
+  id: string;
+  spaceId: string;
+  actorIdentityId: string;
+  action: SpaceAuditAction;
+  targetIdentityId?: string;
+  targetId?: string;
+  channelId?: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
 }
 
 /** Viewer membership + effective permissions within a Space. */
@@ -428,6 +473,15 @@ export interface PublicSpaceMessage {
   nonce?: string;
   /** Public cipher fingerprint for E2EE messages. */
   cipherId?: string;
+  /**
+   * Cleartext `space_media` ids (plaintext channels). Parallel metadata is in
+   * {@link attachments} when present.
+   */
+  attachmentMediaIds?: string[];
+  /** Resolved cleartext attachment metadata for plaintext channels. */
+  attachments?: SpaceMessageAttachment[];
+  /** Server-visible E2E media ids (encrypted channels); keys live in ciphertext. */
+  e2eMediaIds?: string[];
   clientMessageId: string;
   deleted: boolean;
   revisionCount: number;
@@ -625,10 +679,14 @@ interface SendSpaceMessageCommon {
 
 /** Plaintext send (non-E2EE channels). */
 export interface SendSpaceMessagePlaintext extends SendSpaceMessageCommon {
-  content: string;
+  /** Required unless {@link attachmentMediaIds} is non-empty. */
+  content?: string;
   ciphertext?: undefined;
   nonce?: undefined;
   cipherId?: undefined;
+  /** Cleartext `space_media` upload ids. */
+  attachmentMediaIds?: string[];
+  e2eMediaIds?: undefined;
 }
 
 /** Encrypted send (E2EE channels via Community Cipher). */
@@ -637,13 +695,30 @@ export interface SendSpaceMessageEncrypted extends SendSpaceMessageCommon {
   ciphertext: string;
   nonce: string;
   cipherId: string;
+  attachmentMediaIds?: undefined;
+  /** E2E media upload ids (ownership validated server-side). */
+  e2eMediaIds?: string[];
 }
 
 export type SendSpaceMessageParams = SendSpaceMessagePlaintext | SendSpaceMessageEncrypted;
 
 export type EditSpaceMessageParams =
-  | { content: string; ciphertext?: undefined; nonce?: undefined; cipherId?: undefined }
-  | { content?: undefined; ciphertext: string; nonce: string; cipherId: string };
+  | {
+      content: string;
+      ciphertext?: undefined;
+      nonce?: undefined;
+      cipherId?: undefined;
+      attachmentMediaIds?: string[];
+      e2eMediaIds?: undefined;
+    }
+  | {
+      content?: undefined;
+      ciphertext: string;
+      nonce: string;
+      cipherId: string;
+      attachmentMediaIds?: undefined;
+      e2eMediaIds?: string[];
+    };
 
 export interface AddSpaceReactionParams {
   emoji: string;

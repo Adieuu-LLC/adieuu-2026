@@ -157,6 +157,22 @@ mock.module('../../hooks/adapters/spaceReplyAdapter', () => ({
   }),
 }));
 
+mock.module('../../services/mediaOutbox', () => ({
+  useMediaOutbox: () => ({
+    enqueueMediaSend: mock(async () => 'job-1'),
+    registerSpaceOutboxSend: mock(() => {}),
+    registerConversationOutboxHooks: mock(() => {}),
+    cancelJob: mock(async () => {}),
+    retryJob: mock(async () => {}),
+    dismissFailedJob: mock(async () => {}),
+    getJobsForConversation: () => [],
+    getPendingJobsAllConversations: () => [],
+    subscribe: () => () => {},
+    getSnapshot: () => [],
+  }),
+  MediaOutboxProvider: ({ children }: { children: import('react').ReactNode }) => children,
+}));
+
 mock.module('../../components/composer/MessageComposer', () => ({
   MessageComposer: ({ channelId }: { channelId: string }) =>
     createElement('div', { 'data-testid': 'composer', 'data-channel': channelId }, 'Composer'),

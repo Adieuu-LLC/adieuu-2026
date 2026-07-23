@@ -46,6 +46,7 @@ const memberRepo = {
     joinedAt: new Date(),
   })) as AnyMock,
   listBySpace: mock(async (_s: ObjectId, _l?: number, _c?: ObjectId) => [] as any[]) as AnyMock,
+  listBannedBySpace: mock(async (_s: ObjectId, _l?: number, _c?: ObjectId) => [] as any[]) as AnyMock,
   countWithRole: mock(async (_s: ObjectId, _r: ObjectId) => 0) as AnyMock,
   updateProfile: mock(async (_s: ObjectId, _i: ObjectId, patch: any) => ({
     _id: new ObjectId(),
@@ -77,11 +78,21 @@ mock.module('./redis-events', () => ({
   publishSpaceEventToIdentity: mock(async () => {}),
 }));
 
+const auditRepo = {
+  create: mock(async () => ({})) as AnyMock,
+  listBySpace: mock(async () => []) as AnyMock,
+};
+mock.module('../../repositories/space-audit.repository', () => ({
+  getSpaceAuditLogRepository: () => auditRepo,
+}));
+
 import {
   joinSpace,
   leaveSpace,
   removeSpaceMember,
   banSpaceMember,
+  unbanSpaceMember,
+  listBannedSpaceMembers,
   updateSpaceMemberProfile,
   listSpaceMembers,
   listSpaceRoles,
@@ -111,13 +122,23 @@ function makeSpaceDoc(overrides: Record<string, unknown> = {}) {
   };
 }
 
-/** Makes an active membership doc for the acting identity holding given permissions. */
+/**
+ * Makes an active membership doc for the acting identity holding given
+ * permissions (rank 10). Any other identity resolves to a plain member at
+ * rank 1000, so the actor outranks default targets.
+ */
 function stubActingPermissions(spaceId: ObjectId, identityId: ObjectId, permissions: string[]) {
   const roleId = new ObjectId();
-  memberRepo.findMember.mockResolvedValue({
-    _id: new ObjectId(), spaceId, identityId, roleIds: [roleId], status: 'active',
-  });
-  roleRepo.findBySpace.mockResolvedValue([{ _id: roleId, spaceId, permissions }]);
+  const plainRoleId = new ObjectId();
+  memberRepo.findMember.mockImplementation(async (_s: ObjectId, id: ObjectId) =>
+    id.equals(identityId)
+      ? { _id: new ObjectId(), spaceId, identityId, roleIds: [roleId], status: 'active' }
+      : { _id: new ObjectId(), spaceId, identityId: id, roleIds: [plainRoleId], status: 'active' },
+  );
+  roleRepo.findBySpace.mockResolvedValue([
+    { _id: roleId, spaceId, permissions, position: 10 },
+    { _id: plainRoleId, spaceId, permissions: [], position: 1000 },
+  ]);
 }
 
 describe('space/members', () => {
@@ -126,6 +147,8 @@ describe('space/members', () => {
   beforeEach(() => {
     mockHasPaidAccess.mockReset();
     mockHasPaidAccess.mockReturnValue(false);
+    auditRepo.create.mockClear();
+    auditRepo.listBySpace.mockClear();
     for (const repo of [spaceRepo, memberRepo, roleRepo]) {
       for (const fn of Object.values(repo)) (fn as AnyMock).mockClear();
     }
@@ -136,6 +159,7 @@ describe('space/members', () => {
     memberRepo.banMember.mockClear();
     memberRepo.clearBanAndActivate.mockClear();
     memberRepo.listBySpace.mockResolvedValue([]);
+    memberRepo.listBannedBySpace.mockResolvedValue([]);
     memberRepo.countWithRole.mockResolvedValue(0);
     memberRepo.updateProfile.mockClear();
     memberRepo.updateProfile.mockImplementation(async (_s: ObjectId, _i: ObjectId, patch: any) => ({
@@ -215,6 +239,12 @@ describe('space/members', () => {
       const r = await joinSpace(space._id, identity, { subscriptions: ['access'] });
       expect(r).toMatchObject({ success: false, errorCode: 'MEMBER_BANNED' });
       expect(memberRepo.createMember).not.toHaveBeenCalled();
+      // The banned user learns their status and when the ban ends — never the
+      // moderator's ban reason or timestamp.
+      expect(r.member?.status).toBe('banned');
+      expect(r.member?.banExpiresAt).toBeNull();
+      expect(r.member).not.toHaveProperty('banReason');
+      expect(r.member).not.toHaveProperty('bannedAt');
     });
 
     test('allows rejoin after a ban expires', async () => {
@@ -387,10 +417,18 @@ describe('space/members', () => {
       const space = makeSpaceDoc();
       spaceRepo.findById.mockResolvedValue(space);
       const acting = new ObjectId();
-      stubActingPermissions(space._id, acting, ['kickMembers']);
-      memberRepo.removeMember.mockResolvedValue(false);
+      const actorRoleId = new ObjectId();
+      memberRepo.findMember.mockImplementation(async (_s: ObjectId, id: ObjectId) =>
+        id.equals(acting)
+          ? { _id: new ObjectId(), spaceId: space._id, identityId: acting, roleIds: [actorRoleId], status: 'active' }
+          : null,
+      );
+      roleRepo.findBySpace.mockResolvedValue([
+        { _id: actorRoleId, spaceId: space._id, permissions: ['kickMembers'], position: 10 },
+      ]);
       const r = await removeSpaceMember(space._id, acting, new ObjectId());
       expect(r).toMatchObject({ success: false, errorCode: 'MEMBER_NOT_FOUND' });
+      expect(memberRepo.removeMember).not.toHaveBeenCalled();
     });
 
     test('removes the target and decrements the count', async () => {
@@ -408,6 +446,73 @@ describe('space/members', () => {
         type: 'space_member_left',
         data: { identityId: target.toHexString(), reason: 'kicked' },
       });
+      expect(auditRepo.create).toHaveBeenCalledWith({
+        spaceId: space._id,
+        actorIdentityId: acting,
+        action: 'member_kick',
+        targetIdentityId: target,
+      });
+    });
+
+    test('blocks kicking an equal-rank member', async () => {
+      const space = makeSpaceDoc();
+      spaceRepo.findById.mockResolvedValue(space);
+      const acting = new ObjectId();
+      const target = new ObjectId();
+      const modRoleId = new ObjectId();
+      memberRepo.findMember.mockImplementation(async (_s: ObjectId, id: ObjectId) => ({
+        _id: new ObjectId(), spaceId: space._id, identityId: id, roleIds: [modRoleId], status: 'active',
+      }));
+      roleRepo.findBySpace.mockResolvedValue([
+        { _id: modRoleId, spaceId: space._id, permissions: ['kickMembers'], position: 10 },
+      ]);
+      const r = await removeSpaceMember(space._id, acting, target);
+      expect(r).toMatchObject({ success: false, errorCode: 'ESCALATION' });
+      expect(memberRepo.removeMember).not.toHaveBeenCalled();
+    });
+
+    test('blocks kicking a higher-ranked member', async () => {
+      const space = makeSpaceDoc();
+      spaceRepo.findById.mockResolvedValue(space);
+      const acting = new ObjectId();
+      const target = new ObjectId();
+      const modRoleId = new ObjectId();
+      const seniorRoleId = new ObjectId();
+      memberRepo.findMember.mockImplementation(async (_s: ObjectId, id: ObjectId) => ({
+        _id: new ObjectId(),
+        spaceId: space._id,
+        identityId: id,
+        roleIds: [id.equals(acting) ? modRoleId : seniorRoleId],
+        status: 'active',
+      }));
+      roleRepo.findBySpace.mockResolvedValue([
+        { _id: seniorRoleId, spaceId: space._id, permissions: [], position: 1 },
+        { _id: modRoleId, spaceId: space._id, permissions: ['kickMembers'], position: 10 },
+      ]);
+      const r = await removeSpaceMember(space._id, acting, target);
+      expect(r).toMatchObject({ success: false, errorCode: 'ESCALATION' });
+      expect(memberRepo.removeMember).not.toHaveBeenCalled();
+    });
+
+    test('lets an Admin kick regardless of rank', async () => {
+      const space = makeSpaceDoc();
+      spaceRepo.findById.mockResolvedValue(space);
+      const acting = new ObjectId();
+      const target = new ObjectId();
+      const adminRoleId = new ObjectId();
+      memberRepo.findMember.mockImplementation(async (_s: ObjectId, id: ObjectId) => ({
+        _id: new ObjectId(), spaceId: space._id, identityId: id, roleIds: [adminRoleId], status: 'active',
+      }));
+      roleRepo.findBySpace.mockResolvedValue([
+        { _id: adminRoleId, spaceId: space._id, permissions: [], systemKey: 'admin', position: 0 },
+      ]);
+      memberRepo.removeMember.mockResolvedValue(true);
+      // Another admin remains, so last-admin protection does not fire.
+      roleRepo.findBySystemKey.mockResolvedValue({ _id: adminRoleId, spaceId: space._id, systemKey: 'admin' });
+      memberRepo.countWithRole.mockResolvedValue(2);
+      const r = await removeSpaceMember(space._id, acting, target);
+      expect(r.success).toBe(true);
+      expect(memberRepo.removeMember).toHaveBeenCalled();
     });
 
     test('cannot kick the last Admin', async () => {
@@ -479,6 +584,47 @@ describe('space/members', () => {
       expect(r).toMatchObject({ success: false, errorCode: 'CANNOT_REMOVE_OWNER' });
     });
 
+    test('blocks banning an equal- or higher-ranked member', async () => {
+      const space = makeSpaceDoc();
+      spaceRepo.findById.mockResolvedValue(space);
+      const acting = new ObjectId();
+      const target = new ObjectId();
+      const modRoleId = new ObjectId();
+      memberRepo.findMember.mockImplementation(async (_s: ObjectId, id: ObjectId) => ({
+        _id: new ObjectId(), spaceId: space._id, identityId: id, roleIds: [modRoleId], status: 'active',
+      }));
+      roleRepo.findBySpace.mockResolvedValue([
+        { _id: modRoleId, spaceId: space._id, permissions: ['banMembers'], position: 10 },
+      ]);
+      const r = await banSpaceMember(space._id, acting, target, {
+        reason: 'disagreement',
+        duration: 'permanent',
+      });
+      expect(r).toMatchObject({ success: false, errorCode: 'ESCALATION' });
+      expect(memberRepo.banMember).not.toHaveBeenCalled();
+    });
+
+    test('returns MEMBER_NOT_FOUND when the ban target is not a member', async () => {
+      const space = makeSpaceDoc();
+      spaceRepo.findById.mockResolvedValue(space);
+      const acting = new ObjectId();
+      const actorRoleId = new ObjectId();
+      memberRepo.findMember.mockImplementation(async (_s: ObjectId, id: ObjectId) =>
+        id.equals(acting)
+          ? { _id: new ObjectId(), spaceId: space._id, identityId: acting, roleIds: [actorRoleId], status: 'active' }
+          : null,
+      );
+      roleRepo.findBySpace.mockResolvedValue([
+        { _id: actorRoleId, spaceId: space._id, permissions: ['banMembers'], position: 10 },
+      ]);
+      const r = await banSpaceMember(space._id, acting, new ObjectId(), {
+        reason: 'spam',
+        duration: '1d',
+      });
+      expect(r).toMatchObject({ success: false, errorCode: 'MEMBER_NOT_FOUND' });
+      expect(memberRepo.banMember).not.toHaveBeenCalled();
+    });
+
     test('bans the target and emits space_member_left with reason banned', async () => {
       const space = makeSpaceDoc();
       spaceRepo.findById.mockResolvedValue(space);
@@ -495,6 +641,118 @@ describe('space/members', () => {
       expect(publishSpaceEvent.mock.calls[0]![1]).toMatchObject({
         type: 'space_member_left',
         data: { identityId: target.toHexString(), reason: 'banned' },
+      });
+    });
+
+    test('returns ban details to the banning moderator only', async () => {
+      const space = makeSpaceDoc();
+      spaceRepo.findById.mockResolvedValue(space);
+      const acting = new ObjectId();
+      stubActingPermissions(space._id, acting, ['banMembers']);
+      const r = await banSpaceMember(space._id, acting, new ObjectId(), {
+        reason: 'harassment',
+        duration: '7d',
+      });
+      expect(r.success).toBe(true);
+      // Moderation-scoped response (caller holds banMembers) includes details.
+      expect(r.member).toMatchObject({ status: 'banned', banReason: 'harassment' });
+      expect(r.member).toHaveProperty('bannedAt');
+      // The realtime event fanned out to members must not carry ban details.
+      const [, event] = publishSpaceEvent.mock.calls[0]!;
+      expect(JSON.stringify(event)).not.toContain('harassment');
+    });
+  });
+
+  describe('unbanSpaceMember', () => {
+    test('rejects an actor without banMembers', async () => {
+      const space = makeSpaceDoc();
+      spaceRepo.findById.mockResolvedValue(space);
+      const acting = new ObjectId();
+      stubActingPermissions(space._id, acting, ['kickMembers']);
+      const r = await unbanSpaceMember(space._id, acting, new ObjectId());
+      expect(r).toMatchObject({ success: false, errorCode: 'FORBIDDEN' });
+    });
+
+    test('returns MEMBER_NOT_FOUND when the target is not banned', async () => {
+      const space = makeSpaceDoc();
+      spaceRepo.findById.mockResolvedValue(space);
+      const acting = new ObjectId();
+      stubActingPermissions(space._id, acting, ['banMembers']);
+      const r = await unbanSpaceMember(space._id, acting, new ObjectId());
+      expect(r).toMatchObject({ success: false, errorCode: 'MEMBER_NOT_FOUND' });
+      expect(memberRepo.clearBanAndActivate).not.toHaveBeenCalled();
+    });
+
+    test('reactivates a banned member and emits space_member_joined', async () => {
+      const space = makeSpaceDoc();
+      spaceRepo.findById.mockResolvedValue(space);
+      const acting = new ObjectId();
+      const target = new ObjectId();
+      const roleId = new ObjectId();
+      memberRepo.findMember.mockImplementation(async (_s: ObjectId, id: ObjectId) =>
+        id.equals(acting)
+          ? { _id: new ObjectId(), spaceId: space._id, identityId: acting, roleIds: [roleId], status: 'active' }
+          : {
+              _id: new ObjectId(),
+              spaceId: space._id,
+              identityId: target,
+              roleIds: [],
+              status: 'banned',
+              banReason: 'spam',
+              bannedAt: new Date(),
+            },
+      );
+      roleRepo.findBySpace.mockResolvedValue([
+        { _id: roleId, spaceId: space._id, permissions: ['banMembers'], position: 10 },
+      ]);
+      const r = await unbanSpaceMember(space._id, acting, target);
+      expect(r.success).toBe(true);
+      expect(r.member).toMatchObject({ status: 'active', identityId: target.toHexString() });
+      expect(memberRepo.clearBanAndActivate).toHaveBeenCalledWith(space._id, target, [DEFAULT_ROLE]);
+      expect(spaceRepo.incrementMemberCount).toHaveBeenCalledWith(space._id, 1);
+      expect(publishSpaceEvent.mock.calls[0]![1]).toMatchObject({
+        type: 'space_member_joined',
+        data: { member: expect.objectContaining({ status: 'active' }) },
+      });
+    });
+  });
+
+  describe('listBannedSpaceMembers', () => {
+    test('rejects without banMembers', async () => {
+      const space = makeSpaceDoc();
+      spaceRepo.findById.mockResolvedValue(space);
+      const acting = new ObjectId();
+      stubActingPermissions(space._id, acting, ['kickMembers']);
+      const r = await listBannedSpaceMembers(space._id, acting);
+      expect(r).toMatchObject({ success: false, errorCode: 'FORBIDDEN' });
+    });
+
+    test('returns moderation-scoped banned members', async () => {
+      const space = makeSpaceDoc();
+      spaceRepo.findById.mockResolvedValue(space);
+      const acting = new ObjectId();
+      stubActingPermissions(space._id, acting, ['banMembers']);
+      const bannedId = new ObjectId();
+      memberRepo.listBannedBySpace.mockResolvedValue([
+        {
+          _id: new ObjectId(),
+          spaceId: space._id,
+          identityId: bannedId,
+          roleIds: [],
+          status: 'banned',
+          joinedAt: new Date(),
+          banReason: 'spam',
+          bannedAt: new Date(),
+          banExpiresAt: null,
+        },
+      ]);
+      const r = await listBannedSpaceMembers(space._id, acting);
+      expect(r.success).toBe(true);
+      expect(r.members).toHaveLength(1);
+      expect(r.members![0]).toMatchObject({
+        identityId: bannedId.toHexString(),
+        status: 'banned',
+        banReason: 'spam',
       });
     });
   });

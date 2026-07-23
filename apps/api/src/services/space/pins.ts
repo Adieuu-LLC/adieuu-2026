@@ -13,6 +13,7 @@ import { isValidObjectId } from '../../utils';
 import { toPublicSpaceMessage } from '../../models/space-message';
 import { resolveMemberPermissions, memberHasPermission } from './permissions';
 import { canReadSpace } from './access';
+import { requireChannelView, resolveChannelAudience } from './channel-access';
 import { publishSpaceEvent } from './redis-events';
 import type { SpacePinResult, SpacePinnedMessagesResult } from './types';
 
@@ -47,6 +48,8 @@ export async function pinSpaceMessage(
   if (!channel) {
     return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
   }
+  const view = await requireChannelView(spaceId, channel, callerId);
+  if (!view.ok) return { success: false, error: view.error, errorCode: view.errorCode };
 
   const message = await getSpaceMessageRepository().findByIdInChannel(channelId, messageId);
   if (!message || message.deleted) {
@@ -68,15 +71,20 @@ export async function pinSpaceMessage(
     throw err;
   }
 
-  await publishSpaceEvent(spaceId.toHexString(), {
-    type: 'space_pins_updated',
-    data: {
-      channelId: channelId.toHexString(),
-      messageId: messageId.toHexString(),
-      action: 'pinned',
-      pinnedBy: callerId.toHexString(),
+  const audienceIdentityIds = await resolveChannelAudience(spaceId, channel);
+  await publishSpaceEvent(
+    spaceId.toHexString(),
+    {
+      type: 'space_pins_updated',
+      data: {
+        channelId: channelId.toHexString(),
+        messageId: messageId.toHexString(),
+        action: 'pinned',
+        pinnedBy: callerId.toHexString(),
+      },
     },
-  });
+    { audienceIdentityIds },
+  );
 
   return { success: true };
 }
@@ -107,6 +115,8 @@ export async function unpinSpaceMessage(
   if (!channel) {
     return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
   }
+  const view = await requireChannelView(spaceId, channel, callerId);
+  if (!view.ok) return { success: false, error: view.error, errorCode: view.errorCode };
 
   const pinRepo = getSpacePinRepository();
   const removed = await pinRepo.removePin(channelId, messageId);
@@ -114,14 +124,19 @@ export async function unpinSpaceMessage(
     return { success: false, error: 'Pin not found.', errorCode: 'PIN_NOT_FOUND' };
   }
 
-  await publishSpaceEvent(spaceId.toHexString(), {
-    type: 'space_pins_updated',
-    data: {
-      channelId: channelId.toHexString(),
-      messageId: messageId.toHexString(),
-      action: 'unpinned',
+  const audienceIdentityIds = await resolveChannelAudience(spaceId, channel);
+  await publishSpaceEvent(
+    spaceId.toHexString(),
+    {
+      type: 'space_pins_updated',
+      data: {
+        channelId: channelId.toHexString(),
+        messageId: messageId.toHexString(),
+        action: 'unpinned',
+      },
     },
-  });
+    { audienceIdentityIds },
+  );
 
   return { success: true };
 }
@@ -152,6 +167,8 @@ export async function getSpacePinnedMessages(
   if (!channel) {
     return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
   }
+  const view = await requireChannelView(spaceId, channel, callerId);
+  if (!view.ok) return { success: false, error: view.error, errorCode: view.errorCode };
 
   let decodedCursor: { pinnedAt: Date; id: ObjectId } | undefined;
   if (cursor) {

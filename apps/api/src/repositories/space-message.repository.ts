@@ -10,8 +10,24 @@ import { Collections } from '../db';
 import type { SpaceMessageDocument, CreateSpaceMessageInput, SpaceMessageRevisionDoc } from '../models/space-message';
 
 export type EditMessageBody =
-  | { content: string; ciphertext?: undefined; nonce?: undefined; cipherId?: undefined }
-  | { content?: undefined; ciphertext: string; nonce: string; cipherId: string };
+  | {
+      content: string;
+      ciphertext?: undefined;
+      nonce?: undefined;
+      cipherId?: undefined;
+      attachmentMediaIds?: string[];
+      attachments?: import('../models/space-message').SpaceMessageAttachmentDoc[];
+      e2eMediaIds?: undefined;
+    }
+  | {
+      content?: undefined;
+      ciphertext: string;
+      nonce: string;
+      cipherId: string;
+      attachmentMediaIds?: undefined;
+      attachments?: undefined;
+      e2eMediaIds?: string[];
+    };
 
 export type EditMessageResult =
   | { conflict: false; message: SpaceMessageDocument }
@@ -159,11 +175,27 @@ export class SpaceMessageRepository extends BaseRepository<SpaceMessageDocument>
       $set.nonce = body.nonce;
       $set.cipherId = body.cipherId;
       $unset.content = '';
+      $unset.attachmentMediaIds = '';
+      $unset.attachments = '';
+      if (body.e2eMediaIds !== undefined) {
+        if (body.e2eMediaIds.length) $set.e2eMediaIds = body.e2eMediaIds;
+        else $unset.e2eMediaIds = '';
+      }
     } else {
       $set.content = body.content;
       $unset.ciphertext = '';
       $unset.nonce = '';
       $unset.cipherId = '';
+      $unset.e2eMediaIds = '';
+      if (body.attachmentMediaIds !== undefined) {
+        if (body.attachmentMediaIds.length) {
+          $set.attachmentMediaIds = body.attachmentMediaIds;
+          $set.attachments = body.attachments ?? [];
+        } else {
+          $unset.attachmentMediaIds = '';
+          $unset.attachments = '';
+        }
+      }
     }
 
     const result = await this.collection.findOneAndUpdate(
@@ -193,11 +225,34 @@ export class SpaceMessageRepository extends BaseRepository<SpaceMessageDocument>
       { _id: messageId } as Filter<SpaceMessageDocument>,
       {
         $set: { deleted: true, content: '', updatedAt: now },
-        $unset: { revisionHistory: '', ciphertext: '', nonce: '', cipherId: '' },
+        $unset: {
+          revisionHistory: '',
+          ciphertext: '',
+          nonce: '',
+          cipherId: '',
+          attachmentMediaIds: '',
+          attachments: '',
+          e2eMediaIds: '',
+        },
       } as UpdateFilter<SpaceMessageDocument>,
       { returnDocument: 'after' },
     );
     return result as SpaceMessageDocument | null;
+  }
+
+  /**
+   * Locate a Space message that references an E2E media id (for download ACL).
+   * Returns space/channel ids when the message is not deleted.
+   */
+  async findChannelContextByE2EMediaId(
+    e2eMediaId: string,
+  ): Promise<{ spaceId: ObjectId; channelId: ObjectId } | null> {
+    const doc = await this.collection.findOne(
+      { e2eMediaIds: e2eMediaId, deleted: { $ne: true } } as Filter<SpaceMessageDocument>,
+      { projection: { spaceId: 1, channelId: 1 } },
+    );
+    if (!doc) return null;
+    return { spaceId: doc.spaceId, channelId: doc.channelId };
   }
 
   async findByClientMessageId(

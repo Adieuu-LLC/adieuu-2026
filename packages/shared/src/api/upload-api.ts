@@ -11,6 +11,8 @@ export interface RequestUploadParams {
   purpose: UploadPurpose;
   contentType: string;
   contentLength: number;
+  /** Required when purpose is `space_media` — binds the upload to a Space. */
+  spaceId?: string;
 }
 
 export interface RequestUploadResponse {

@@ -16,6 +16,9 @@ import { SpaceChannelCipherGate } from './SpaceChannelCipherGate';
 
 type SpaceComposerIslandProps = {
   channelId: string;
+  spaceId: string;
+  isEncrypted: boolean;
+  canAttachFiles: boolean;
   sending: boolean;
   wrappedSend: ComposerSendFn;
   replyContext: ComposerReplyContext | null;
@@ -27,6 +30,9 @@ type SpaceComposerIslandProps = {
 
 const SpaceComposerIsland = memo(function SpaceComposerIsland({
   channelId,
+  spaceId,
+  isEncrypted,
+  canAttachFiles,
   sending,
   wrappedSend,
   replyContext,
@@ -43,6 +49,13 @@ const SpaceComposerIsland = memo(function SpaceComposerIsland({
         : null,
     [editingMessage, handleCancelEdit],
   );
+  const spaceMedia = useMemo(
+    () =>
+      canAttachFiles
+        ? { spaceId, mode: isEncrypted ? ('e2e' as const) : ('cleartext' as const) }
+        : undefined,
+    [canAttachFiles, spaceId, isEncrypted],
+  );
 
   return (
     <MessageComposer
@@ -54,6 +67,8 @@ const SpaceComposerIsland = memo(function SpaceComposerIsland({
       editingMessageKey={editingMessage?.id ?? null}
       editingInitialPlaintext={editingInitialPlaintext}
       editingInitialAttachments={editingInitialAttachments}
+      spaceMedia={spaceMedia}
+      attachmentsDisabled={!canAttachFiles}
     />
   );
 });
@@ -114,6 +129,8 @@ export interface SpaceChannelMainPanelProps {
 
   isEncrypted: boolean;
   spaceCipher: unknown | null;
+  spaceId: string;
+  canAttachFiles: boolean;
   /** When encrypted without a linked cipher, gate UI needs these. */
   cipherGate?: {
     spaceId: string;
@@ -182,6 +199,8 @@ export function SpaceChannelMainPanel(props: SpaceChannelMainPanelProps): ReactN
     loadEditHistory,
     isEncrypted,
     spaceCipher,
+    spaceId,
+    canAttachFiles,
     cipherGate,
     isMember = true,
     sending,
@@ -263,6 +282,9 @@ export function SpaceChannelMainPanel(props: SpaceChannelMainPanelProps): ReactN
           ) : (
             <SpaceComposerIsland
               channelId={activeChannelId ?? channelId!}
+              spaceId={spaceId}
+              isEncrypted={isEncrypted}
+              canAttachFiles={canAttachFiles}
               sending={sending}
               wrappedSend={wrappedSend}
               replyContext={replyContext}

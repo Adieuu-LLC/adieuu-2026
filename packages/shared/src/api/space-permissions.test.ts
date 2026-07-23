@@ -92,6 +92,7 @@ describe('permission toggles', () => {
 describe('canAccessSpaceManageUi', () => {
   test('true when any manage-UI permission is present', () => {
     expect(canAccessSpaceManageUi(['manageRoles'])).toBe(true);
+    expect(canAccessSpaceManageUi(['viewAuditLog'])).toBe(true);
     expect(canAccessSpaceManageUi(['sendMessages'])).toBe(false);
   });
 });
@@ -114,6 +115,19 @@ describe('canGrantSpaceMemberRole', () => {
         actorCanManageRoles: true,
       }),
     ).toBe(true);
+    // Legacy isSystem Admin without systemKey.
+    expect(
+      canGrantSpaceMemberRole({
+        role: {
+          isSystem: true,
+          name: 'Admin',
+          permissions: ['admin', 'manageRoles'],
+        },
+        actorPermissions: ['manageRoles'],
+        actorIsAdmin: false,
+        actorCanManageRoles: true,
+      }),
+    ).toBe(false);
   });
 
   test('manageRoles may grant any non-admin role', () => {

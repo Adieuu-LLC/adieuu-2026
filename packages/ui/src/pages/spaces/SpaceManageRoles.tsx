@@ -108,7 +108,7 @@ export function SpaceManageRoles() {
 
   // Everyone has no Manage Members tab (every member holds it).
   useEffect(() => {
-    if (!slug || !roleId || !selectedRole || selectedRole.systemKey !== 'member') return;
+    if (!slug || !roleId || !selectedRole || selectedRole.systemKey !== 'everyone') return;
     if (activeTab !== 'members') return;
     navigate(`/s/${slug}/manage/roles/${roleId}/settings`, { replace: true });
   }, [slug, roleId, selectedRole, activeTab, navigate]);
@@ -122,7 +122,7 @@ export function SpaceManageRoles() {
   const selectRole = (id: string) => {
     const next = roles.find((r) => r.id === id);
     const tab =
-      next?.systemKey === 'member' && activeTab === 'members' ? 'settings' : activeTab;
+      next?.systemKey === 'everyone' && activeTab === 'members' ? 'settings' : activeTab;
     navigate(`${roleBase(id)}/${tab}`, { replace: true });
   };
 
@@ -377,7 +377,7 @@ export function SpaceManageRoles() {
 
                 <Tabs value={activeTab} onValueChange={handleTabChange}>
                   <TabList
-                    mobileItems={(selectedRole.systemKey === 'member'
+                    mobileItems={(selectedRole.systemKey === 'everyone'
                       ? (['settings', 'permissions'] as const)
                       : VALID_TABS
                     ).map((value) => ({
@@ -385,7 +385,7 @@ export function SpaceManageRoles() {
                       label: t(`spaces.manage.roles.tabs.${value}` as never),
                     }))}
                   >
-                    {(selectedRole.systemKey === 'member'
+                    {(selectedRole.systemKey === 'everyone'
                       ? (['settings', 'permissions'] as const)
                       : VALID_TABS
                     ).map((value) => (
@@ -419,7 +419,7 @@ export function SpaceManageRoles() {
                     />
                   </TabContent>
 
-                  {selectedRole.systemKey !== 'member' && (
+                  {selectedRole.systemKey !== 'everyone' && (
                     <TabContent value="members" className="space-manage-role-tabpanel">
                       <SpaceRoleMembersTab role={selectedRole} allRoles={roles} />
                     </TabContent>

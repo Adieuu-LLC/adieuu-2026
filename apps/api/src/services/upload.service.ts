@@ -37,6 +37,8 @@ import {
   isCloudFrontSigningEnabled,
   generateCloudFrontSignedUrl,
 } from '../utils/cloudfront-signer';
+import { isValidObjectId } from '../utils';
+import { resolveMemberPermissions, memberHasPermission } from './space/permissions';
 
 const PRESIGNED_URL_EXPIRY_SECONDS = 300; // 5 minutes
 
@@ -79,6 +81,8 @@ export interface RequestUploadInput {
   contentLength: number;
   identityId?: string;
   userId?: string;
+  /** Required when purpose is `space_media`. */
+  spaceId?: string;
   /** Active subscription tiers (from identity session) for limit resolution. */
   subscriptions?: SubscriptionTierId[];
   /** Entitlements merged from grants and identity overrides (e.g. `founder`). */
@@ -99,7 +103,13 @@ export interface RequestUploadResult {
   /** Headers the client must include in the PUT request (CloudFront signed URL mode). */
   uploadHeaders?: Record<string, string>;
   error?: string;
-  errorCode?: 'INVALID_CONTENT_TYPE' | 'FILE_TOO_LARGE' | 'RATE_LIMITED' | 'UPLOAD_DISABLED';
+  errorCode?:
+    | 'INVALID_CONTENT_TYPE'
+    | 'FILE_TOO_LARGE'
+    | 'RATE_LIMITED'
+    | 'UPLOAD_DISABLED'
+    | 'FORBIDDEN'
+    | 'INVALID_SPACE';
 }
 
 export interface CompleteUploadResult {
@@ -157,6 +167,42 @@ export async function requestUpload(
         success: false,
         error: 'Upgrade to a paid plan to upload this content',
         errorCode: 'UPLOAD_DISABLED',
+      };
+    }
+  }
+
+  let spaceObjId: import('mongodb').ObjectId | undefined;
+  if (input.purpose === 'space_media') {
+    if (!input.spaceId || !isValidObjectId(input.spaceId)) {
+      return {
+        success: false,
+        error: 'spaceId is required for space_media uploads',
+        errorCode: 'INVALID_SPACE',
+      };
+    }
+    if (!input.identityId) {
+      return {
+        success: false,
+        error: 'Identity session required for space_media uploads',
+        errorCode: 'FORBIDDEN',
+      };
+    }
+    const { ObjectId } = await import('mongodb');
+    spaceObjId = new ObjectId(input.spaceId);
+    const identityObjId = new ObjectId(input.identityId);
+    const perms = await resolveMemberPermissions(spaceObjId, identityObjId);
+    if (!perms.isMember) {
+      return {
+        success: false,
+        error: 'You are not a member of this Space',
+        errorCode: 'FORBIDDEN',
+      };
+    }
+    if (!memberHasPermission(perms, 'attachFiles')) {
+      return {
+        success: false,
+        error: 'You do not have permission to attach files in this Space',
+        errorCode: 'FORBIDDEN',
       };
     }
   }
@@ -283,6 +329,7 @@ export async function requestUpload(
     ...(input.identityId ? { identityId: new ObjectId(input.identityId) } : {}),
     ...(input.userId ? { userId: new ObjectId(input.userId) } : {}),
     purpose: input.purpose,
+    ...(spaceObjId ? { spaceId: spaceObjId } : {}),
     s3Key,
     contentType: input.contentType,
     contentLength: input.contentLength,

@@ -152,7 +152,7 @@ Set these in **`terraform.tfvars`** as maps. Values are **plain text** in the ta
 | `RATE_LIMIT_AUTH_VERIFY_IDENTIFIER_WINDOW` | Default `900`. |
 | `RATE_LIMIT_AUTH_VERIFY_IP` | Default `20`. |
 | `RATE_LIMIT_AUTH_VERIFY_IP_WINDOW` | Default `900`. |
-| `RATE_LIMIT_GLOBAL_USER` | Default `100`. |
+| `RATE_LIMIT_GLOBAL_USER` | Default `150`. |
 | `RATE_LIMIT_GLOBAL_USER_WINDOW` | Default `60`. |
 | `RATE_LIMIT_GLOBAL_IP` | Default `1000`. |
 | `RATE_LIMIT_GLOBAL_IP_WINDOW` | Default `60`. |

@@ -55,6 +55,46 @@ describe('space/redis-events', () => {
     expect(channel).toBe('adieuu:identity:id1');
   });
 
+  test('embeds the audience allow-list in the envelope for restricted events', async () => {
+    await publishSpaceEvent(
+      'abc',
+      { type: 'space_message', data: { x: 1 } },
+      { audienceIdentityIds: ['idA', 'idB'] },
+    );
+    const [, payload] = publishMock.mock.calls[0]!;
+    expect(JSON.parse(payload)).toEqual({
+      type: 'space_message',
+      data: { x: 1 },
+      audienceIdentityIds: ['idA', 'idB'],
+    });
+  });
+
+  test('embeds an empty audience (deliver to no one) rather than dropping it', async () => {
+    await publishSpaceEvent(
+      'abc',
+      { type: 'space_message' },
+      { audienceIdentityIds: [] },
+    );
+    const [, payload] = publishMock.mock.calls[0]!;
+    expect(JSON.parse(payload).audienceIdentityIds).toEqual([]);
+  });
+
+  test('omits audience metadata for space-wide broadcasts', async () => {
+    await publishSpaceEvent('abc', { type: 'space_updated' }, { audienceIdentityIds: null });
+    const [, payload] = publishMock.mock.calls[0]!;
+    expect(JSON.parse(payload)).toEqual({ type: 'space_updated' });
+  });
+
+  test('embeds the exclusion list when provided', async () => {
+    await publishSpaceEvent(
+      'abc',
+      { type: 'space_channel_layout_updated' },
+      { excludeIdentityIds: ['idC'] },
+    );
+    const [, payload] = publishMock.mock.calls[0]!;
+    expect(JSON.parse(payload).excludeIdentityIds).toEqual(['idC']);
+  });
+
   test('no-ops (does not throw or publish) when Redis is disconnected', async () => {
     connected = false;
     await publishSpaceEvent('abc', { type: 'space_updated' });

@@ -135,6 +135,8 @@ export const APP_ICON_NAMES = {
   videoSlash: 'video-slash',
   microphone: 'microphone',
   microphoneSlash: 'microphone-slash',
+  volumeHigh: 'volume-high',
+  volumeMute: 'volume-xmark',
   screenShare: 'screen-users',
   phoneIncoming: 'phone-arrow-down-left',
   expand: 'maximize',

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Dialog, Portal } from '@ark-ui/react';
 import { Button } from '../Button';
 import { enumerateMediaDevices, type MediaDeviceInfo } from '../../hooks/useCallMedia';
+import { getAvMicDeviceId } from '../../hooks/avPreferenceStorage';
 
 export interface CallDeviceSetupModalProps {
   open: boolean;
@@ -33,8 +34,14 @@ export function CallDeviceSetupModal({
       const result = await enumerateMediaDevices();
       setDevices(result);
 
+      const savedMic = getAvMicDeviceId();
+      const savedAvailable = savedMic
+        ? result.find((d) => d.kind === 'audioinput' && d.deviceId === savedMic)
+        : undefined;
       const firstMic = result.find((d) => d.kind === 'audioinput');
-      if (firstMic) {
+      if (savedAvailable) {
+        setAudioDeviceId(savedAvailable.deviceId);
+      } else if (firstMic) {
         setAudioDeviceId(firstMic.deviceId);
       } else {
         setAudioDeviceId('');

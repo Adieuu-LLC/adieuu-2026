@@ -5,12 +5,14 @@
  */
 
 import { ObjectId } from 'mongodb';
+import { isValidReactionEmoji } from '@adieuu/shared';
 import { getSpaceMessageRepository } from '../../repositories/space-message.repository';
 import { getSpaceReactionRepository } from '../../repositories/space-reaction.repository';
 import { getSpaceChannelRepository } from '../../repositories/space-channel.repository';
 import { isValidObjectId } from '../../utils';
 import { toPublicSpaceReaction } from '../../models/space-reaction';
 import { resolveMemberPermissions, memberHasPermission } from './permissions';
+import { requireChannelView, resolveChannelAudience } from './channel-access';
 import { publishSpaceEvent } from './redis-events';
 import type { SpaceReactionResult, SpaceReactionsListResult } from './types';
 
@@ -39,7 +41,7 @@ export async function addSpaceReaction(
   }
 
   const trimmed = emoji?.trim() ?? '';
-  if (!trimmed || trimmed.length > 32) {
+  if (!isValidReactionEmoji(trimmed)) {
     return { success: false, error: 'Invalid emoji.', errorCode: 'INVALID_CONTENT' };
   }
 
@@ -62,6 +64,8 @@ export async function addSpaceReaction(
   if (!channel) {
     return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
   }
+  const view = await requireChannelView(spaceId, channel, callerId);
+  if (!view.ok) return { success: false, error: view.error, errorCode: view.errorCode };
 
   const message = await getSpaceMessageRepository().findByIdInChannel(channelId, messageId);
   if (!message || message.deleted) {
@@ -94,10 +98,15 @@ export async function addSpaceReaction(
   }
 
   const publicReaction = toPublicSpaceReaction(reaction);
-  await publishSpaceEvent(spaceId.toHexString(), {
-    type: 'space_reaction_added',
-    data: { reaction: publicReaction },
-  });
+  const audienceIdentityIds = await resolveChannelAudience(spaceId, channel);
+  await publishSpaceEvent(
+    spaceId.toHexString(),
+    {
+      type: 'space_reaction_added',
+      data: { reaction: publicReaction },
+    },
+    { audienceIdentityIds },
+  );
 
   return { success: true, reaction: publicReaction };
 }
@@ -123,6 +132,13 @@ export async function removeSpaceReaction(
     return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
   }
 
+  const channel = await getSpaceChannelRepository().findByIdInSpace(spaceId, channelId);
+  if (!channel) {
+    return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
+  }
+  const view = await requireChannelView(spaceId, channel, callerId);
+  if (!view.ok) return { success: false, error: view.error, errorCode: view.errorCode };
+
   const reactionRepo = getSpaceReactionRepository();
   const reaction = await reactionRepo.findById(reactionId);
   if (!reaction) {
@@ -137,14 +153,19 @@ export async function removeSpaceReaction(
 
   await reactionRepo.deleteById(reactionId);
 
-  await publishSpaceEvent(reaction.spaceId.toHexString(), {
-    type: 'space_reaction_removed',
-    data: {
-      reactionId: reactionId.toHexString(),
-      messageId: reaction.messageId.toHexString(),
-      channelId: reaction.channelId.toHexString(),
+  const audienceIdentityIds = await resolveChannelAudience(spaceId, channel);
+  await publishSpaceEvent(
+    reaction.spaceId.toHexString(),
+    {
+      type: 'space_reaction_removed',
+      data: {
+        reactionId: reactionId.toHexString(),
+        messageId: reaction.messageId.toHexString(),
+        channelId: reaction.channelId.toHexString(),
+      },
     },
-  });
+    { audienceIdentityIds },
+  );
 
   return { success: true };
 }
@@ -172,6 +193,8 @@ export async function getSpaceReactions(
   if (!channel) {
     return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
   }
+  const view = await requireChannelView(spaceId, channel, callerId);
+  if (!view.ok) return { success: false, error: view.error, errorCode: view.errorCode };
 
   const message = await getSpaceMessageRepository().findByIdInChannel(channelId, messageId);
   if (!message) {

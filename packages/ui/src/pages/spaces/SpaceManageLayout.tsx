@@ -22,6 +22,7 @@ export function SpaceManageLayout() {
 
   const canOverview = hasActiveSpacePermission('manageMetadata');
   const canRoles = hasActiveSpacePermission('manageRoles');
+  const canAudit = hasActiveSpacePermission('viewAuditLog');
 
   const navClass = ({ isActive }: { isActive: boolean }) =>
     `admin-nav-link${isActive ? ' admin-nav-link-active' : ''}`;
@@ -34,8 +35,11 @@ export function SpaceManageLayout() {
     if (canRoles) {
       items.push({ value: `${base}/roles`, label: t('spaces.manage.nav.roles') });
     }
+    if (canAudit) {
+      items.push({ value: `${base}/audit`, label: t('spaces.manage.nav.audit') });
+    }
     return items;
-  }, [base, canOverview, canRoles, t]);
+  }, [base, canOverview, canRoles, canAudit, t]);
 
   const collection = useMemo(
     () => createListCollection({ items: navItems }),
@@ -45,6 +49,9 @@ export function SpaceManageLayout() {
   const activeValue = useMemo(() => {
     if (location.pathname.includes(`${base}/roles`)) {
       return `${base}/roles`;
+    }
+    if (location.pathname.includes(`${base}/audit`)) {
+      return `${base}/audit`;
     }
     return base;
   }, [location.pathname, base]);
@@ -73,6 +80,11 @@ export function SpaceManageLayout() {
           {canRoles && (
             <NavLink to={`${base}/roles`} className={navClass}>
               {t('spaces.manage.nav.roles')}
+            </NavLink>
+          )}
+          {canAudit && (
+            <NavLink to={`${base}/audit`} className={navClass}>
+              {t('spaces.manage.nav.audit')}
             </NavLink>
           )}
         </nav>

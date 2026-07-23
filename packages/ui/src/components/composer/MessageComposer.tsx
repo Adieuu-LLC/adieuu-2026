@@ -80,6 +80,13 @@ export type MessageComposerProps = {
   editingInitialAttachments?: { media: MediaAttachment[]; gifs: GifAttachment[] };
   /** When true, conversation allows participants to skip moderation per-send. */
   allowSkipModeration?: boolean;
+  /**
+   * Space channel attachment mode. When set, media sends go through the Space
+   * E2E outbox (`e2e`) or cleartext `space_media` upload (`cleartext`).
+   */
+  spaceMedia?: { spaceId: string; mode: 'e2e' | 'cleartext' };
+  /** Hide the attach control (e.g. missing `attachFiles` permission). */
+  attachmentsDisabled?: boolean;
 };
 
 const MessageComposerInner = forwardRef<MessageComposerHandle, MessageComposerProps>(function MessageComposer(
@@ -105,6 +112,8 @@ const MessageComposerInner = forwardRef<MessageComposerHandle, MessageComposerPr
   editingInitialPlaintext,
   editingInitialAttachments,
   allowSkipModeration,
+  spaceMedia,
+  attachmentsDisabled,
 }: MessageComposerProps,
   ref,
 ) {
@@ -285,6 +294,8 @@ const MessageComposerInner = forwardRef<MessageComposerHandle, MessageComposerPr
     sendMp4WithoutReencode,
     allVideosAreMp4,
     enqueueMediaSend,
+    spaceMedia,
+    api,
     klipyShare,
     toastError,
     t,
@@ -414,8 +425,9 @@ const MessageComposerInner = forwardRef<MessageComposerHandle, MessageComposerPr
       composerControls,
       hasForwardSecrecy: !!forwardSecrecy,
       gifsDisabled: !!gifsDisabled,
+      attachmentsDisabled: !!attachmentsDisabled,
     }),
-    [disabled, composerControls, forwardSecrecy, gifsDisabled],
+    [disabled, composerControls, forwardSecrecy, gifsDisabled, attachmentsDisabled],
   );
   const fieldInsets = useComposerFieldInsets(leftControlsRef, rightControlsRef, fieldInsetsRemeasureKey);
   const canSendMessage = useMemo(
@@ -459,6 +471,7 @@ const MessageComposerInner = forwardRef<MessageComposerHandle, MessageComposerPr
     onSelectTtl: setTtlSeconds,
     attachmentCount: attachments.length,
     gifsDisabled,
+    attachmentsDisabled,
     showMediaPicker,
     onMediaPickerOpenChange,
     lastMediaTab,

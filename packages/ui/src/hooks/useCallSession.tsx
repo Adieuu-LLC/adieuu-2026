@@ -38,6 +38,7 @@ import {
   clearOtherMediaSession,
   registerConversationCallLeave,
 } from '../services/mediaSessionExclusive';
+import { setAvMicDeviceId } from './avPreferenceStorage';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -134,35 +135,73 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
 
   const sessionRef = useRef(session);
   sessionRef.current = session;
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
 
-  // ---- Single-call guard ----
+  // ---- Leave (defined early so request handlers can leave-then-join) ----
 
-  const isSessionActive = session !== null || phase !== 'idle';
+  const cleanup = useCallback(() => {
+    const currentSession = sessionRef.current;
+    if (currentSession?.callE2EEKey) {
+      zeroCallKey(currentSession.callE2EEKey);
+    }
+    setSession(null);
+    setPhase('idle');
+  }, []);
+
+  const leaveCallAction = useCallback(async () => {
+    const currentSession = sessionRef.current;
+    if (!currentSession) {
+      cleanup();
+      return;
+    }
+
+    cleanup();
+
+    try {
+      await apiLeaveCall(client, currentSession.conversationId, currentSession.call.id);
+    } catch {
+      // Best-effort server notification; session already cleaned up above
+    }
+  }, [client, cleanup]);
+
+  // ---- Single call at a time: leave any current session, then set up ----
 
   const requestStartCall = useCallback(
     (conversationId: string, media: CallMediaOptions) => {
-      if (isSessionActive) return;
-      void clearOtherMediaSession('conversation');
-      setPendingCallType(media);
-      setPendingConversationId(conversationId);
-      setPendingIsJoin(false);
-      setPendingCallId(null);
-      setPhase('device-setup');
+      // Don't interrupt an in-flight setup/connect; only switch from idle/active.
+      if (phaseRef.current === 'device-setup' || phaseRef.current === 'connecting') return;
+      void (async () => {
+        if (sessionRef.current !== null) {
+          await leaveCallAction();
+        }
+        await clearOtherMediaSession('conversation');
+        setPendingCallType(media);
+        setPendingConversationId(conversationId);
+        setPendingIsJoin(false);
+        setPendingCallId(null);
+        setPhase('device-setup');
+      })();
     },
-    [isSessionActive],
+    [leaveCallAction],
   );
 
   const requestJoinCall = useCallback(
     (conversationId: string, callId: string, media: CallMediaOptions) => {
-      if (isSessionActive) return;
-      void clearOtherMediaSession('conversation');
-      setPendingCallType(media);
-      setPendingConversationId(conversationId);
-      setPendingIsJoin(true);
-      setPendingCallId(callId);
-      setPhase('device-setup');
+      if (phaseRef.current === 'device-setup' || phaseRef.current === 'connecting') return;
+      void (async () => {
+        if (sessionRef.current !== null) {
+          await leaveCallAction();
+        }
+        await clearOtherMediaSession('conversation');
+        setPendingCallType(media);
+        setPendingConversationId(conversationId);
+        setPendingIsJoin(true);
+        setPendingCallId(callId);
+        setPhase('device-setup');
+      })();
     },
-    [isSessionActive],
+    [leaveCallAction],
   );
 
   const cancelDeviceSetup = useCallback(() => {
@@ -244,10 +283,16 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
   // ---- Confirm device setup -> initiate or join ----
 
   const confirmDeviceSetup = useCallback(
-    async (_devices: { audioDeviceId?: string }) => {
+    async (devices: { audioDeviceId?: string }) => {
       if (!pendingCallType || !pendingConversationId || !identity) {
         cancelDeviceSetup();
         return;
+      }
+
+      // Honour the chosen mic and remember it as the Audio & Video default so
+      // the LiveKit room (CallRoom) captures from it on connect.
+      if (devices.audioDeviceId) {
+        setAvMicDeviceId(devices.audioDeviceId);
       }
 
       setPhase('connecting');
@@ -396,32 +441,7 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  // ---- Leave / End ----
-
-  const cleanup = useCallback(() => {
-    const currentSession = sessionRef.current;
-    if (currentSession?.callE2EEKey) {
-      zeroCallKey(currentSession.callE2EEKey);
-    }
-    setSession(null);
-    setPhase('idle');
-  }, []);
-
-  const leaveCallAction = useCallback(async () => {
-    const currentSession = sessionRef.current;
-    if (!currentSession) {
-      cleanup();
-      return;
-    }
-
-    cleanup();
-
-    try {
-      await apiLeaveCall(client, currentSession.conversationId, currentSession.call.id);
-    } catch {
-      // Best-effort server notification; session already cleaned up above
-    }
-  }, [client, cleanup]);
+  // ---- End ----
 
   useEffect(() => {
     registerConversationCallLeave(leaveCallAction);

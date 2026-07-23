@@ -21,15 +21,15 @@ describe('spaceMetadataCipher', () => {
     expect(plain).toBe('general');
   });
 
-  test('buildEncryptedSpaceSeed includes category + channel + admin/member roles', () => {
+  test('buildEncryptedSpaceSeed includes category + channel + admin/everyone roles', () => {
     const seed = buildEncryptedSpaceSeed(cipher);
-    expect(seed.roles.map((r) => r.system).sort()).toEqual(['admin', 'member']);
+    expect(seed.roles.map((r) => r.system).sort()).toEqual(['admin', 'everyone']);
     expect(decryptSpaceMetadataField(cipher, seed.category, '')).toBe('Text Channels');
     expect(decryptSpaceMetadataField(cipher, seed.channel, '')).toBe('general');
     const admin = seed.roles.find((r) => r.system === 'admin')!;
-    const member = seed.roles.find((r) => r.system === 'member')!;
+    const everyone = seed.roles.find((r) => r.system === 'everyone')!;
     expect(decryptSpaceMetadataField(cipher, admin, '')).toBe('Admin');
-    expect(decryptSpaceMetadataField(cipher, member, '')).toBe('Everyone');
+    expect(decryptSpaceMetadataField(cipher, everyone, '')).toBe('Everyone');
   });
 
   test('resolveSpaceDisplayName uses placeholder when identity encrypted and cipher missing', () => {

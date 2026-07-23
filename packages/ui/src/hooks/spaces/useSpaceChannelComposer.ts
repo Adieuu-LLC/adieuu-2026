@@ -53,7 +53,9 @@ export function useSpaceChannelComposer(params: {
       const hasContent =
         !!parsed.text ||
         parsed.gifAttachments.length > 0 ||
-        parsed.attachments.length > 0;
+        parsed.attachments.length > 0 ||
+        !!(options?.attachmentMediaIds?.length) ||
+        !!(options?.e2eMediaIds?.length);
       if (!hasContent) return;
 
       const currentEditing = editingMessageRef.current;
@@ -89,6 +91,9 @@ export function useSpaceChannelComposer(params: {
 
       const raw = parsed.isStructured ? composerPayload : parsed.text;
 
+      const e2eMediaIds = options?.e2eMediaIds;
+      const attachmentMediaIds = options?.attachmentMediaIds;
+
       const common = {
         clientMessageId: crypto.randomUUID(),
         ...(replyToMessageId ? { replyToMessageId } : {}),
@@ -98,9 +103,17 @@ export function useSpaceChannelComposer(params: {
 
       let msgParams: SendSpaceMessageParams;
       if (isEncrypted && currentCipher) {
-        msgParams = { ...common, ...encryptContent(currentCipher, raw) };
+        msgParams = {
+          ...common,
+          ...encryptContent(currentCipher, raw),
+          ...(e2eMediaIds?.length ? { e2eMediaIds } : {}),
+        };
       } else {
-        msgParams = { ...common, content: raw };
+        msgParams = {
+          ...common,
+          ...(raw ? { content: raw } : {}),
+          ...(attachmentMediaIds?.length ? { attachmentMediaIds } : {}),
+        };
       }
 
       const result = await sendMessage(msgParams);

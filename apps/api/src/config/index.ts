@@ -517,7 +517,7 @@ export const config = {
     authVerifyIpWindow: optionalEnvInt('RATE_LIMIT_AUTH_VERIFY_IP_WINDOW', 900),
 
     /** Global rate limit per user (authenticated) */
-    globalUserLimit: optionalEnvInt('RATE_LIMIT_GLOBAL_USER', 100),
+    globalUserLimit: optionalEnvInt('RATE_LIMIT_GLOBAL_USER', 150),
     /** Global per user window in seconds */
     globalUserWindow: optionalEnvInt('RATE_LIMIT_GLOBAL_USER_WINDOW', 60),
 

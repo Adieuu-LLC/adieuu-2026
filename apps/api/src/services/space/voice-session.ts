@@ -33,8 +33,13 @@ import {
   resolveMemberPermissions,
   memberHasPermission,
 } from './permissions';
-import { canViewSpaceChannel, findEveryoneRole } from './channel-access';
+import {
+  canViewSpaceChannel,
+  findEveryoneRole,
+  resolveChannelAudience,
+} from './channel-access';
 import type { SpaceErrorCode } from './types';
+import { hashIdentifier } from '../../utils/crypto';
 import elog from '../../utils/adieuuLogger';
 
 export interface SpaceVoiceBillingAccess {
@@ -101,7 +106,12 @@ async function mintTokenForIdentity(
       audioOnly: isFreeTier,
     });
   } catch (err) {
-    elog.warn('Failed to mint LiveKit token for voice channel', { identityId, err });
+    // Log a hash, not the raw identity id (alias-privacy: logs must not tie
+    // identities to voice activity).
+    elog.warn('Failed to mint LiveKit token for voice channel', {
+      identityIdHash: hashIdentifier(identityId),
+      err,
+    });
     return undefined;
   }
 }
@@ -136,15 +146,37 @@ async function notifyCallStarted(
   );
 }
 
+/**
+ * Resolves the realtime audience for a voice channel's events. Returns `null`
+ * (broadcast to all members) for open channels or when the channel no longer
+ * exists; otherwise the identity ids allowed to view the restricted channel.
+ */
+async function resolveVoiceAudience(
+  spaceId: ObjectId,
+  channelId: ObjectId,
+): Promise<string[] | null> {
+  const channel = await getSpaceChannelRepository().findByIdInSpace(spaceId, channelId);
+  if (!channel) return null;
+  return await resolveChannelAudience(spaceId, channel);
+}
+
 async function broadcastPresence(session: SpaceVoiceSessionDocument): Promise<void> {
-  await publishSpaceEvent(session.spaceId.toHexString(), {
-    type: 'voice_channel_presence_updated',
-    data: {
-      spaceId: session.spaceId.toHexString(),
-      channelId: session.channelId.toHexString(),
-      session: toPublicSpaceVoiceSession(session),
+  const audienceIdentityIds = await resolveVoiceAudience(
+    session.spaceId,
+    session.channelId,
+  );
+  await publishSpaceEvent(
+    session.spaceId.toHexString(),
+    {
+      type: 'voice_channel_presence_updated',
+      data: {
+        spaceId: session.spaceId.toHexString(),
+        channelId: session.channelId.toHexString(),
+        session: toPublicSpaceVoiceSession(session),
+      },
     },
-  });
+    { audienceIdentityIds },
+  );
 }
 
 /**
@@ -360,14 +392,7 @@ export async function leaveVoiceChannel(
       return { success: true, session: toPublicSpaceVoiceSession(marked) };
     }
     const ended = (await repo.endWaitingSession(updated._id)) ?? updated;
-    await publishSpaceEvent(spaceId.toHexString(), {
-      type: 'voice_channel_presence_updated',
-      data: {
-        spaceId: spaceId.toHexString(),
-        channelId: channelId.toHexString(),
-        session: toPublicSpaceVoiceSession(ended),
-      },
-    });
+    await broadcastPresence(ended);
     return { success: true, session: null };
   }
 
@@ -426,15 +451,20 @@ export async function updateVoiceMediaState(
     };
   }
 
-  await publishSpaceEvent(spaceId.toHexString(), {
-    type: 'voice_channel_media_state_changed',
-    data: {
-      spaceId: spaceId.toHexString(),
-      channelId: channelId.toHexString(),
-      identityId: identityId.toHexString(),
-      mediaState,
+  const audienceIdentityIds = await resolveVoiceAudience(spaceId, channelId);
+  await publishSpaceEvent(
+    spaceId.toHexString(),
+    {
+      type: 'voice_channel_media_state_changed',
+      data: {
+        spaceId: spaceId.toHexString(),
+        channelId: channelId.toHexString(),
+        identityId: identityId.toHexString(),
+        mediaState,
+      },
     },
-  });
+    { audienceIdentityIds },
+  );
 
   return { success: true, session: toPublicSpaceVoiceSession(updated) };
 }
@@ -458,6 +488,17 @@ export async function getVoiceSession(
       error: 'You are not a member of this Space.',
       errorCode: 'NOT_MEMBER',
     };
+  }
+
+  // Presence in a restricted channel is only visible to members who can view it.
+  const channel = await getSpaceChannelRepository().findByIdInSpace(spaceId, channelId);
+  if (!channel) {
+    return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
+  }
+  const roles = await getSpaceRoleRepository().findBySpace(spaceId);
+  const everyone = findEveryoneRole(roles);
+  if (!canViewSpaceChannel(channel, perms, everyone?._id ?? null)) {
+    return { success: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' };
   }
 
   const session = await getSpaceVoiceSessionRepository().findActiveForChannel(channelId);
@@ -487,11 +528,26 @@ export async function listSpaceVoicePresence(
   }
 
   const sessions = await getSpaceVoiceSessionRepository().findActiveForSpace(spaceId);
+  const live = sessions.filter(
+    (s) => activeVoiceParticipants(s).length > 0 || !!s.roomName,
+  );
+
+  // Drop sessions in channels the requester cannot view (restricted-channel
+  // presence must not leak through the space-wide listing).
+  const roles = await getSpaceRoleRepository().findBySpace(spaceId);
+  const everyoneId = findEveryoneRole(roles)?._id ?? null;
+  const channelRepo = getSpaceChannelRepository();
+  const visible: SpaceVoiceSessionDocument[] = [];
+  for (const session of live) {
+    const channel = await channelRepo.findByIdInSpace(spaceId, session.channelId);
+    if (!channel) continue;
+    if (!canViewSpaceChannel(channel, perms, everyoneId)) continue;
+    visible.push(session);
+  }
+
   return {
     success: true,
-    sessions: sessions
-      .filter((s) => activeVoiceParticipants(s).length > 0 || !!s.roomName)
-      .map(toPublicSpaceVoiceSession),
+    sessions: visible.map(toPublicSpaceVoiceSession),
   };
 }
 
@@ -521,23 +577,35 @@ export async function reapEmptyVoiceSessions(): Promise<void> {
 
     void livekitDeleteRoom(roomName);
 
-    await publishSpaceEvent(session.spaceId.toHexString(), {
-      type: 'voice_channel_call_ended',
-      data: {
-        spaceId: session.spaceId.toHexString(),
-        channelId: session.channelId.toHexString(),
-        sessionId: session._id.toHexString(),
-        reason: 'empty_grace',
+    const audienceIdentityIds = await resolveVoiceAudience(
+      session.spaceId,
+      session.channelId,
+    );
+    await publishSpaceEvent(
+      session.spaceId.toHexString(),
+      {
+        type: 'voice_channel_call_ended',
+        data: {
+          spaceId: session.spaceId.toHexString(),
+          channelId: session.channelId.toHexString(),
+          sessionId: session._id.toHexString(),
+          reason: 'empty_grace',
+        },
       },
-    });
-    await publishSpaceEvent(session.spaceId.toHexString(), {
-      type: 'voice_channel_presence_updated',
-      data: {
-        spaceId: session.spaceId.toHexString(),
-        channelId: session.channelId.toHexString(),
-        session: toPublicSpaceVoiceSession(ended),
+      { audienceIdentityIds },
+    );
+    await publishSpaceEvent(
+      session.spaceId.toHexString(),
+      {
+        type: 'voice_channel_presence_updated',
+        data: {
+          spaceId: session.spaceId.toHexString(),
+          channelId: session.channelId.toHexString(),
+          session: toPublicSpaceVoiceSession(ended),
+        },
       },
-    });
+      { audienceIdentityIds },
+    );
 
     elog.info('Voice session room torn down after empty grace', {
       sessionId: session._id.toHexString(),

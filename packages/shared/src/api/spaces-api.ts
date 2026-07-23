@@ -9,6 +9,8 @@ import type {
   PublicSpaceChannel,
   PublicSpaceChannelCategory,
   PublicSpaceInvite,
+  ModerationSpaceMember,
+  PublicSpaceAuditEntry,
   PublicSpaceMember,
   PublicSpaceMessage,
   PublicSpaceReaction,
@@ -150,6 +152,41 @@ export class SpacesApi {
     return this.client.post(
       `/api/spaces/${encodeURIComponent(spaceId)}/members/${encodeURIComponent(identityId)}/ban`,
       body,
+    );
+  }
+
+  async unbanMember(
+    spaceId: string,
+    identityId: string,
+  ): Promise<ApiResponse<{ member: PublicSpaceMember }>> {
+    return this.client.delete(
+      `/api/spaces/${encodeURIComponent(spaceId)}/members/${encodeURIComponent(identityId)}/ban`,
+    );
+  }
+
+  async listBannedMembers(
+    spaceId: string,
+    options?: { limit?: number; cursor?: string },
+  ): Promise<ApiResponse<{ members: ModerationSpaceMember[]; cursor: string | null }>> {
+    const params = new URLSearchParams();
+    if (options?.limit != null) params.set('limit', String(options.limit));
+    if (options?.cursor) params.set('cursor', options.cursor);
+    const query = params.toString();
+    return this.client.get(
+      `/api/spaces/${encodeURIComponent(spaceId)}/members/banned${query ? `?${query}` : ''}`,
+    );
+  }
+
+  async getAuditLog(
+    spaceId: string,
+    options?: { limit?: number; cursor?: string },
+  ): Promise<ApiResponse<{ entries: PublicSpaceAuditEntry[]; cursor: string | null }>> {
+    const params = new URLSearchParams();
+    if (options?.limit != null) params.set('limit', String(options.limit));
+    if (options?.cursor) params.set('cursor', options.cursor);
+    const query = params.toString();
+    return this.client.get(
+      `/api/spaces/${encodeURIComponent(spaceId)}/audit-log${query ? `?${query}` : ''}`,
     );
   }
 

@@ -98,6 +98,13 @@ export { requireActiveSubscription } from './require-subscription';
 export { enrichIdentitySession, requireIdentitySession } from './identity-session';
 
 /**
+ * Global per-IP / per-user request rate limiting.
+ *
+ * @see {@link module:middleware/rate-limit}
+ */
+export { globalRateLimit, rateLimitedResponse } from './rate-limit';
+
+/**
  * Re-export types for external use.
  */
 export type { CorsOptions } from './cors';

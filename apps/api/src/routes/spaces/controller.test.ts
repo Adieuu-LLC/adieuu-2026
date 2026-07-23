@@ -50,6 +50,20 @@ const svc = {
     success: true,
     member: { id: 'm1', status: 'banned' },
   })) as AnyMock,
+  unbanSpaceMember: mock(async () => ({
+    success: true,
+    member: { id: 'm1', status: 'active' },
+  })) as AnyMock,
+  listBannedSpaceMembers: mock(async () => ({
+    success: true,
+    members: [],
+    cursor: null,
+  })) as AnyMock,
+  listSpaceAuditLog: mock(async () => ({
+    success: true,
+    entries: [],
+    cursor: null,
+  })) as AnyMock,
   listRoleMembers: mock(async () => ({ success: true, members: [], cursor: null })) as AnyMock,
   createSpaceInvite: mock(async () => ({ success: true, invite: { id: 'i1' } })) as AnyMock,
   acceptSpaceInvite: mock(async () => ({ success: true, invite: { id: 'i1' } })) as AnyMock,
@@ -84,6 +98,10 @@ const svc = {
 
 mock.module('../../services/space.service', () => svc);
 
+// Per-endpoint rate limits are exercised in rate-limit.test.ts; always allow here.
+import { createRateLimitServiceMock } from '../../test-utils/rate-limit-service.mock';
+mock.module('../../services/rate-limit.service', () => createRateLimitServiceMock());
+
 const prefRepo = {
   findForIdentity: mock(async () => [] as unknown[]) as AnyMock,
   upsert: mock(async () => ({
@@ -108,9 +126,13 @@ mock.module('../../repositories/space-member.repository', () => ({
   getSpaceMemberRepository: () => memberRepo,
 }));
 
-import * as c from './controller';
+import * as lifecycleC from './controller';
+import * as memberC from './member-controller';
+import * as inviteC from './invite-controller';
 import * as mc from './message-controller';
 import { spaceRoutes } from './index';
+
+const c = { ...lifecycleC, ...memberC, ...inviteC };
 
 const HEX = new ObjectId().toHexString();
 
@@ -892,7 +914,7 @@ describe('space preferences controllers', () => {
     prefRepo.upsert.mockClear();
     memberRepo.findMember.mockClear();
     prefRepo.findForIdentity.mockResolvedValue([]);
-    memberRepo.findMember.mockResolvedValue({ id: 'm1' });
+    memberRepo.findMember.mockResolvedValue({ id: 'm1', status: 'active' });
   });
 
   test('list returns unauthorized without a session', async () => {

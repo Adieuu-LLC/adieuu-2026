@@ -63,7 +63,7 @@ describe('space/permissions', () => {
       _id: new ObjectId(), spaceId: SPACE, identityId: IDENTITY, roleIds: [MEMBER_ROLE], status: 'active',
     });
     roleRepo.findBySpace.mockResolvedValue([
-      { _id: MEMBER_ROLE, spaceId: SPACE, permissions: ['read', 'post'], systemKey: 'member' },
+      { _id: MEMBER_ROLE, spaceId: SPACE, permissions: ['read', 'post'], systemKey: 'everyone' },
     ]);
 
     const perms = await resolveMemberPermissions(SPACE, IDENTITY);
@@ -92,6 +92,28 @@ describe('space/permissions', () => {
     expect(perms.isAdmin).toBe(true);
     expect(memberHasPermission(perms, 'manageRoles')).toBe(true);
     expect(memberHasPermission(perms, 'manageChannels')).toBe(true);
+  });
+
+  test('legacy isSystem Admin without systemKey is still treated as Admin', async () => {
+    memberRepo.findMember.mockResolvedValue({
+      _id: new ObjectId(), spaceId: SPACE, identityId: IDENTITY, roleIds: [ADMIN_ROLE], status: 'active',
+    });
+    roleRepo.findBySpace.mockResolvedValue([
+      {
+        _id: ADMIN_ROLE,
+        spaceId: SPACE,
+        name: 'Admin',
+        isSystem: true,
+        // Pre-systemKey seed: legacy flags, no position, no systemKey.
+        permissions: ['admin', 'read', 'post', 'manageRoles'],
+      },
+    ]);
+
+    const perms = await resolveMemberPermissions(SPACE, IDENTITY);
+    expect(perms.isAdmin).toBe(true);
+    expect(memberHasPermission(perms, 'connect')).toBe(true);
+    expect(memberHasPermission(perms, 'speak')).toBe(true);
+    expect(memberHasPermission(perms, 'manageRoles')).toBe(true);
   });
 
   test('unions permissions across multiple roles and ignores unknown role ids', async () => {

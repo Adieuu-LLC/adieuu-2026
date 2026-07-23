@@ -14,6 +14,8 @@ import { ObjectId } from 'mongodb';
 import {
   DEFAULT_CUSTOM_ROLE_COLOR,
   DEFAULT_MEMBER_ROLE_NAME,
+  isSpaceAdminRole,
+  isSpaceEveryoneRole,
   normalizeSpacePermissions,
   spacePermissionsSubsetOf,
   type PublicSpaceMember,
@@ -27,8 +29,10 @@ import { getSpaceRepository } from '../../repositories/space.repository';
 import { getSpaceRoleRepository } from '../../repositories/space-role.repository';
 import { getSpaceMemberRepository } from '../../repositories/space-member.repository';
 import { resolveMemberPermissions, memberHasPermission } from './permissions';
+import { canActOnRolePosition, topRolePosition } from './role-hierarchy';
 import { canReadSpace } from './access';
 import { assertNotLastAdmin } from './last-admin';
+import { recordSpaceAudit } from './audit';
 import type { SpaceActionResult, SpaceErrorCode, SpaceMemberResult, SpaceRolesResult } from './types';
 
 function parseObjId(raw: string | ObjectId): ObjectId | null {
@@ -174,6 +178,18 @@ export async function createSpaceRole(
   const roles = await getSpaceRoleRepository().findBySpace(spaceId);
   const maxPosition = roles.reduce((max, r) => Math.max(max, r.position ?? 0), 0);
 
+  // Non-admins may only create roles ranked strictly below their own top role.
+  if (params.position !== undefined && !gate.actorPerms.isAdmin) {
+    const actorTop = topRolePosition(gate.actorPerms.roleIds, roles);
+    if (!canActOnRolePosition(actorTop, params.position)) {
+      return {
+        success: false,
+        error: 'You cannot create a role at or above your own rank.',
+        errorCode: 'ESCALATION',
+      };
+    }
+  }
+
   const role = await getSpaceRoleRepository().createRole({
     spaceId,
     name: e2ee ? '' : (params.name?.trim() || 'New Role'),
@@ -191,6 +207,12 @@ export async function createSpaceRole(
       : {}),
   });
 
+  void recordSpaceAudit({
+    spaceId,
+    actorIdentityId: actingId,
+    action: 'role_create',
+    targetId: role._id,
+  });
   return { success: true, role: toPublicSpaceRole(role) };
 }
 
@@ -218,6 +240,27 @@ export async function updateSpaceRole(
     return { success: false, error: 'Role not found.', errorCode: 'ROLE_NOT_FOUND' };
   }
 
+  // Non-admins may only edit roles ranked strictly below their own top role,
+  // and may not move a role to or above their own rank.
+  if (!gate.actorPerms.isAdmin) {
+    const roles = await getSpaceRoleRepository().findBySpace(spaceId);
+    const actorTop = topRolePosition(gate.actorPerms.roleIds, roles);
+    if (!canActOnRolePosition(actorTop, existing.position ?? 0)) {
+      return {
+        success: false,
+        error: 'You cannot edit a role at or above your own rank.',
+        errorCode: 'ESCALATION',
+      };
+    }
+    if (params.position !== undefined && !canActOnRolePosition(actorTop, params.position)) {
+      return {
+        success: false,
+        error: 'You cannot move a role to or above your own rank.',
+        errorCode: 'ESCALATION',
+      };
+    }
+  }
+
   const colorError = validateColor(params.color);
   if (colorError) return { success: false, error: colorError, errorCode: 'INVALID_CONTENT' };
 
@@ -234,7 +277,7 @@ export async function updateSpaceRole(
 
   // Everyone is permanently the default join role; it cannot be cleared or transferred.
   if (params.isDefaultMember !== undefined) {
-    if (existing.systemKey === 'member') {
+    if (isSpaceEveryoneRole(existing)) {
       if (params.isDefaultMember === false) {
         return {
           success: false,
@@ -280,6 +323,12 @@ export async function updateSpaceRole(
   if (!updated) {
     return { success: false, error: 'Role not found.', errorCode: 'ROLE_NOT_FOUND' };
   }
+  void recordSpaceAudit({
+    spaceId,
+    actorIdentityId: actingId,
+    action: 'role_update',
+    targetId: roleId,
+  });
   return { success: true, role: toPublicSpaceRole(updated) };
 }
 
@@ -314,6 +363,19 @@ export async function deleteSpaceRole(
     };
   }
 
+  // Non-admins may only delete roles ranked strictly below their own top role.
+  if (!gate.actorPerms.isAdmin) {
+    const roles = await getSpaceRoleRepository().findBySpace(spaceId);
+    const actorTop = topRolePosition(gate.actorPerms.roleIds, roles);
+    if (!canActOnRolePosition(actorTop, existing.position ?? 0)) {
+      return {
+        success: false,
+        error: 'You cannot delete a role at or above your own rank.',
+        errorCode: 'ESCALATION',
+      };
+    }
+  }
+
   const memberRepo = getSpaceMemberRepository();
   const holderCount = await memberRepo.countWithRole(spaceId, roleId);
 
@@ -329,6 +391,12 @@ export async function deleteSpaceRole(
   if (!deleted) {
     return { success: false, error: 'Role not found.', errorCode: 'ROLE_NOT_FOUND' };
   }
+  void recordSpaceAudit({
+    spaceId,
+    actorIdentityId: actingId,
+    action: 'role_delete',
+    targetId: roleId,
+  });
   return { success: true };
 }
 
@@ -360,9 +428,9 @@ export async function setMemberRoles(
 
   const roles = await getSpaceRoleRepository().findBySpace(spaceId);
   const roleById = new Map(roles.map((r) => [r._id.toHexString(), r]));
-  const adminRole = roles.find((r) => r.systemKey === 'admin');
+  const adminRole = roles.find((r) => isSpaceAdminRole(r));
   const defaultMember =
-    roles.find((r) => r.systemKey === 'member') ?? roles.find((r) => r.isDefaultMember);
+    roles.find((r) => isSpaceEveryoneRole(r)) ?? roles.find((r) => r.isDefaultMember);
   const actorCanManageRoles = memberHasPermission(gate.actorPerms, 'manageRoles');
 
   const nextIds: ObjectId[] = [];
@@ -404,6 +472,30 @@ export async function setMemberRoles(
     }
   }
 
+  // Non-admins may only add or remove roles ranked strictly below their own
+  // top role (newly granting Admin is additionally gated above).
+  if (!gate.actorPerms.isAdmin) {
+    const actorTop = topRolePosition(gate.actorPerms.roleIds, roles);
+    const currentHexes = new Set(target.roleIds.map((id) => id.toHexString()));
+    const nextHexes = new Set(nextIds.map((id) => id.toHexString()));
+    const changedHexes = [
+      ...[...nextHexes].filter((hex) => !currentHexes.has(hex)),
+      ...[...currentHexes].filter((hex) => !nextHexes.has(hex)),
+    ];
+    for (const hex of changedHexes) {
+      const role = roleById.get(hex);
+      // Stale references to deleted roles are safe to drop.
+      if (!role) continue;
+      if (!canActOnRolePosition(actorTop, role.position ?? 0)) {
+        return {
+          success: false,
+          error: 'You cannot change roles at or above your own rank.',
+          errorCode: 'ESCALATION',
+        };
+      }
+    }
+  }
+
   // Without manageRoles, next role-set permissions must be ⊆ actor's.
   if (!actorCanManageRoles) {
     const granted = new Set<SpacePermission>();
@@ -421,10 +513,21 @@ export async function setMemberRoles(
     }
   }
 
+  const beforeRoleIds = target.roleIds.map((id) => id.toHexString());
   const updated = await memberRepo.setRoles(spaceId, targetId, nextIds);
   if (!updated) {
     return { success: false, error: 'That member was not found.', errorCode: 'MEMBER_NOT_FOUND' };
   }
+  void recordSpaceAudit({
+    spaceId,
+    actorIdentityId: actingId,
+    action: 'member_roles_update',
+    targetIdentityId: targetId,
+    metadata: {
+      before: beforeRoleIds,
+      after: nextIds.map((id) => id.toHexString()),
+    },
+  });
   return { success: true, member: toPublicSpaceMember(updated) };
 }
 

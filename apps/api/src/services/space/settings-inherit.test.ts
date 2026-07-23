@@ -51,6 +51,29 @@ mock.module('../../repositories/space-channel-category.repository', () => ({
   getSpaceChannelCategoryRepository: () => categoryRepo,
 }));
 
+const roleRepo = {
+  findBySpace: mock(async () => [
+    {
+      _id: EVERYONE,
+      isDefaultMember: true,
+      isSystem: true,
+      systemKey: 'everyone',
+      permissions: [],
+      position: 1000,
+    },
+  ]) as AnyMock,
+};
+mock.module('../../repositories/space-role.repository', () => ({
+  getSpaceRoleRepository: () => roleRepo,
+}));
+
+const memberRepo = {
+  listByAnyRole: mock(async () => [] as any[]) as AnyMock,
+};
+mock.module('../../repositories/space-member.repository', () => ({
+  getSpaceMemberRepository: () => memberRepo,
+}));
+
 const publishSpaceEvent = mock(async () => {}) as AnyMock;
 mock.module('./redis-events', () => ({
   publishSpaceEvent,

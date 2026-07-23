@@ -30,11 +30,13 @@ export async function canReadSpace(
   // Listed non-E2EE Spaces are browsable without joining (read-only).
   if (space.visibility === 'listed' && !space.e2ee) return { ok: true };
 
+  // Banned members keep their membership row (status:'banned') but must lose
+  // read access along with everything else.
   const member = await getSpaceMemberRepository().findMember(space._id, requesterId);
-  if (member) return { ok: true };
+  if (member && member.status === 'active') return { ok: true };
 
   if (space.visibility === 'hidden') {
-    // Never reveal a hidden Space to non-members.
+    // Never reveal a hidden Space to non-members (or banned members).
     return { ok: false, errorCode: 'SPACE_NOT_FOUND', error: 'Space not found.' };
   }
   // `listed` + E2EE: discoverable, but must join to read.

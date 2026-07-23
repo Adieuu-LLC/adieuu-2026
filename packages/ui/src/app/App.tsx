@@ -70,6 +70,7 @@ const SpaceManageLayout = lazyRoute(() => import('../pages/spaces'), 'SpaceManag
 const SpaceManageOverviewGate = lazyRoute(() => import('../pages/spaces'), 'SpaceManageOverviewGate');
 const SpaceManageRoles = lazyRoute(() => import('../pages/spaces'), 'SpaceManageRoles');
 const SpaceManageRoleDetail = lazyRoute(() => import('../pages/spaces'), 'SpaceManageRoleDetail');
+const SpaceManageAuditLog = lazyRoute(() => import('../pages/spaces'), 'SpaceManageAuditLog');
 const Login = lazyRoute(() => import('../pages/auth'), 'Login');
 const Verify = lazyRoute(() => import('../pages/auth'), 'Verify');
 const MfaVerify = lazyRoute(() => import('../pages/auth'), 'MfaVerify');
@@ -86,6 +87,7 @@ const IdentityCiphers = lazyRoute(() => import('../pages/identity'), 'IdentityCi
 const IdentityCustomEmojis = lazyRoute(() => import('../pages/identity'), 'IdentityCustomEmojis');
 const IdentityDevices = lazyRoute(() => import('../pages/identity'), 'IdentityDevices');
 const IdentityNotifications = lazyRoute(() => import('../pages/identity'), 'IdentityNotifications');
+const IdentityAudioVideo = lazyRoute(() => import('../pages/identity'), 'IdentityAudioVideo');
 const IdentityPrivacy = lazyRoute(() => import('../pages/identity'), 'IdentityPrivacy');
 const IdentityProfile = lazyRoute(() => import('../pages/identity'), 'IdentityProfile');
 const IdentityProfileView = lazyRoute(() => import('../pages/identity'), 'IdentityProfileView');
@@ -398,6 +400,7 @@ export function App() {
               <Route path="roles" element={<SpaceManageRoles />} />
               <Route path="roles/:roleId" element={<SpaceManageRoleDetail />} />
               <Route path="roles/:roleId/:tab" element={<SpaceManageRoleDetail />} />
+              <Route path="audit" element={<SpaceManageAuditLog />} />
             </Route>
           </Route>
         </Route>
@@ -444,6 +447,7 @@ export function App() {
           <Route path="/identity/appearance/community" element={<ThemeBrowser />} />
           <Route path="/identity/appearance" element={<IdentityAppearance />} />
           <Route path="/identity/notifications" element={<IdentityNotifications />} />
+          <Route path="/identity/audio-video" element={<IdentityAudioVideo />} />
           <Route path="/identity/privacy" element={<IdentityPrivacy />} />
           <Route path="/identity/devices" element={<IdentityDevices />} />
           <Route path="/identity/ciphers" element={<IdentityCiphers />} />

@@ -39,6 +39,7 @@ import { buildChannelReplyQuote, useReplyParentHydration } from '../../hooks/use
 import { useSpaces } from '../../hooks/useSpaces';
 import { useViewportReactionFetch } from '../../hooks/useViewportReactionFetch';
 import { useOptionalVoiceChannelSession } from '../../hooks/useVoiceChannelSession';
+import { useMediaOutbox } from '../../services/mediaOutbox';
 import {
   bumpCipherLinkEpoch,
   getChannelCipherLink,
@@ -368,6 +369,21 @@ export function SpaceChannelView() {
     [onSend, markJustSent],
   );
 
+  const { registerSpaceOutboxSend } = useMediaOutbox();
+  useEffect(() => {
+    registerSpaceOutboxSend(async (_spaceId, _channelId, plaintext, options) => {
+      return wrappedSend(plaintext, {
+        e2eMediaIds: options.e2eMediaIds,
+        replyToMessageId: options.replyToMessageId,
+        expiresInSeconds: options.expiresInSeconds,
+        mentionedIdentityIds: options.mentionedIdentityIds,
+      });
+    });
+    return () => registerSpaceOutboxSend(null);
+  }, [registerSpaceOutboxSend, wrappedSend]);
+
+  const canAttachFiles = hasActiveSpacePermission('attachFiles');
+
   const handleJumpReload = useCallback(
     async (id: string) => {
       jumpInFlightRef.current = true;
@@ -632,6 +648,8 @@ export function SpaceChannelView() {
           loadEditHistory={loadEditHistory}
           isEncrypted={isEncrypted}
           spaceCipher={spaceCipher}
+          spaceId={spaceId}
+          canAttachFiles={canAttachFiles}
           cipherGate={
             isEncrypted && activeSpace && (activeChannel?.cipherCheck ?? activeSpace.cipherCheck)
               ? {

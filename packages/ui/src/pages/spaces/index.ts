@@ -9,3 +9,4 @@ export { SpaceManageOverview } from './SpaceManageOverview';
 export { SpaceManageOverviewGate } from './SpaceManageOverviewGate';
 export { SpaceManageRoles } from './SpaceManageRoles';
 export { SpaceManageRoleDetail } from './SpaceManageRoleDetail';
+export { SpaceManageAuditLog } from './SpaceManageAuditLog';

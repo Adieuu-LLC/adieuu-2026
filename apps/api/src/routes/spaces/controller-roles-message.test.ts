@@ -23,8 +23,12 @@ const svc = {
 
 mock.module('../../services/space.service', () => svc);
 
-import * as c from './controller';
+import * as lifecycleC from './controller';
+import * as memberC from './member-controller';
+import * as inviteC from './invite-controller';
 import * as mc from './message-controller';
+
+const c = { ...lifecycleC, ...memberC, ...inviteC };
 
 const HEX = new ObjectId().toHexString();
 const ROLE = new ObjectId().toHexString();

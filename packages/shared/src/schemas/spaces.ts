@@ -8,6 +8,7 @@
  */
 
 import { z } from 'zod';
+import { isValidReactionEmoji, REACTION_EMOJI_MAX_LENGTH } from '../reaction-emoji';
 import {
   SPACE_VISIBILITY_VALUES,
   SPACE_CHANNEL_TYPES,
@@ -21,11 +22,36 @@ import {
   SPACE_CHANNEL_NAME_MAX_LENGTH,
   SPACE_MESSAGE_MAX_LENGTH,
   SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH,
+  SPACE_MESSAGE_MAX_EXPIRES_SECONDS,
+  SPACE_MESSAGE_MAX_ATTACHMENTS,
   SPACE_SEED_ROLE_SYSTEMS,
   SPACE_PERMISSIONS,
 } from '../api/spaces-types';
 
 export const SpaceVisibilitySchema = z.enum(SPACE_VISIBILITY_VALUES);
+
+// ---------------------------------------------------------------------------
+// Charset guards for opaque cipher fields (blind relay).
+//
+// The server never decrypts these, but their encodings are fixed by
+// @adieuu/crypto: binary fields are standard base64 (`serializeCipherPayload`,
+// `createCipherCheck`), `knownValue` is base64url (`generateKnownValue`), and
+// cipher ids are hex digests (`generateCipherId`). A cheap charset check stops
+// arbitrary text/JSON being smuggled through fields that bypass sanitization.
+// ---------------------------------------------------------------------------
+
+const BASE64_PATTERN = /^[A-Za-z0-9+/]+={0,2}$/;
+const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/;
+const HEX_PATTERN = /^[0-9a-fA-F]+$/;
+
+const base64Field = (max: number) =>
+  z.string().min(1).max(max).regex(BASE64_PATTERN, 'must be base64');
+
+const CipherIdSchema = z
+  .string()
+  .min(1)
+  .max(256)
+  .regex(HEX_PATTERN, 'cipherId must be a hex digest');
 
 export const SpaceSlugSchema = z
   .string()
@@ -35,15 +61,15 @@ export const SpaceSlugSchema = z
 
 /** Blind-relay cipher verification challenge (opaque to the server). */
 export const CipherCheckSchema = z.object({
-  knownValue: z.string().min(1).max(64),
-  encryptedKnownValue: z.string().min(1).max(500),
-  nonce: z.string().min(1).max(100),
+  knownValue: z.string().min(1).max(64).regex(BASE64URL_PATTERN, 'must be base64url'),
+  encryptedKnownValue: base64Field(500),
+  nonce: base64Field(100),
 });
 
 const EncryptedSpaceFieldSchema = z.object({
-  encryptedName: z.string().min(1).max(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH),
-  nameNonce: z.string().min(1).max(500),
-  cipherId: z.string().min(1).max(256),
+  encryptedName: base64Field(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH),
+  nameNonce: base64Field(500),
+  cipherId: CipherIdSchema,
 });
 
 export const CreateSpaceEncryptedSeedSchema = z.object({
@@ -59,9 +85,9 @@ export const CreateSpaceEncryptedSeedSchema = z.object({
     .refine(
       (roles) => {
         const systems = new Set(roles.map((r) => r.system));
-        return systems.has('admin') && systems.has('member');
+        return systems.has('admin') && systems.has('everyone');
       },
-      { message: 'encryptedSeed.roles must include admin and member' },
+      { message: 'encryptedSeed.roles must include admin and everyone' },
     ),
 });
 
@@ -78,11 +104,11 @@ export const CreateSpaceSchema = z
     encryptIdentity: z.boolean().optional(),
     cipherRequired: z.boolean().optional(),
     encryptedSeed: CreateSpaceEncryptedSeedSchema.optional(),
-    encryptedName: z.string().min(1).max(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
-    nameNonce: z.string().min(1).max(500).optional(),
-    cipherId: z.string().min(1).max(256).optional(),
-    encryptedDescription: z.string().min(1).max(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
-    descriptionNonce: z.string().min(1).max(500).optional(),
+    encryptedName: base64Field(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
+    nameNonce: base64Field(500).optional(),
+    cipherId: CipherIdSchema.optional(),
+    encryptedDescription: base64Field(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
+    descriptionNonce: base64Field(500).optional(),
   })
   .refine(
     (v) =>
@@ -206,14 +232,49 @@ const SpaceMessageCommonFields = {
   clientMessageId: z.string().uuid(),
   replyToMessageId: z.string().length(24).optional(),
   mentionedIdentityIds: z.array(z.string().length(24)).max(50).optional(),
-  expiresInSeconds: z.number().int().positive().optional(),
+  expiresInSeconds: z
+    .number()
+    .int()
+    .positive()
+    .max(SPACE_MESSAGE_MAX_EXPIRES_SECONDS)
+    .optional(),
+  attachmentMediaIds: z
+    .array(z.string().min(1).max(100))
+    .max(SPACE_MESSAGE_MAX_ATTACHMENTS)
+    .optional(),
+  e2eMediaIds: z
+    .array(z.string().min(1).max(100))
+    .max(SPACE_MESSAGE_MAX_ATTACHMENTS)
+    .optional(),
 };
 
 const SpaceMessageCipherFields = {
-  ciphertext: z.string().min(1).max(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH),
-  nonce: z.string().min(1).max(500),
-  cipherId: z.string().min(1).max(256),
+  ciphertext: base64Field(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH),
+  nonce: base64Field(500),
+  cipherId: CipherIdSchema,
 };
+
+function spaceMessageBodyRefine(v: {
+  content?: string;
+  ciphertext?: string;
+  nonce?: string;
+  cipherId?: string;
+  attachmentMediaIds?: string[];
+  e2eMediaIds?: string[];
+}): boolean {
+  const hasContent = !!v.content;
+  const hasCipher = !!(v.ciphertext && v.nonce && v.cipherId);
+  const hasClearAttachments = !!v.attachmentMediaIds?.length;
+  const hasE2eAttachments = !!v.e2eMediaIds?.length;
+  if (hasContent && hasCipher) return false;
+  if (hasClearAttachments && hasE2eAttachments) return false;
+  if (hasClearAttachments && hasCipher) return false;
+  if (hasE2eAttachments && hasContent) return false;
+  // Encrypted path requires the cipher triple; e2eMediaIds are optional extras.
+  if (hasCipher || hasE2eAttachments) return hasCipher;
+  // Plaintext: text and/or cleartext attachments.
+  return hasContent || hasClearAttachments;
+}
 
 export const SendSpaceMessageSchema = z
   .object({
@@ -224,14 +285,10 @@ export const SendSpaceMessageSchema = z
     cipherId: SpaceMessageCipherFields.cipherId.optional(),
     ...SpaceMessageCommonFields,
   })
-  .refine(
-    (v) => {
-      const hasContent = !!v.content;
-      const hasCipher = !!(v.ciphertext && v.nonce && v.cipherId);
-      return (hasContent || hasCipher) && !(hasContent && hasCipher);
-    },
-    { message: 'Provide either content (plaintext) or ciphertext+nonce+cipherId (encrypted), not both' },
-  );
+  .refine(spaceMessageBodyRefine, {
+    message:
+      'Provide either content (+ optional attachmentMediaIds) or ciphertext+nonce+cipherId (+ optional e2eMediaIds), not mixed',
+  });
 
 export const EditSpaceMessageSchema = z
   .object({
@@ -239,18 +296,28 @@ export const EditSpaceMessageSchema = z
     ciphertext: SpaceMessageCipherFields.ciphertext.optional(),
     nonce: SpaceMessageCipherFields.nonce.optional(),
     cipherId: SpaceMessageCipherFields.cipherId.optional(),
+    attachmentMediaIds: z
+      .array(z.string().min(1).max(100))
+      .max(SPACE_MESSAGE_MAX_ATTACHMENTS)
+      .optional(),
+    e2eMediaIds: z
+      .array(z.string().min(1).max(100))
+      .max(SPACE_MESSAGE_MAX_ATTACHMENTS)
+      .optional(),
   })
-  .refine(
-    (v) => {
-      const hasContent = !!v.content;
-      const hasCipher = !!(v.ciphertext && v.nonce && v.cipherId);
-      return (hasContent || hasCipher) && !(hasContent && hasCipher);
-    },
-    { message: 'Provide either content (plaintext) or ciphertext+nonce+cipherId (encrypted), not both' },
-  );
+  .refine(spaceMessageBodyRefine, {
+    message:
+      'Provide either content (+ optional attachmentMediaIds) or ciphertext+nonce+cipherId (+ optional e2eMediaIds), not mixed',
+  });
 
 export const AddSpaceReactionSchema = z.object({
-  emoji: z.string().min(1).max(32),
+  emoji: z
+    .string()
+    .min(1)
+    .max(REACTION_EMOJI_MAX_LENGTH)
+    .refine(isValidReactionEmoji, {
+      message: 'emoji must be a Unicode emoji or a custom emoji token',
+    }),
 });
 
 export const PinSpaceMessageSchema = z.object({
@@ -267,9 +334,9 @@ export const CreateSpaceRoleSchema = z
     displaySeparately: z.boolean().optional(),
     mentionable: z.boolean().optional(),
     position: z.number().int().min(0).max(10_000).optional(),
-    encryptedName: z.string().min(1).max(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
-    nameNonce: z.string().min(1).max(500).optional(),
-    cipherId: z.string().min(1).max(256).optional(),
+    encryptedName: base64Field(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
+    nameNonce: base64Field(500).optional(),
+    cipherId: CipherIdSchema.optional(),
   })
   .refine(
     (v) => {
@@ -290,9 +357,9 @@ export const UpdateSpaceRoleSchema = z
     mentionable: z.boolean().optional(),
     isDefaultMember: z.boolean().optional(),
     position: z.number().int().min(0).max(10_000).optional(),
-    encryptedName: z.string().min(1).max(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
-    nameNonce: z.string().min(1).max(500).optional(),
-    cipherId: z.string().min(1).max(256).optional(),
+    encryptedName: base64Field(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
+    nameNonce: base64Field(500).optional(),
+    cipherId: CipherIdSchema.optional(),
   })
   .refine((v) => Object.keys(v).length > 0, {
     message: 'At least one field is required',
@@ -332,9 +399,9 @@ export const CreateSpaceChannelSchema = z
     type: z.enum(SPACE_CHANNEL_TYPES),
     allowedRoleIds: z.array(z.string().length(24)).max(50).optional(),
     categoryId: z.string().length(24).optional(),
-    encryptedName: z.string().min(1).max(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
-    nameNonce: z.string().min(1).max(500).optional(),
-    cipherId: z.string().min(1).max(256).optional(),
+    encryptedName: base64Field(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
+    nameNonce: base64Field(500).optional(),
+    cipherId: CipherIdSchema.optional(),
     /**
      * When true (or omitted on an e2ee Space), the channel inherits the parent
      * Space's `cipherCheck` unless an explicit `cipherCheck` is provided.
@@ -364,9 +431,9 @@ export const UpdateSpaceChannelSchema = z
     allowedRoleIds: z.array(z.string().length(24)).max(50).optional(),
     categoryId: z.string().length(24).nullable().optional(),
     position: z.number().int().min(0).max(10_000).optional(),
-    encryptedName: z.string().min(1).max(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
-    nameNonce: z.string().min(1).max(500).optional(),
-    cipherId: z.string().min(1).max(256).optional(),
+    encryptedName: base64Field(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
+    nameNonce: base64Field(500).optional(),
+    cipherId: CipherIdSchema.optional(),
     /** Set/clear channel content encryption (`cipherCheck`). */
     encrypt: z.boolean().optional(),
     cipherCheck: CipherCheckSchema.optional(),
@@ -396,9 +463,9 @@ export const UpdateSpaceChannelSchema = z
 const spaceCategoryNameFields = {
   name: z.string().min(SPACE_CHANNEL_NAME_MIN_LENGTH).max(SPACE_CHANNEL_NAME_MAX_LENGTH).optional(),
   allowedRoleIds: z.array(z.string().length(24)).max(50).optional(),
-  encryptedName: z.string().min(1).max(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
-  nameNonce: z.string().min(1).max(500).optional(),
-  cipherId: z.string().min(1).max(256).optional(),
+  encryptedName: base64Field(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
+  nameNonce: base64Field(500).optional(),
+  cipherId: CipherIdSchema.optional(),
   parentCategoryId: z.string().length(24).nullable().optional(),
   /**
    * Default content Cipher for channels created in this category.

@@ -32,3 +32,7 @@ export {
   getSpacePreferencesRepository,
   type SpacePreferencesPatch,
 } from './space-preferences.repository';
+export {
+  SpaceAuditLogRepository,
+  getSpaceAuditLogRepository,
+} from './space-audit.repository';

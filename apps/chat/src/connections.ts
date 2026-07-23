@@ -74,6 +74,8 @@ function deliverToSockets(
   sockets: Set<TypedWebSocket> | undefined,
   message: string,
   meta: { channel: string; scope: string; key: string; eventType?: string },
+  audienceIdentityIds?: readonly string[] | null,
+  excludeIdentityIds?: readonly string[] | null,
 ): void {
   if (!sockets || sockets.size === 0) {
     logger.info('Redis message received but no local connection', {
@@ -85,7 +87,26 @@ function deliverToSockets(
     return;
   }
 
+  // Restricted-channel events carry an explicit recipient allow-list; sockets
+  // whose identity is not in it must never receive the event. An exclusion
+  // list is used when those identities get a separate filtered variant.
+  const audience = audienceIdentityIds ? new Set(audienceIdentityIds) : null;
+  const excluded =
+    excludeIdentityIds && excludeIdentityIds.length > 0
+      ? new Set(excludeIdentityIds)
+      : null;
+
   for (const ws of sockets) {
+    if (audience || excluded) {
+      let identityId: string | undefined;
+      try {
+        identityId = ws.getUserData().identityId;
+      } catch {
+        identityId = undefined;
+      }
+      if (audience && (!identityId || !audience.has(identityId))) continue;
+      if (excluded && identityId && excluded.has(identityId)) continue;
+    }
     try {
       const sendResult = ws.send(message);
       if (sendResult === 1) {
@@ -126,18 +147,30 @@ export function initializeMessageHandler(): void {
 
     let eventType: string | undefined;
     let memberIdentityId: string | undefined;
+    let audienceIdentityIds: string[] | undefined;
+    let excludeIdentityIds: string[] | undefined;
     try {
       const parsed = JSON.parse(message) as {
         type?: string;
+        audienceIdentityIds?: string[];
+        excludeIdentityIds?: string[];
         data?: { identityId?: string; member?: { identityId?: string } };
       };
       eventType = parsed?.type;
       memberIdentityId = parsed?.data?.member?.identityId ?? parsed?.data?.identityId;
+      if (Array.isArray(parsed?.audienceIdentityIds)) {
+        audienceIdentityIds = parsed.audienceIdentityIds;
+      }
+      if (Array.isArray(parsed?.excludeIdentityIds)) {
+        excludeIdentityIds = parsed.excludeIdentityIds;
+      }
     } catch {
       // Best-effort parse for logging; forward the raw message regardless
     }
 
-    // Space broadcast channel: fan out to every member socket for the space.
+    // Space broadcast channel: fan out to member sockets for the space. When the
+    // event carries an audience allow-list (restricted channels), only those
+    // members receive it.
     if (unprefixed.startsWith('space:')) {
       const spaceId = unprefixed.slice('space:'.length);
       // Grant joining members before fan-out so already-connected sockets receive this
@@ -145,12 +178,18 @@ export function initializeMessageHandler(): void {
       if (eventType === 'space_member_joined' && memberIdentityId) {
         void grantSpaceMembership(spaceId, memberIdentityId);
       }
-      deliverToSockets(spaceConnections.get(spaceId), message, {
-        channel,
-        scope: 'space',
-        key: spaceId,
-        eventType,
-      });
+      deliverToSockets(
+        spaceConnections.get(spaceId),
+        message,
+        {
+          channel,
+          scope: 'space',
+          key: spaceId,
+          eventType,
+        },
+        audienceIdentityIds,
+        excludeIdentityIds,
+      );
       // After delivery, drop revoked members so they stop receiving further broadcasts.
       if (eventType === 'space_member_left' && memberIdentityId) {
         void revokeSpaceMembership(spaceId, memberIdentityId);

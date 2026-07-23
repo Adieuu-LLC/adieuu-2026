@@ -265,4 +265,31 @@ describe('spaceMessageToChannel', () => {
     const ch = spaceMessageToChannel(makeSpaceMessage(), 'text');
     expect(ch.hasReactions).toBeUndefined();
   });
+
+  it('maps cleartext Space attachments from the public message', () => {
+    const ch = spaceMessageToChannel(
+      makeSpaceMessage({
+        attachments: [
+          {
+            mediaId: 'm1',
+            cdnUrl: 'https://cdn.example/m1.webp',
+            contentType: 'image/webp',
+          },
+        ],
+        attachmentMediaIds: ['m1'],
+      }),
+      'caption',
+    );
+    expect(ch.attachments).toHaveLength(1);
+    expect(ch.attachments[0]?.cdnUrl).toBe('https://cdn.example/m1.webp');
+    expect(ch.attachments[0]?.e2eMediaId).toBe('m1');
+  });
+
+  it('maps e2eMediaIds from the public Space message', () => {
+    const ch = spaceMessageToChannel(
+      makeSpaceMessage({ e2eMediaIds: ['e2e-1'] }),
+      'text',
+    );
+    expect(ch.e2eMediaIds).toEqual(['e2e-1']);
+  });
 });

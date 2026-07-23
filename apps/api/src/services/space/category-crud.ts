@@ -1,5 +1,8 @@
 /**
- * Space channel category list + create/update/delete + layout reorder.
+ * Space channel category list + create/update/delete.
+ *
+ * Layout reorder lives in `category-layout.ts`; shared gates/validators in
+ * `category-shared.ts` (both re-exported here so import paths stay stable).
  *
  * @module services/space/category-crud
  */
@@ -10,33 +13,23 @@ import { getSpaceRepository } from '../../repositories/space.repository';
 import { getSpaceChannelRepository } from '../../repositories/space-channel.repository';
 import { getSpaceChannelCategoryRepository } from '../../repositories/space-channel-category.repository';
 import { getSpaceRoleRepository } from '../../repositories/space-role.repository';
-import { isValidObjectId } from '../../utils';
-import { toPublicSpaceChannel } from '../../models/space-channel';
 import {
   toPublicSpaceChannelCategory,
   type SpaceChannelCategoryDocument,
 } from '../../models/space-channel-category';
-import { toPublicCipherCheck } from '../../models/cipher-check';
-import type { SpaceDocument } from '../../models/space';
-import type { SpaceRoleDocument } from '../../models/space-role';
+import { resolveMemberPermissions } from './permissions';
 import {
-  resolveMemberPermissions,
-  memberHasPermission,
-  type SpaceMemberPermissions,
-} from './permissions';
-import {
-  actorTopRolePosition,
   canViewSpaceChannel,
   findEveryoneRole,
-  rolesAtOrBelowHierarchy,
+  resolveChannelAudience,
 } from './channel-access';
 import { canReadSpace } from './access';
 import { publishSpaceEvent } from './redis-events';
+import { recordSpaceAudit } from './audit';
 import type {
   SpaceActionResult,
   SpaceCategoriesResult,
   SpaceCategoryResult,
-  SpaceChannelLayoutResult,
 } from './types';
 import {
   ancestorForceFlags,
@@ -46,258 +39,27 @@ import {
   resolveParentAcl,
   resolveParentCipher,
 } from './settings-inherit';
+import {
+  categoryDepth,
+  forbidUnlessEncryption,
+  forbidUnlessManage,
+  parentIdHex,
+  parseObjId,
+  requireCategoryMember,
+  resolveAllowedRoleIds,
+  resolveCategoryCipherCheck,
+  validateCategoryName,
+  type CreateSpaceChannelCategoryParams,
+  type UpdateSpaceChannelCategoryParams,
+} from './category-shared';
 
-function parseObjId(raw: string | ObjectId): ObjectId | null {
-  if (raw instanceof ObjectId) return raw;
-  return isValidObjectId(raw) ? new ObjectId(raw) : null;
-}
-
-export interface CreateSpaceChannelCategoryParams {
-  name?: string;
-  allowedRoleIds?: readonly string[];
-  encryptedName?: string;
-  nameNonce?: string;
-  cipherId?: string;
-  parentCategoryId?: string | null;
-  encrypt?: boolean;
-  cipherCheck?: CipherCheck;
-  inheritAllowedRoleIds?: boolean;
-  inheritCipherCheck?: boolean;
-  forceChildrenAcl?: boolean;
-  forceChildrenCipher?: boolean;
-}
-
-export interface UpdateSpaceChannelCategoryParams {
-  name?: string;
-  allowedRoleIds?: readonly string[];
-  encryptedName?: string;
-  nameNonce?: string;
-  cipherId?: string;
-  position?: number;
-  parentCategoryId?: string | null;
-  encrypt?: boolean;
-  cipherCheck?: CipherCheck;
-  inheritAllowedRoleIds?: boolean;
-  inheritCipherCheck?: boolean;
-  forceChildrenAcl?: boolean;
-  forceChildrenCipher?: boolean;
-}
-
-/**
- * Default content Cipher for a category: explicit → parent category → Space e2ee.
- */
-export function resolveCategoryCipherCheck(
-  space: Pick<SpaceDocument, 'e2ee' | 'cipherCheck'>,
-  params: { encrypt?: boolean; cipherCheck?: CipherCheck },
-  parentCategory?: { cipherCheck?: CipherCheck } | null,
-): CipherCheck | undefined {
-  if (params.encrypt === false) return undefined;
-  if (params.cipherCheck) return toPublicCipherCheck(params.cipherCheck);
-  const inheritByDefault =
-    params.encrypt === true ||
-    (params.encrypt === undefined && (!!space.e2ee || !!parentCategory?.cipherCheck));
-  if (!inheritByDefault) return undefined;
-  if (parentCategory?.cipherCheck) return toPublicCipherCheck(parentCategory.cipherCheck);
-  if (space.cipherCheck) return toPublicCipherCheck(space.cipherCheck);
-  return undefined;
-}
-
-export interface UpdateSpaceChannelLayoutParams {
-  groups: ReadonlyArray<{
-    parentCategoryId: string | null;
-    items: ReadonlyArray<{ type: 'channel' | 'category'; id: string }>;
-  }>;
-}
-
-function parentIdHex(doc: SpaceChannelCategoryDocument): string | null {
-  return doc.parentCategoryId ? doc.parentCategoryId.toHexString() : null;
-}
-
-/** Depth of a category (root = 1). Returns null on cycle / missing parent. */
-function categoryDepth(
-  categoryId: string,
-  parentById: ReadonlyMap<string, string | null>,
-): number | null {
-  let depth = 1;
-  let current: string | null = categoryId;
-  const seen = new Set<string>();
-  while (current) {
-    if (seen.has(current)) return null;
-    seen.add(current);
-    const parent = parentById.get(current);
-    if (parent === undefined) return null;
-    if (parent === null) return depth;
-    depth += 1;
-    if (depth > SPACE_CATEGORY_MAX_DEPTH) return depth;
-    current = parent;
-  }
-  return depth;
-}
-
-async function requireCategoryMember(
-  spaceId: ObjectId,
-  actingId: ObjectId,
-): Promise<
-  | { ok: true; space: SpaceDocument; perms: SpaceMemberPermissions }
-  | { ok: false; result: SpaceCategoryResult }
-> {
-  const space = await getSpaceRepository().findById(spaceId);
-  if (!space) {
-    return {
-      ok: false,
-      result: { success: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' },
-    };
-  }
-
-  const perms = await resolveMemberPermissions(spaceId, actingId);
-  if (!perms.isMember) {
-    return {
-      ok: false,
-      result: {
-        success: false,
-        error: 'You are not a member of this Space.',
-        errorCode: 'NOT_MEMBER',
-      },
-    };
-  }
-  return { ok: true, space, perms };
-}
-
-function forbidUnlessManage(
-  perms: SpaceMemberPermissions,
-): SpaceCategoryResult | null {
-  if (memberHasPermission(perms, 'manageChannels')) return null;
-  return {
-    success: false,
-    error: 'You do not have permission to manage channels.',
-    errorCode: 'FORBIDDEN',
-  };
-}
-
-function forbidUnlessEncryption(
-  perms: SpaceMemberPermissions,
-): SpaceCategoryResult | null {
-  if (memberHasPermission(perms, 'manageEncryption')) return null;
-  return {
-    success: false,
-    error: 'You do not have permission to manage encryption.',
-    errorCode: 'FORBIDDEN',
-  };
-}
-
-async function resolveAllowedRoleIds(
-  spaceId: ObjectId,
-  perms: SpaceMemberPermissions,
-  allowedRoleIds: readonly string[] | undefined,
-): Promise<{ ok: true; allowedRoleIds: ObjectId[] } | { ok: false; result: SpaceCategoryResult }> {
-  const roles = await getSpaceRoleRepository().findBySpace(spaceId);
-  const everyone = findEveryoneRole(roles);
-  if (!everyone) {
-    return {
-      ok: false,
-      result: { success: false, error: 'Everyone role not found.', errorCode: 'ROLE_NOT_FOUND' },
-    };
-  }
-
-  const top = actorTopRolePosition(perms.roleIds, roles);
-  if (top === null) {
-    return {
-      ok: false,
-      result: { success: false, error: 'You have no roles in this Space.', errorCode: 'FORBIDDEN' },
-    };
-  }
-  const selectable = new Set(
-    rolesAtOrBelowHierarchy(roles, top).map((r: SpaceRoleDocument) => r._id.toHexString()),
-  );
-
-  if (!allowedRoleIds?.length) {
-    return { ok: true, allowedRoleIds: [everyone._id] };
-  }
-
-  const seen = new Set<string>();
-  const resolved: ObjectId[] = [];
-  for (const raw of allowedRoleIds) {
-    const id = parseObjId(raw);
-    if (!id) {
-      return {
-        ok: false,
-        result: { success: false, error: 'Invalid role id.', errorCode: 'INVALID_ID' },
-      };
-    }
-    const hex = id.toHexString();
-    if (seen.has(hex)) continue;
-    if (!selectable.has(hex)) {
-      return {
-        ok: false,
-        result: {
-          success: false,
-          error: 'You cannot restrict a category to a role above your own.',
-          errorCode: 'ESCALATION',
-        },
-      };
-    }
-    seen.add(hex);
-    resolved.push(id);
-  }
-  return {
-    ok: true,
-    allowedRoleIds: resolved.length > 0 ? resolved : [everyone._id],
-  };
-}
-
-function validateCategoryName(
-  space: Pick<SpaceDocument, 'e2ee'>,
-  params: {
-    name?: string;
-    encryptedName?: string;
-    nameNonce?: string;
-    cipherId?: string;
-  },
-  opts: { requireName: boolean },
-): SpaceCategoryResult | null {
-  const e2ee = !!space.e2ee;
-  const hasEncrypted = !!(params.encryptedName && params.nameNonce && params.cipherId);
-  const hasPartial =
-    !!(params.encryptedName || params.nameNonce || params.cipherId) && !hasEncrypted;
-  if (hasPartial) {
-    return {
-      success: false,
-      error: 'encryptedName, nameNonce, and cipherId must be provided together.',
-      errorCode: 'INVALID_CONTENT',
-    };
-  }
-  if (opts.requireName) {
-    const plainName = params.name?.trim() ?? '';
-    if (e2ee && !hasEncrypted) {
-      return {
-        success: false,
-        error: 'Encrypted category name is required.',
-        errorCode: 'INVALID_CONTENT',
-      };
-    }
-    if (!e2ee && !plainName) {
-      return { success: false, error: 'Category name is required.', errorCode: 'INVALID_CONTENT' };
-    }
-  }
-  if (params.name !== undefined && e2ee && !hasEncrypted) {
-    return {
-      success: false,
-      error: 'Encrypted category name is required.',
-      errorCode: 'INVALID_CONTENT',
-    };
-  }
-  if (hasEncrypted && !e2ee) {
-    return {
-      success: false,
-      error: 'Encrypted category names require an e2ee Space.',
-      errorCode: 'INVALID_CONTENT',
-    };
-  }
-  if (params.name !== undefined && !params.name.trim()) {
-    return { success: false, error: 'Category name is required.', errorCode: 'INVALID_CONTENT' };
-  }
-  return null;
-}
+export { resolveCategoryCipherCheck } from './category-shared';
+export type {
+  CreateSpaceChannelCategoryParams,
+  UpdateSpaceChannelCategoryParams,
+  UpdateSpaceChannelLayoutParams,
+} from './category-shared';
+export { updateSpaceChannelLayout } from './category-layout';
 
 /** List a Space's channel categories (ordered by position). Visibility-gated. */
 export async function listSpaceChannelCategories(
@@ -459,10 +221,14 @@ export async function createSpaceChannelCategory(
   });
 
   const publicCategory = toPublicSpaceChannelCategory(category);
-  await publishSpaceEvent(spaceId.toHexString(), {
-    type: 'space_category_created',
-    data: { category: publicCategory },
-  });
+  await publishSpaceEvent(
+    spaceId.toHexString(),
+    {
+      type: 'space_category_created',
+      data: { category: publicCategory },
+    },
+    { audienceIdentityIds: await resolveChannelAudience(spaceId, category) },
+  );
 
   return { success: true, category: publicCategory };
 }
@@ -718,10 +484,24 @@ export async function updateSpaceChannelCategory(
   }
 
   const publicCategory = toPublicSpaceChannelCategory(updated);
-  await publishSpaceEvent(spaceId.toHexString(), {
-    type: 'space_category_updated',
-    data: { category: publicCategory },
-  });
+  // Union of old and new audiences so members losing access still hear the change.
+  const [oldAudience, newAudience] = await Promise.all([
+    resolveChannelAudience(spaceId, existing),
+    resolveChannelAudience(spaceId, updated),
+  ]);
+  await publishSpaceEvent(
+    spaceId.toHexString(),
+    {
+      type: 'space_category_updated',
+      data: { category: publicCategory },
+    },
+    {
+      audienceIdentityIds:
+        oldAudience === null || newAudience === null
+          ? null
+          : [...new Set([...oldAudience, ...newAudience])],
+    },
+  );
 
   const shouldCascade =
     allowedRoleIds !== undefined ||
@@ -734,6 +514,18 @@ export async function updateSpaceChannelCategory(
 
   if (shouldCascade) {
     await cascadeCategorySettings(spaceId, updated, space, everyone._id);
+  }
+
+  if (allowedRoleIds !== undefined) {
+    void recordSpaceAudit({
+      spaceId,
+      actorIdentityId: actingId,
+      action: 'channel_acl_update',
+      targetId: categoryId,
+      metadata: {
+        allowedRoleIds: allowedRoleIds.map((id) => id.toHexString()),
+      },
+    });
   }
 
   return { success: true, category: publicCategory };
@@ -781,198 +573,4 @@ export async function deleteSpaceChannelCategory(
   });
 
   return { success: true };
-}
-
-/**
- * Atomically reorder nested categories and interleaved channels.
- * Requires `manageChannels`. Payload must cover every category and channel.
- */
-export async function updateSpaceChannelLayout(
-  spaceIdRaw: string | ObjectId,
-  actingIdentityIdRaw: string | ObjectId,
-  params: UpdateSpaceChannelLayoutParams,
-): Promise<SpaceChannelLayoutResult> {
-  const spaceId = parseObjId(spaceIdRaw);
-  const actingId = parseObjId(actingIdentityIdRaw);
-  if (!spaceId || !actingId) {
-    return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
-  }
-
-  const gate = await requireCategoryMember(spaceId, actingId);
-  if (!gate.ok) return { success: false, error: gate.result.error, errorCode: gate.result.errorCode };
-  const { perms } = gate;
-
-  const denied = forbidUnlessManage(perms);
-  if (denied) return { success: false, error: denied.error, errorCode: denied.errorCode };
-
-  const [categories, channels] = await Promise.all([
-    getSpaceChannelCategoryRepository().findBySpace(spaceId),
-    getSpaceChannelRepository().findBySpace(spaceId),
-  ]);
-
-  const categoryIdSet = new Set(categories.map((c) => c._id.toHexString()));
-  const channelIdSet = new Set(channels.map((c) => c._id.toHexString()));
-
-  if (params.groups.length !== categoryIdSet.size + 1) {
-    return {
-      success: false,
-      error: 'groups must include the root group and exactly one group per category.',
-      errorCode: 'INVALID_CONTENT',
-    };
-  }
-
-  const seenGroupParents = new Set<string | null>();
-  const seenChannels = new Set<string>();
-  const seenCategoriesAsItems = new Set<string>();
-  const parentById = new Map<string, string | null>();
-  const categoryEntries: Array<{
-    categoryId: ObjectId;
-    parentCategoryId: ObjectId | null;
-    position: number;
-  }> = [];
-  const channelEntries: Array<{
-    channelId: ObjectId;
-    categoryId: ObjectId | null;
-    position: number;
-  }> = [];
-
-  for (const group of params.groups) {
-    const parentKey = group.parentCategoryId;
-    if (seenGroupParents.has(parentKey)) {
-      return {
-        success: false,
-        error: 'Duplicate parentCategoryId in groups.',
-        errorCode: 'INVALID_CONTENT',
-      };
-    }
-    seenGroupParents.add(parentKey);
-
-    if (parentKey !== null) {
-      if (!categoryIdSet.has(parentKey)) {
-        return {
-          success: false,
-          error: 'Unknown parent category in groups.',
-          errorCode: 'CATEGORY_NOT_FOUND',
-        };
-      }
-    }
-
-    let parentOid: ObjectId | null = null;
-    if (parentKey !== null) {
-      parentOid = new ObjectId(parentKey);
-    }
-
-    for (let position = 0; position < group.items.length; position++) {
-      const item = group.items[position]!;
-      if (item.type === 'channel') {
-        if (!channelIdSet.has(item.id) || seenChannels.has(item.id)) {
-          return {
-            success: false,
-            error: 'Invalid or duplicate channel in layout.',
-            errorCode: 'INVALID_CONTENT',
-          };
-        }
-        seenChannels.add(item.id);
-        channelEntries.push({
-          channelId: new ObjectId(item.id),
-          categoryId: parentOid,
-          position,
-        });
-      } else {
-        if (!categoryIdSet.has(item.id) || seenCategoriesAsItems.has(item.id)) {
-          return {
-            success: false,
-            error: 'Invalid or duplicate category in layout.',
-            errorCode: 'INVALID_CONTENT',
-          };
-        }
-        if (parentKey !== null && item.id === parentKey) {
-          return {
-            success: false,
-            error: 'A category cannot be nested under itself.',
-            errorCode: 'INVALID_CONTENT',
-          };
-        }
-        seenCategoriesAsItems.add(item.id);
-        parentById.set(item.id, parentKey);
-        categoryEntries.push({
-          categoryId: new ObjectId(item.id),
-          parentCategoryId: parentOid,
-          position,
-        });
-      }
-    }
-  }
-
-  // Every category must appear as an item once and own a groups entry.
-  if (seenCategoriesAsItems.size !== categoryIdSet.size) {
-    return {
-      success: false,
-      error: 'Every category must appear exactly once in layout items.',
-      errorCode: 'INVALID_CONTENT',
-    };
-  }
-  for (const catId of categoryIdSet) {
-    if (!seenGroupParents.has(catId)) {
-      return {
-        success: false,
-        error: 'Every category must have a groups entry.',
-        errorCode: 'INVALID_CONTENT',
-      };
-    }
-  }
-  if (!seenGroupParents.has(null)) {
-    return {
-      success: false,
-      error: 'Layout must include a root group (parentCategoryId null).',
-      errorCode: 'INVALID_CONTENT',
-    };
-  }
-  if (seenChannels.size !== channelIdSet.size) {
-    return {
-      success: false,
-      error: 'Every channel must appear exactly once in layout items.',
-      errorCode: 'INVALID_CONTENT',
-    };
-  }
-
-  for (const catId of categoryIdSet) {
-    const depth = categoryDepth(catId, parentById);
-    if (depth === null) {
-      return {
-        success: false,
-        error: 'Category hierarchy contains a cycle.',
-        errorCode: 'INVALID_CONTENT',
-      };
-    }
-    if (depth > SPACE_CATEGORY_MAX_DEPTH) {
-      return {
-        success: false,
-        error: `Categories cannot nest deeper than ${SPACE_CATEGORY_MAX_DEPTH} levels.`,
-        errorCode: 'INVALID_CONTENT',
-      };
-    }
-  }
-
-  await getSpaceChannelCategoryRepository().setLayout(spaceId, categoryEntries);
-  await getSpaceChannelRepository().setLayout(spaceId, channelEntries);
-
-  const [updatedCategories, updatedChannels] = await Promise.all([
-    getSpaceChannelCategoryRepository().findBySpace(spaceId),
-    getSpaceChannelRepository().findBySpace(spaceId),
-  ]);
-
-  const publicCategories = updatedCategories.map(toPublicSpaceChannelCategory);
-  const publicChannels = updatedChannels.map(toPublicSpaceChannel);
-
-  await publishSpaceEvent(spaceId.toHexString(), {
-    type: 'space_channel_layout_updated',
-    data: {
-      spaceId: spaceId.toHexString(),
-      categories: publicCategories,
-      channels: publicChannels,
-    },
-  });
-
-  return { success: true, categories: publicCategories, channels: publicChannels };
 }

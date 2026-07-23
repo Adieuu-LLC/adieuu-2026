@@ -6,7 +6,7 @@
 
 import type { ObjectId } from 'mongodb';
 import type { BaseDocument } from './base';
-import type { PublicSpaceMember, SpaceMemberStatus } from '@adieuu/shared';
+import type { ModerationSpaceMember, PublicSpaceMember, SpaceMemberStatus } from '@adieuu/shared';
 
 export interface SpaceMemberDocument extends BaseDocument {
   spaceId: ObjectId;
@@ -33,6 +33,11 @@ export interface CreateSpaceMemberInput {
   joinedAt?: Date;
 }
 
+/**
+ * Public serializer. Deliberately excludes `banReason`/`bannedAt` — the reason
+ * is a moderator note and must not be shown to the banned user or other
+ * members. `banExpiresAt` stays so a banned user can see when the ban ends.
+ */
 export function toPublicSpaceMember(doc: SpaceMemberDocument): PublicSpaceMember {
   return {
     id: doc._id.toHexString(),
@@ -43,10 +48,20 @@ export function toPublicSpaceMember(doc: SpaceMemberDocument): PublicSpaceMember
     joinedAt: doc.joinedAt.toISOString(),
     ...(doc.nickname ? { nickname: doc.nickname } : {}),
     ...(doc.color ? { color: doc.color } : {}),
-    ...(doc.banReason ? { banReason: doc.banReason } : {}),
-    ...(doc.bannedAt ? { bannedAt: doc.bannedAt.toISOString() } : {}),
     ...(doc.status === 'banned'
       ? { banExpiresAt: doc.banExpiresAt ? doc.banExpiresAt.toISOString() : null }
       : {}),
+  };
+}
+
+/**
+ * Moderation serializer: public shape plus ban details. Only for responses
+ * gated by `banMembers`/`admin` permissions.
+ */
+export function toModerationSpaceMember(doc: SpaceMemberDocument): ModerationSpaceMember {
+  return {
+    ...toPublicSpaceMember(doc),
+    ...(doc.banReason ? { banReason: doc.banReason } : {}),
+    ...(doc.bannedAt ? { bannedAt: doc.bannedAt.toISOString() } : {}),
   };
 }
