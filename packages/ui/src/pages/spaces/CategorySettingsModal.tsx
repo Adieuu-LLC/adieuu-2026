@@ -580,19 +580,20 @@ export function CategorySettingsModal({
               </Dialog.Title>
             </div>
             <div className="confirm-dialog-body create-channel-modal-body">
-              <label className="create-channel-field">
+              <div className="create-channel-field">
                 <span className="create-channel-field-label">
                   {t('spaces.createCategory.nameLabel')}
                 </span>
                 <Input
                   inputSize="sm"
+                  aria-label={t('spaces.createCategory.nameLabel')}
                   placeholder={t('spaces.createCategory.namePlaceholder')}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   disabled={submitting}
                   autoFocus
                 />
-              </label>
+              </div>
               <ChannelRoleMultiselect
                 roles={selectableRoles}
                 catalogRoles={roles}

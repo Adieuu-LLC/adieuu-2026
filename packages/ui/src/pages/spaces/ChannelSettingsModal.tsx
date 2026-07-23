@@ -558,19 +558,20 @@ export function ChannelSettingsModal({
               <div className="confirm-dialog-body create-channel-modal-body">
                 {canManageChannels && (
                   <>
-                    <label className="create-channel-field">
+                    <div className="create-channel-field">
                       <span className="create-channel-field-label">
                         {t('spaces.createChannel.nameLabel')}
                       </span>
                       <Input
                         inputSize="sm"
+                        aria-label={t('spaces.createChannel.nameLabel')}
                         placeholder={t('spaces.createChannel.namePlaceholder')}
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         disabled={submitting}
                         autoFocus
                       />
-                    </label>
+                    </div>
 
                     <label className="create-channel-field">
                       <span className="create-channel-field-label">

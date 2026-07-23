@@ -254,18 +254,16 @@ export function IdentityFlyout({ supportUnreadCount = 0 }: { supportUnreadCount?
 
   if (isIdentityLocked) {
     return (
-      <>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleLoginClick}
-          className="sidebar-identity-btn sidebar-identity-btn-locked"
-          data-tour="identity"
-        >
-          <Icon name="mask" />
-          <span className="sidebar-identity-label">{t('identity.unlock.title')}</span>
-        </Button>
-      </>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={handleLoginClick}
+        className="sidebar-identity-btn sidebar-identity-btn-locked"
+        data-tour="identity"
+      >
+        <Icon name="mask" />
+        <span className="sidebar-identity-label">{t('identity.unlock.title')}</span>
+      </Button>
     );
   }
 
@@ -275,18 +273,16 @@ export function IdentityFlyout({ supportUnreadCount = 0 }: { supportUnreadCount?
       : t('identity.createAliasButton');
 
     return (
-      <>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleLoginClick}
-          className="sidebar-identity-btn"
-          data-tour="identity"
-        >
-          <Icon name="mask" />
-          <span className="sidebar-identity-label">{aliasButtonLabel}</span>
-        </Button>
-      </>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={handleLoginClick}
+        className="sidebar-identity-btn"
+        data-tour="identity"
+      >
+        <Icon name="mask" />
+        <span className="sidebar-identity-label">{aliasButtonLabel}</span>
+      </Button>
     );
   }
 

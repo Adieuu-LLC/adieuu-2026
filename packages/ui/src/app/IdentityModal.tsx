@@ -606,20 +606,18 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
 
                 <div className="identity-modal-footer">
                   {canCreateMore && (
-                    <>
-                      {!hasIdentity ? (
-                        <>
-                          <p>{t('identity.login.noIdentity')}</p>
-                          <Button variant="ghost" size="sm" onClick={() => setView('create')}>
-                            {t('identity.login.createPrompt')}
-                          </Button>
-                        </>
-                      ) : (
+                    !hasIdentity ? (
+                      <>
+                        <p>{t('identity.login.noIdentity')}</p>
                         <Button variant="ghost" size="sm" onClick={() => setView('create')}>
-                          {t('identity.login.createAnotherPrompt')}
+                          {t('identity.login.createPrompt')}
                         </Button>
-                      )}
-                    </>
+                      </>
+                    ) : (
+                      <Button variant="ghost" size="sm" onClick={() => setView('create')}>
+                        {t('identity.login.createAnotherPrompt')}
+                      </Button>
+                    )
                   )}
                   <Button
                     variant="ghost"

@@ -163,6 +163,7 @@ export function SpaceRoleMembersTab({ role, allRoles }: SpaceRoleMembersTabProps
           </span>
           <div
             className="space-role-member-roles"
+            role="group"
             aria-label={t('spaces.manage.roles.members.rolesLabel')}
           >
             {otherRoles.map((r) => (
