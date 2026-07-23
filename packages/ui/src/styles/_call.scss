@@ -85,13 +85,33 @@
     background: var(--color-bg-tertiary);
     aspect-ratio: 16 / 9;
     max-height: 200px;
+  }
 
-    video {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      transform: scaleX(-1);
-    }
+  &__preview-mirror {
+    position: absolute;
+    inset: 0;
+    transform: scaleX(-1);
+  }
+
+  &__preview-video {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background: #000;
+  }
+
+  &__preview-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: var(--spacing-md);
+    text-align: center;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
   }
 
   &__note {
@@ -132,7 +152,7 @@ $call-overlay-title-bar-height: 32px;
   display: none;
   position: fixed;
   top: $call-overlay-top;
-  left: min($sidebar-width, $sidebar-width-max);
+  left: $sidebar-width-expanded;
   right: 0;
   min-height: 220px;
   // Height is set inline from persisted user preference (see useCallOverlayResize).
@@ -1321,7 +1341,7 @@ $call-overlay-title-bar-height: 32px;
   &__actions {
     display: flex;
     align-items: center;
-    gap: var(--spacing-xs);
+    gap: var(--spacing-xxs, 2px);
     flex-shrink: 0;
   }
 
@@ -1329,10 +1349,102 @@ $call-overlay-title-bar-height: 32px;
     color: var(--color-error);
   }
 
+  &__settings,
+  &__leave {
+    flex-shrink: 0;
+    min-width: 0;
+    padding-inline: var(--spacing-xs);
+  }
+
+  &__settings {
+    color: var(--color-text-secondary);
+
+    &:hover:not(:disabled) {
+      color: var(--color-text);
+    }
+  }
+
   &__leave {
     color: var(--color-error);
-    flex-shrink: 0;
   }
+
+  &--stacked {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-xs);
+  }
+
+  &__main {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+.call-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-xs);
+
+  &__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1 1 auto;
+    padding: var(--spacing-sm) var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-secondary);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+
+    &:hover:not(:disabled) {
+      background: var(--color-surface-hover, var(--color-bg-tertiary));
+      color: var(--color-text);
+    }
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    // Media currently publishing / hearing (mic on, camera on, etc.)
+    &--active {
+      background: color-mix(
+        in srgb,
+        var(--color-accent-primary, var(--color-accent, var(--color-success))) 16%,
+        var(--color-bg-secondary)
+      );
+      border-color: color-mix(
+        in srgb,
+        var(--color-accent-primary, var(--color-accent, var(--color-success))) 55%,
+        var(--color-border)
+      );
+      color: var(--color-accent-primary, var(--color-accent, var(--color-success)));
+    }
+
+    // Intentionally off but not an error state (camera/screenshare idle)
+    &--off {
+      background: var(--color-bg-tertiary, var(--color-bg-secondary));
+      border-color: var(--color-border);
+      color: var(--color-text-muted);
+    }
+
+    // Mic muted / deafened
+    &--muted {
+      background: color-mix(in srgb, var(--color-error) 14%, var(--color-bg-secondary));
+      border-color: color-mix(in srgb, var(--color-error) 50%, var(--color-border));
+      color: var(--color-error);
+    }
+  }
+}
+
+.sidebar-call-widget__controls-row {
+  width: 100%;
 }
 
 @media (max-width: 1340px) {
@@ -1470,3 +1582,73 @@ $call-overlay-title-bar-height: 32px;
   25% { transform: rotate(-8deg); }
   75% { transform: rotate(8deg); }
 }
+
+.voice-channel-livekit {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.space-sidebar-voice-presence {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0.25rem 1.35rem;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.space-sidebar-voice-presence li {
+  min-width: 0;
+}
+
+.space-sidebar-voice-presence-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--radius-sm, 4px);
+  cursor: default;
+}
+
+.space-sidebar-voice-presence-row:hover {
+  background: var(--color-surface-hover, rgb(127 127 127 / 12%));
+  color: var(--color-text);
+}
+
+.space-sidebar-voice-presence-avatar {
+  flex: 0 0 auto;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 600;
+  background: var(--color-surface-elevated, var(--color-surface));
+  color: var(--color-text);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.space-sidebar-voice-presence-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.space-sidebar-channel-hash--voice {
+  letter-spacing: 0;
+}
+

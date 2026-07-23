@@ -252,6 +252,11 @@
     flex: 1;
     min-width: 0;
   }
+
+  // Slightly tighter than default nav items, but readable icon–label spacing
+  .sidebar-item {
+    gap: var(--spacing-sm);
+  }
 }
 
 // ============================================================================
@@ -259,28 +264,28 @@
 // ============================================================================
 
 .sidebar-filter-trigger {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-md);
-  background: transparent;
+  // Match Discover / New action items (icon + label)
+  flex: 0 0 auto;
+  width: auto;
   color: var(--color-text-muted);
-  cursor: pointer;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
-  flex-shrink: 0;
 
   &:hover {
     background: var(--color-bg-hover);
     color: var(--color-text-primary);
   }
 
-  svg {
+  .sidebar-item-icon svg {
     width: 14px;
     height: 14px;
+  }
+}
+
+.sidebar-collapsed .sidebar-filter-trigger {
+  justify-content: center;
+  padding: var(--spacing-sm);
+
+  .sidebar-item-label {
+    display: none;
   }
 }
 

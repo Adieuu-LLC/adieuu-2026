@@ -40,6 +40,11 @@ export interface MediaAttachment {
   encryptionKey: string;
   /** Base64-encoded nonce used with encryptionKey */
   encryptionNonce: string;
+  /**
+   * Cleartext CDN URL for plaintext Space (`space_media`) attachments.
+   * When set, the client renders directly and skips E2E download/decrypt.
+   */
+  cdnUrl?: string;
 }
 
 /**

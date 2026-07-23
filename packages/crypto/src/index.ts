@@ -248,12 +248,14 @@ export {
 export {
   generateCallKey,
   deriveCallE2EEKey,
+  deriveVoiceChannelMediaKey,
   wrapCallKeyForRecipient,
   wrapCallKeyForRecipients,
   unwrapCallKey,
   findAndUnwrapCallKey,
   CALL_E2EE_INFO,
   CALL_KEY_SIZE,
+  VOICE_CHANNEL_MEDIA_INFO,
   type WrappedCallKey,
 } from './call';
 
@@ -312,6 +314,16 @@ export {
   getRequiredCipherIds,
   canDecrypt,
   getLayerCount,
+  // Per-Space cipher verification (blind-relay challenge)
+  type SpaceCipherCheck,
+  deriveSpaceCipherKey,
+  createCipherCheck,
+  verifyCipherCheck,
+  detectSpaceCipher,
+  generateKnownValue,
+  SPACE_CIPHER_CHECK_INFO,
+  SPACE_CIPHER_CHECK_ARGON2,
+  CIPHER_CHECK_KNOWN_VALUE_BYTES,
   // Entropy wrapping (encryption at rest)
   deriveEntropyWrappingKey,
   generateWrappingSalt,

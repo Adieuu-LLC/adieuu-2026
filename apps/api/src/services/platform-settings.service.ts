@@ -515,3 +515,25 @@ export async function ensureNcmecCyberTiplinePlatformSettingExists(): Promise<vo
 
   elog.info('Created default NCMEC CyberTipline environment setting', { key });
 }
+
+/**
+ * Ensures the Space-creation-enabled setting exists with a `false` default.
+ * Idempotent — safe to call on every startup.
+ */
+export async function ensureSpaceCreationPlatformSettingExists(): Promise<void> {
+  const repo = getPlatformSettingsRepository();
+  const key = PLATFORM_SETTING_KEYS.SPACE_CREATION_ENABLED;
+  const existing = await repo.findByKey(key);
+  if (existing) return;
+
+  await upsertPlatformSetting({
+    key,
+    description:
+      'Whether non-admin identities may create new Spaces (platform admins always can)',
+    valueType: 'boolean',
+    value: false,
+    lastUpdatedBy: PLATFORM_SETTING_BOOTSTRAP_ACTOR,
+  });
+
+  elog.info('Created default Space creation enabled setting', { key });
+}

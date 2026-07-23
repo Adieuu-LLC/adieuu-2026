@@ -389,6 +389,18 @@ export const RedisKeys = {
   identityChannel: (identityId: string) => `identity:${identityId}`,
 
   /**
+   * Generates a Space broadcast channel name. Active members of the Space are
+   * subscribed to this channel by the chat service (resolved at WS upgrade), so
+   * publishing here fans an event out to every connected member.
+   *
+   * MUST stay in sync with `RedisChannels.space` in `apps/chat/src/types.ts`.
+   *
+   * @param spaceId - The Space's ObjectId hex string
+   * @returns Channel name in format `space:{spaceId}`
+   */
+  spaceChannel: (spaceId: string) => `space:${spaceId}`,
+
+  /**
    * Identity login rate-limiting counter keyed by accountHash.
    * Stores the current attempt count with a TTL window.
    */

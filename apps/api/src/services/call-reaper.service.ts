@@ -4,6 +4,7 @@ import { getCallRepository } from '../repositories/call.repository';
 import { getConversationRepository } from '../repositories/conversation.repository';
 import { publishConversationEvent } from './conversation/redis-events';
 import { deleteRoom as livekitDeleteRoom, listParticipants as livekitListParticipants } from './livekit-room.service';
+import { reapEmptyVoiceSessions } from './space/voice-session';
 import elog from '../utils/adieuuLogger';
 
 export async function reapStaleCalls(): Promise<void> {
@@ -98,6 +99,9 @@ export function startCallReaper(): ReturnType<typeof setInterval> | null {
 
   reaperHandle = setInterval(() => {
     reapStaleCalls().catch((err) => elog.warn('Call reaper error', { err }));
+    reapEmptyVoiceSessions().catch((err) =>
+      elog.warn('Voice session reaper error', { err }),
+    );
   }, config.callReaper.intervalSec * 1000);
 
   elog.info('Call reaper started', { intervalSec: config.callReaper.intervalSec });

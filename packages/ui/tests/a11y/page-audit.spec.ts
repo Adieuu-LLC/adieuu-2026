@@ -47,6 +47,8 @@ test.describe('axe page scans', () => {
     { name: 'Download', path: '/download' },
     { name: 'Search', path: '/search' },
     { name: 'Spaces', path: '/spaces' },
+    { name: 'Create Space', path: '/spaces/new' },
+    { name: 'Space View (landing)', path: '/s/test-space' },
     { name: 'Legal Policies Directory', path: '/legal-policies' },
     { name: 'Legal - Terms of Service', path: '/legal-policies/tos' },
     { name: 'Legal - Privacy Policy', path: '/legal-policies/privacy' },

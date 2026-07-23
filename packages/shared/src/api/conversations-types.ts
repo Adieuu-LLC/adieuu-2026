@@ -135,6 +135,14 @@ export interface PublicMessage {
   lastEditedAt?: string;
   /** Full prior ciphertext snapshots; only on responses that request revision history. */
   encryptedRevisionHistory?: PublicMessageRevision[];
+  /**
+   * True when the message has at least one reaction. Lets the client reserve
+   * space for the reaction bar before the (separately fetched) reactions load,
+   * avoiding layout shift. Best-effort and count-only: the server never
+   * decrypts reaction content. May lag a very recent add/remove — the client
+   * reconciles once reactions arrive.
+   */
+  hasReactions?: boolean;
 }
 
 export interface PublicGroupInvite {

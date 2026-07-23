@@ -8,6 +8,8 @@ export type ComposerSendOptions = {
   useForwardSecrecy?: boolean;
   replyToMessageId?: string;
   e2eMediaIds?: string[];
+  /** Cleartext `space_media` ids (plaintext Space channels). */
+  attachmentMediaIds?: string[];
   expiresInSeconds?: number;
   mentionedIdentityIds?: string[];
 };

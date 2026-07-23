@@ -24,6 +24,12 @@ export type ReplyQuotePayload = {
   text: string;
   onQuoteClick: () => void;
   quotedAuthor?: ReplyQuoteAuthorPreview;
+  /**
+   * True while the parent message is still being hydrated. Renders a
+   * fixed-height author skeleton so the quote does not grow (and shift the
+   * timeline) once the author row resolves.
+   */
+  pending?: boolean;
 };
 
 export type ChatItem =

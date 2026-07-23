@@ -527,7 +527,29 @@ async function buildMessagePagePayload(
   nextOlderCursor: string | null,
   minCreatedAtForRequester?: Date,
 ): Promise<MessagePagePayload> {
-  const publicMessages = docs.map((m) => toPublicMessage(m, requesterObjId));
+  // Flag messages carrying reactions so the client reserves reaction-bar space
+  // before the (separately batch-fetched) reactions load. Count-only distinct
+  // query; the deleted branch of toPublicMessage drops the flag on tombstones.
+  // Best-effort: on failure fall back to an empty set so the page still delivers
+  // (with hasReactions false) rather than failing outright.
+  let withReactions: Set<string>;
+  try {
+    withReactions = await getReactionRepository().messageIdsWithReactions(
+      convObjId,
+      docs.map((m) => m._id),
+    );
+  } catch (err) {
+    elog.error('Failed to load reaction flags for message page', {
+      conversationId: convObjId.toHexString(),
+      err,
+    });
+    withReactions = new Set();
+  }
+  const publicMessages = docs.map((m) =>
+    toPublicMessage(m, requesterObjId, {
+      hasReactions: withReactions.has(m._id.toHexString()),
+    }),
+  );
   const bounds = messagePageBoundsFromNewestFirst(publicMessages);
   let hasNewerPages = false;
   if (bounds.pageNewestId) {

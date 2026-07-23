@@ -14,6 +14,13 @@ import { ExternalE2EEKeyProvider } from 'livekit-client';
 import '@livekit/components-styles';
 import type { StreamQualityCaps } from '@adieuu/shared';
 import { CallConferenceView } from './CallConferenceView';
+import { RoomHandleRegistrar } from './RoomHandleRegistrar';
+import {
+  getAvMicDeviceId,
+  getAvCameraDeviceId,
+  getAvSpeakerDeviceId,
+  getAvJoinMediaFlags,
+} from '../../hooks/avPreferenceStorage';
 
 export interface CallRoomProps {
   serverUrl: string;
@@ -80,13 +87,25 @@ export function CallRoom({
   const roomOptions = useMemo(() => {
     const opts: Record<string, unknown> = {};
 
+    // Preferred capture / output devices from Audio & Video settings. Read once
+    // at connect time; live changes are handled via `room.switchActiveDevice`.
+    const micDeviceId = getAvMicDeviceId();
+    const cameraDeviceId = getAvCameraDeviceId();
+    const speakerDeviceId = getAvSpeakerDeviceId();
+
+    const audioCaptureDefaults: Record<string, unknown> = {};
+    if (micDeviceId) audioCaptureDefaults.deviceId = micDeviceId;
+    if (Object.keys(audioCaptureDefaults).length > 0) {
+      opts.audioCaptureDefaults = audioCaptureDefaults;
+    }
+
+    const videoCaptureDefaults: Record<string, unknown> = {};
+    if (cameraDeviceId) videoCaptureDefaults.deviceId = cameraDeviceId;
     if (streamQualityCaps) {
-      opts.videoCaptureDefaults = {
-        resolution: {
-          width: streamQualityCaps.camera.width,
-          height: streamQualityCaps.camera.height,
-          frameRate: 30,
-        },
+      videoCaptureDefaults.resolution = {
+        width: streamQualityCaps.camera.width,
+        height: streamQualityCaps.camera.height,
+        frameRate: 30,
       };
       opts.publishDefaults = {
         videoSimulcastLayers: [],
@@ -100,6 +119,13 @@ export function CallRoom({
         },
       };
     }
+    if (Object.keys(videoCaptureDefaults).length > 0) {
+      opts.videoCaptureDefaults = videoCaptureDefaults;
+    }
+
+    if (speakerDeviceId) {
+      opts.audioOutput = { deviceId: speakerDeviceId };
+    }
 
     if (callE2EEKey && keyProviderRef.current && e2eeWorker) {
       opts.e2ee = {
@@ -111,17 +137,22 @@ export function CallRoom({
     return Object.keys(opts).length > 0 ? opts : undefined;
   }, [streamQualityCaps, callE2EEKey, e2eeWorker]);
 
+  // Capture join mute/camera prefs once at mount — LiveKitRoom only applies
+  // these on connect; later preference changes should not remount the room.
+  const initialJoinMedia = useMemo(() => getAvJoinMediaFlags(), []);
+
   return (
     <LiveKitRoom
       serverUrl={serverUrl}
       token={token}
       connect={true}
-      audio={true}
-      video={false}
+      audio={initialJoinMedia.audio}
+      video={initialJoinMedia.video}
       onConnected={onConnected}
       onDisconnected={onDisconnected}
       options={roomOptions}
     >
+      <RoomHandleRegistrar />
       <CallConferenceView
         e2eeActive={!!callE2EEKey}
         isDm={isDm}

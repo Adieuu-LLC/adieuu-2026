@@ -30,6 +30,7 @@ import { ConversationFoldersApi } from './conversation-folders-api';
 import { AccountDataApi } from './account-data-api';
 import { FeedbackApi } from './feedback-api';
 import { AnnouncementsApi } from './announcements-api';
+import { SpacesApi } from './spaces-api';
 
 /**
  * Creates an API client instance with all API modules.
@@ -57,6 +58,7 @@ export function createApiClient(config: ApiClientConfig) {
     e2eUploads: new E2EUploadApi(client),
     conversations: new ConversationsApi(client),
     conversationFolders: new ConversationFoldersApi(client),
+    spaces: new SpacesApi(client),
     customEmojis: new CustomEmojiApi(client),
     reactions: new ReactionsApi(client),
     klipy: new KlipyApi(client),

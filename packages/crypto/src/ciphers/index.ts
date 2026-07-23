@@ -113,6 +113,19 @@ export {
   getLayerCount,
 } from './compose';
 
+// Per-Space cipher verification (blind-relay challenge)
+export type { SpaceCipherCheck } from './verify';
+export {
+  deriveSpaceCipherKey,
+  createCipherCheck,
+  verifyCipherCheck,
+  detectSpaceCipher,
+  generateKnownValue,
+  SPACE_CIPHER_CHECK_INFO,
+  SPACE_CIPHER_CHECK_ARGON2,
+  CIPHER_CHECK_KNOWN_VALUE_BYTES,
+} from './verify';
+
 // Entropy wrapping (encryption at rest)
 export type { EntropyWrapConfig, WrappedEntropy } from './wrap';
 export {

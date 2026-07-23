@@ -19,6 +19,7 @@
  */
 import { mock } from 'bun:test';
 import { createElement, type ReactNode } from 'react';
+import type { PathMatch } from 'react-router';
 
 // ---------------------------------------------------------------------------
 // Mutable state for test inspection / configuration
@@ -29,6 +30,11 @@ export const mockNavigate = mock((_to: string | number, _options?: unknown) => {
 
 let _searchParams = new URLSearchParams();
 let _pathname = '/';
+let _params: Record<string, string> = {};
+let _matchResult: PathMatch<string> | null = null;
+
+/** Mutable location object for easy test manipulation. */
+export const mockLocation = { pathname: '/' };
 
 /** Replace the URLSearchParams returned by useSearchParams(). */
 export function setMockSearchParams(params: URLSearchParams | string): void {
@@ -38,6 +44,17 @@ export function setMockSearchParams(params: URLSearchParams | string): void {
 /** Replace the pathname returned by useLocation(). */
 export function setMockPathname(pathname: string): void {
   _pathname = pathname;
+  mockLocation.pathname = pathname;
+}
+
+/** Replace the route params returned by useParams(). */
+export function setMockParams(params: Record<string, string>): void {
+  _params = params;
+}
+
+/** Replace the value returned by useMatch(). */
+export function setMockMatch(match: PathMatch<string> | null): void {
+  _matchResult = match;
 }
 
 /** Reset state between tests (call from beforeEach). */
@@ -45,6 +62,9 @@ export function resetReactRouterDomMock(): void {
   mockNavigate.mockClear();
   _searchParams = new URLSearchParams();
   _pathname = '/';
+  _params = {};
+  _matchResult = null;
+  mockLocation.pathname = '/';
 }
 
 type LinkTo =
@@ -76,15 +96,21 @@ mock.module('react-router-dom', () => ({
     },
   ],
   useLocation: () => ({
-    pathname: _pathname,
+    pathname: mockLocation.pathname,
     search: '',
     hash: '',
     state: null,
     key: 'default',
   }),
-  useParams: () => ({}),
+  useParams: () => _params,
+  useMatch: () => _matchResult,
   useNavigationType: () => 'PUSH',
-  Navigate: () => null,
+  Navigate: ({ to, replace }: { to: string; replace?: boolean }) =>
+    createElement('div', {
+      'data-testid': 'rr-navigate',
+      'data-to': String(to),
+      'data-replace': replace ? 'true' : 'false',
+    }),
   Outlet: () => null,
   Link: ({
     to,

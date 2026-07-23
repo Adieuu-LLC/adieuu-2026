@@ -1,63 +1,49 @@
 /**
- * Conversation View Page
- *
- * Displays messages for a conversation with a message composer.
- * Uses the existing .conversation-* and .dm-message-* CSS classes
- * from the global stylesheet.
+ * Conversation View Page — composition root that wires the extracted feature
+ * hooks (call, security, admin settings, preferences, dialogs, message actions,
+ * file drop, search) and orchestration to the presentational sub-components.
  */
 
-import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode, type DragEvent } from 'react';
-import { createApiClient, type IdentityPublicKeys } from '@adieuu/shared';
+import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react';
+import { createApiClient } from '@adieuu/shared';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useConversations, type DisplayMessage } from '../../hooks/useConversations';
+import { useConversations } from '../../hooks/useConversations';
 import { useConversationScroll } from '../../hooks/useConversationScroll';
+import { useViewportReactionFetch } from '../../hooks/useViewportReactionFetch';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useAuth } from '../../hooks/useAuth';
 import { useCustomEmojis } from '../../hooks/useCustomEmojis';
 import { usePreKeys } from '../../hooks/usePreKeys';
 import { useReactions } from '../../hooks/useReactions';
 import { useFavoriteEmojis } from '../../hooks/useFavoriteEmojis';
-import { loadConversationFsDefault, saveConversationFsDefault, loadShowMessageArtifacts } from '../../services/preKeyService';
-import {
-  useGifPreference,
-  useConversationGifHidden,
-  loadGifAnimateOnHoverOnlyIdentity,
-  useEffectiveGifAnimateOnHoverOnly,
-  saveConversationGifAnimateOnHoverOverride,
-} from '../../hooks/useGifPreference';
+import { loadShowMessageArtifacts } from '../../services/preKeyService';
 import { useAppConfig } from '../../config/PlatformContext';
 import { useMessageLayoutPreference } from '../../hooks/useMessageLayoutPreference';
 import { useMemberColorPreference } from '../../hooks/useMemberColorPreference';
-import { extractDomain } from '../../utils/urlParsing';
-import { isDomainTrusted } from '../../hooks/useExternalLinkPreferences';
 import { clearMediaCache } from '../../hooks/useE2EMediaDownload';
-import { endMessageSearchSessionAndWipeCache } from '../../services/messageSearch/messageSearchSessionEnd';
 import { ChatConnectionBanner } from '../../components/ChatConnectionBanner';
 import { useMessageAchievements } from '../../hooks/useMessageAchievements';
-import type { MemberSettingsMap } from '../../services/conversationCryptoService';
-import { MessageComposer, type MessageComposerHandle } from '../../components/composer';
-import { ConversationToolbar } from './ConversationToolbar';
-import { ConversationMessageSearchPanel } from './ConversationMessageSearch';
-import { ConversationSettingsSidebar } from './ConversationSettingsSidebar';
-import { ConversationMembersSidebar } from './ConversationMembersSidebar';
-import { ConversationDialogs } from './ConversationDialogs';
-import { ConversationMessageList } from './ConversationMessageList';
+import type { MessageComposerHandle } from '../../components/composer';
 import { useBlockContext } from '../../hooks/useBlockContext';
-import { useCallSession } from '../../hooks/useCallSession';
-import { useCall } from '../../hooks/useCall';
-import { ConversationCallButton } from '../../components/call/ConversationCallButton';
-import { ActiveCallBanner } from '../../components/call/ActiveCallBanner';
-import { CallTroubleshootModal } from '../../components/call/CallTroubleshootModal';
-import { forceEndCall as apiForceEndCall } from '../../services/callService';
 import { Icon } from '../../icons/Icon';
-import { Button } from '../../components/Button';
 import { useToast } from '../../components/Toast';
 import { useConversationPendingInvites } from '../../hooks/conversations/useConversationPendingInvites';
 import { useDmBlockedByOther } from '../../hooks/conversations/useDmBlockedByOther';
 import { useConversationReactionHandlers } from '../../hooks/conversations/useConversationReactionHandlers';
 import { useConversationComposerAdapter } from '../../hooks/conversations/useConversationComposerAdapter';
 import { useConversationScrollOrchestration } from '../../hooks/conversations/useConversationScrollOrchestration';
+import { useConversationCallState } from '../../hooks/conversations/useConversationCallState';
+import { useConversationSecurityState } from '../../hooks/conversations/useConversationSecurityState';
+import { useConversationAdminSettings } from '../../hooks/conversations/useConversationAdminSettings';
+import { useConversationPreferences } from '../../hooks/conversations/useConversationPreferences';
+import { useConversationDialogState } from '../../hooks/conversations/useConversationDialogState';
+import { useConversationMessageActions } from '../../hooks/conversations/useConversationMessageActions';
+import { useConversationFileDrop } from '../../hooks/conversations/useConversationFileDrop';
+import {
+  useConversationMessageSearchSession,
+  type ConversationPane,
+} from '../../hooks/conversations/useConversationMessageSearchSession';
 import {
   buildFlatChatItems,
   buildMessagesByIdMap,
@@ -70,15 +56,14 @@ import {
   mergePendingOutboxIntoFlatItems,
   resolveToolbarParticipantName,
 } from './conversationViewModel';
-import { ConversationPinsMenu } from './ConversationPinsMenu';
-import { resolveDisplayName } from './conversationUtils';
 import { useMediaOutbox, useMediaOutboxJobList } from '../../services/mediaOutbox';
-import { ConversationMediaOutboxMenu } from './ConversationMediaOutboxMenu';
-import { MemberSecurityModal } from './MemberSecurityModal';
 import { buildForwardSecrecyUiLabels } from './forwardSecrecyLabels';
-import { Tooltip } from '../../components/Tooltip';
 import { useMessageSearchCacheMode } from '../../hooks/useMessageSearchPreferences';
-import { parsePayload } from '../../services/messagePayload';
+import { ConversationHeader } from './ConversationHeader';
+import { ConversationMainPanel } from './ConversationMainPanel';
+import { ConversationSidebars } from './ConversationSidebars';
+import { ConversationCallSection } from './ConversationCallSection';
+import { ConversationOverlays } from './ConversationOverlays';
 
 export function ConversationView() {
   const { id } = useParams<{ id: string }>();
@@ -144,37 +129,25 @@ export function ConversationView() {
   } = useConversations();
 
   const messageLayoutKey = `${activeMessages[0]?.id ?? ''}:${activeMessages.length}`;
-
   const messageLayout = useMessageLayoutPreference();
   const memberColorDisplay = useMemberColorPreference();
   const { isBlocked: checkBlocked, unblock: unblockIdentity } = useBlockContext();
   const toast = useToast();
 
-  const {
-    fetchReactions,
-    addReaction,
-    removeReaction,
-    getGroupedReactions,
-  } = useReactions(id ?? null);
+  const { fetchReactions, addReaction, removeReaction, getGroupedReactions } = useReactions(id ?? null);
   const { favorites: favoriteEmojis, addFavorite, removeFavorite } = useFavoriteEmojis(identity?.id);
 
-  const {
-    scrollViewportRef,
-    messagesContentRef,
-    messagesContainerRef,
-    isAtBottomRef,
-    showScrollButton,
-    scrollToBottom,
-    scrollToBottomIfPinned,
-    markJustSent,
-    cachedScrollIndex,
-    onScrollViewportScroll,
-    onUserScrollIntent,
-  } = useConversationScroll({
+  // Shared with useConversationScroll: while a page-anchor restore owns the
+  // scroll position, its top-anchor correction stands down so the two do not
+  // fight and overshoot.
+  const historyAnchorActiveRef = useRef(false);
+
+  const scroll = useConversationScroll({
     conversationId: id,
     setIsAtBottom,
     markConversationRead,
     messageLayoutKey,
+    historyAnchorActiveRef,
   });
 
   const { registerConversationOutboxHooks } = useMediaOutbox();
@@ -182,210 +155,25 @@ export function ConversationView() {
 
   useEffect(() => {
     if (!id) return;
-    registerConversationOutboxHooks(id, { markJustSent, scrollToBottom });
+    registerConversationOutboxHooks(id, {
+      markJustSent: scroll.markJustSent,
+      scrollToBottom: scroll.scrollToBottom,
+    });
     return () => {
       registerConversationOutboxHooks(id, null);
     };
-  }, [id, markJustSent, scrollToBottom, registerConversationOutboxHooks]);
+  }, [id, scroll.markJustSent, scroll.scrollToBottom, registerConversationOutboxHooks]);
 
   useEffect(() => {
     if (!id) return;
     void fetchConversationById(id);
   }, [id, fetchConversationById]);
 
-  const [replyingTo, setReplyingTo] = useState<DisplayMessage | null>(null);
-  const [editingMessage, setEditingMessage] = useState<DisplayMessage | null>(null);
-  const [flashingMessageId, setFlashingMessageId] = useState<string | null>(null);
-  type ConversationPane = 'settings' | 'members' | 'search' | null;
-  const [activePane, setActivePane] = useState<ConversationPane>(null);
-  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
-  const [memberSecurityModal, setMemberSecurityModal] = useState<{ id: string; label: string } | null>(
-    null,
-  );
-
-  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
-  const [adminTransferOpen, setAdminTransferOpen] = useState(false);
-  const [pendingLinkHref, setPendingLinkHref] = useState<string | null>(null);
-  const [mediaOutboxOpen, setMediaOutboxOpen] = useState(false);
-  const hasMediaOutboxJobs = useMemo(
-    () => mediaOutboxJobs.some(
-      (j) =>
-        j.conversationId === id &&
-        j.stage !== 'completed' &&
-        j.stage !== 'cancelled',
-    ),
-    [mediaOutboxJobs, id],
-  );
-
-  const mentionInsertRef = useRef<((identityId: string) => void) | null>(null);
-  const composerRef = useRef<MessageComposerHandle | null>(null);
-  const handleMentionClick = useCallback((identityId: string) => {
-    mentionInsertRef.current?.(identityId);
-  }, []);
-
-  const handleLinkClick = useCallback((href: string) => {
-    const domain = extractDomain(href);
-    if (domain && isDomainTrusted(domain)) {
-      window.open(href, '_blank', 'noopener,noreferrer');
-    } else {
-      setPendingLinkHref(href);
-    }
-  }, []);
-  const [deleteGroupOpen, setDeleteGroupOpen] = useState(false);
-  const [inviteMemberOpen, setInviteMemberOpen] = useState(false);
-  const [leaving, setLeaving] = useState(false);
-  const [deletingGroup, setDeletingGroup] = useState(false);
-  const [renameValue, setRenameValue] = useState('');
-  const [renaming, setRenaming] = useState(false);
-
-  const resolveDefaultFs = useCallback(() => {
-    if (!id) return fsConfig.enabled;
-    const convOverride = loadConversationFsDefault(id);
-    return convOverride ?? fsConfig.enabled;
-  }, [id, fsConfig.enabled]);
-
-  const [useFs, setUseFs] = useState(resolveDefaultFs);
-  const [convFsOverride, setConvFsOverride] = useState<boolean | null>(() =>
-    id ? loadConversationFsDefault(id) : null
-  );
-
-  useEffect(() => {
-    if (id) {
-      const override = loadConversationFsDefault(id);
-      setConvFsOverride(override);
-      setUseFs(override ?? fsConfig.enabled);
-    }
-  }, [id, fsConfig.enabled]);
-
-  const handleConvFsToggle = useCallback((enabled: boolean) => {
-    if (!id) return;
-    setConvFsOverride(enabled);
-    saveConversationFsDefault(id, enabled);
-    setUseFs(enabled);
-  }, [id]);
-
   const { apiBaseUrl } = useAppConfig();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
 
-  const openMemberSecurity = useCallback((identityId: string, displayLabel: string) => {
-    setMemberSecurityModal({ id: identityId, label: displayLabel });
-  }, []);
-
-  const [peerPublicKeysById, setPeerPublicKeysById] = useState<Record<string, IdentityPublicKeys>>({});
-  const [verificationRevision, setVerificationRevision] = useState(0);
-  const bumpVerificationRevision = useCallback(() => {
-    setVerificationRevision((n) => n + 1);
-  }, []);
-
-  // Conversation-level key-change alert: set when any rendered message reveals
-  // that a previously verified device fingerprint no longer matches the
-  // sender's current keys. Per-message icons remain; this banner makes the
-  // first mismatch impossible to miss. Dismissal is per conversation view.
-  const [keyChangeAlertIdentityIds, setKeyChangeAlertIdentityIds] = useState<string[]>([]);
-  const [keyChangeAlertDismissed, setKeyChangeAlertDismissed] = useState(false);
-  useEffect(() => {
-    setKeyChangeAlertIdentityIds([]);
-    setKeyChangeAlertDismissed(false);
-  }, [id]);
-  const handleDeviceTrustMismatch = useCallback((identityId: string) => {
-    setKeyChangeAlertIdentityIds((prev) => {
-      if (prev.includes(identityId)) return prev;
-      setKeyChangeAlertDismissed(false);
-      return [...prev, identityId];
-    });
-  }, []);
-  const [gifVisibility] = useGifPreference(identity?.id ?? '');
-  const gifsGloballyDisabled = gifVisibility === 'disabled';
-  const [convGifHidden, setConvGifHidden] = useConversationGifHidden(id ?? '');
-  const effectiveGifAnimateOnHover = useEffectiveGifAnimateOnHoverOnly(identity?.id ?? '', id ?? '');
-
-  const handleGifAnimateOnHoverConversationToggle = useCallback(
-    (checked: boolean) => {
-      if (!id || !identity?.id) return;
-      saveConversationGifAnimateOnHoverOverride(
-        id,
-        checked,
-        loadGifAnimateOnHoverOnlyIdentity(identity.id),
-      );
-    },
-    [id, identity?.id],
-  );
-
-  const handleGifsDisabledByAdminToggle = useCallback(
-    async (disabled: boolean) => {
-      if (!id) return;
-      await updateGifsDisabled(id, disabled);
-    },
-    [id, updateGifsDisabled],
-  );
-
-  const handleGifContentFilterChange = useCallback(
-    async (filter: import('@adieuu/shared').GifContentFilter) => {
-      if (!id) return;
-      await updateGifContentFilter(id, filter);
-    },
-    [id, updateGifContentFilter],
-  );
-
-  const handleCustomEmojisDisabledByAdminToggle = useCallback(
-    async (disabled: boolean) => {
-      if (!id) return;
-      await updateCustomEmojisDisabled(id, disabled);
-    },
-    [id, updateCustomEmojisDisabled],
-  );
-
-  const handleMessageSearchCachePolicyToggle = useCallback(
-    async (disallow: boolean) => {
-      if (!id) return;
-      await updateMessageSearchCachePolicy(id, disallow);
-    },
-    [id, updateMessageSearchCachePolicy],
-  );
-
-  const handleAllowSkipModerationToggle = useCallback(
-    async (allow: boolean) => {
-      if (!id) return;
-      await updateAllowSkipModeration(id, allow);
-    },
-    [id, updateAllowSkipModeration],
-  );
-
-  const handleAudioCallsDisabledToggle = useCallback(
-    async (disabled: boolean) => {
-      if (!id) return;
-      await updateCallSettings(id, { audioCallsDisabled: disabled });
-    },
-    [id, updateCallSettings],
-  );
-
-  const handleVideoCallsDisabledToggle = useCallback(
-    async (disabled: boolean) => {
-      if (!id) return;
-      await updateCallSettings(id, { videoCallsDisabled: disabled });
-    },
-    [id, updateCallSettings],
-  );
-
-  const handleScreenshareDisabledToggle = useCallback(
-    async (disabled: boolean) => {
-      if (!id) return;
-      await updateCallSettings(id, { screenshareDisabled: disabled });
-    },
-    [id, updateCallSettings],
-  );
-
-  const handleToggleFs = useCallback(() => {
-    setUseFs((v) => !v);
-  }, []);
-
-  const handleRename = useCallback(async () => {
-    if (!id || !renameValue.trim() || renaming) return;
-    setRenaming(true);
-    await renameGroup(id, renameValue.trim());
-    setRenameValue('');
-    setRenaming(false);
-  }, [id, renameValue, renaming, renameGroup]);
+  const [activePane, setActivePane] = useState<ConversationPane>(null);
+  const [mediaOutboxOpen, setMediaOutboxOpen] = useState(false);
 
   const conversation = conversations.find((c) => c.id === id);
 
@@ -397,26 +185,6 @@ export function ConversationView() {
     const ms = Date.parse(iso);
     return Number.isFinite(ms) ? ms : null;
   }, [conversation?.participantJoinedAtByIdentityId, identity?.id]);
-
-  useEffect(() => {
-    setPeerPublicKeysById({});
-  }, [conversation?.id]);
-
-  useEffect(() => {
-    if (!conversation?.id) return;
-    let cancelled = false;
-    const participants = conversation.participants;
-    void Promise.all(
-      participants.map(async (pid) => {
-        const res = await api.identity.getPublicKeys(pid);
-        if (cancelled || !res.success || !res.data) return;
-        setPeerPublicKeysById((prev) => ({ ...prev, [pid]: res.data! }));
-      }),
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [conversation?.id, conversation?.participants.join(','), api.identity]);
 
   const {
     pendingInvites,
@@ -435,28 +203,51 @@ export function ConversationView() {
 
   const { blockedByOther, setBlockedByOther } = useDmBlockedByOther(api, conversation, identity?.id);
 
-  const callSession = useCallSession();
-  const conversationCall = useCall(id ?? null);
-  const [troubleshootOpen, setTroubleshootOpen] = useState(false);
+  const call = useConversationCallState({ conversationId: id, conversation, apiClient: api.client });
+  const security = useConversationSecurityState({
+    conversationId: id,
+    conversation,
+    identityApi: api.identity,
+  });
+  const adminSettings = useConversationAdminSettings({
+    conversationId: id,
+    updateGifsDisabled,
+    updateGifContentFilter,
+    updateCustomEmojisDisabled,
+    updateMessageSearchCachePolicy,
+    updateAllowSkipModeration,
+    updateCallSettings,
+  });
+  const prefs = useConversationPreferences({
+    conversationId: id,
+    identityId: identity?.id,
+    fsConfigEnabled: fsConfig.enabled,
+  });
+  const dialogs = useConversationDialogState({
+    conversationId: id,
+    conversation,
+    identityId: identity?.id,
+    navigate,
+    memberSettings,
+    leaveGroup,
+    terminateGroup,
+    promoteToAdmin,
+    removeMember,
+    renameGroup,
+    updateMemberSettings,
+  });
+  const messageActions = useConversationMessageActions({
+    conversationId: id,
+    deleteMessage,
+    pinMessage,
+    unpinMessage,
+  });
 
-  const handleForceEndCall = useCallback(async () => {
-    const callId = conversationCall.activeCall?.id;
-    if (!id || !callId) return false;
-    try {
-      const result = await apiForceEndCall(api.client, id, callId);
-      if (result.success) {
-        toast.success(t('call.forceEndSuccess'));
-        conversationCall.refetch();
-        return true;
-      }
-      toast.error(t('call.forceEndFailed'));
-      return false;
-    } catch (err) {
-      console.warn('[ConversationView] force end call failed', err);
-      toast.error(t('call.forceEndFailed'));
-      return false;
-    }
-  }, [id, conversationCall.activeCall?.id, api.client, toast, t, conversationCall.refetch]);
+  const composerRef = useRef<MessageComposerHandle | null>(null);
+  const mentionInsertRef = useRef<((identityId: string) => void) | null>(null);
+  const handleMentionClick = useCallback((identityId: string) => {
+    mentionInsertRef.current?.(identityId);
+  }, []);
 
   const activeMessagesRef = useRef(activeMessages);
   activeMessagesRef.current = activeMessages;
@@ -464,41 +255,16 @@ export function ConversationView() {
   const conversationRef = useRef(conversation);
   conversationRef.current = conversation;
 
-  const [messageSearchSessionActive, setMessageSearchSessionActive] = useState(false);
   const [messageSearchCacheMode] = useMessageSearchCacheMode(identity?.id ?? '');
   const [headlinePinMessageId, setHeadlinePinMessageId] = useState<string | null>(null);
 
-  const handleMessageSearchEndSession = useCallback(() => {
-    setMessageSearchSessionActive(false);
-    setActivePane((prev) => (prev === 'search' ? null : prev));
-  }, []);
-
-  const handleToggleMessageSearch = useCallback(() => {
-    if (!messageSearchSessionActive) {
-      setMessageSearchSessionActive(true);
-      setActivePane('search');
-      return;
-    }
-    if (activePane !== 'search') {
-      setActivePane('search');
-      return;
-    }
-    if (id && identity?.id) {
-      endMessageSearchSessionAndWipeCache({
-        identityId: identity.id,
-        conversationId: id,
-        adminDisallowPersistentCache: conversation?.disallowPersistentMessageSearchCache ?? false,
-      });
-    }
-    handleMessageSearchEndSession();
-  }, [
-    messageSearchSessionActive,
+  const search = useConversationMessageSearchSession({
+    conversationId: id,
+    identityId: identity?.id,
+    adminDisallowPersistentCache: conversation?.disallowPersistentMessageSearchCache ?? false,
     activePane,
-    id,
-    identity?.id,
-    conversation?.disallowPersistentMessageSearchCache,
-    handleMessageSearchEndSession,
-  ]);
+    setActivePane,
+  });
 
   const showArtifacts = identity ? loadShowMessageArtifacts(identity.id) : false;
 
@@ -513,24 +279,21 @@ export function ConversationView() {
   );
 
   const {
-    fetchedReactionMessageIdsRef,
     handleReact,
     handleToggleReaction,
   } = useConversationReactionHandlers({
     conversationId: id,
     conversation,
     activeMessages,
-    fetchReactions,
     addReaction,
     removeReaction,
     fetchRecipientKeys,
-    scrollToBottomIfPinned,
+    scrollToBottomIfPinned: scroll.scrollToBottomIfPinned,
   });
 
   useEffect(() => {
     if (id && id !== activeConversationId) {
       setActiveConversation(id);
-      fetchedReactionMessageIdsRef.current.clear();
     }
   }, [id, activeConversationId, setActiveConversation]);
 
@@ -577,54 +340,11 @@ export function ConversationView() {
     return dmBlocked || blockedByOther;
   }, [conversation, headerCopy, checkBlocked, blockedByOther]);
 
-  const [conversationDropActive, setConversationDropActive] = useState(false);
-
-  useEffect(() => {
-    setConversationDropActive(false);
-  }, [id]);
-
-  const handleConversationDragEnter = useCallback(
-    (e: DragEvent) => {
-      if (composerInteractionDisabled) return;
-      if (![...e.dataTransfer.types].includes('Files')) return;
-      e.preventDefault();
-      setConversationDropActive(true);
-    },
-    [composerInteractionDisabled],
-  );
-
-  const handleConversationDragLeave = useCallback(
-    (e: DragEvent) => {
-      if (composerInteractionDisabled) return;
-      const related = e.relatedTarget as Node | null;
-      if (related && (e.currentTarget as HTMLElement).contains(related)) return;
-      setConversationDropActive(false);
-    },
-    [composerInteractionDisabled],
-  );
-
-  const handleConversationDragOver = useCallback(
-    (e: DragEvent) => {
-      if (composerInteractionDisabled) return;
-      if (![...e.dataTransfer.types].includes('Files')) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'copy';
-    },
-    [composerInteractionDisabled],
-  );
-
-  const handleConversationDrop = useCallback(
-    (e: DragEvent) => {
-      if (composerInteractionDisabled) return;
-      e.preventDefault();
-      setConversationDropActive(false);
-      const { files } = e.dataTransfer;
-      if (files?.length) {
-        composerRef.current?.addMediaFiles(files);
-      }
-    },
-    [composerInteractionDisabled],
-  );
+  const fileDrop = useConversationFileDrop({
+    conversationId: id,
+    composerInteractionDisabled,
+    composerRef,
+  });
 
   const toolbarAvatarMembers = useMemo(() => {
     if (!conversation) return [];
@@ -685,13 +405,17 @@ export function ConversationView() {
     [reversedMessages, unreadCount, expiryTick, id, mediaOutboxJobs]
   );
 
-  const {
-    handleReachOlder,
-    handleReachNewer,
-    handleJumpToLatest,
-    scrollToMessageId,
-    resetScrollRefsOnConversationIdChange,
-  } = useConversationScrollOrchestration({
+  // Viewport-scoped reaction fetch: request reactions only for message rows that
+  // scroll into view, instead of bulk-fetching every loaded message on each
+  // buffer change.
+  useViewportReactionFetch({
+    entityId: id,
+    scrollViewportRef: scroll.scrollViewportRef,
+    fetchReactions,
+    ready: flatItems.length > 0 && id === activeConversationId,
+  });
+
+  const scrollOrchestration = useConversationScrollOrchestration({
     conversationId: id,
     activeConversationId,
     messageLayoutKey,
@@ -704,17 +428,19 @@ export function ConversationView() {
     loadOlder,
     loadNewer,
     jumpToLatestMessages,
-    scrollViewportRef,
-    messagesContentRef,
-    isAtBottomRef,
-    scrollToBottom,
+    scrollViewportRef: scroll.scrollViewportRef,
+    messagesContentRef: scroll.messagesContentRef,
+    isAtBottomRef: scroll.isAtBottomRef,
+    scrollToBottom: scroll.scrollToBottom,
     setIsAtBottom,
-    cachedScrollIndex,
+    pinToBottom: scroll.pinToBottom,
+    historyAnchorActiveRef,
+    cachedScrollIndex: scroll.cachedScrollIndex,
     fetchMessagesAround,
     searchParams,
     setSearchParams,
     openSettings: useCallback(() => setActivePane('settings'), []),
-    setFlashingMessageId,
+    setFlashingMessageId: messageActions.setFlashingMessageId,
     activeMessagesRef,
   });
 
@@ -727,26 +453,22 @@ export function ConversationView() {
       <button
         type="button"
         className="conversation-toolbar-subtitle conversation-toolbar-subtitle--latest-pin"
-        onClick={() => void scrollToMessageId(headlinePinMessageId)}
+        onClick={() => void scrollOrchestration.scrollToMessageId(headlinePinMessageId)}
         title={t('conversations.headerLatestPinTooltip', 'Open the newest pinned message (by send time)')}
       >
         <Icon name="locationPin" size="sm" aria-hidden />
         <span className="conversation-toolbar-subtitle-latest-pin-text">{text}</span>
       </button>
     );
-  }, [headerCopy, headlinePinMessageId, messagesById, t, scrollToMessageId]);
+  }, [headerCopy, headlinePinMessageId, messagesById, t, scrollOrchestration.scrollToMessageId]);
 
   useEffect(() => {
-    setReplyingTo(null);
-    setFlashingMessageId(null);
-    resetScrollRefsOnConversationIdChange();
+    messageActions.setReplyingTo(null);
+    messageActions.setFlashingMessageId(null);
+    scrollOrchestration.resetScrollRefsOnConversationIdChange();
     clearMediaCache();
-  }, [id, resetScrollRefsOnConversationIdChange]);
-
-  useEffect(() => {
-    setMessageSearchSessionActive(false);
-    setActivePane(null);
-  }, [id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, scrollOrchestration.resetScrollRefsOnConversationIdChange]);
 
   useEffect(() => {
     if (!id) return;
@@ -761,149 +483,19 @@ export function ConversationView() {
     }
   }, [id, flatItems, messagesById, ensureReplyParentHydration]);
 
-  const handleLeaveClick = useCallback(() => {
-    if (!conversation) return;
-    const isAdmin = identity?.id && conversation.admins.includes(identity.id);
-    const otherAdmins = conversation.admins.filter((a) => a !== identity?.id);
-    const isSoleMember = conversation.participants.length <= 1;
-
-    if (isAdmin && otherAdmins.length === 0 && !isSoleMember) {
-      setAdminTransferOpen(true);
-    } else {
-      setLeaveConfirmOpen(true);
-    }
-  }, [conversation, identity?.id]);
-
-  const handleLeaveConfirm = useCallback(async () => {
-    if (!id) return;
-    setLeaving(true);
-    const left = await leaveGroup(id);
-    setLeaving(false);
-    setLeaveConfirmOpen(false);
-    if (left) navigate('/');
-  }, [id, leaveGroup, navigate]);
-
-  const handleAdminTransferLeave = useCallback(
-    async (options: { transferAdminTo?: string; transferStrategy?: 'oldest' | 'most_active' }) => {
-      if (!id) return;
-      setLeaving(true);
-      const left = await leaveGroup(id, options);
-      setLeaving(false);
-      setAdminTransferOpen(false);
-      if (left) navigate('/');
-    },
-    [id, leaveGroup, navigate]
+  const hasMediaOutboxJobs = useMemo(
+    () => mediaOutboxJobs.some(
+      (j) =>
+        j.conversationId === id &&
+        j.stage !== 'completed' &&
+        j.stage !== 'cancelled',
+    ),
+    [mediaOutboxJobs, id],
   );
-
-  const handleDeleteGroup = useCallback(async () => {
-    if (!id) return;
-    setDeletingGroup(true);
-    const deleted = await terminateGroup(id);
-    setDeletingGroup(false);
-    setDeleteGroupOpen(false);
-    if (deleted) navigate('/');
-  }, [id, terminateGroup, navigate]);
-
-  const handlePromoteToAdmin = useCallback(
-    async (memberId: string) => {
-      if (!id) return;
-      await promoteToAdmin(id, memberId);
-    },
-    [id, promoteToAdmin]
-  );
-
-  const handleRemoveMember = useCallback(
-    async (memberId: string) => {
-      if (!id) return;
-      await removeMember(id, memberId);
-    },
-    [id, removeMember]
-  );
-
-  const closeMemberEdit = useCallback(() => {
-    setEditingMemberId(null);
-  }, []);
-
-  const saveMemberEdit = useCallback(async (memberId: string, nickname: string, color: string | undefined) => {
-    if (!id) return;
-    const updated: MemberSettingsMap = { ...memberSettings };
-    const trimmed = nickname.trim();
-    if (trimmed || color) {
-      updated[memberId] = {
-        ...(trimmed ? { nickname: trimmed } : {}),
-        ...(color ? { color } : {}),
-      };
-    } else {
-      delete updated[memberId];
-    }
-    await updateMemberSettings(id, updated);
-    closeMemberEdit();
-  }, [id, memberSettings, updateMemberSettings, closeMemberEdit]);
-
-  const handleDeleteMessage = useCallback(
-    (messageId: string, forEveryone: boolean) => {
-      if (!id) return;
-      deleteMessage(id, messageId, forEveryone);
-    },
-    [id, deleteMessage]
-  );
-
-  const handlePinMessage = useCallback(
-    async (messageId: string) => {
-      if (!id) return;
-      const ok = await pinMessage(id, messageId);
-      if (!ok) toast.error(t('conversations.pinFailed', 'Could not pin message'));
-    },
-    [id, pinMessage, toast, t]
-  );
-
-  const handleUnpinMessage = useCallback(
-    async (messageId: string) => {
-      if (!id) return;
-      const ok = await unpinMessage(id, messageId);
-      if (!ok) toast.error(t('conversations.unpinFailed', 'Could not unpin message'));
-    },
-    [id, unpinMessage, toast, t]
-  );
-
-  const [reportModalOpen, setReportModalOpen] = useState(false);
-  const [reportTargetMessageId, setReportTargetMessageId] = useState<string | undefined>();
-
-  const handleReportMessage = useCallback(
-    (messageId: string) => {
-      setReportTargetMessageId(messageId);
-      setReportModalOpen(true);
-    },
-    []
-  );
-
-  const handleStartEdit = useCallback(
-    (msg: DisplayMessage) => {
-      setReplyingTo(null);
-      setEditingMessage(msg);
-    },
-    []
-  );
-
-  const onEditMaxReached = useCallback(() => {
-    toast.error(t('conversations.messageEditMax'));
-  }, [t, toast]);
 
   const checkMessageAchievements = useMessageAchievements();
 
-  const editingInitialPlaintext = useMemo(() => {
-    if (!editingMessage?.decryptedContent) return '';
-    return parsePayload(editingMessage.decryptedContent).text;
-  }, [editingMessage]);
-
-  const editingInitialAttachments = useMemo(() => {
-    if (!editingMessage?.decryptedContent) return undefined;
-    const parsed = parsePayload(editingMessage.decryptedContent);
-    if (parsed.attachments.length === 0 && parsed.gifAttachments.length === 0) return undefined;
-    return { media: parsed.attachments, gifs: parsed.gifAttachments };
-  }, [editingMessage]);
-
-  const { composerSend, composerReplyContext, composerMentionSource, composerPageTagSource } = useConversationComposerAdapter({
+  const composerAdapter = useConversationComposerAdapter({
     conversationId: id,
     identityId: identity?.id,
     conversation,
@@ -913,20 +505,20 @@ export function ConversationView() {
     sendTextMessage,
     checkMessageAchievements,
     jumpToLatestMessages,
-    scrollToBottom,
-    markJustSent,
+    scrollToBottom: scroll.scrollToBottom,
+    markJustSent: scroll.markJustSent,
     setIsAtBottom,
     setBlockedByOther,
-    replyingTo,
-    setReplyingTo,
-    editingMessage,
-    setEditingMessage,
+    replyingTo: messageActions.replyingTo,
+    setReplyingTo: messageActions.setReplyingTo,
+    editingMessage: messageActions.editingMessage,
+    setEditingMessage: messageActions.setEditingMessage,
     editTextMessage,
-    onEditMaxReached,
+    onEditMaxReached: messageActions.onEditMaxReached,
     participantProfiles,
     memberSettings,
     t,
-    scrollToMessageId,
+    scrollToMessageId: scrollOrchestration.scrollToMessageId,
   });
 
   if (!conversation) {
@@ -955,493 +547,160 @@ export function ConversationView() {
 
   const canManagePinsUi = canManageConversationPinsView(conversation, identity?.id);
 
-  const audioAllowed = !(conversation.audioCallsDisabled ?? false);
-
-  const isInCallElsewhere =
-    callSession.activeSession !== null &&
-    callSession.activeSession.conversationId !== id;
-  const isInCallHere =
-    callSession.activeSession !== null &&
-    callSession.activeSession.conversationId === id;
-
-  const hasActiveCallToJoin =
-    conversationCall.activeCall !== null && !conversationCall.isInCall && !isInCallHere;
-
-  // Ghost state: server thinks we're in the call, but we have no local
-  // LiveKit session. This happens when the client disconnected without
-  // successfully leaving the call on the server.
-  const isGhostParticipant =
-    conversationCall.activeCall !== null && conversationCall.isInCall && !isInCallHere;
-
-  const showCallBanner = hasActiveCallToJoin || isGhostParticipant;
-
   return (
     <div className="conversation-page">
-        <div className="conversation-container">
-          <ConversationToolbar
+      <div className="conversation-container">
+        <ConversationHeader
+          conversation={conversation}
+          identity={identity}
+          t={t}
+          displayName={displayName}
+          avatarMembers={toolbarAvatarMembers}
+          subtitle={toolbarSubtitle}
+          isDmBlocked={isDmBlocked}
+          blockedByOther={blockedByOther}
+          audioAllowed={call.audioAllowed}
+          isInCallElsewhere={call.isInCallElsewhere}
+          isInCallHere={call.isInCallHere}
+          onStartCall={() =>
+            id && call.callSession.requestStartCall(id, { audio: true, video: false, screenshare: false })
+          }
+          canManagePins={canManagePinsUi}
+          participantProfiles={participantProfiles}
+          memberSettings={memberSettings}
+          messagesById={messagesById}
+          memberColorDisplay={memberColorDisplay}
+          loadPinnedMessagesPage={loadPinnedMessagesPage}
+          scrollToMessageId={scrollOrchestration.scrollToMessageId}
+          onUnpin={messageActions.handleUnpinMessage}
+          ensureReplyParentHydration={ensureReplyParentHydration}
+          prefs={prefs}
+          mediaOutboxOpen={mediaOutboxOpen}
+          setMediaOutboxOpen={setMediaOutboxOpen}
+          hasMediaOutboxJobs={hasMediaOutboxJobs}
+          onOpenMemberSecurity={security.openMemberSecurity}
+          messageSearchSessionActive={search.messageSearchSessionActive}
+          onToggleMessageSearch={search.handleToggleMessageSearch}
+          activePane={activePane}
+          setActivePane={setActivePane}
+          canDeleteConversation={canDeleteConversation}
+          onDeleteGroup={() => dialogs.setDeleteGroupOpen(true)}
+          onLeave={dialogs.handleLeaveClick}
+        />
+
+        <ChatConnectionBanner />
+
+        <ConversationCallSection conversationId={id} call={call} />
+
+        <div className={`conversation-body${call.isInCallHere ? ' conversation-body--in-call' : ''}`}>
+          <ConversationMainPanel
+            conversationId={conversation.id}
+            activeConversationId={activeConversationId}
+            conversation={conversation}
+            identity={identity}
+            participantProfiles={participantProfiles}
+            memberSettings={memberSettings}
             displayName={displayName}
-            avatarMembers={toolbarAvatarMembers}
-            subtitle={toolbarSubtitle!}
-            callSlot={
-              audioAllowed && !isDmBlocked && !blockedByOther ? (
-                <ConversationCallButton
-                  disabled={isInCallElsewhere}
-                  disabledReason={isInCallElsewhere ? t('call.alreadyInCall') : undefined}
-                  inCallForThisConversation={isInCallHere}
-                  onStartCall={() => id && callSession.requestStartCall(id, { audio: true, video: false, screenshare: false })}
-                  onFocusOverlay={undefined}
-                />
-              ) : undefined
-            }
-            showCallInMenu={audioAllowed && !isDmBlocked && !blockedByOther}
-            onCallMenuClick={() => id && callSession.requestStartCall(id, { audio: true, video: false, screenshare: false })}
-            callMenuDisabled={isInCallElsewhere && !isInCallHere}
-            callMenuLabel={isInCallHere ? t('call.active') : t('call.startCall')}
-            pinsSlot={
-              <ConversationPinsMenu
-                conversationId={conversation.id}
-                pinnedCount={conversation.pinnedMessageIds?.length ?? 0}
-                pinnedMessageIdsKey={(conversation.pinnedMessageIds ?? []).join(',')}
-                loadPinnedMessagesPage={loadPinnedMessagesPage}
-                scrollToMessageId={scrollToMessageId}
-                onUnpin={handleUnpinMessage}
-                canUnpin={canManagePinsUi}
-                participantProfiles={participantProfiles}
-                memberSettings={memberSettings}
-                messagesById={messagesById}
-                ensureReplyParentHydration={ensureReplyParentHydration}
-                identity={identity ?? undefined}
-                memberColorDisplay={memberColorDisplay}
-                gifsEnabled={
-                  !(conversation.gifsDisabled ?? false) && !convGifHidden && !gifsGloballyDisabled
-                }
-                gifAnimateOnHoverOnly={effectiveGifAnimateOnHover}
-              />
-            }
-            mediaJobsSlot={
-              <ConversationMediaOutboxMenu
-                conversationId={conversation.id}
-                externalOpen={mediaOutboxOpen}
-                onExternalOpenChange={setMediaOutboxOpen}
-              />
-            }
-            deviceSignaturesSlot={
-              identity?.id ? (
-                <Tooltip
-                  content={t('conversations.memberSecurity.toolbarTooltip', 'Open your device signatures for this conversation')}
-                  position="bottom"
-                >
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    type="button"
-                    className="conversation-toolbar-btn conversation-toolbar-btn--icon-only"
-                    onClick={() => openMemberSecurity(identity.id, t('conversations.you', 'You'))}
-                    aria-label={t('conversations.memberSecurity.toolbarAria', 'Device signatures')}
-                  >
-                    <span className="conversation-toolbar-btn-icon" aria-hidden>
-                      <Icon name="key" size="sm" />
-                    </span>
-                  </Button>
-                </Tooltip>
-              ) : null
-            }
-            searchSlot={
-              <Tooltip
-                content={
-                  messageSearchSessionActive
-                    ? t('conversations.messageSearch.endSearch', 'End search')
-                    : t('conversations.messageSearch.toolbarAria', 'Search messages')
-                }
-                position="bottom"
-              >
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  type="button"
-                  className={`conversation-toolbar-btn conversation-toolbar-btn--icon-only${messageSearchSessionActive ? ' active' : ''}`}
-                  onClick={handleToggleMessageSearch}
-                  aria-label={
-                    messageSearchSessionActive
-                      ? t('conversations.messageSearch.endSearch', 'End search')
-                      : t('conversations.messageSearch.toolbarAria', 'Search messages')
-                  }
-                  aria-pressed={messageSearchSessionActive}
-                >
-                  <span className="conversation-toolbar-btn-icon" aria-hidden>
-                    <Icon name="search" size="sm" />
-                  </span>
-                </Button>
-              </Tooltip>
-            }
-            showSettings={activePane === 'settings'}
-            onToggleSettings={() => {
-              setActivePane((prev) => (prev === 'settings' ? null : 'settings'));
-            }}
-            showMembers={activePane === 'members'}
-            onToggleMembers={() => {
-              setActivePane((prev) => (prev === 'members' ? null : 'members'));
-            }}
-            isGroup={conversation.type === 'group'}
-            canDeleteConversation={canDeleteConversation}
-            onDeleteGroup={() => setDeleteGroupOpen(true)}
-            onLeave={handleLeaveClick}
-            onToggleSearch={handleToggleMessageSearch}
-            isSearchActive={messageSearchSessionActive}
-            onToggleMediaOutbox={() => setMediaOutboxOpen((v) => !v)}
-            hasMediaOutboxJobs={hasMediaOutboxJobs}
-            onOpenDeviceSignatures={
-              identity?.id
-                ? () => openMemberSecurity(identity.id, t('conversations.you', 'You'))
-                : undefined
-            }
-            hasDeviceSignatures={!!identity?.id}
+            flatItems={flatItems}
+            messagesLoading={messagesLoading}
+            reversedMessagesLength={reversedMessages.length}
+            messagesById={messagesById}
+            unreadCount={unreadCount}
+            fsInfo={fsInfo}
+            lastMessageText={lastMessageText}
+            messageLayout={messageLayout}
+            memberColorDisplay={memberColorDisplay}
+            favoriteEmojis={favoriteEmojis}
+            customEmojis={composerCustomEmojis}
+            isFreeTier={isFreeTier}
+            hasMoreOlder={!!activeMessagesOlderCursor}
+            hasNewerPages={activeMessagesHasNewerPages}
+            showManualLoadOlder={activeShowManualLoadOlder}
+            showManualLoadNewer={activeShowManualLoadNewer}
+            onManualLoadOlder={scrollOrchestration.handleReachOlder}
+            onManualLoadNewer={scrollOrchestration.handleReachNewer}
+            canManagePins={canManagePinsUi}
+            sending={sending}
+            composerRef={composerRef}
+            mentionInsertRef={mentionInsertRef}
+            isDmBlocked={isDmBlocked}
+            blockedByOther={blockedByOther}
+            otherParticipants={otherParticipants}
+            onUnblock={unblockIdentity}
+            onUnblockSuccess={() => toast.success(t('blocked.userUnblocked'))}
+            onUnblockError={(message) => toast.error(message)}
+            getGroupedReactions={getGroupedReactions}
+            onReact={handleReact}
+            onToggleReaction={handleToggleReaction}
+            onAddFavorite={addFavorite}
+            onRemoveFavorite={removeFavorite}
+            onMentionClick={handleMentionClick}
+            onLinkClick={dialogs.handleLinkClick}
+            t={t}
+            scroll={scroll}
+            scrollOrchestration={scrollOrchestration}
+            fileDrop={fileDrop}
+            messageActions={messageActions}
+            security={security}
+            prefs={prefs}
+            composerAdapter={composerAdapter}
           />
 
-          <ChatConnectionBanner />
-
-          {showCallBanner && conversationCall.activeCall && (
-            <ActiveCallBanner
-              participantCount={conversationCall.participants.length}
-              participants={conversationCall.participants}
-              isGhostState={isGhostParticipant}
-              onJoin={() => {
-                if (id && conversationCall.activeCall) {
-                  callSession.requestJoinCall(
-                    id,
-                    conversationCall.activeCall.id,
-                    { audio: true, video: false, screenshare: false },
-                  );
-                }
-              }}
-              onTroubleshoot={() => setTroubleshootOpen(true)}
-            />
-          )}
-
-          <CallTroubleshootModal
-            open={troubleshootOpen}
-            onOpenChange={setTroubleshootOpen}
-            onForceEnd={handleForceEndCall}
-          />
-
-          <div className={`conversation-body${isInCallHere ? ' conversation-body--in-call' : ''}`}>
-            {/* biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop event delegation for file attachment */}
-            <div
-              className="conversation-main conversation-main-drop-target"
-              onDragEnter={handleConversationDragEnter}
-              onDragLeave={handleConversationDragLeave}
-              onDragOver={handleConversationDragOver}
-              onDrop={handleConversationDrop}
-            >
-            {conversationDropActive ? (
-              <div className="conversation-main-drop-overlay" aria-hidden>
-                <Icon name="upload" className="conversation-main-drop-overlay__icon" />
-                <span className="conversation-main-drop-overlay__title">
-                  {t('conversations.dropFilesToAttach', 'Drop to attach')}
-                </span>
-                <span className="conversation-main-drop-overlay__hint">
-                  {t('conversations.dropFilesToAttachHint', 'Images and videos you can send in chat')}
-                </span>
-              </div>
-            ) : null}
-            <ConversationMessageList
-              conversationId={id}
-              activeConversationId={activeConversationId}
-              flatItems={flatItems}
-              messagesLoading={messagesLoading}
-              reversedMessagesLength={reversedMessages.length}
-              messagesById={messagesById}
-              identity={identity}
-              participantProfiles={participantProfiles}
-              memberSettings={memberSettings}
-              messageLayout={messageLayout}
-              memberColorDisplay={memberColorDisplay}
-              favoriteEmojis={favoriteEmojis}
-              fsInfo={fsInfo}
-              flashingMessageId={flashingMessageId}
-              getGroupedReactions={getGroupedReactions}
-              onDeleteMessage={handleDeleteMessage}
-              onReact={handleReact}
-              onToggleReaction={handleToggleReaction}
-              onReportMessage={handleReportMessage}
-              onAddFavorite={addFavorite}
-              onRemoveFavorite={removeFavorite}
-              onReply={setReplyingTo}
-              onStartEdit={handleStartEdit}
-              onLinkClick={handleLinkClick}
-              onMentionClick={handleMentionClick}
-              scrollToMessageId={scrollToMessageId}
-              showScrollButton={showScrollButton}
-              unreadCount={unreadCount}
-              onJumpToLatest={handleJumpToLatest}
-              scrollViewportRef={scrollViewportRef}
-              messagesContentRef={messagesContentRef}
-              messagesContainerRef={messagesContainerRef}
-              onScrollViewportScroll={onScrollViewportScroll}
-              onUserScrollIntent={onUserScrollIntent}
-              cachedScrollIndex={cachedScrollIndex}
-              hasMoreOlder={!!activeMessagesOlderCursor}
-              onReachOlder={handleReachOlder}
-              hasNewerPages={activeMessagesHasNewerPages}
-              onReachNewer={handleReachNewer}
-              showManualLoadOlder={activeShowManualLoadOlder}
-              showManualLoadNewer={activeShowManualLoadNewer}
-              onManualLoadOlder={() => void loadOlder()}
-              onManualLoadNewer={() => void loadNewer()}
-              t={t as any}
-              gifsDisabledByAdmin={conversation.gifsDisabled ?? false}
-              customEmojisDisabledByAdmin={conversation.customEmojisDisabled === true}
-              pinnedMessageIds={conversation.pinnedMessageIds ?? []}
-              canManagePins={canManagePinsUi}
-              onPinMessage={handlePinMessage}
-              onUnpinMessage={handleUnpinMessage}
-              onOpenMemberSecurity={openMemberSecurity}
-              onDeviceTrustMismatch={handleDeviceTrustMismatch}
-              peerPublicKeysById={peerPublicKeysById}
-              verificationRevision={verificationRevision}
-              customEmojis={composerCustomEmojis}
-              isFreeTier={isFreeTier}
-            />
-
-            {keyChangeAlertIdentityIds.length > 0 && !keyChangeAlertDismissed && (
-              <div className="key-change-alert-banner" role="alert">
-                <Icon name="error" />
-                <span>
-                  {t(
-                    'conversations.memberSecurity.keyChangeBanner',
-                    '{{names}} may have changed devices or keys. Review their device fingerprints before sharing sensitive information.',
-                    {
-                      names: keyChangeAlertIdentityIds
-                        .map((pid) =>
-                          resolveDisplayName(pid, participantProfiles, memberSettings, identity?.id, t)
-                        )
-                        .join(', '),
-                    },
-                  )}
-                </span>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    const firstId = keyChangeAlertIdentityIds[0]!;
-                    openMemberSecurity(
-                      firstId,
-                      resolveDisplayName(firstId, participantProfiles, memberSettings, identity?.id, t),
-                    );
-                  }}
-                >
-                  {t('conversations.memberSecurity.reviewFingerprints', 'Review')}
-                </Button>
-                <button
-                  type="button"
-                  className="key-change-alert-banner__dismiss"
-                  onClick={() => setKeyChangeAlertDismissed(true)}
-                  aria-label={t('common.dismiss', 'Dismiss')}
-                >
-                  <Icon name="x" />
-                </button>
-              </div>
-            )}
-
-            {isDmBlocked && (
-              <div className="blocked-conversation-banner">
-                <Icon name="ban" />
-                <span>{t('blocked.blockedBanner')}</span>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={async () => {
-                    const result = await unblockIdentity(otherParticipants[0]!);
-                    if (result.success) {
-                      toast.success(t('blocked.userUnblocked'));
-                    } else {
-                      toast.error(result.error ?? t('blocked.unblock'));
-                    }
-                  }}
-                >
-                  {t('blocked.unblock')}
-                </Button>
-              </div>
-            )}
-            {blockedByOther && !isDmBlocked && (
-              <div className="blocked-conversation-banner">
-                <Icon name="ban" />
-                <span>{t('blocked.blockedByOtherBanner')}</span>
-              </div>
-            )}
-            <MessageComposer
-              ref={composerRef}
-              channelId={id!}
-              sending={sending}
-              onSend={composerSend}
-              forwardSecrecy={{ enabled: useFs, onToggle: handleToggleFs }}
-              replyContext={editingMessage ? null : composerReplyContext}
-              mentionSource={composerMentionSource}
-              pageTagSource={composerPageTagSource}
-              placeholderTarget={displayName}
-              mentionInsertRef={mentionInsertRef}
-              gifsDisabled={(conversation.gifsDisabled ?? false) || convGifHidden || gifsGloballyDisabled}
-              lastMessageText={lastMessageText}
-              disabled={isDmBlocked || blockedByOther}
-              customEmojis={composerCustomEmojis}
-              customEmojisDisabled={conversation.customEmojisDisabled === true}
-              editContext={
-                editingMessage
-                  ? {
-                      messageId: editingMessage.id,
-                      clientMessageId: editingMessage.clientMessageId,
-                      onCancel: () => setEditingMessage(null),
-                    }
-                  : null
-              }
-              editingMessageKey={editingMessage?.id ?? null}
-              editingInitialPlaintext={editingInitialPlaintext}
-              editingInitialAttachments={editingInitialAttachments}
-              allowSkipModeration={conversation.allowSkipModeration === true}
-            />
-          </div>
-
-          {activePane === 'settings' && (
-            <ConversationSettingsSidebar
-              isGroup={conversation.type === 'group'}
-              isAdmin={isCurrentUserAdmin}
-              renameValue={renameValue}
-              onRenameValueChange={setRenameValue}
-              currentGroupName={conversation.decryptedName}
-              renaming={renaming}
-              onRename={handleRename}
-              fsEnabled={convFsOverride ?? fsConfig.enabled}
-              onFsToggle={handleConvFsToggle}
-              memberColorDisplay={memberColorDisplay}
-              gifsDisabledByAdmin={conversation.gifsDisabled ?? false}
-              onGifsDisabledByAdminToggle={handleGifsDisabledByAdminToggle}
-              gifContentFilter={conversation.gifContentFilter}
-              onGifContentFilterChange={handleGifContentFilterChange}
-              customEmojisDisabledByAdmin={conversation.customEmojisDisabled ?? false}
-              onCustomEmojisDisabledByAdminToggle={handleCustomEmojisDisabledByAdminToggle}
-              disallowPersistentMessageSearchCache={conversation.disallowPersistentMessageSearchCache ?? false}
-              onMessageSearchCachePolicyToggle={handleMessageSearchCachePolicyToggle}
-              allowSkipModeration={conversation.allowSkipModeration ?? false}
-              onAllowSkipModerationToggle={handleAllowSkipModerationToggle}
-              audioCallsDisabled={conversation.audioCallsDisabled ?? false}
-              onAudioCallsDisabledToggle={handleAudioCallsDisabledToggle}
-              videoCallsDisabled={conversation.videoCallsDisabled ?? false}
-              onVideoCallsDisabledToggle={handleVideoCallsDisabledToggle}
-              screenshareDisabled={conversation.screenshareDisabled ?? false}
-              onScreenshareDisabledToggle={handleScreenshareDisabledToggle}
-              gifsHiddenForMe={convGifHidden}
-              onGifsHiddenForMeToggle={gifsGloballyDisabled ? undefined : setConvGifHidden}
-              gifAnimateOnHoverOnly={effectiveGifAnimateOnHover}
-              onGifAnimateOnHoverOnlyToggle={
-                gifsGloballyDisabled ? undefined : handleGifAnimateOnHoverConversationToggle
-              }
-              onClose={() => setActivePane(null)}
-            />
-          )}
-
-          {activePane === 'members' && (
-            <ConversationMembersSidebar
-              participants={conversation.participants}
-              participantProfiles={participantProfiles}
-              memberSettings={memberSettings}
-              admins={conversation.admins}
-              conversationType={conversation.type}
-              isCurrentUserAdmin={isCurrentUserAdmin}
-              canEditMemberSettings={canEditMemberSettings}
-              selfId={identity?.id}
-              editingMemberId={editingMemberId}
-              onEditMember={setEditingMemberId}
-              onCloseMemberEdit={closeMemberEdit}
-              onSaveMemberEdit={saveMemberEdit}
-              onPromoteToAdmin={handlePromoteToAdmin}
-              onRemoveMember={handleRemoveMember}
-              onInviteMember={() => setInviteMemberOpen(true)}
-              onAddMember={() => navigate('/conversations/new', {
+          <ConversationSidebars
+            conversationId={conversation.id}
+            conversation={conversation}
+            activePane={activePane}
+            onCloseActivePane={() => setActivePane(null)}
+            identity={identity}
+            participantProfiles={participantProfiles}
+            memberSettings={memberSettings}
+            isCurrentUserAdmin={isCurrentUserAdmin}
+            canEditMemberSettings={canEditMemberSettings}
+            fsConfigEnabled={fsConfig.enabled}
+            dialogs={dialogs}
+            adminSettings={adminSettings}
+            prefs={prefs}
+            onOpenMemberSecurity={security.openMemberSecurity}
+            onAddMember={() =>
+              navigate('/conversations/new', {
                 state: { preSelectedIds: otherParticipants },
-              })}
-              pendingInvites={conversation.type === 'group' ? pendingInvites : undefined}
-              pendingInvitesLoading={
-                conversation.type === 'group' ? pendingInvitesLoading : undefined
-              }
-              onRevokeInvite={
-                conversation.type === 'group' && isCurrentUserAdmin
-                  ? handleRevokeInvite
-                  : undefined
-              }
-              onOpenMemberSecurity={openMemberSecurity}
-              onClose={() => setActivePane(null)}
-            />
-          )}
-
-          {messageSearchSessionActive && id && (
-            <ConversationMessageSearchPanel
-              conversationId={id}
-              identityId={identity?.id ?? ''}
-              sidebarVisible={activePane === 'search'}
-              adminDisallowPersistentCache={conversation.disallowPersistentMessageSearchCache ?? false}
-              getActiveMessages={getActiveMessages}
-              participantProfiles={participantProfiles}
-              cacheMode={messageSearchCacheMode}
-              loadOlder={() => loadOlder()}
-              messagesLoading={messagesLoading}
-              olderCursor={activeMessagesOlderCursor}
-              onEndSearchSession={handleMessageSearchEndSession}
-              onPickMessage={(messageId) => {
-                void scrollToMessageId(messageId);
-              }}
-              selfParticipantJoinedAtMs={selfParticipantJoinedAtMs}
-            />
-          )}
+              })
+            }
+            pendingInvites={pendingInvites}
+            pendingInvitesLoading={pendingInvitesLoading}
+            onRevokeInvite={handleRevokeInvite}
+            messageSearchSessionActive={search.messageSearchSessionActive}
+            messageSearchCacheMode={messageSearchCacheMode}
+            getActiveMessages={getActiveMessages}
+            loadOlder={() => loadOlder()}
+            messagesLoading={messagesLoading}
+            activeMessagesOlderCursor={activeMessagesOlderCursor}
+            onEndSearchSession={search.handleMessageSearchEndSession}
+            scrollToMessageId={scrollOrchestration.scrollToMessageId}
+            selfParticipantJoinedAtMs={selfParticipantJoinedAtMs}
+          />
         </div>
       </div>
 
-      <MemberSecurityModal
-        open={memberSecurityModal != null}
-        onOpenChange={(open) => {
-          if (!open) setMemberSecurityModal(null);
-        }}
-        identityId={memberSecurityModal?.id ?? null}
-        subjectLabel={memberSecurityModal?.label ?? ''}
-        isSelfSubject={
-          memberSecurityModal != null && memberSecurityModal.id === identity?.id
-        }
+      <ConversationOverlays
+        conversation={conversation}
+        identityId={identity?.id}
         identityApi={api.identity}
-        onVerificationChange={bumpVerificationRevision}
-      />
-
-      <ConversationDialogs
-        conversationId={conversation.id}
-        conversationType={conversation.type}
-        isAdmin={isCurrentUserAdmin}
-        isSoleMember={isSoleMember}
-        participants={conversation.participants}
-        otherParticipants={otherParticipants}
         participantProfiles={participantProfiles}
-        selfId={identity?.id}
-        leaveConfirmOpen={leaveConfirmOpen}
-        setLeaveConfirmOpen={setLeaveConfirmOpen}
-        leaving={leaving}
-        onLeaveConfirm={handleLeaveConfirm}
-        adminTransferOpen={adminTransferOpen}
-        setAdminTransferOpen={setAdminTransferOpen}
-        onAdminTransferLeave={handleAdminTransferLeave}
-        deleteGroupOpen={deleteGroupOpen}
-        setDeleteGroupOpen={setDeleteGroupOpen}
-        deletingGroup={deletingGroup}
-        onDeleteGroup={handleDeleteGroup}
-        inviteMemberOpen={inviteMemberOpen}
-        setInviteMemberOpen={setInviteMemberOpen}
-        onCreateNewConversation={() => navigate('/conversations/new', {
-          state: { preSelectedIds: otherParticipants },
-        })}
-        pendingInvites={conversation.type === 'group' ? pendingInvites : []}
+        otherParticipants={otherParticipants}
+        isCurrentUserAdmin={isCurrentUserAdmin}
+        isSoleMember={isSoleMember}
+        security={security}
+        dialogs={dialogs}
+        messageActions={messageActions}
+        pendingInvites={pendingInvites}
         onInviteMemberSuccess={refreshPendingInvites}
-        reportModalOpen={reportModalOpen}
-        setReportModalOpen={setReportModalOpen}
-        reportTargetMessageId={reportTargetMessageId}
-        pendingLinkHref={pendingLinkHref}
-        onCloseLinkModal={() => setPendingLinkHref(null)}
+        onCreateNewConversation={() =>
+          navigate('/conversations/new', {
+            state: { preSelectedIds: otherParticipants },
+          })
+        }
       />
-      </div>
+    </div>
   );
 }

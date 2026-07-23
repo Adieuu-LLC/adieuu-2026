@@ -21,13 +21,15 @@ export interface ConversationFolder {
   iconName?: string;
   iconColor?: string;
   conversationIds: string[];
+  spaceIds: string[];
   favorited: boolean;
   sortOrder: number;
 }
 
 export interface CreateConversationFolderParams {
   name: string;
-  conversationIds: string[];
+  conversationIds?: string[];
+  spaceIds?: string[];
   iconType?: FolderIconType;
   iconName?: FolderIconName;
   iconColor?: string;

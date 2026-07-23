@@ -836,6 +836,12 @@
     width: 18px;
     height: 18px;
   }
+
+  &--disabled,
+  &:has(input:disabled) {
+    cursor: not-allowed;
+    opacity: 0.65;
+  }
 }
 
 // Admin user management

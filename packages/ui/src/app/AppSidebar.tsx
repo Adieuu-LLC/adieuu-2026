@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { sidebarActions } from '../utils/sidebarActions';
 import { SidebarLogo } from './sidebar/conversations';
@@ -8,6 +8,7 @@ import { FolderPanel } from './sidebar/folderPanel';
 import { ChatInvitationsPanel } from './sidebar/invitations';
 import { SidebarTopNavContent, SidebarNavContent, type SidebarVariant } from './sidebar/nav';
 import { useConversationFolders } from '../hooks/useConversationFolders';
+import { SidebarListViewProvider } from './sidebar/sidebarListView';
 import {
   applySidebarAction,
   closeChatInvitesPanel,
@@ -65,7 +66,12 @@ export function AppSidebar({ onExpandedChange, variant = 'full' }: AppSidebarPro
     });
   }, []);
 
-  return (
+  const authenticatedChrome = (children: ReactNode) =>
+    isPublic ? children : (
+      <SidebarListViewProvider>{children}</SidebarListViewProvider>
+    );
+
+  return authenticatedChrome(
     <Sidebar
       header={<SidebarLogo />}
       topNav={
@@ -103,7 +109,7 @@ export function AppSidebar({ onExpandedChange, variant = 'full' }: AppSidebarPro
           onOpenFolder={handleOpenFolder}
         />
       )}
-    </Sidebar>
+    </Sidebar>,
   );
 }
 

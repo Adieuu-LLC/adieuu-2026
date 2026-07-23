@@ -83,6 +83,12 @@ export interface MediaUploadDocument extends BaseDocument {
   /** Upload purpose (determines limits and processing) */
   purpose: UploadPurpose;
 
+  /**
+   * Space this upload is bound to. Required for `space_media` so sends can
+   * reject cross-Space media reuse.
+   */
+  spaceId?: ObjectId;
+
   /** S3 object key for the raw upload (uploads/{purpose}/{ulid}-{random}.{ext}) */
   s3Key: string;
 

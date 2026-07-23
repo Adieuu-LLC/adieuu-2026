@@ -25,6 +25,7 @@ import { e2eUploadRoutes } from './uploads/e2e';
 import { friendRoutes } from './friends';
 import { conversationRoutes } from './conversations';
 import { conversationFolderRoutes } from './conversation-folders';
+import { spaceRoutes } from './spaces';
 import { moderationRoutes } from './moderation';
 import { reportRoutes } from './reports';
 import { klipyRoutes } from './klipy';
@@ -132,6 +133,9 @@ export function registerRoutes(app: Router): void {
 
   // Conversation folders (sidebar grouping)
   app.merge(conversationFolderRoutes, '/api');
+
+  // Spaces (Discord-like servers: directory, membership, invites, channels)
+  app.merge(spaceRoutes, '/api');
 
   // Platform moderation (reports, actions, enforcement)
   app.merge(moderationRoutes, '/api');

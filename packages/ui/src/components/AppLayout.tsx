@@ -41,7 +41,7 @@ export interface AppLayoutProps {
  * The sidebar is positioned fixed and the main content has padding to accommodate it.
  * 
  * Features:
- * - Fixed sidebar with 20vw width (max 300px)
+ * - Fixed sidebar with user-resizable expanded width (min = condensed 64px)
  * - Main content area with corresponding padding
  * - Mobile responsive with hamburger menu (< 600px viewport)
  * - Supports left or right sidebar positioning

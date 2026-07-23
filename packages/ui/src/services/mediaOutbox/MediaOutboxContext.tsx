@@ -34,12 +34,27 @@ type OutboxHooks = {
   scrollToBottom: (behavior: 'smooth' | 'auto') => void;
 };
 
+export type SpaceOutboxSendFn = (
+  spaceId: string,
+  channelId: string,
+  plaintext: string,
+  options: {
+    replyToMessageId?: string;
+    expiresInSeconds?: number;
+    e2eMediaIds?: string[];
+    mentionedIdentityIds?: string[];
+    signal?: AbortSignal;
+  },
+) => Promise<unknown>;
+
 export interface MediaOutboxContextValue {
   enqueueMediaSend: (input: MediaOutboxEnqueueInput) => Promise<string>;
   cancelJob: (jobId: string) => Promise<void>;
   retryJob: (jobId: string) => Promise<void>;
   dismissFailedJob: (jobId: string) => Promise<void>;
   registerConversationOutboxHooks: (conversationId: string, hooks: OutboxHooks | null) => void;
+  /** Register the Space composer send path used for encrypted Space media outbox jobs. */
+  registerSpaceOutboxSend: (fn: SpaceOutboxSendFn | null) => void;
   getJobsForConversation: (conversationId: string) => MediaOutboxJobRecord[];
   getPendingJobsAllConversations: () => MediaOutboxJobRecord[];
   subscribe: (onStoreChange: () => void) => () => void;
@@ -72,6 +87,7 @@ export function MediaOutboxProvider({ children }: { children: ReactNode }) {
   const checkMessageAchievements = useMessageAchievements();
 
   const hooksRef = useRef(new Map<string, OutboxHooks>());
+  const spaceSendRef = useRef<SpaceOutboxSendFn | null>(null);
   const abortControllersRef = useRef(new Map<string, AbortController>());
   const activeRunCountRef = useRef(0);
   const processingIdsRef = useRef(new Set<string>());
@@ -214,6 +230,11 @@ export function MediaOutboxProvider({ children }: { children: ReactNode }) {
           loadJob: mediaOutboxGetJob,
           saveJob,
           sendForOutbox,
+          sendSpaceForOutbox: async (spaceId, channelId, plaintext, options) => {
+            const fn = spaceSendRef.current;
+            if (!fn) return null;
+            return fn(spaceId, channelId, plaintext, options);
+          },
           editForOutbox,
           toastScanFailed,
           t,
@@ -266,6 +287,7 @@ export function MediaOutboxProvider({ children }: { children: ReactNode }) {
       const record: MediaOutboxJobRecord = {
         id,
         conversationId: input.conversationId,
+        ...(input.spaceId ? { spaceId: input.spaceId } : {}),
         stage: 'queued',
         createdAt: now,
         updatedAt: now,
@@ -339,6 +361,10 @@ export function MediaOutboxProvider({ children }: { children: ReactNode }) {
     else hooksRef.current.set(conversationId, hooks);
   }, []);
 
+  const registerSpaceOutboxSend = useCallback((fn: SpaceOutboxSendFn | null) => {
+    spaceSendRef.current = fn;
+  }, []);
+
   const value = useMemo<MediaOutboxContextValue>(
     () => ({
       enqueueMediaSend,
@@ -346,6 +372,7 @@ export function MediaOutboxProvider({ children }: { children: ReactNode }) {
       retryJob,
       dismissFailedJob,
       registerConversationOutboxHooks,
+      registerSpaceOutboxSend,
       getJobsForConversation: (conversationId: string) =>
         cacheRef.current.filter((j) => j.conversationId === conversationId),
       getPendingJobsAllConversations: () => cacheRef.current.filter((j) => !isTerminal(j.stage)),
@@ -358,6 +385,7 @@ export function MediaOutboxProvider({ children }: { children: ReactNode }) {
       retryJob,
       dismissFailedJob,
       registerConversationOutboxHooks,
+      registerSpaceOutboxSend,
       subscribe,
       getSnapshot,
     ]

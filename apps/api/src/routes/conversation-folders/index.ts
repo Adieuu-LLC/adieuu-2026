@@ -33,6 +33,14 @@ router.delete('/conversation-folders/:id/conversations/:conversationId', async (
   return conversationRespond(ctx, await folderController.removeConversationFromFolderCtrl(ctx));
 });
 
+router.post('/conversation-folders/:id/spaces', async (ctx) => {
+  return conversationRespond(ctx, await folderController.addSpaceToFolderCtrl(ctx));
+});
+
+router.delete('/conversation-folders/:id/spaces/:spaceId', async (ctx) => {
+  return conversationRespond(ctx, await folderController.removeSpaceFromFolderCtrl(ctx));
+});
+
 router.delete('/conversation-folders/:id', async (ctx) => {
   return conversationRespond(ctx, await folderController.deleteFolderCtrl(ctx));
 });

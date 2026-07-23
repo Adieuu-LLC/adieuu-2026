@@ -6,6 +6,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   generateCallKey,
   deriveCallE2EEKey,
+  deriveVoiceChannelMediaKey,
   wrapCallKeyForRecipient,
   wrapCallKeyForRecipients,
   unwrapCallKey,
@@ -14,6 +15,7 @@ import {
   CALL_E2EE_INFO,
 } from './index';
 import { generateIdentityKeyBundle, extractPublicKeys } from '../keys';
+import { deriveCommunityCipher, createTextEntropy } from '../ciphers';
 import { constantTimeEqual } from '../utils';
 
 describe('call E2EE keys', () => {
@@ -42,6 +44,19 @@ describe('call E2EE keys', () => {
     expect(() => deriveCallE2EEKey(new Uint8Array(8), 'call-id')).toThrow(
       'Conversation key material must be at least 16 bytes',
     );
+  });
+
+  test('deriveVoiceChannelMediaKey is deterministic and channel-bound', () => {
+    const cipher = deriveCommunityCipher([createTextEntropy('voice-test-phrase')]);
+    const spaceId = '507f1f77bcf86cd799439011';
+    const channelA = '507f1f77bcf86cd799439012';
+    const channelB = '507f1f77bcf86cd799439013';
+    const a1 = deriveVoiceChannelMediaKey(cipher, spaceId, channelA);
+    const a2 = deriveVoiceChannelMediaKey(cipher, spaceId, channelA);
+    const b = deriveVoiceChannelMediaKey(cipher, spaceId, channelB);
+    expect(a1.length).toBe(32);
+    expect(constantTimeEqual(a1, a2)).toBe(true);
+    expect(constantTimeEqual(a1, b)).toBe(false);
   });
 
   test('wrap and unwrap round-trip for a recipient', () => {

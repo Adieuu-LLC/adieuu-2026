@@ -1,11 +1,10 @@
 import { useTranslation } from 'react-i18next';
-import { RadioGroup, SegmentGroup, Tabs } from '@ark-ui/react';
+import { SegmentGroup, Tabs } from '@ark-ui/react';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Icon } from '../../icons/Icon';
 import { InfoTip } from '../../components/InfoTip';
 import { ComposerControlsEditor } from '../../components/ComposerControlsEditor';
-import { setMemberColorDisplay, type MemberColorDisplay } from '../../hooks/useMemberColorPreference';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import type { GifContentFilter } from '@adieuu/shared';
 
@@ -35,7 +34,6 @@ export function ConversationSettingsSidebar({
   onRename,
   fsEnabled,
   onFsToggle,
-  memberColorDisplay,
   gifsDisabledByAdmin,
   onGifsDisabledByAdminToggle,
   gifContentFilter,
@@ -67,7 +65,6 @@ export function ConversationSettingsSidebar({
   onRename: () => void;
   fsEnabled: boolean;
   onFsToggle: (enabled: boolean) => void;
-  memberColorDisplay: MemberColorDisplay;
   gifsDisabledByAdmin?: boolean;
   onGifsDisabledByAdminToggle?: (disabled: boolean) => void;
   gifContentFilter?: GifContentFilter;
@@ -116,29 +113,6 @@ export function ConversationSettingsSidebar({
           </span>
         </span>
       </label>
-
-      <div className="conversation-settings-color-display">
-        <span className="app-settings-toggle-title">
-          {t('conversations.colorDisplayMode', 'Member colour display')}
-        </span>
-        <RadioGroup.Root
-          className="conversation-settings-color-radio-group"
-          value={memberColorDisplay}
-          onValueChange={(e) => setMemberColorDisplay(e.value as MemberColorDisplay)}
-        >
-          {(['name-only', 'name-and-accent', 'name-and-bubble'] as const).map((mode) => (
-            <RadioGroup.Item key={mode} value={mode} className="conversation-settings-color-radio-item">
-              <RadioGroup.ItemControl className="conversation-settings-color-radio-control" />
-              <RadioGroup.ItemText className="conversation-settings-color-radio-text">
-                {mode === 'name-only' && t('conversations.colorDisplayNameOnly', 'Name only')}
-                {mode === 'name-and-accent' && t('conversations.colorDisplayNameAccent', 'Name + avatar accent')}
-                {mode === 'name-and-bubble' && t('conversations.colorDisplayNameBubble', 'Name + bubble tint')}
-              </RadioGroup.ItemText>
-              <RadioGroup.ItemHiddenInput />
-            </RadioGroup.Item>
-          ))}
-        </RadioGroup.Root>
-      </div>
 
       {!gifsDisabledByAdmin && onGifsHiddenForMeToggle && (
         <label className="app-settings-toggle">

@@ -23,7 +23,10 @@ export interface AccountProgress {
   mode: 'account';
   loading: boolean;
   hasSubscription: boolean;
+  /** True when the user has an active subscription that is free-tier only (not paid/lifetime/gifted). */
   isFreeTier: boolean;
+  /** True when the user has paid-level access (access/insider, lifetime, or gifted). */
+  isPaidPlan: boolean;
   avRequired: boolean;
   avStepRelevant: boolean;
   avStatus: string | undefined;
@@ -157,9 +160,12 @@ function useAccountProgress(
 
   const hasSubscription = (session?.subscriptions?.length ?? 0) > 0;
   const subscriptions = session?.subscriptions ?? [];
-  const isFreeTier =
-    hasSubscription &&
-    subscriptions.every((t) => t === 'free');
+  // Match API `hasPaidAccess`: paid tier, lifetime, or gifted sponsorship.
+  const isPaidPlan =
+    !!session?.isLifetime ||
+    subscriptions.some((t) => t === 'access' || t === 'insider') ||
+    (session?.entitlements ?? []).includes('gifted');
+  const isFreeTier = hasSubscription && !isPaidPlan;
   const avStatus = session?.ageVerification?.status;
   const aliasGateCode = session?.aliasGate?.code;
   const aliasGateJurisdiction = session?.aliasGate?.jurisdiction;
@@ -256,6 +262,7 @@ function useAccountProgress(
     loading,
     hasSubscription,
     isFreeTier,
+    isPaidPlan,
     avRequired,
     avStepRelevant,
     avStatus,

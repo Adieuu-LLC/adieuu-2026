@@ -2,8 +2,10 @@ import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getFooterLegalLinks, getLegalPolicyPath } from '../legal/policies';
 
-function isConversationRoute(pathname: string): boolean {
-  return pathname === '/conversations' || pathname.startsWith('/conversations/');
+function isFullScreenRoute(pathname: string): boolean {
+  if (pathname === '/conversations' || pathname.startsWith('/conversations/')) return true;
+  if (/^\/s\/[^/]+\/c\//.test(pathname)) return true;
+  return false;
 }
 
 export function SiteFooter() {
@@ -12,7 +14,7 @@ export function SiteFooter() {
   const year = new Date().getFullYear();
   const footerLinks = getFooterLegalLinks();
 
-  if (isConversationRoute(pathname)) {
+  if (isFullScreenRoute(pathname)) {
     return null;
   }
 

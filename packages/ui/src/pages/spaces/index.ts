@@ -1,1 +1,12 @@
 export { PublicSpaces } from './PublicSpaces';
+export { CreateSpace } from './CreateSpace';
+export { SpaceLayout } from './SpaceLayout';
+export { SpaceLanding } from './SpaceLanding';
+export { SpaceChannelView } from './SpaceChannelView';
+export { SpaceManageGate } from './SpaceManageGate';
+export { SpaceManageLayout } from './SpaceManageLayout';
+export { SpaceManageOverview } from './SpaceManageOverview';
+export { SpaceManageOverviewGate } from './SpaceManageOverviewGate';
+export { SpaceManageRoles } from './SpaceManageRoles';
+export { SpaceManageRoleDetail } from './SpaceManageRoleDetail';
+export { SpaceManageAuditLog } from './SpaceManageAuditLog';

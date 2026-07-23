@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Checkbox } from '@ark-ui/react';
 import { InfoTip } from '../InfoTip';
@@ -5,7 +6,7 @@ import { Icon } from '../../icons/Icon';
 import type { PendingAttachment } from './composerTypes';
 import { isVisualMediaContentType, formatFileSize, truncateFileName, fileAttachmentIconName } from '../../utils/fileAttachmentUtils';
 
-export function ComposerAttachments({
+export const ComposerAttachments = memo(function ComposerAttachments({
   attachments,
   onRemove,
   stripExif,
@@ -217,4 +218,4 @@ export function ComposerAttachments({
       )}
     </div>
   );
-}
+});

@@ -11,6 +11,14 @@ const findByE2EMediaIdMock = mock(() => Promise.resolve(null)) as AnyMock;
 const findByE2EMediaIdAndIdentityMock = mock(() => Promise.resolve(null)) as AnyMock;
 const deleteByE2EMediaIdMock = mock(() => Promise.resolve(true)) as AnyMock;
 const findConversationByE2EMediaIdMock = mock(() => Promise.resolve(null)) as AnyMock;
+const findChannelContextByE2EMediaIdMock = mock(() => Promise.resolve(null)) as AnyMock;
+const findSpaceChannelByIdInSpaceMock = mock(() => Promise.resolve(null)) as AnyMock;
+const resolveMemberPermissionsMock = mock(() =>
+  Promise.resolve({ isMember: false, permissions: [], roleIds: [] }),
+) as AnyMock;
+const requireChannelViewMock = mock(() =>
+  Promise.resolve({ ok: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' }),
+) as AnyMock;
 const mediaCreateMock = mock(() => Promise.resolve(undefined)) as AnyMock;
 const findByMediaIdMock = mock(() => Promise.resolve(null)) as AnyMock;
 const updateStatusMock = mock(() => Promise.resolve(undefined)) as AnyMock;
@@ -90,6 +98,27 @@ mock.module('../repositories/conversation.repository', () => ({
   }),
 }));
 
+mock.module('../repositories/space-message.repository', () => ({
+  getSpaceMessageRepository: () => ({
+    findChannelContextByE2EMediaId: findChannelContextByE2EMediaIdMock,
+  }),
+}));
+
+mock.module('../repositories/space-channel.repository', () => ({
+  getSpaceChannelRepository: () => ({
+    findByIdInSpace: findSpaceChannelByIdInSpaceMock,
+  }),
+}));
+
+mock.module('./space/permissions', () => ({
+  resolveMemberPermissions: resolveMemberPermissionsMock,
+  memberHasPermission: mock(() => false),
+}));
+
+mock.module('./space/channel-access', () => ({
+  requireChannelView: requireChannelViewMock,
+}));
+
 mock.module('@aws-sdk/s3-request-presigner', () => ({
   getSignedUrl: mock(() => Promise.resolve('https://signed.example/upload')),
 }));
@@ -121,6 +150,7 @@ import {
   abandonE2EUpload,
   completeE2EUpload,
   completeScanUpload,
+  getE2EMediaDownload,
   requestE2EUpload,
   requestScanUpload,
   sealConvScanUploadSession,
@@ -139,6 +169,10 @@ describe('e2e-upload.service', () => {
     findByE2EMediaIdAndIdentityMock.mockReset();
     deleteByE2EMediaIdMock.mockReset();
     findConversationByE2EMediaIdMock.mockReset();
+    findChannelContextByE2EMediaIdMock.mockReset();
+    findSpaceChannelByIdInSpaceMock.mockReset();
+    resolveMemberPermissionsMock.mockReset();
+    requireChannelViewMock.mockReset();
     mediaCreateMock.mockReset();
     findByMediaIdMock.mockReset();
     updateStatusMock.mockReset();
@@ -162,6 +196,14 @@ describe('e2e-upload.service', () => {
     findByE2EMediaIdAndIdentityMock.mockImplementation(() => Promise.resolve(null));
     deleteByE2EMediaIdMock.mockImplementation(() => Promise.resolve(true));
     findConversationByE2EMediaIdMock.mockImplementation(() => Promise.resolve(null));
+    findChannelContextByE2EMediaIdMock.mockImplementation(() => Promise.resolve(null));
+    findSpaceChannelByIdInSpaceMock.mockImplementation(() => Promise.resolve(null));
+    resolveMemberPermissionsMock.mockImplementation(() =>
+      Promise.resolve({ isMember: false, permissions: [], roleIds: [] }),
+    );
+    requireChannelViewMock.mockImplementation(() =>
+      Promise.resolve({ ok: false, error: 'Channel not found.', errorCode: 'CHANNEL_NOT_FOUND' }),
+    );
     mediaCreateMock.mockImplementation(() => Promise.resolve(undefined));
     findByMediaIdMock.mockImplementation(() => Promise.resolve(null));
     updateStatusMock.mockImplementation(() => Promise.resolve(undefined));
@@ -659,6 +701,63 @@ describe('e2e-upload.service', () => {
     });
     expect(result.success).toBe(false);
     expect(result.errorCode).toBe('FILE_TOO_LARGE');
+  });
+
+  test('getE2EMediaDownload allows Space members with channel view via message lookup', async () => {
+    const uploaderId = new ObjectId();
+    const requesterId = new ObjectId();
+    const spaceId = new ObjectId();
+    const channelId = new ObjectId();
+    findByE2EMediaIdMock.mockImplementation(() =>
+      Promise.resolve({
+        e2eMediaId: 'space-e2e-1',
+        identityId: uploaderId,
+        status: 'available',
+        moderationStatus: 'passed',
+        s3Bucket: 'e2e-bucket',
+        s3Key: 'uploads/conv_media/space-e2e-1.bin',
+      }),
+    );
+    findConversationByE2EMediaIdMock.mockImplementation(() => Promise.resolve(null));
+    findChannelContextByE2EMediaIdMock.mockImplementation(() =>
+      Promise.resolve({ spaceId, channelId }),
+    );
+    resolveMemberPermissionsMock.mockImplementation(() =>
+      Promise.resolve({ isMember: true, permissions: ['viewChannels'], roleIds: [] }),
+    );
+    findSpaceChannelByIdInSpaceMock.mockImplementation(() =>
+      Promise.resolve({ _id: channelId, spaceId, allowedRoleIds: [] }),
+    );
+    requireChannelViewMock.mockImplementation(() => Promise.resolve({ ok: true }));
+
+    const result = await getE2EMediaDownload('space-e2e-1', requesterId.toHexString());
+    expect(result.success).toBe(true);
+    expect(result.downloadUrl).toBeTruthy();
+  });
+
+  test('getE2EMediaDownload denies non-members for Space-referenced media', async () => {
+    const uploaderId = new ObjectId();
+    const requesterId = new ObjectId();
+    findByE2EMediaIdMock.mockImplementation(() =>
+      Promise.resolve({
+        e2eMediaId: 'space-e2e-2',
+        identityId: uploaderId,
+        status: 'available',
+        moderationStatus: 'passed',
+        s3Bucket: 'e2e-bucket',
+        s3Key: 'uploads/conv_media/space-e2e-2.bin',
+      }),
+    );
+    findConversationByE2EMediaIdMock.mockImplementation(() => Promise.resolve(null));
+    findChannelContextByE2EMediaIdMock.mockImplementation(() =>
+      Promise.resolve({ spaceId: new ObjectId(), channelId: new ObjectId() }),
+    );
+    resolveMemberPermissionsMock.mockImplementation(() =>
+      Promise.resolve({ isMember: false, permissions: [], roleIds: [] }),
+    );
+
+    const result = await getE2EMediaDownload('space-e2e-2', requesterId.toHexString());
+    expect(result).toMatchObject({ success: false, errorCode: 'NOT_FOUND' });
   });
 });
 

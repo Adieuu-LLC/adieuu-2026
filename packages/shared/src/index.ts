@@ -8,6 +8,7 @@ export * from './constants/moderation-reason-map';
 export * from './constants/account-moderation';
 export * from './constants/support-ticket-categories';
 export * from './constants/feedback';
+export * from './constants/space-access-rules';
 export * from './feedback/roadmap-timeline';
 export * from './feedback/feedback-display';
 export * from './types';
@@ -27,3 +28,8 @@ export {
   filenameToShortcode,
   filenameToDisplayName,
 } from './custom-emoji-shortcode';
+export {
+  REACTION_EMOJI_MAX_LENGTH,
+  CUSTOM_REACTION_TOKEN_RE,
+  isValidReactionEmoji,
+} from './reaction-emoji';

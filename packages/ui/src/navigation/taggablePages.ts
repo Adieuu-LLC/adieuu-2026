@@ -41,6 +41,7 @@ export const TAGGABLE_PAGES: readonly TaggablePage[] = [
   { id: 'profile', path: '/identity/profile', labelKey: 'identity.profile.title', labelDefault: 'Profile', icon: 'mask', access: 'identity', aliases: ['alias'] },
   { id: 'appearance', path: '/identity/appearance', labelKey: 'identity.appearance.title', labelDefault: 'Appearance', icon: 'palette', access: 'identity', aliases: ['theme', 'themes'] },
   { id: 'notifications', path: '/identity/notifications', labelKey: 'account.settings.title', labelDefault: 'Notifications', icon: 'bell', access: 'identity', aliases: ['notification-settings'] },
+  { id: 'audio-video', path: '/identity/audio-video', labelKey: 'identity.audioVideo.title', labelDefault: 'Audio & Video', icon: 'microphone', access: 'identity', aliases: ['av', 'camera', 'microphone', 'speakers', 'devices-av'] },
   { id: 'privacy', path: '/identity/privacy', labelKey: 'identity.privacy.title', labelDefault: 'Privacy', icon: 'lock', access: 'identity', aliases: ['privacy-settings', 'blocked'] },
   { id: 'devices', path: '/identity/devices', labelKey: 'identity.devices.title', labelDefault: 'Devices', icon: 'device', access: 'identity' },
   { id: 'ciphers', path: '/identity/ciphers', labelKey: 'ciphers.title', labelDefault: 'Ciphers', icon: 'key', access: 'identity', aliases: ['encryption', 'keys'] },

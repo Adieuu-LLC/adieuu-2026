@@ -48,6 +48,25 @@ export class ConversationFoldersApi {
     );
   }
 
+  async addSpace(
+    folderId: string,
+    spaceId: string,
+  ): Promise<ApiResponse<ConversationFolder>> {
+    return this.client.post(
+      `/api/conversation-folders/${encodeURIComponent(folderId)}/spaces`,
+      { spaceId },
+    );
+  }
+
+  async removeSpace(
+    folderId: string,
+    spaceId: string,
+  ): Promise<ApiResponse<ConversationFolder>> {
+    return this.client.delete(
+      `/api/conversation-folders/${encodeURIComponent(folderId)}/spaces/${encodeURIComponent(spaceId)}`,
+    );
+  }
+
   async delete(folderId: string): Promise<ApiResponse<ConversationFolder>> {
     return this.client.delete(
       `/api/conversation-folders/${encodeURIComponent(folderId)}`,
