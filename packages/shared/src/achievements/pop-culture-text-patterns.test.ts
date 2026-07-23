@@ -16,12 +16,9 @@ describe('pop culture text achievement patterns', () => {
     );
   });
 
-  test('requires exact names for regina george, chuck norris, and zoltan', () => {
+  test('requires exact names for regina george and zoltan', () => {
     expect(getPopCultureTextAchievementActions('Regina George')).toContain(
       POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.reginaGeorge,
-    );
-    expect(getPopCultureTextAchievementActions('Chuck Norris')).toContain(
-      POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.chuckNorris,
     );
     expect(getPopCultureTextAchievementActions('Zoltan')).toContain(
       POP_CULTURE_TEXT_ACHIEVEMENT_ACTIONS.zoltan,

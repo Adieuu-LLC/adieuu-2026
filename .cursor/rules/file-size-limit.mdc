@@ -1,0 +1,19 @@
+---
+description: Flag files exceeding 700 lines for refactoring
+alwaysApply: true
+---
+
+# File Size Limit
+
+Files should be **700 lines or fewer**. When you create or edit a file that exceeds this threshold, flag it and propose a split.
+
+## When writing or editing code
+
+- Before finishing work on a file, check its line count.
+- If a file is over 700 lines, proactively suggest or perform a refactor to split it into smaller, cohesive modules.
+- Prefer splitting along domain boundaries (e.g. separate controllers for different resource types, separate hooks for different concerns).
+
+## When reviewing existing code
+
+- If you encounter a file over 700 lines during normal work, note it as a candidate for future refactoring.
+- Do not block unrelated work to refactor, but do mention it.

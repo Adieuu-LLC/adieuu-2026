@@ -11,7 +11,7 @@ import { ciphers } from './ciphers';
 import { conversations } from './conversations';
 import { core } from './core';
 import { gif } from './gif';
-import { identity } from './identity';
+import { identity, badges } from './identity';
 import { moderation } from './moderation';
 import { report } from './report';
 import { staticPages } from './staticPages';
@@ -20,6 +20,7 @@ import { sponsorship } from './sponsorship';
 import { support } from './support';
 import { feedback } from './feedback';
 import { legal, footer } from './legal';
+import { captcha } from './captcha';
 
 export const en = {
   ...core,
@@ -39,7 +40,9 @@ export const en = {
   feedback,
   gif,
   achievements,
+  badges,
   compliance,
+  captcha,
   ...sponsorship,
   customEmoji: {
     conversationDisabledByAdmin: 'Disable custom emojis',

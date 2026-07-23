@@ -5,11 +5,10 @@
 export { App, AppSidebar } from './app';
 export {
   Home,
-  About,
   Search,
   Login,
   Verify,
-  AccountOverview,
+  AccountOverviewContent,
   AccountSecurity,
   AccountSettings,
   ThemeBrowser,

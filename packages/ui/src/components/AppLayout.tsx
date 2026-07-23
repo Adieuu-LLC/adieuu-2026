@@ -1,9 +1,31 @@
-import { useState, useCallback, useEffect, cloneElement, isValidElement, type ReactNode } from 'react';
+import { useState, useCallback, useEffect, useRef, cloneElement, isValidElement, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import type { SidebarOrientation } from './Sidebar';
 import { SiteFooter } from './SiteFooter';
 import { AppNavigationChrome } from '../navigation';
 import { useRouteChrome } from '../navigation/useRouteChrome';
 import { useRouteAnnouncer } from '../hooks/useRouteAnnouncer';
+
+const SCROLL_MANAGED_PREFIXES = ['/conversations'];
+
+function useScrollToTopOnNavigate() {
+  const { pathname, hash } = useLocation();
+  const prevPathRef = useRef(pathname);
+
+  useEffect(() => {
+    if (pathname === prevPathRef.current) {
+      prevPathRef.current = pathname;
+      return;
+    }
+    prevPathRef.current = pathname;
+
+    if (hash) return;
+
+    if (SCROLL_MANAGED_PREFIXES.some((prefix) => pathname.startsWith(prefix))) return;
+
+    document.querySelector('.app-content')?.scrollTo({ top: 0, behavior: 'instant' });
+  }, [pathname, hash]);
+}
 
 export interface AppLayoutProps {
   sidebar: ReactNode;
@@ -19,7 +41,7 @@ export interface AppLayoutProps {
  * The sidebar is positioned fixed and the main content has padding to accommodate it.
  * 
  * Features:
- * - Fixed sidebar with 20vw width (max 300px)
+ * - Fixed sidebar with user-resizable expanded width (min = condensed 64px)
  * - Main content area with corresponding padding
  * - Mobile responsive with hamburger menu (< 600px viewport)
  * - Supports left or right sidebar positioning
@@ -33,6 +55,7 @@ export function AppLayout({
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(defaultSidebarCollapsed);
   const routeChrome = useRouteChrome();
   const announcement = useRouteAnnouncer(routeChrome.title);
+  useScrollToTopOnNavigate();
 
   const handleSidebarExpandedChange = useCallback((expanded: boolean) => {
     setIsSidebarCollapsed(!expanded);

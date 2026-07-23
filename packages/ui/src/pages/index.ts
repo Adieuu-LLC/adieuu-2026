@@ -1,6 +1,5 @@
 // Main pages
 export { Home } from './Home';
-export { About } from './About';
 export { Download } from './Download';
 export { Search } from './Search';
 
@@ -9,7 +8,7 @@ export { Login, Verify } from './auth';
 
 // Account pages
 export {
-  AccountOverview,
+  AccountOverviewContent,
   AccountSecurity,
   AccountSettings,
   ThemeBrowser,

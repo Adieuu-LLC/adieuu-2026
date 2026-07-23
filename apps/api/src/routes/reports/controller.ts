@@ -15,6 +15,7 @@ import {
   type ReportSubmissionResult,
 } from '../../services/report-submission.service';
 import { checkRateLimit, type RateLimitConfig } from '../../services/rate-limit.service';
+import { sanitizeString, sanitizeObjectId } from '../../utils/sanitize';
 
 const REPORT_RATE_LIMIT: RateLimitConfig = { limit: 5, windowSeconds: 3600 };
 
@@ -107,12 +108,30 @@ export async function submitReportResult(
   const data = parseResult.data;
 
   if (data.type === 'message') {
+    const targetMsgId = sanitizeObjectId(data.targetMessageId);
+    if (!targetMsgId.ok) return { ok: false, kind: 'validation_failed' };
+    const sanitizedTargetMessageId = targetMsgId.id;
+
+    const sanitizedReason = data.reason
+      ? sanitizeString(data.reason, 'general').value || undefined
+      : undefined;
+
+    const sanitizedSessionKeys: Record<string, string> = {};
+    const seenKeys = new Set<string>();
+    for (const [key, value] of Object.entries(data.sessionKeys)) {
+      const sKey = sanitizeObjectId(key);
+      if (!sKey.ok) return { ok: false, kind: 'validation_failed' };
+      if (seenKeys.has(sKey.id)) return { ok: false, kind: 'validation_failed' };
+      seenKeys.add(sKey.id);
+      sanitizedSessionKeys[sKey.id] = value;
+    }
+
     const result = await submitMessageReport(identityId, {
-      targetMessageId: data.targetMessageId,
+      targetMessageId: sanitizedTargetMessageId,
       category: data.category as (typeof REPORT_CATEGORIES)[number],
-      reason: data.reason,
+      reason: sanitizedReason,
       contextMessageCount: data.contextMessageCount,
-      sessionKeys: data.sessionKeys,
+      sessionKeys: sanitizedSessionKeys,
     });
 
     if (!result.success) {
@@ -126,14 +145,22 @@ export async function submitReportResult(
     return { ok: true, data: { reportId: result.reportId } };
   }
 
-  if (data.targetIdentityId === identityId) {
+  const targetIdResult = sanitizeObjectId(data.targetIdentityId);
+  if (!targetIdResult.ok) return { ok: false, kind: 'validation_failed' };
+  const sanitizedTargetIdentityId = targetIdResult.id;
+
+  if (sanitizedTargetIdentityId === identityId) {
     return { ok: false, kind: 'self_report' };
   }
 
+  const sanitizedProfileReason = data.reason
+    ? sanitizeString(data.reason, 'general').value || undefined
+    : undefined;
+
   const result = await submitProfileReport(identityId, {
-    targetIdentityId: data.targetIdentityId,
+    targetIdentityId: sanitizedTargetIdentityId,
     category: data.category as (typeof REPORT_CATEGORIES)[number],
-    reason: data.reason,
+    reason: sanitizedProfileReason,
   });
 
   if (!result.success) {

@@ -1,0 +1,576 @@
+/**
+ * Space channel category list + create/update/delete.
+ *
+ * Layout reorder lives in `category-layout.ts`; shared gates/validators in
+ * `category-shared.ts` (both re-exported here so import paths stay stable).
+ *
+ * @module services/space/category-crud
+ */
+
+import { ObjectId } from 'mongodb';
+import { SPACE_CATEGORY_MAX_DEPTH, type CipherCheck } from '@adieuu/shared';
+import { getSpaceRepository } from '../../repositories/space.repository';
+import { getSpaceChannelRepository } from '../../repositories/space-channel.repository';
+import { getSpaceChannelCategoryRepository } from '../../repositories/space-channel-category.repository';
+import { getSpaceRoleRepository } from '../../repositories/space-role.repository';
+import {
+  toPublicSpaceChannelCategory,
+  type SpaceChannelCategoryDocument,
+} from '../../models/space-channel-category';
+import { resolveMemberPermissions } from './permissions';
+import {
+  canViewSpaceChannel,
+  findEveryoneRole,
+  resolveChannelAudience,
+} from './channel-access';
+import { canReadSpace } from './access';
+import { publishSpaceEvent } from './redis-events';
+import { recordSpaceAudit } from './audit';
+import type {
+  SpaceActionResult,
+  SpaceCategoriesResult,
+  SpaceCategoryResult,
+} from './types';
+import {
+  ancestorForceFlags,
+  cascadeCategorySettings,
+  isInheritEnabled,
+  parentCategoryIdHex,
+  resolveParentAcl,
+  resolveParentCipher,
+} from './settings-inherit';
+import {
+  categoryDepth,
+  forbidUnlessEncryption,
+  forbidUnlessManage,
+  parentIdHex,
+  parseObjId,
+  requireCategoryMember,
+  resolveAllowedRoleIds,
+  resolveCategoryCipherCheck,
+  validateCategoryName,
+  type CreateSpaceChannelCategoryParams,
+  type UpdateSpaceChannelCategoryParams,
+} from './category-shared';
+
+export { resolveCategoryCipherCheck } from './category-shared';
+export type {
+  CreateSpaceChannelCategoryParams,
+  UpdateSpaceChannelCategoryParams,
+  UpdateSpaceChannelLayoutParams,
+} from './category-shared';
+export { updateSpaceChannelLayout } from './category-layout';
+
+/** List a Space's channel categories (ordered by position). Visibility-gated. */
+export async function listSpaceChannelCategories(
+  spaceIdRaw: string | ObjectId,
+  requesterIdentityIdRaw: string | ObjectId,
+): Promise<SpaceCategoriesResult> {
+  const spaceId = parseObjId(spaceIdRaw);
+  const requesterId = parseObjId(requesterIdentityIdRaw);
+  if (!spaceId || !requesterId) {
+    return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
+  }
+
+  const space = await getSpaceRepository().findById(spaceId);
+  if (!space) {
+    return { success: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' };
+  }
+
+  const access = await canReadSpace(space, requesterId);
+  if (!access.ok) return { success: false, error: access.error, errorCode: access.errorCode };
+
+  const [categories, perms, roles] = await Promise.all([
+    getSpaceChannelCategoryRepository().findBySpace(spaceId),
+    resolveMemberPermissions(spaceId, requesterId),
+    getSpaceRoleRepository().findBySpace(spaceId),
+  ]);
+  const everyoneId = findEveryoneRole(roles)?._id ?? null;
+  const visible = categories.filter((cat) => canViewSpaceChannel(cat, perms, everyoneId));
+  return { success: true, categories: visible.map(toPublicSpaceChannelCategory) };
+}
+
+/** Create a channel category. Requires membership + `manageChannels`. */
+export async function createSpaceChannelCategory(
+  spaceIdRaw: string | ObjectId,
+  actingIdentityIdRaw: string | ObjectId,
+  params: CreateSpaceChannelCategoryParams,
+): Promise<SpaceCategoryResult> {
+  const spaceId = parseObjId(spaceIdRaw);
+  const actingId = parseObjId(actingIdentityIdRaw);
+  if (!spaceId || !actingId) {
+    return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
+  }
+
+  const gate = await requireCategoryMember(spaceId, actingId);
+  if (!gate.ok) return gate.result;
+  const { space, perms } = gate;
+
+  const denied = forbidUnlessManage(perms);
+  if (denied) return denied;
+
+  const touchesEncryption =
+    params.encrypt !== undefined ||
+    params.cipherCheck !== undefined ||
+    params.inheritCipherCheck !== undefined ||
+    params.forceChildrenCipher !== undefined;
+  if (touchesEncryption) {
+    const encryptionDenied = forbidUnlessEncryption(perms);
+    if (encryptionDenied) return encryptionDenied;
+  }
+
+  const nameErr = validateCategoryName(space, params, { requireName: true });
+  if (nameErr) return nameErr;
+
+  const existing = await getSpaceChannelCategoryRepository().findBySpace(spaceId);
+  const categoriesById = new Map(existing.map((c) => [c._id.toHexString(), c]));
+  let parentCategoryId: ObjectId | null = null;
+  let parentDoc: SpaceChannelCategoryDocument | null = null;
+  if (params.parentCategoryId) {
+    const parentOid = parseObjId(params.parentCategoryId);
+    if (!parentOid) {
+      return { success: false, error: 'Invalid parent category id.', errorCode: 'INVALID_ID' };
+    }
+    const parent = existing.find((c) => c._id.equals(parentOid));
+    if (!parent) {
+      return { success: false, error: 'Parent category not found.', errorCode: 'CATEGORY_NOT_FOUND' };
+    }
+    const parentById = new Map(
+      existing.map((c) => [c._id.toHexString(), parentIdHex(c)] as const),
+    );
+    const parentDepth = categoryDepth(parentOid.toHexString(), parentById);
+    if (parentDepth === null || parentDepth >= SPACE_CATEGORY_MAX_DEPTH) {
+      return {
+        success: false,
+        error: `Categories cannot nest deeper than ${SPACE_CATEGORY_MAX_DEPTH} levels.`,
+        errorCode: 'INVALID_CONTENT',
+      };
+    }
+    parentCategoryId = parentOid;
+    parentDoc = parent;
+  }
+
+  const force = ancestorForceFlags(
+    parentCategoryId?.toHexString() ?? null,
+    categoriesById,
+  );
+  let inheritAcl =
+    params.inheritAllowedRoleIds ?? params.allowedRoleIds === undefined;
+  let inheritCipher =
+    params.inheritCipherCheck ??
+    (params.encrypt === undefined && params.cipherCheck === undefined);
+  if (force.forceAcl) inheritAcl = true;
+  if (force.forceCipher) inheritCipher = true;
+
+  const roles = await getSpaceRoleRepository().findBySpace(spaceId);
+  const everyone = findEveryoneRole(roles);
+  if (!everyone) {
+    return { success: false, error: 'Everyone role missing.', errorCode: 'INVALID_CONTENT' };
+  }
+
+  let roleIdsInput: readonly string[] | undefined = params.allowedRoleIds;
+  if (inheritAcl) {
+    roleIdsInput = resolveParentAcl(parentDoc, everyone._id).map((id) => id.toHexString());
+  }
+  const rolesResult = await resolveAllowedRoleIds(spaceId, perms, roleIdsInput);
+  if (!rolesResult.ok) return rolesResult.result;
+
+  const siblings = existing.filter((c) => {
+    const p = parentIdHex(c);
+    return parentCategoryId
+      ? p === parentCategoryId.toHexString()
+      : p === null;
+  });
+  const maxPosition = siblings.reduce((max, cat) => Math.max(max, cat.position ?? 0), -1);
+  const e2ee = !!space.e2ee;
+  const hasEncrypted = !!(params.encryptedName && params.nameNonce && params.cipherId);
+  const plainName = params.name?.trim() ?? '';
+
+  let cipherCheck: CipherCheck | undefined;
+  if (inheritCipher) {
+    cipherCheck = resolveParentCipher(space, parentDoc);
+  } else {
+    cipherCheck = resolveCategoryCipherCheck(space, params, parentDoc);
+  }
+  if (params.encrypt === true && !cipherCheck) {
+    return {
+      success: false,
+      error: 'cipherCheck is required when encrypt is enabled.',
+      errorCode: 'INVALID_CONTENT',
+    };
+  }
+
+  const category = await getSpaceChannelCategoryRepository().createCategory({
+    spaceId,
+    name: e2ee ? '' : plainName,
+    position: maxPosition + 1,
+    allowedRoleIds: rolesResult.allowedRoleIds,
+    inheritAllowedRoleIds: inheritAcl,
+    inheritCipherCheck: inheritCipher,
+    forceChildrenAcl: params.forceChildrenAcl ?? false,
+    forceChildrenCipher: params.forceChildrenCipher ?? false,
+    ...(parentCategoryId ? { parentCategoryId } : {}),
+    ...(hasEncrypted
+      ? {
+          encryptedName: params.encryptedName,
+          nameNonce: params.nameNonce,
+          cipherId: params.cipherId,
+        }
+      : {}),
+    ...(cipherCheck ? { cipherCheck } : {}),
+  });
+
+  const publicCategory = toPublicSpaceChannelCategory(category);
+  await publishSpaceEvent(
+    spaceId.toHexString(),
+    {
+      type: 'space_category_created',
+      data: { category: publicCategory },
+    },
+    { audienceIdentityIds: await resolveChannelAudience(spaceId, category) },
+  );
+
+  return { success: true, category: publicCategory };
+}
+
+/** Update a channel category (name, ACL, position). Requires `manageChannels`. */
+export async function updateSpaceChannelCategory(
+  spaceIdRaw: string | ObjectId,
+  categoryIdRaw: string | ObjectId,
+  actingIdentityIdRaw: string | ObjectId,
+  params: UpdateSpaceChannelCategoryParams,
+): Promise<SpaceCategoryResult> {
+  const spaceId = parseObjId(spaceIdRaw);
+  const categoryId = parseObjId(categoryIdRaw);
+  const actingId = parseObjId(actingIdentityIdRaw);
+  if (!spaceId || !categoryId || !actingId) {
+    return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
+  }
+
+  const gate = await requireCategoryMember(spaceId, actingId);
+  if (!gate.ok) return gate.result;
+  const { space, perms } = gate;
+
+  const denied = forbidUnlessManage(perms);
+  if (denied) return denied;
+
+  const touchesEncryption =
+    params.encrypt !== undefined ||
+    params.cipherCheck !== undefined ||
+    params.inheritCipherCheck !== undefined ||
+    params.forceChildrenCipher !== undefined;
+  if (touchesEncryption) {
+    const encryptionDenied = forbidUnlessEncryption(perms);
+    if (encryptionDenied) return encryptionDenied;
+  }
+
+  const existing = await getSpaceChannelCategoryRepository().findByIdInSpace(spaceId, categoryId);
+  if (!existing) {
+    return { success: false, error: 'Category not found.', errorCode: 'CATEGORY_NOT_FOUND' };
+  }
+
+  if (
+    params.name === undefined &&
+    params.allowedRoleIds === undefined &&
+    params.encryptedName === undefined &&
+    params.nameNonce === undefined &&
+    params.cipherId === undefined &&
+    params.position === undefined &&
+    params.parentCategoryId === undefined &&
+    params.encrypt === undefined &&
+    params.cipherCheck === undefined &&
+    params.inheritAllowedRoleIds === undefined &&
+    params.inheritCipherCheck === undefined &&
+    params.forceChildrenAcl === undefined &&
+    params.forceChildrenCipher === undefined
+  ) {
+    return { success: false, error: 'At least one field is required.', errorCode: 'INVALID_CONTENT' };
+  }
+
+  const nameErr = validateCategoryName(space, params, { requireName: false });
+  if (nameErr) return nameErr;
+
+  const all = await getSpaceChannelCategoryRepository().findBySpace(spaceId);
+  const categoriesById = new Map(all.map((c) => [c._id.toHexString(), c]));
+
+  let parentCategoryId: ObjectId | null | undefined;
+  let effectiveParentHex = parentCategoryIdHex(existing);
+  if (params.parentCategoryId !== undefined) {
+    if (params.parentCategoryId === null) {
+      parentCategoryId = null;
+      effectiveParentHex = null;
+    } else {
+      const parentOid = parseObjId(params.parentCategoryId);
+      if (!parentOid) {
+        return { success: false, error: 'Invalid parent category id.', errorCode: 'INVALID_ID' };
+      }
+      if (parentOid.equals(categoryId)) {
+        return {
+          success: false,
+          error: 'A category cannot be its own parent.',
+          errorCode: 'INVALID_CONTENT',
+        };
+      }
+      const parent = all.find((c) => c._id.equals(parentOid));
+      if (!parent) {
+        return {
+          success: false,
+          error: 'Parent category not found.',
+          errorCode: 'CATEGORY_NOT_FOUND',
+        };
+      }
+      const parentById = new Map(
+        all.map((c) => {
+          const id = c._id.toHexString();
+          if (id === categoryId.toHexString()) {
+            return [id, parentOid.toHexString()] as const;
+          }
+          return [id, parentIdHex(c)] as const;
+        }),
+      );
+      let walk: string | null = parentOid.toHexString();
+      const seen = new Set<string>();
+      while (walk) {
+        if (walk === categoryId.toHexString()) {
+          return {
+            success: false,
+            error: 'Cannot nest a category under its descendant.',
+            errorCode: 'INVALID_CONTENT',
+          };
+        }
+        if (seen.has(walk)) break;
+        seen.add(walk);
+        walk = parentById.get(walk) ?? null;
+      }
+      const depth = categoryDepth(categoryId.toHexString(), parentById);
+      if (depth === null || depth > SPACE_CATEGORY_MAX_DEPTH) {
+        return {
+          success: false,
+          error: `Categories cannot nest deeper than ${SPACE_CATEGORY_MAX_DEPTH} levels.`,
+          errorCode: 'INVALID_CONTENT',
+        };
+      }
+      parentCategoryId = parentOid;
+      effectiveParentHex = parentOid.toHexString();
+    }
+  }
+
+  const force = ancestorForceFlags(effectiveParentHex, categoriesById);
+  let inheritAcl =
+    params.inheritAllowedRoleIds !== undefined
+      ? params.inheritAllowedRoleIds
+      : isInheritEnabled(existing.inheritAllowedRoleIds);
+  let inheritCipher =
+    params.inheritCipherCheck !== undefined
+      ? params.inheritCipherCheck
+      : isInheritEnabled(existing.inheritCipherCheck);
+
+  if (force.forceAcl) {
+    if (params.inheritAllowedRoleIds === false) {
+      return {
+        success: false,
+        error: 'Roles are forced by a parent category and cannot be overridden.',
+        errorCode: 'FORBIDDEN',
+      };
+    }
+    if (params.allowedRoleIds !== undefined && params.inheritAllowedRoleIds !== true) {
+      return {
+        success: false,
+        error: 'Roles are forced by a parent category and cannot be overridden.',
+        errorCode: 'FORBIDDEN',
+      };
+    }
+    inheritAcl = true;
+  }
+  if (force.forceCipher) {
+    if (params.inheritCipherCheck === false) {
+      return {
+        success: false,
+        error: 'Encryption is forced by a parent category and cannot be overridden.',
+        errorCode: 'FORBIDDEN',
+      };
+    }
+    inheritCipher = true;
+  }
+
+  const roles = await getSpaceRoleRepository().findBySpace(spaceId);
+  const everyone = findEveryoneRole(roles);
+  if (!everyone) {
+    return { success: false, error: 'Everyone role missing.', errorCode: 'INVALID_CONTENT' };
+  }
+  const parentDoc = effectiveParentHex
+    ? (categoriesById.get(effectiveParentHex) ?? null)
+    : null;
+
+  const refreshAcl =
+    inheritAcl &&
+    (params.inheritAllowedRoleIds === true ||
+      params.parentCategoryId !== undefined ||
+      force.forceAcl);
+  const refreshCipher =
+    inheritCipher &&
+    (params.inheritCipherCheck === true ||
+      params.parentCategoryId !== undefined ||
+      force.forceCipher ||
+      params.encrypt !== undefined ||
+      params.cipherCheck !== undefined);
+
+  let allowedRoleIds: ObjectId[] | undefined;
+  if (refreshAcl) {
+    allowedRoleIds = resolveParentAcl(parentDoc, everyone._id);
+  } else if (!inheritAcl && params.allowedRoleIds !== undefined) {
+    const rolesResult = await resolveAllowedRoleIds(spaceId, perms, params.allowedRoleIds);
+    if (!rolesResult.ok) return rolesResult.result;
+    allowedRoleIds = rolesResult.allowedRoleIds;
+  }
+
+  const hasEncrypted = !!(params.encryptedName && params.nameNonce && params.cipherId);
+
+  let cipherCheck: CipherCheck | undefined;
+  let clearCipherCheck = false;
+  if (refreshCipher) {
+    cipherCheck = resolveParentCipher(space, parentDoc);
+    if (!cipherCheck) clearCipherCheck = true;
+  } else if (!inheritCipher && (params.encrypt !== undefined || params.cipherCheck !== undefined)) {
+    if (params.encrypt === false) {
+      clearCipherCheck = true;
+    } else {
+      cipherCheck = resolveCategoryCipherCheck(
+        space,
+        { encrypt: params.encrypt ?? true, cipherCheck: params.cipherCheck },
+        parentDoc,
+      );
+      if (!cipherCheck) {
+        return {
+          success: false,
+          error: 'cipherCheck is required when encrypt is enabled.',
+          errorCode: 'INVALID_CONTENT',
+        };
+      }
+    }
+  }
+
+  const updated = await getSpaceChannelCategoryRepository().updateCategory(spaceId, categoryId, {
+    ...(params.name !== undefined ? { name: params.name.trim() } : {}),
+    ...(hasEncrypted
+      ? {
+          name: '',
+          encryptedName: params.encryptedName,
+          nameNonce: params.nameNonce,
+          cipherId: params.cipherId,
+        }
+      : {}),
+    ...(allowedRoleIds !== undefined ? { allowedRoleIds } : {}),
+    ...(params.position !== undefined ? { position: params.position } : {}),
+    ...(parentCategoryId !== undefined ? { parentCategoryId } : {}),
+    ...(clearCipherCheck ? { clearCipherCheck: true } : {}),
+    ...(cipherCheck ? { cipherCheck } : {}),
+    ...(params.inheritAllowedRoleIds !== undefined || force.forceAcl
+      ? { inheritAllowedRoleIds: inheritAcl }
+      : {}),
+    ...(params.inheritCipherCheck !== undefined || force.forceCipher
+      ? { inheritCipherCheck: inheritCipher }
+      : {}),
+    ...(params.forceChildrenAcl !== undefined
+      ? { forceChildrenAcl: params.forceChildrenAcl }
+      : {}),
+    ...(params.forceChildrenCipher !== undefined
+      ? { forceChildrenCipher: params.forceChildrenCipher }
+      : {}),
+  });
+
+  if (!updated) {
+    return { success: false, error: 'Category not found.', errorCode: 'CATEGORY_NOT_FOUND' };
+  }
+
+  const publicCategory = toPublicSpaceChannelCategory(updated);
+  // Union of old and new audiences so members losing access still hear the change.
+  const [oldAudience, newAudience] = await Promise.all([
+    resolveChannelAudience(spaceId, existing),
+    resolveChannelAudience(spaceId, updated),
+  ]);
+  await publishSpaceEvent(
+    spaceId.toHexString(),
+    {
+      type: 'space_category_updated',
+      data: { category: publicCategory },
+    },
+    {
+      audienceIdentityIds:
+        oldAudience === null || newAudience === null
+          ? null
+          : [...new Set([...oldAudience, ...newAudience])],
+    },
+  );
+
+  const shouldCascade =
+    allowedRoleIds !== undefined ||
+    cipherCheck !== undefined ||
+    clearCipherCheck ||
+    params.forceChildrenAcl !== undefined ||
+    params.forceChildrenCipher !== undefined ||
+    params.inheritAllowedRoleIds !== undefined ||
+    params.inheritCipherCheck !== undefined;
+
+  if (shouldCascade) {
+    await cascadeCategorySettings(spaceId, updated, space, everyone._id);
+  }
+
+  if (allowedRoleIds !== undefined) {
+    void recordSpaceAudit({
+      spaceId,
+      actorIdentityId: actingId,
+      action: 'channel_acl_update',
+      targetId: categoryId,
+      metadata: {
+        allowedRoleIds: allowedRoleIds.map((id) => id.toHexString()),
+      },
+    });
+  }
+
+  return { success: true, category: publicCategory };
+}
+
+/**
+ * Delete a category. Direct child channels and nested categories are promoted
+ * to this category's parent (or root). Requires `manageChannels`.
+ */
+export async function deleteSpaceChannelCategory(
+  spaceIdRaw: string | ObjectId,
+  categoryIdRaw: string | ObjectId,
+  actingIdentityIdRaw: string | ObjectId,
+): Promise<SpaceActionResult> {
+  const spaceId = parseObjId(spaceIdRaw);
+  const categoryId = parseObjId(categoryIdRaw);
+  const actingId = parseObjId(actingIdentityIdRaw);
+  if (!spaceId || !categoryId || !actingId) {
+    return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
+  }
+
+  const gate = await requireCategoryMember(spaceId, actingId);
+  if (!gate.ok) return gate.result;
+  const { perms } = gate;
+
+  const denied = forbidUnlessManage(perms);
+  if (denied) return denied;
+
+  const existing = await getSpaceChannelCategoryRepository().findByIdInSpace(spaceId, categoryId);
+  if (!existing) {
+    return { success: false, error: 'Category not found.', errorCode: 'CATEGORY_NOT_FOUND' };
+  }
+
+  const promoteTo = existing.parentCategoryId ?? null;
+  await getSpaceChannelRepository().reparentChannels(spaceId, categoryId, promoteTo);
+  await getSpaceChannelCategoryRepository().reparentChildren(spaceId, categoryId, promoteTo);
+  const deleted = await getSpaceChannelCategoryRepository().deleteCategory(spaceId, categoryId);
+  if (!deleted) {
+    return { success: false, error: 'Category not found.', errorCode: 'CATEGORY_NOT_FOUND' };
+  }
+
+  await publishSpaceEvent(spaceId.toHexString(), {
+    type: 'space_category_deleted',
+    data: { spaceId: spaceId.toHexString(), categoryId: categoryId.toHexString() },
+  });
+
+  return { success: true };
+}

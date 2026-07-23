@@ -84,7 +84,10 @@ export async function getNotificationsResult(
 
   let types: string[] | undefined;
   if (typesParam) {
-    types = typesParam.split(',').map((t) => t.trim());
+    types = typesParam.split(',')
+      .map((t) => sanitizeString(t.trim(), 'idenhanced').value)
+      .filter(Boolean);
+    if (types.length === 0) types = undefined;
   }
 
   let validSince: string | undefined;

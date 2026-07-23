@@ -11,7 +11,7 @@ import type { AgeVerificationDocument } from '../../models/age-verification';
 import { getAgeVerificationRepository } from '../../repositories/age-verification.repository';
 import { getUserRepository } from '../../repositories/user.repository';
 import { getActiveProvider } from './providers';
-import { getAgeVerificationPolicy, resolveBusinessSettings } from './jurisdiction-policy';
+import { getAgeVerificationPolicy, getDefaultAgeVerificationPolicy, resolveBusinessSettings } from './jurisdiction-policy';
 import type { StartVerificationResult, VerificationStatusResult } from './provider';
 import elog from '../../utils/adieuuLogger';
 
@@ -99,10 +99,13 @@ export async function startVerification(
     }
   }
 
-  const policy = await getAgeVerificationPolicy(opts.jurisdiction);
-  const leastInvasive = policy?.leastInvasiveMethod;
+  const seedPolicy = await getAgeVerificationPolicy(opts.jurisdiction);
+  const policy = seedPolicy ?? getDefaultAgeVerificationPolicy();
+  const leastInvasive = policy.leastInvasiveMethod;
 
-  const businessSettings = await resolveBusinessSettings(opts.jurisdiction, policy);
+  // Pass seedPolicy (not the synthetic default) so the 3-tier fallback
+  // in resolveBusinessSettings correctly reaches the platform default.
+  const businessSettings = await resolveBusinessSettings(opts.jurisdiction, seedPolicy);
 
   const countryCode = opts.countryOverride
     ?? businessSettings?.country?.toLowerCase()
@@ -129,9 +132,9 @@ export async function startVerification(
   elog.info('Age verification: policy resolved', {
     userId: user._id.toHexString(),
     jurisdiction: opts.jurisdiction,
-    hasPolicy: !!policy,
-    compatibleMethods: policy?.compatibleMethods ?? [],
-    leastInvasive: leastInvasive ?? null,
+    hasSeedPolicy: !!seedPolicy,
+    compatibleMethods: policy.compatibleMethods,
+    leastInvasive: leastInvasive,
     businessSettingsId: input.businessSettingsId ?? null,
     userHasEmail: !!user.email,
     userHasPhone: !!user.phone,

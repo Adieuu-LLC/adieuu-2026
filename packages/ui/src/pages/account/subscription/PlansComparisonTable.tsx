@@ -8,6 +8,7 @@ import {
 import { Button } from '../../../components/Button';
 import { Spinner } from '../../../components/Spinner';
 import { Tooltip } from '../../../components/Tooltip';
+import { InfoTip } from '../../../components/InfoTip';
 import type { PlansTabProps } from './types';
 import {
   COMPARISON_COLUMN_IDS,
@@ -46,14 +47,16 @@ function TierColumnHeader({
   billingKind,
 }: {
   idSuffix: string;
-  tierI18nKey: 'access' | 'insider' | 'vanguard' | 'founder';
-  billingKind: 'annual' | 'lifetime';
+  tierI18nKey: 'free' | 'access' | 'insider' | 'vanguard' | 'founder';
+  billingKind: 'free' | 'annual' | 'lifetime';
 }) {
   const { t } = useTranslation();
   const sub =
-    billingKind === 'annual'
-      ? t('account.subscription.comparison.tierAnnual')
-      : t('account.subscription.comparison.tierLifetime');
+    billingKind === 'free'
+      ? t('account.subscription.comparison.tierFree')
+      : billingKind === 'annual'
+        ? t('account.subscription.comparison.tierAnnual')
+        : t('account.subscription.comparison.tierLifetime');
   return (
     <th scope="col" className="comparison-table-tier-col" id={idSuffix}>
       <div className="comparison-table-tier-heading">
@@ -115,12 +118,43 @@ export function PlansComparisonTable({
     return raw.filter((line): line is string => typeof line === 'string' && line.length > 0);
   }, [t]);
 
+  const freeColId = `${annualPlansHeadingId}-col-free`;
   const accessColId = `${annualPlansHeadingId}-col-access`;
   const insiderColId = `${annualPlansHeadingId}-col-insider`;
   const vanguardColId = `${annualPlansHeadingId}-col-vanguard`;
   const founderColId = `${annualPlansHeadingId}-col-founder`;
 
   const renderBillingCell = (columnId: ComparisonColumnId) => {
+    if (columnId === 'free') {
+      return (
+        <td key={columnId} className="comparison-table-cell comparison-table-cell-billing">
+          <div className="comparison-table-billing-amount">
+            {t('account.subscription.comparison.cellFree')}
+          </div>
+          <div className="comparison-table-billing-kind">
+            <InfoTip
+              mode="popover"
+              position="bottom"
+              className="comparison-table-free-popover"
+              content={
+                <>
+                  <p>{t('account.subscription.comparison.cellFreePopoverP1')}</p>
+                  <p>{t('account.subscription.comparison.cellFreePopoverP2')}</p>
+                  {t('account.subscription.comparison.cellFreePopoverP3') && (
+                    <p>{t('account.subscription.comparison.cellFreePopoverP3')}</p>
+                  )}
+                </>
+              }
+            >
+              <button type="button" className="comparison-table-free-subtext">
+                {t('account.subscription.comparison.cellFreeSubtext')}
+              </button>
+            </InfoTip>
+          </div>
+        </td>
+      );
+    }
+
     const priceEntry = catalogPrices?.[columnId];
     const fallbackText =
       columnId === 'access' || columnId === 'insider'
@@ -236,6 +270,10 @@ export function PlansComparisonTable({
   };
 
   const renderJoinNowCell = (columnId: ComparisonColumnId) => {
+    if (columnId === 'free') {
+      return <td key={columnId} className="comparison-table-cell comparison-table-cell-join" />;
+    }
+
     const ownsColumn =
       (columnId === 'access' && hasAccess) ||
       (columnId === 'insider' && hasInsider) ||
@@ -306,6 +344,7 @@ export function PlansComparisonTable({
         <col />
         <col />
         <col />
+        <col />
       </colgroup>
       <thead>
         <tr>
@@ -315,6 +354,7 @@ export function PlansComparisonTable({
           >
             {t('account.subscription.comparison.featureColumn')}
           </th>
+          <TierColumnHeader idSuffix={freeColId} tierI18nKey="free" billingKind="free" />
           <TierColumnHeader idSuffix={accessColId} tierI18nKey="access" billingKind="annual" />
           <TierColumnHeader idSuffix={insiderColId} tierI18nKey="insider" billingKind="annual" />
           <TierColumnHeader idSuffix={vanguardColId} tierI18nKey="vanguard" billingKind="lifetime" />
@@ -323,6 +363,7 @@ export function PlansComparisonTable({
         {showActionsRow ? (
           <tr className="comparison-table-actions-row">
             <td className="comparison-table-pin-col comparison-table-pin-col--header comparison-table-actions-pin" />
+            <td className="comparison-table-actions-cell" />
             <td className="comparison-table-actions-cell">
               {hasAccess && !hasInsider ? (
                 <div className="subscription-tier-status">
@@ -461,7 +502,7 @@ export function PlansComparisonTable({
       {footnoteLines.length > 0 ? (
         <tfoot>
           <tr className="comparison-table-footnotes-row">
-            <td colSpan={5} className="comparison-table-footnotes-cell">
+            <td colSpan={6} className="comparison-table-footnotes-cell">
               <section
                 className="comparison-table-footnotes"
                 aria-label={t('account.subscription.comparison.footnotesRegionLabel')}

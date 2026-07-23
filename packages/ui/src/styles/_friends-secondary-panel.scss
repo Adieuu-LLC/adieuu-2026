@@ -268,17 +268,18 @@
 .sidebar-search-item-add-friend {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
+  gap: var(--spacing-xs);
+  margin-left: auto;
   border-radius: var(--radius-sm);
   border: none;
   background: transparent;
   cursor: pointer;
   color: var(--color-text-tertiary);
-  padding: 0;
+  padding: 2px var(--spacing-xs);
   flex-shrink: 0;
   transition: all var(--transition-fast);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
 
   svg {
     width: 14px;
@@ -288,6 +289,36 @@
   &:hover {
     color: var(--color-primary);
     background: var(--color-bg-hover);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+// Friendship status labels in sidebar search results
+.sidebar-search-item-friend-status {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+  padding: 2px var(--spacing-xs);
+
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  &--friends {
+    color: var(--color-primary);
+  }
+
+  &--pending {
+    color: var(--color-text-muted);
   }
 }
 

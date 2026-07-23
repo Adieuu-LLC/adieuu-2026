@@ -167,6 +167,12 @@ const URL_SHIELD_RE = /(?:https?:\/\/|https?:\/|www\.)[^\s<>'"]*/gi;
  * colon shortcodes inside URL paths (e.g. `:fire:`) are left alone.
  */
 export function convertShortcodes(text: string): string {
+  if (!text) return text;
+  // Fast path: skip regex work when nothing could match shortcodes or URL shields.
+  if (!text.includes(':') && !/[;<XxB>]/.test(text) && !/www\./i.test(text)) {
+    return text;
+  }
+
   const urlSlots: string[] = [];
   const PLACEHOLDER = '\x00URL';
   let result = text.replace(URL_SHIELD_RE, (m) => {

@@ -30,23 +30,58 @@ export interface SidebarSearchProps {
 function AddFriendButton({ identityId }: { identityId: string }) {
   const { t } = useTranslation();
   const { identity: selfIdentity, status: identityStatus } = useIdentity();
-  const { sendRequest } = useFriends();
+  const { sendRequest, getFriendshipStatus } = useFriends();
   const isIdentityLoggedIn = identityStatus === 'logged_in' && selfIdentity;
+  const [status, setStatus] = useState<'none' | 'friends' | 'pending_incoming' | 'pending_outgoing'>('none');
+  const [isSending, setIsSending] = useState(false);
+
+  useEffect(() => {
+    if (!isIdentityLoggedIn || identityId === selfIdentity?.id) return;
+    let cancelled = false;
+    getFriendshipStatus(identityId).then((result) => {
+      if (!cancelled) setStatus(result.status);
+    });
+    return () => { cancelled = true; };
+  }, [identityId, isIdentityLoggedIn, selfIdentity?.id, getFriendshipStatus]);
 
   if (!isIdentityLoggedIn || identityId === selfIdentity?.id) return null;
+
+  if (status === 'friends') {
+    return (
+      <span className="sidebar-search-item-friend-status sidebar-search-item-friend-status--friends">
+        <Icon name="users" />
+        {t('friends.alreadyFriends')}
+      </span>
+    );
+  }
+
+  if (status === 'pending_outgoing' || status === 'pending_incoming') {
+    return (
+      <span className="sidebar-search-item-friend-status sidebar-search-item-friend-status--pending">
+        <Icon name="clock" />
+        {t('friends.pending')}
+      </span>
+    );
+  }
 
   return (
     <button
       type="button"
       className="sidebar-search-item-add-friend"
+      disabled={isSending}
       onClick={(e) => {
         e.stopPropagation();
         e.preventDefault();
-        void sendRequest(identityId);
+        setIsSending(true);
+        void sendRequest(identityId).then((ok) => {
+          if (ok) setStatus('pending_outgoing');
+          setIsSending(false);
+        });
       }}
       title={t('friends.addFriend')}
     >
       <Icon name="plus" />
+      <span>{t('friends.addFriend')}</span>
     </button>
   );
 }

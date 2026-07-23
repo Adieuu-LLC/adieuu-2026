@@ -26,6 +26,9 @@ const chatWsUrl = import.meta.env.VITE_CHAT_WS_URL ?? `${wsProtocol}//${window.l
 // LiveKit server URL for call service (optional)
 const livekitUrl = import.meta.env.VITE_LIVEKIT_URL || undefined;
 
+// FriendlyCaptcha sitekey (free-tier captcha; optional)
+const friendlyCaptchaSitekey = import.meta.env.VITE_FRIENDLY_CAPTCHA_SITEKEY || undefined;
+
 // Web platform configuration
 const config: AppConfig = {
   apiBaseUrl,
@@ -33,6 +36,7 @@ const config: AppConfig = {
   externalLinkBase: '', // Relative links
   platform: 'web',
   livekitUrl,
+  friendlyCaptchaSitekey,
 };
 
 crashReporter.init({ endpoint: apiBaseUrl, platform: 'web' });

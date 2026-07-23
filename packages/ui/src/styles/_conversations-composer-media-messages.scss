@@ -43,6 +43,48 @@
   }
 }
 
+.key-change-alert-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-warning-bg);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  border-top: 1px solid var(--color-border);
+
+  > svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    color: var(--color-warning);
+  }
+
+  span {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__dismiss {
+    display: inline-flex;
+    align-items: center;
+    background: none;
+    border: none;
+    padding: var(--spacing-xxs);
+    cursor: pointer;
+    color: var(--color-text-muted);
+
+    svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    &:hover {
+      color: var(--color-text-primary);
+    }
+  }
+}
+
 // ============================================================================
 // Multi-attachment tiling container
 // ============================================================================
@@ -635,6 +677,19 @@
     transform: translate(-50%, -50%);
     z-index: var(--z-modal, 200);
   }
+
+  &--fav {
+    overflow: visible;
+  }
+}
+
+.emoji-picker-popover-header {
+  margin: 0;
+  padding: 10px 14px 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.01em;
 }
 
 .emoji-picker-popover-close {
@@ -732,6 +787,14 @@
       flex-wrap: wrap;
       gap: 4px;
       margin-top: var(--spacing-sm);
+
+      /* Height placeholder shown when the server flags reactions but they have
+         not loaded yet. Mirrors a single chip's box so no shift occurs when the
+         real bar renders. */
+      &--reserved {
+        pointer-events: none;
+        user-select: none;
+      }
     }
 
     &-chip {
@@ -757,6 +820,17 @@
 
         &:hover {
           background: color-mix(in srgb, var(--color-accent-primary) 100%, transparent);
+        }
+      }
+
+      /* Invisible placeholder chip: same padding/border/emoji box as a real chip
+         so the reserved bar reserves the exact height reactions will occupy. */
+      &--skeleton {
+        opacity: 0;
+
+        .message-reaction-chip-emoji {
+          width: 1em;
+          height: 1em;
         }
       }
 

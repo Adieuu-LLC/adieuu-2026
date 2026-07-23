@@ -193,15 +193,19 @@ export function useConversationCreateAndSend(params: ConversationCreateAndSendPa
         if (recipients.length === 0) throw new Error('No recipient keys available');
 
         const cryptoProfile = identity.preferredCryptoProfile ?? 'default';
+        const clientMessageId = crypto.randomUUID();
         const encrypted = encryptMessage(
           plaintext,
           recipients,
           signingKey,
-          cryptoProfile as 'default' | 'cnsa2'
+          { conversationId, fromIdentityId: identity.id, clientMessageId },
+          cryptoProfile as 'default' | 'cnsa2',
+          { forwardSecrecyRequested: useFs }
         );
         throwIfAborted();
 
-        const clientMessageId = crypto.randomUUID();
+        const fsApplied = encrypted.wrappedKeys.some((k) => k.preKeyType !== 'static');
+        const fsDowngraded = useFs && encrypted.fsDowngradedDeviceIds.length > 0;
 
         const sendParams: SendMessageParams = {
           ciphertext: encrypted.ciphertext,
@@ -233,7 +237,10 @@ export function useConversationCreateAndSend(params: ConversationCreateAndSendPa
             ...resp.data,
             decryptedContent: plaintext,
             signatureVerified: true,
-            forwardSecrecy: useFs,
+            // Reflect what actually happened, not what was requested: if all
+            // devices fell back to static wrapping, this message has no FS.
+            forwardSecrecy: useFs && fsApplied,
+            ...(fsDowngraded ? { fsDowngraded: true } : {}),
           };
 
           if (!options?.skipMessageStateUpdate) {
@@ -299,7 +306,14 @@ export function useConversationCreateAndSend(params: ConversationCreateAndSendPa
       plaintext: string,
       options?: {
         useForwardSecrecy?: boolean;
+        e2eMediaIds?: string[];
         signal?: AbortSignal;
+        /**
+         * The original message's clientMessageId, bound into the v2 signature
+         * (stable across edits). When omitted, it is resolved with an extra
+         * GET request.
+         */
+        clientMessageId?: string;
       }
     ): Promise<PublicMessage | SendMessageErrorResult | null> => {
       if (!isLoggedIn || !identity) return null;
@@ -320,6 +334,16 @@ export function useConversationCreateAndSend(params: ConversationCreateAndSendPa
         const signingKey = getSigningKey();
         if (!signingKey) throw new Error('No signing key available');
 
+        let clientMessageId = options?.clientMessageId;
+        if (!clientMessageId) {
+          const msgResp = await api.conversations.getMessage(conversationId, messageId);
+          clientMessageId = msgResp.data?.clientMessageId;
+          if (!clientMessageId) {
+            throw new Error('Unable to resolve clientMessageId for edit signature');
+          }
+        }
+        throwIfAborted();
+
         const recipients = await fetchRecipientKeys(
           conversation.participants,
           useFs,
@@ -333,9 +357,14 @@ export function useConversationCreateAndSend(params: ConversationCreateAndSendPa
           plaintext,
           recipients,
           signingKey,
-          cryptoProfile as 'default' | 'cnsa2'
+          { conversationId, fromIdentityId: identity.id, clientMessageId },
+          cryptoProfile as 'default' | 'cnsa2',
+          { forwardSecrecyRequested: useFs }
         );
         throwIfAborted();
+
+        const fsApplied = encrypted.wrappedKeys.some((k) => k.preKeyType !== 'static');
+        const fsDowngraded = useFs && encrypted.fsDowngradedDeviceIds.length > 0;
 
         const clientEditId = crypto.randomUUID();
         const editParams: EditMessageParams = {
@@ -345,6 +374,7 @@ export function useConversationCreateAndSend(params: ConversationCreateAndSendPa
           signature: encrypted.signature,
           cryptoProfile: encrypted.cryptoProfile,
           clientEditId,
+          ...(options?.e2eMediaIds?.length ? { e2eMediaIds: options.e2eMediaIds } : {}),
         };
 
         const resp = await api.conversations.editMessage(
@@ -364,7 +394,8 @@ export function useConversationCreateAndSend(params: ConversationCreateAndSendPa
             ...resp.data,
             decryptedContent: plaintext,
             signatureVerified: true,
-            forwardSecrecy: useFs,
+            forwardSecrecy: useFs && fsApplied,
+            ...(fsDowngraded ? { fsDowngraded: true } : {}),
           };
 
           setMessagesState((prev) => {

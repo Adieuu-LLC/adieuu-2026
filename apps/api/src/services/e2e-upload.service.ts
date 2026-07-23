@@ -486,14 +486,40 @@ export async function getE2EMediaDownload(
   if (!isUploader) {
     const messageRepo = getMessageRepository();
     const conversationId = await messageRepo.findConversationByE2EMediaId(e2eMediaId);
-    if (!conversationId) {
-      return { success: false, error: 'E2E media not found', errorCode: 'NOT_FOUND' };
-    }
+    if (conversationId) {
+      const convRepo = getConversationRepository();
+      const conversation = await convRepo.findById(conversationId);
+      if (!conversation || !conversation.participants.some((p) => p.equals(requesterObjId))) {
+        return { success: false, error: 'E2E media not found', errorCode: 'NOT_FOUND' };
+      }
+    } else {
+      const { getSpaceMessageRepository } = await import('../repositories/space-message.repository');
+      const { getSpaceChannelRepository } = await import('../repositories/space-channel.repository');
+      const { requireChannelView } = await import('./space/channel-access');
+      const { resolveMemberPermissions } = await import('./space/permissions');
 
-    const convRepo = getConversationRepository();
-    const conversation = await convRepo.findById(conversationId);
-    if (!conversation || !conversation.participants.some((p) => p.equals(requesterObjId))) {
-      return { success: false, error: 'E2E media not found', errorCode: 'NOT_FOUND' };
+      const spaceCtx = await getSpaceMessageRepository().findChannelContextByE2EMediaId(e2eMediaId);
+      if (!spaceCtx) {
+        return { success: false, error: 'E2E media not found', errorCode: 'NOT_FOUND' };
+      }
+
+      const perms = await resolveMemberPermissions(spaceCtx.spaceId, requesterObjId);
+      if (!perms.isMember) {
+        return { success: false, error: 'E2E media not found', errorCode: 'NOT_FOUND' };
+      }
+
+      const channel = await getSpaceChannelRepository().findByIdInSpace(
+        spaceCtx.spaceId,
+        spaceCtx.channelId,
+      );
+      if (!channel) {
+        return { success: false, error: 'E2E media not found', errorCode: 'NOT_FOUND' };
+      }
+
+      const view = await requireChannelView(spaceCtx.spaceId, channel, requesterObjId);
+      if (!view.ok) {
+        return { success: false, error: 'E2E media not found', errorCode: 'NOT_FOUND' };
+      }
     }
   }
 

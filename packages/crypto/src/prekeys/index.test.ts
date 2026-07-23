@@ -10,10 +10,13 @@ import {
   unwrapSessionKeyWithPreKeys,
   PREKEY_KDF_INFO,
   SPK_SIGNATURE_DOMAIN,
+  PREKEY_WRAP_VERSION_AAD,
   type SignedPreKeyPublic,
   type OneTimePreKeyPublic,
+  type PreKeyWrappedKey,
 } from './index';
 import { generateSigningKeyPair, generateECDHKeyPair, generateKEMKeyPair } from '../keys/generate';
+import { encrypt as symmetricEncrypt } from '../encrypt/symmetric';
 import { randomBytes, constantTimeEqual } from '../utils';
 import type { CryptoProfile } from '../types';
 
@@ -467,6 +470,280 @@ describe('prekeys', () => {
           'default'
         )
       ).toThrow();
+    });
+  });
+
+  describe('v2 AAD binding', () => {
+    function makeSpkPair() {
+      const signing = generateSigningKeyPair();
+      const spk = generateSignedPreKey(signing.privateKey);
+      const spkPublic: SignedPreKeyPublic = {
+        keyId: spk.keyId,
+        ecdhPublicKey: spk.ecdh.publicKey,
+        kemPublicKey: spk.kem.publicKey,
+        signature: spk.signature,
+      };
+      return { signing, spk, spkPublic };
+    }
+
+    test('new wraps carry wrapVersion=2 and the pre-key IDs', () => {
+      const { spk, spkPublic } = makeSpkPair();
+      const [otpk] = generateOneTimePreKeys(1);
+      const otpkPublic: OneTimePreKeyPublic = {
+        keyId: otpk!.keyId,
+        ecdhPublicKey: otpk!.ecdh.publicKey,
+        kemPublicKey: otpk!.kem.publicKey,
+      };
+
+      const wrapped = wrapSessionKeyWithPreKeys(randomBytes(32), spkPublic, otpkPublic);
+      expect(wrapped.wrapVersion).toBe(PREKEY_WRAP_VERSION_AAD);
+      expect(wrapped.signedPreKeyId).toBe(spk.keyId);
+      expect(wrapped.oneTimePreKeyId).toBe(otpk!.keyId);
+    });
+
+    test('tampered signedPreKeyId fails to unwrap (AAD mismatch)', () => {
+      const { spk, spkPublic } = makeSpkPair();
+      const wrapped = wrapSessionKeyWithPreKeys(randomBytes(32), spkPublic);
+
+      const tampered: PreKeyWrappedKey = { ...wrapped, signedPreKeyId: crypto.randomUUID() };
+      expect(() =>
+        unwrapSessionKeyWithPreKeys(tampered, spk.ecdh.privateKey, spk.kem.privateKey)
+      ).toThrow();
+    });
+
+    test('tampered oneTimePreKeyId fails to unwrap (AAD mismatch)', () => {
+      const { spk, spkPublic } = makeSpkPair();
+      const [otpk] = generateOneTimePreKeys(1);
+      const otpkPublic: OneTimePreKeyPublic = {
+        keyId: otpk!.keyId,
+        ecdhPublicKey: otpk!.ecdh.publicKey,
+        kemPublicKey: otpk!.kem.publicKey,
+      };
+      const wrapped = wrapSessionKeyWithPreKeys(randomBytes(32), spkPublic, otpkPublic);
+
+      const tampered: PreKeyWrappedKey = { ...wrapped, oneTimePreKeyId: crypto.randomUUID() };
+      expect(() =>
+        unwrapSessionKeyWithPreKeys(
+          tampered,
+          spk.ecdh.privateKey,
+          spk.kem.privateKey,
+          otpk!.ecdh.privateKey,
+          otpk!.kem.privateKey
+        )
+      ).toThrow();
+    });
+
+    test('stripping oneTimePreKeyId from a v2 OTPK wrap fails to unwrap', () => {
+      const { spk, spkPublic } = makeSpkPair();
+      const [otpk] = generateOneTimePreKeys(1);
+      const otpkPublic: OneTimePreKeyPublic = {
+        keyId: otpk!.keyId,
+        ecdhPublicKey: otpk!.ecdh.publicKey,
+        kemPublicKey: otpk!.kem.publicKey,
+      };
+      const wrapped = wrapSessionKeyWithPreKeys(randomBytes(32), spkPublic, otpkPublic);
+
+      // A server attempting to hide the OTPK usage (downgrade to SPK-only
+      // semantics) breaks the AAD binding.
+      const tampered: PreKeyWrappedKey = { ...wrapped, oneTimePreKeyId: undefined };
+      expect(() =>
+        unwrapSessionKeyWithPreKeys(
+          tampered,
+          spk.ecdh.privateKey,
+          spk.kem.privateKey,
+          otpk!.ecdh.privateKey,
+          otpk!.kem.privateKey
+        )
+      ).toThrow();
+    });
+
+    test('v2 wrap without signedPreKeyId is rejected outright', () => {
+      const { spk, spkPublic } = makeSpkPair();
+      const wrapped = wrapSessionKeyWithPreKeys(randomBytes(32), spkPublic);
+
+      const missingId: PreKeyWrappedKey = { ...wrapped, signedPreKeyId: undefined };
+      expect(() =>
+        unwrapSessionKeyWithPreKeys(missingId, spk.ecdh.privateKey, spk.kem.privateKey)
+      ).toThrow('signedPreKeyId required to unwrap a v2 pre-key wrap');
+    });
+
+    test('stripping wrapVersion from a v2 wrap fails to unwrap (downgrade rejected)', () => {
+      const { spk, spkPublic } = makeSpkPair();
+      const wrapped = wrapSessionKeyWithPreKeys(randomBytes(32), spkPublic);
+
+      // A v2 ciphertext was sealed with AAD; decrypting it as a legacy wrap
+      // (no AAD) must fail the AEAD tag check.
+      const downgraded: PreKeyWrappedKey = { ...wrapped, wrapVersion: undefined };
+      expect(() =>
+        unwrapSessionKeyWithPreKeys(downgraded, spk.ecdh.privateKey, spk.kem.privateKey)
+      ).toThrow();
+    });
+
+    test('legacy wrap without wrapVersion (wire compat) still unwraps', () => {
+      const { spk, spkPublic } = makeSpkPair();
+      const sessionKey = randomBytes(32);
+
+      // Build a wrap exactly as a pre-AAD client would have: same exchange,
+      // but no associated data and no version/ID metadata.
+      const exchange = preKeyExchange(spkPublic);
+      const { ciphertext, nonce } = symmetricEncrypt(exchange.sharedSecret, sessionKey);
+      const legacy: PreKeyWrappedKey = {
+        ephemeralPublicKey: exchange.ephemeralPublicKey,
+        spkKemCiphertext: exchange.spkKemCiphertext,
+        wrappedSessionKey: ciphertext,
+        wrappingNonce: nonce,
+      };
+
+      const unwrapped = unwrapSessionKeyWithPreKeys(
+        legacy,
+        spk.ecdh.privateKey,
+        spk.kem.privateKey
+      );
+      expect(constantTimeEqual(sessionKey, unwrapped)).toBe(true);
+    });
+  });
+
+  describe('forward secrecy properties', () => {
+    test('OTPK-wrapped key cannot be unwrapped after OTPK private key deletion', () => {
+      const signing = generateSigningKeyPair();
+      const spk = generateSignedPreKey(signing.privateKey);
+      const [otpk] = generateOneTimePreKeys(1);
+
+      const spkPublic: SignedPreKeyPublic = {
+        keyId: spk.keyId,
+        ecdhPublicKey: spk.ecdh.publicKey,
+        kemPublicKey: spk.kem.publicKey,
+        signature: spk.signature,
+      };
+      const otpkPublic: OneTimePreKeyPublic = {
+        keyId: otpk!.keyId,
+        ecdhPublicKey: otpk!.ecdh.publicKey,
+        kemPublicKey: otpk!.kem.publicKey,
+      };
+
+      const sessionKey = randomBytes(32);
+      const wrapped = wrapSessionKeyWithPreKeys(sessionKey, spkPublic, otpkPublic);
+
+      // Recipient deletes the consumed OTPK: SPK material alone must not
+      // recover the session key. (The unwrap path without OTPK keys skips
+      // DH2/KEM2, deriving a different secret.)
+      expect(() =>
+        unwrapSessionKeyWithPreKeys(wrapped, spk.ecdh.privateKey, spk.kem.privateKey)
+      ).toThrow();
+    });
+
+    test('OTPK-wrapped key cannot be unwrapped with a different OTPK', () => {
+      const signing = generateSigningKeyPair();
+      const spk = generateSignedPreKey(signing.privateKey);
+      const [otpk, otherOtpk] = generateOneTimePreKeys(2);
+
+      const spkPublic: SignedPreKeyPublic = {
+        keyId: spk.keyId,
+        ecdhPublicKey: spk.ecdh.publicKey,
+        kemPublicKey: spk.kem.publicKey,
+        signature: spk.signature,
+      };
+      const otpkPublic: OneTimePreKeyPublic = {
+        keyId: otpk!.keyId,
+        ecdhPublicKey: otpk!.ecdh.publicKey,
+        kemPublicKey: otpk!.kem.publicKey,
+      };
+
+      const wrapped = wrapSessionKeyWithPreKeys(randomBytes(32), spkPublic, otpkPublic);
+
+      expect(() =>
+        unwrapSessionKeyWithPreKeys(
+          wrapped,
+          spk.ecdh.privateKey,
+          spk.kem.privateKey,
+          otherOtpk!.ecdh.privateKey,
+          otherOtpk!.kem.privateKey
+        )
+      ).toThrow();
+    });
+
+    test('reusing the same OTPK for two wraps still produces independent secrets', () => {
+      // Storage-layer enforcement prevents OTPK reuse; at the crypto layer a
+      // reused OTPK must at minimum not cause shared-secret collisions
+      // because each wrap uses a fresh ephemeral key.
+      const signing = generateSigningKeyPair();
+      const spk = generateSignedPreKey(signing.privateKey);
+      const [otpk] = generateOneTimePreKeys(1);
+
+      const spkPublic: SignedPreKeyPublic = {
+        keyId: spk.keyId,
+        ecdhPublicKey: spk.ecdh.publicKey,
+        kemPublicKey: spk.kem.publicKey,
+        signature: spk.signature,
+      };
+      const otpkPublic: OneTimePreKeyPublic = {
+        keyId: otpk!.keyId,
+        ecdhPublicKey: otpk!.ecdh.publicKey,
+        kemPublicKey: otpk!.kem.publicKey,
+      };
+
+      const key1 = randomBytes(32);
+      const key2 = randomBytes(32);
+      const wrap1 = wrapSessionKeyWithPreKeys(key1, spkPublic, otpkPublic);
+      const wrap2 = wrapSessionKeyWithPreKeys(key2, spkPublic, otpkPublic);
+
+      expect(constantTimeEqual(wrap1.ephemeralPublicKey, wrap2.ephemeralPublicKey)).toBe(false);
+      expect(constantTimeEqual(wrap1.wrappedSessionKey, wrap2.wrappedSessionKey)).toBe(false);
+
+      // Both remain independently decryptable
+      const un1 = unwrapSessionKeyWithPreKeys(
+        wrap1, spk.ecdh.privateKey, spk.kem.privateKey,
+        otpk!.ecdh.privateKey, otpk!.kem.privateKey
+      );
+      const un2 = unwrapSessionKeyWithPreKeys(
+        wrap2, spk.ecdh.privateKey, spk.kem.privateKey,
+        otpk!.ecdh.privateKey, otpk!.kem.privateKey
+      );
+      expect(constantTimeEqual(un1, key1)).toBe(true);
+      expect(constantTimeEqual(un2, key2)).toBe(true);
+    });
+
+    test('OTPK pool exhaustion: SPK-only wrap remains available and decryptable', () => {
+      const signing = generateSigningKeyPair();
+      const spk = generateSignedPreKey(signing.privateKey);
+
+      const spkPublic: SignedPreKeyPublic = {
+        keyId: spk.keyId,
+        ecdhPublicKey: spk.ecdh.publicKey,
+        kemPublicKey: spk.kem.publicKey,
+        signature: spk.signature,
+      };
+
+      // No OTPK left in the pool: the sender wraps with SPK only.
+      const sessionKey = randomBytes(32);
+      const wrapped = wrapSessionKeyWithPreKeys(sessionKey, spkPublic, undefined);
+      expect(wrapped.otpkKemCiphertext).toBeUndefined();
+      expect(wrapped.oneTimePreKeyId).toBeUndefined();
+
+      const unwrapped = unwrapSessionKeyWithPreKeys(
+        wrapped,
+        spk.ecdh.privateKey,
+        spk.kem.privateKey
+      );
+      expect(constantTimeEqual(sessionKey, unwrapped)).toBe(true);
+    });
+
+    test('substituted SPK from an attacker identity fails verification', () => {
+      // A malicious server swaps in an SPK signed by its own key. Sender-side
+      // verification against the victim's identity key must reject it.
+      const victim = generateSigningKeyPair();
+      const attacker = generateSigningKeyPair();
+      const attackerSpk = generateSignedPreKey(attacker.privateKey);
+
+      const substituted: SignedPreKeyPublic = {
+        keyId: attackerSpk.keyId,
+        ecdhPublicKey: attackerSpk.ecdh.publicKey,
+        kemPublicKey: attackerSpk.kem.publicKey,
+        signature: attackerSpk.signature,
+      };
+
+      expect(verifySignedPreKey(substituted, attacker.publicKey)).toBe(true);
+      expect(verifySignedPreKey(substituted, victim.publicKey)).toBe(false);
     });
   });
 });

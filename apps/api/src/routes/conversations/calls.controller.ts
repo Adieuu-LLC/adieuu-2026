@@ -90,7 +90,7 @@ export async function initiateCallCtrl(
     conv.id,
     identity._id.toHexString(),
     parseResult.data.media,
-    { subscriptions: ctx.identitySession.subscriptions, entitlements: ctx.identitySession.entitlements },
+    { subscriptions: ctx.identitySession.subscriptions, entitlements: ctx.identitySession.entitlements, isLifetime: ctx.identitySession.isLifetime },
     parseResult.data.wrappedE2EEKeys,
   );
 
@@ -151,7 +151,7 @@ export async function joinCallCtrl(
     call.id,
     identity._id.toHexString(),
     parseResult.data.media,
-    { subscriptions: ctx.identitySession.subscriptions, entitlements: ctx.identitySession.entitlements },
+    { subscriptions: ctx.identitySession.subscriptions, entitlements: ctx.identitySession.entitlements, isLifetime: ctx.identitySession.isLifetime },
   );
 
   if (!result.success) {
@@ -316,7 +316,8 @@ export async function updateMediaStateCtrl(
     conv.id,
     call.id,
     identity._id.toHexString(),
-    parseResult.data.media
+    parseResult.data.media,
+    { subscriptions: ctx.identitySession.subscriptions, entitlements: ctx.identitySession.entitlements, isLifetime: ctx.identitySession.isLifetime },
   );
 
   if (!result.success) {

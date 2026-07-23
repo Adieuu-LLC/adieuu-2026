@@ -31,6 +31,8 @@ export interface ConfirmDialogProps {
   onCancel?: () => void;
   /** Whether the confirm action is in progress */
   loading?: boolean;
+  /** When true, the confirm button is disabled (e.g. typed confirmation incomplete) */
+  confirmDisabled?: boolean;
   /** Dialog variant - danger shows destructive styling */
   variant?: ConfirmDialogVariant;
   /** Override closeOnInteractOutside (defaults to `!loading`) */
@@ -76,6 +78,7 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
   loading = false,
+  confirmDisabled = false,
   variant = 'default',
   closeOnInteractOutside,
 }: ConfirmDialogProps) {
@@ -124,7 +127,7 @@ export function ConfirmDialog({
                 variant={variant === 'danger' ? 'primary' : 'primary'}
                 className={variant === 'danger' ? 'btn-danger' : ''}
                 onClick={handleConfirm}
-                disabled={loading}
+                disabled={loading || confirmDisabled}
               >
                 {loading ? (
                   <span className="confirm-dialog-loading">

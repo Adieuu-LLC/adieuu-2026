@@ -32,6 +32,8 @@ export interface ProfilePrivacySettings {
   lastActiveAt: ProfileVisibility;
   profileColors: ProfileVisibility;
   achievements: ProfileVisibility;
+  badges: ProfileVisibility;
+  friends: ProfileVisibility;
 }
 
 /**
@@ -50,6 +52,8 @@ export const DEFAULT_PRIVACY_SETTINGS: ProfilePrivacySettings = {
   lastActiveAt: 'friends',
   profileColors: 'public',
   achievements: 'friends',
+  badges: 'friends',
+  friends: 'friends',
 };
 
 /** Prefix for deleted identity idents (followed by objectId) */
@@ -152,6 +156,12 @@ export interface IdentityDocument extends BaseDocument {
 
   /** When true, adding this identity to a group requires their explicit approval */
   requireGroupApproval?: boolean;
+
+  /** Ordered list of selected badge IDs to display on the profile (max 3). */
+  selectedBadges?: string[];
+
+  /** Persisted earned badges not derivable from entitlements (e.g. top100, top1000, overachiever). */
+  earnedBadges?: string[];
 
   /** Platform-level roles assigned directly on this identity */
   platformRoles?: string[];
@@ -268,6 +278,10 @@ export interface PublicIdentity {
    * locally-stored keys need re-wrapping after a remote passphrase change.
    */
   passphraseChangedAt?: string | null;
+  /** Ordered list of selected badges visible to the viewer (privacy-filtered). */
+  badges?: string[];
+  /** All badges the user has earned (only returned to the profile owner). */
+  earnedBadges?: string[];
 }
 
 /**
@@ -316,6 +330,7 @@ export function toPublicIdentity(doc: IdentityDocument): PublicIdentity {
     deviceCount: doc.devices?.length ?? 0,
     requireGroupApproval: doc.requireGroupApproval ?? false,
     passphraseChangedAt: doc.passphraseChangedAt ? doc.passphraseChangedAt.toISOString() : null,
+    badges: doc.selectedBadges?.length ? doc.selectedBadges : undefined,
   };
 }
 

@@ -22,6 +22,9 @@ const router = new Router();
 // ---------------------------------------------------------------------------
 
 router.post('/conversations', async (ctx) => {
+  const { requireCaptchaForFreeTier } = await import('../../middleware/captcha');
+  const captchaError = await requireCaptchaForFreeTier(ctx);
+  if (captchaError) return captchaError;
   return conversationRespond(ctx, await conversationController.createConversationCtrl(ctx));
 });
 
@@ -68,6 +71,9 @@ router.get('/conversations/invites/:id/preview', async (ctx) => {
 });
 
 router.post('/conversations/invites/:id/accept', async (ctx) => {
+  const { requireCaptchaForFreeTier } = await import('../../middleware/captcha');
+  const captchaError = await requireCaptchaForFreeTier(ctx);
+  if (captchaError) return captchaError;
   return conversationRespond(ctx, await conversationController.acceptGroupInviteCtrl(ctx));
 });
 

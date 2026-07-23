@@ -21,10 +21,9 @@ export const auth = {
       bannedTitle: 'Account Banned',
       ofacBannedTitle: 'Account Banned While Sanctioned',
       suspendedTitle: 'Account Suspended',
-      bannedClubWithCategory:
-        "You and {{count}} other accounts are banned for {{category}}.",
-      bannedClubTotal:
-        "You and {{count}} other accounts are banned from Adieuu.",
+      bannedMessage: 'You are banned from Adieuu.',
+      bannedMessageWithReason: 'You are banned. {{reason}}',
+      bannedMessageWithCategory: 'You are banned for {{category}}.',
       suspendedSubtitle: 'Your account access is temporarily restricted.',
       reason: 'Reason',
       timeRemaining: 'Time remaining',

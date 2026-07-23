@@ -45,7 +45,8 @@ export interface MessageResult {
     | 'INVALID_MESSAGE_QUERY'
     | 'MAX_EDITS_REACHED'
     | 'TOMBSTONE'
-    | 'SYSTEM_MESSAGE';
+    | 'SYSTEM_MESSAGE'
+    | 'INVALID_SIGNATURE';
 }
 
 export interface GroupInviteResult {

@@ -7,12 +7,17 @@ import {
   generateOneTimePreKeys,
   toBase64,
   fromBase64,
+  sign,
   verify,
   concatBytes,
   toBytes,
   randomBytes,
 } from '@adieuu/crypto';
-import type { SerializedWrappedKey, PublicMessage } from '@adieuu/shared';
+import type { PublicMessage, MessageSignatureContext } from '@adieuu/shared';
+import {
+  MESSAGE_SIGN_DOMAIN_V1,
+  buildMessageSignaturePreimageV2,
+} from '@adieuu/shared';
 import {
   encryptMessage,
   decryptMessage,
@@ -105,20 +110,33 @@ function makeSender() {
   };
 }
 
+function makeContext(fromIdentityId = 'sender-id'): MessageSignatureContext {
+  return {
+    conversationId: crypto.randomUUID(),
+    fromIdentityId,
+    clientMessageId: crypto.randomUUID(),
+  };
+}
+
+/**
+ * Build the server-shaped PublicMessage from an encryption result. The
+ * conversationId/fromIdentityId/clientMessageId must come from the signature
+ * context used at encryption time for v2 verification to succeed.
+ */
 function toPublicMessage(
   encrypted: ReturnType<typeof encryptMessage>,
-  fromIdentityId: string
+  context: MessageSignatureContext
 ): PublicMessage {
   return {
     id: crypto.randomUUID(),
-    conversationId: crypto.randomUUID(),
-    fromIdentityId,
+    conversationId: context.conversationId,
+    fromIdentityId: context.fromIdentityId,
     ciphertext: encrypted.ciphertext,
     nonce: encrypted.nonce,
     wrappedKeys: encrypted.wrappedKeys,
     signature: encrypted.signature,
     cryptoProfile: encrypted.cryptoProfile,
-    clientMessageId: crypto.randomUUID(),
+    clientMessageId: context.clientMessageId,
     deleted: false,
     createdAt: new Date().toISOString(),
   };
@@ -134,7 +152,7 @@ describe('conversationCryptoService', () => {
       const sender = makeSender();
       const { recipient } = makeRecipient();
 
-      const result = encryptMessage('hello', [recipient], sender.signingPrivateKey);
+      const result = encryptMessage('hello', [recipient], sender.signingPrivateKey, makeContext());
 
       expect(result.ciphertext).toBeTruthy();
       expect(result.nonce).toBeTruthy();
@@ -148,7 +166,12 @@ describe('conversationCryptoService', () => {
       const r1 = makeRecipient();
       const r2 = makeRecipient();
 
-      const result = encryptMessage('hello', [r1.recipient, r2.recipient], sender.signingPrivateKey);
+      const result = encryptMessage(
+        'hello',
+        [r1.recipient, r2.recipient],
+        sender.signingPrivateKey,
+        makeContext()
+      );
 
       const ids = result.wrappedKeys.map((wk) => wk.identityId);
       expect(ids).toContain(r1.recipient.identityId);
@@ -174,7 +197,7 @@ describe('conversationCryptoService', () => {
         ],
       };
 
-      const result = encryptMessage('hello', [recipient], sender.signingPrivateKey);
+      const result = encryptMessage('hello', [recipient], sender.signingPrivateKey, makeContext());
       expect(result.wrappedKeys.length).toBe(2);
 
       const k1 = result.wrappedKeys[0]!;
@@ -186,7 +209,7 @@ describe('conversationCryptoService', () => {
       const sender = makeSender();
       const { recipient } = makeRecipient({ preKeys: true, otpk: true });
 
-      const result = encryptMessage('hello', [recipient], sender.signingPrivateKey);
+      const result = encryptMessage('hello', [recipient], sender.signingPrivateKey, makeContext());
       expect(result.wrappedKeys[0]?.preKeyType).toBe('otpk');
       expect(result.wrappedKeys[0]?.signedPreKeyId).toBeTruthy();
       expect(result.wrappedKeys[0]?.oneTimePreKeyId).toBeTruthy();
@@ -196,7 +219,7 @@ describe('conversationCryptoService', () => {
       const sender = makeSender();
       const { recipient } = makeRecipient();
 
-      const result = encryptMessage('hello', [recipient], sender.signingPrivateKey);
+      const result = encryptMessage('hello', [recipient], sender.signingPrivateKey, makeContext());
       expect(result.wrappedKeys[0]?.preKeyType).toBe('static');
     });
 
@@ -204,32 +227,106 @@ describe('conversationCryptoService', () => {
       const sender = makeSender();
       const { recipient } = makeRecipient({ missingKem: true });
 
-      const result = encryptMessage('hello', [recipient], sender.signingPrivateKey);
+      const result = encryptMessage('hello', [recipient], sender.signingPrivateKey, makeContext());
       expect(result.wrappedKeys.length).toBe(0);
     });
 
-    test('skips pre-key wrapping when signed pre-key signature is invalid', () => {
+    test('falls back to static wrapping when signed pre-key signature is invalid', () => {
       const sender = makeSender();
       const { recipient } = makeRecipient({ preKeys: true });
       recipient.preKeys![0]!.signedPreKey.signature = toBase64(randomBytes(64));
 
-      const result = encryptMessage('hello', [recipient], sender.signingPrivateKey);
-      expect(result.wrappedKeys.length).toBe(0);
+      const result = encryptMessage('hello', [recipient], sender.signingPrivateKey, makeContext());
+      // Device is not skipped: it gets a static wrap and the failure is reported.
+      expect(result.wrappedKeys.length).toBe(1);
+      expect(result.wrappedKeys[0]?.preKeyType).toBe('static');
+      expect(result.spkVerificationFailedDeviceIds).toEqual([
+        recipient.devices[0]!.deviceId,
+      ]);
     });
 
-    test('produces verifiable Ed25519 signature', () => {
+    test('reports FS downgrade when forward secrecy requested but no pre-keys available', () => {
       const sender = makeSender();
       const { recipient } = makeRecipient();
-      const result = encryptMessage('hello', [recipient], sender.signingPrivateKey);
 
-      const dataToVerify = concatBytes(
-        toBytes('adieuu-msg-v1'),
+      const result = encryptMessage(
+        'hello',
+        [recipient],
+        sender.signingPrivateKey,
+        makeContext(),
+        'default',
+        { forwardSecrecyRequested: true }
+      );
+      expect(result.wrappedKeys[0]?.preKeyType).toBe('static');
+      expect(result.fsDowngradedDeviceIds).toEqual([recipient.devices[0]!.deviceId]);
+    });
+
+    test('no FS downgrade reported when forward secrecy not requested', () => {
+      const sender = makeSender();
+      const { recipient } = makeRecipient();
+
+      const result = encryptMessage('hello', [recipient], sender.signingPrivateKey, makeContext());
+      expect(result.fsDowngradedDeviceIds).toEqual([]);
+      expect(result.spkVerificationFailedDeviceIds).toEqual([]);
+    });
+
+    test('no FS downgrade reported when pre-keys are used', () => {
+      const sender = makeSender();
+      const { recipient } = makeRecipient({ preKeys: true, otpk: true });
+
+      const result = encryptMessage(
+        'hello',
+        [recipient],
+        sender.signingPrivateKey,
+        makeContext(),
+        'default',
+        { forwardSecrecyRequested: true }
+      );
+      expect(result.wrappedKeys[0]?.preKeyType).toBe('otpk');
+      expect(result.fsDowngradedDeviceIds).toEqual([]);
+    });
+
+    test('produces verifiable Ed25519 signature over the v2 context-bound preimage', () => {
+      const sender = makeSender();
+      const { recipient } = makeRecipient();
+      const context = makeContext();
+      const result = encryptMessage('hello', [recipient], sender.signingPrivateKey, context);
+
+      const sigPub = fromBase64(sender.signingPublicKey);
+
+      const preimageV2 = buildMessageSignaturePreimageV2(
+        context,
+        result.ciphertext,
+        result.nonce,
+        result.wrappedKeys
+      );
+      expect(verify(sigPub, toBytes(preimageV2), fromBase64(result.signature))).toBe(true);
+
+      // The same signature must NOT verify under the legacy v1 preimage.
+      const dataToVerifyV1 = concatBytes(
+        toBytes(MESSAGE_SIGN_DOMAIN_V1),
         fromBase64(result.ciphertext),
         fromBase64(result.nonce),
         toBytes(JSON.stringify(result.wrappedKeys))
       );
+      expect(verify(sigPub, dataToVerifyV1, fromBase64(result.signature))).toBe(false);
+    });
+
+    test('signature binds the conversation context (different context = different signature)', () => {
+      const sender = makeSender();
+      const { recipient } = makeRecipient();
+      const contextA = makeContext();
+      const contextB = makeContext();
+      const result = encryptMessage('hello', [recipient], sender.signingPrivateKey, contextA);
+
       const sigPub = fromBase64(sender.signingPublicKey);
-      expect(verify(sigPub, dataToVerify, fromBase64(result.signature))).toBe(true);
+      const preimageWrongContext = buildMessageSignaturePreimageV2(
+        contextB,
+        result.ciphertext,
+        result.nonce,
+        result.wrappedKeys
+      );
+      expect(verify(sigPub, toBytes(preimageWrongContext), fromBase64(result.signature))).toBe(false);
     });
 
     test('respects senderCryptoProfile parameter', () => {
@@ -251,7 +348,7 @@ describe('conversationCryptoService', () => {
         }],
       };
 
-      const result = encryptMessage('hello', [recipient], sender.signingPrivateKey, 'cnsa2');
+      const result = encryptMessage('hello', [recipient], sender.signingPrivateKey, makeContext(), 'cnsa2');
       expect(result.cryptoProfile).toBe('cnsa2');
       expect(result.wrappedKeys.length).toBe(1);
     });
@@ -261,8 +358,9 @@ describe('conversationCryptoService', () => {
     test('round-trip: encrypt then decrypt recovers original plaintext', () => {
       const sender = makeSender();
       const r = makeRecipient();
-      const encrypted = encryptMessage('round trip test', [r.recipient], sender.signingPrivateKey);
-      const msg = toPublicMessage(encrypted, 'sender-id');
+      const context = makeContext();
+      const encrypted = encryptMessage('round trip test', [r.recipient], sender.signingPrivateKey, context);
+      const msg = toPublicMessage(encrypted, context);
 
       const result = decryptMessage(
         msg, r.recipient.identityId,
@@ -273,11 +371,12 @@ describe('conversationCryptoService', () => {
       expect(result.plaintext).toBe('round trip test');
     });
 
-    test('signature verification succeeds for valid messages', () => {
+    test('signature verification succeeds for valid messages and reports v2', () => {
       const sender = makeSender();
       const r = makeRecipient();
-      const encrypted = encryptMessage('signed msg', [r.recipient], sender.signingPrivateKey);
-      const msg = toPublicMessage(encrypted, 'sender-id');
+      const context = makeContext();
+      const encrypted = encryptMessage('signed msg', [r.recipient], sender.signingPrivateKey, context);
+      const msg = toPublicMessage(encrypted, context);
 
       const result = decryptMessage(
         msg, r.recipient.identityId,
@@ -286,13 +385,79 @@ describe('conversationCryptoService', () => {
       );
 
       expect(result.verified).toBe(true);
+      expect(result.signatureVersion).toBe(2);
+    });
+
+    test('legacy v1-signed message still verifies with signatureVersion=1', () => {
+      const sender = makeSender();
+      const r = makeRecipient();
+      const context = makeContext();
+      const encrypted = encryptMessage('legacy', [r.recipient], sender.signingPrivateKey, context);
+      const msg = toPublicMessage(encrypted, context);
+
+      // Replace the v2 signature with a legacy v1 signature as an old client
+      // would have produced it.
+      const v1Preimage = concatBytes(
+        toBytes(MESSAGE_SIGN_DOMAIN_V1),
+        fromBase64(encrypted.ciphertext),
+        fromBase64(encrypted.nonce),
+        toBytes(JSON.stringify(encrypted.wrappedKeys))
+      );
+      msg.signature = toBase64(sign(sender.signingPrivateKey, v1Preimage));
+
+      const result = decryptMessage(
+        msg, r.recipient.identityId,
+        r.ecdhPrivateKey, r.kemPrivateKey,
+        sender.signingPublicKey
+      );
+      expect(result.plaintext).toBe('legacy');
+      expect(result.verified).toBe(true);
+      expect(result.signatureVersion).toBe(1);
+    });
+
+    test('replayed message into a different conversation fails verification', () => {
+      const sender = makeSender();
+      const r = makeRecipient();
+      const context = makeContext();
+      const encrypted = encryptMessage('replay target', [r.recipient], sender.signingPrivateKey, context);
+      const msg = toPublicMessage(encrypted, context);
+
+      // Simulate a malicious server replaying the message into another
+      // conversation: same ciphertext/signature, different conversationId.
+      msg.conversationId = crypto.randomUUID();
+
+      const result = decryptMessage(
+        msg, r.recipient.identityId,
+        r.ecdhPrivateKey, r.kemPrivateKey,
+        sender.signingPublicKey
+      );
+      expect(result.plaintext).toBe('replay target');
+      expect(result.verified).toBe(false);
+      expect(result.signatureVersion).toBeUndefined();
+    });
+
+    test('message attributed to a different sender fails verification', () => {
+      const sender = makeSender();
+      const r = makeRecipient();
+      const context = makeContext();
+      const encrypted = encryptMessage('attribution', [r.recipient], sender.signingPrivateKey, context);
+      const msg = toPublicMessage(encrypted, context);
+      msg.fromIdentityId = 'someone-else';
+
+      const result = decryptMessage(
+        msg, r.recipient.identityId,
+        r.ecdhPrivateKey, r.kemPrivateKey,
+        sender.signingPublicKey
+      );
+      expect(result.verified).toBe(false);
     });
 
     test('signature verification fails for tampered ciphertext', () => {
       const sender = makeSender();
       const r = makeRecipient();
-      const encrypted = encryptMessage('tamper test', [r.recipient], sender.signingPrivateKey);
-      const msg = toPublicMessage(encrypted, 'sender-id');
+      const context = makeContext();
+      const encrypted = encryptMessage('tamper test', [r.recipient], sender.signingPrivateKey, context);
+      const msg = toPublicMessage(encrypted, context);
 
       const tamperedCiphertext = fromBase64(msg.ciphertext!);
       tamperedCiphertext[0] ^= 0xff;
@@ -310,8 +475,9 @@ describe('conversationCryptoService', () => {
     test('decryption with SPK-only pre-keys', () => {
       const sender = makeSender();
       const r = makeRecipient({ preKeys: true });
-      const encrypted = encryptMessage('spk only', [r.recipient], sender.signingPrivateKey);
-      const msg = toPublicMessage(encrypted, 'sender-id');
+      const context = makeContext();
+      const encrypted = encryptMessage('spk only', [r.recipient], sender.signingPrivateKey, context);
+      const msg = toPublicMessage(encrypted, context);
 
       const result = decryptMessage(
         msg, r.recipient.identityId,
@@ -327,8 +493,9 @@ describe('conversationCryptoService', () => {
     test('throws when pre-key wrapped message is decrypted without pre-key private keys', () => {
       const sender = makeSender();
       const r = makeRecipient({ preKeys: true });
-      const encrypted = encryptMessage('spk only', [r.recipient], sender.signingPrivateKey);
-      const msg = toPublicMessage(encrypted, 'sender-id');
+      const context = makeContext();
+      const encrypted = encryptMessage('spk only', [r.recipient], sender.signingPrivateKey, context);
+      const msg = toPublicMessage(encrypted, context);
 
       expect(() =>
         decryptMessage(
@@ -344,8 +511,9 @@ describe('conversationCryptoService', () => {
     test('decryption with SPK+OTPK pre-keys', () => {
       const sender = makeSender();
       const r = makeRecipient({ preKeys: true, otpk: true });
-      const encrypted = encryptMessage('spk+otpk', [r.recipient], sender.signingPrivateKey);
-      const msg = toPublicMessage(encrypted, 'sender-id');
+      const context = makeContext();
+      const encrypted = encryptMessage('spk+otpk', [r.recipient], sender.signingPrivateKey, context);
+      const msg = toPublicMessage(encrypted, context);
 
       const result = decryptMessage(
         msg, r.recipient.identityId,
@@ -366,8 +534,9 @@ describe('conversationCryptoService', () => {
     test('decryption with static device keys', () => {
       const sender = makeSender();
       const r = makeRecipient();
-      const encrypted = encryptMessage('static', [r.recipient], sender.signingPrivateKey);
-      const msg = toPublicMessage(encrypted, 'sender-id');
+      const context = makeContext();
+      const encrypted = encryptMessage('static', [r.recipient], sender.signingPrivateKey, context);
+      const msg = toPublicMessage(encrypted, context);
 
       const result = decryptMessage(
         msg, r.recipient.identityId,
@@ -381,8 +550,9 @@ describe('conversationCryptoService', () => {
     test('throws when no matching wrappedKey exists for the recipient', () => {
       const sender = makeSender();
       const r = makeRecipient();
-      const encrypted = encryptMessage('no match', [r.recipient], sender.signingPrivateKey);
-      const msg = toPublicMessage(encrypted, 'sender-id');
+      const context = makeContext();
+      const encrypted = encryptMessage('no match', [r.recipient], sender.signingPrivateKey, context);
+      const msg = toPublicMessage(encrypted, context);
 
       expect(() => {
         decryptMessage(
@@ -435,8 +605,9 @@ describe('conversationCryptoService', () => {
     test('uses cachedSessionKey when provided (ignores wrapped key lookup)', () => {
       const sender = makeSender();
       const r = makeRecipient();
-      const encrypted = encryptMessage('cached path', [r.recipient], sender.signingPrivateKey);
-      const msg = toPublicMessage(encrypted, 'sender-id');
+      const context = makeContext();
+      const encrypted = encryptMessage('cached path', [r.recipient], sender.signingPrivateKey, context);
+      const msg = toPublicMessage(encrypted, context);
       const first = decryptMessage(
         msg,
         r.recipient.identityId,
@@ -462,8 +633,9 @@ describe('conversationCryptoService', () => {
     test('uses resolvedWrappedKey override when provided', () => {
       const sender = makeSender();
       const r = makeRecipient();
-      const encrypted = encryptMessage('resolved key path', [r.recipient], sender.signingPrivateKey);
-      const msg = toPublicMessage(encrypted, 'sender-id');
+      const context = makeContext();
+      const encrypted = encryptMessage('resolved key path', [r.recipient], sender.signingPrivateKey, context);
+      const msg = toPublicMessage(encrypted, context);
       const resolved = msg.wrappedKeys[0]!;
 
       const result = decryptMessage(
@@ -481,8 +653,9 @@ describe('conversationCryptoService', () => {
     test('returns verified=false when signature is malformed but payload decrypts', () => {
       const sender = makeSender();
       const r = makeRecipient();
-      const encrypted = encryptMessage('signature failure path', [r.recipient], sender.signingPrivateKey);
-      const msg = toPublicMessage(encrypted, 'sender-id');
+      const context = makeContext();
+      const encrypted = encryptMessage('signature failure path', [r.recipient], sender.signingPrivateKey, context);
+      const msg = toPublicMessage(encrypted, context);
       msg.signature = 'not-base64-signature';
 
       const result = decryptMessage(

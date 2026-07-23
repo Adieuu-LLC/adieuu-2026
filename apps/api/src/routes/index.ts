@@ -25,6 +25,7 @@ import { e2eUploadRoutes } from './uploads/e2e';
 import { friendRoutes } from './friends';
 import { conversationRoutes } from './conversations';
 import { conversationFolderRoutes } from './conversation-folders';
+import { spaceRoutes } from './spaces';
 import { moderationRoutes } from './moderation';
 import { reportRoutes } from './reports';
 import { klipyRoutes } from './klipy';
@@ -41,11 +42,14 @@ import { referralRoutes } from './account/referral';
 import { publicReferRoutes } from './refer';
 import { accountEventsRoutes } from './account/events';
 import { adminPromoCodesRoutes } from './admin/promo-codes';
+import { adminAnnouncementRoutes } from './admin/announcement';
+import { publicAnnouncementRoutes } from './announcement';
 import { supportRoutes } from './support';
 import { unfurlRoutes } from './unfurl';
 import { complianceRoutes } from './compliance';
 import { feedbackRoutes } from './feedback';
 import { clientErrorRoutes } from './client-errors';
+import { accountDataRoutes } from './account/data';
 
 /**
  * Registers all application routes with the main router.
@@ -103,6 +107,12 @@ export function registerRoutes(app: Router): void {
   // Admin identity management (search, profile, moderation actions)
   app.merge(adminIdentitiesRoutes, '/api');
 
+  // Admin site announcements (CRUD + toggle)
+  app.merge(adminAnnouncementRoutes, '/api');
+
+  // Public site announcements (active list, no auth)
+  app.merge(publicAnnouncementRoutes, '/api');
+
   // Community themes (public browse + identity-auth upload)
   app.merge(themeRoutes, '/api');
 
@@ -123,6 +133,9 @@ export function registerRoutes(app: Router): void {
 
   // Conversation folders (sidebar grouping)
   app.merge(conversationFolderRoutes, '/api');
+
+  // Spaces (Discord-like servers: directory, membership, invites, channels)
+  app.merge(spaceRoutes, '/api');
 
   // Platform moderation (reports, actions, enforcement)
   app.merge(moderationRoutes, '/api');
@@ -181,4 +194,7 @@ export function registerRoutes(app: Router): void {
 
   // Client-side crash reports (anonymous, rate-limited by IP)
   app.merge(clientErrorRoutes, '/api');
+
+  // Account data export and deletion
+  app.merge(accountDataRoutes, '/api');
 }

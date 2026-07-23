@@ -22,6 +22,8 @@ export interface UseMediaUploadOptions {
   purpose: UploadPurpose;
   maxSizeBytes: number;
   acceptedTypes: string[];
+  /** Required when purpose is `space_media`. */
+  spaceId?: string;
   onComplete?: (mediaId: string, cdnUrl: string) => void;
   onError?: (error: string) => void;
 }
@@ -43,7 +45,7 @@ const POLL_INTERVAL_MS = 1500;
 const MAX_POLL_ATTEMPTS = 60;
 
 export function useMediaUpload(options: UseMediaUploadOptions): UseMediaUploadReturn {
-  const { purpose, maxSizeBytes, acceptedTypes, onComplete, onError } = options;
+  const { purpose, maxSizeBytes, acceptedTypes, spaceId, onComplete, onError } = options;
   const { apiBaseUrl } = useAppConfig();
 
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
@@ -151,6 +153,7 @@ export function useMediaUpload(options: UseMediaUploadOptions): UseMediaUploadRe
           purpose,
           contentType: file.type,
           contentLength: file.size,
+          ...(spaceId ? { spaceId } : {}),
         });
 
         if (!requestRes.success || !requestRes.data) {
@@ -241,7 +244,7 @@ export function useMediaUpload(options: UseMediaUploadOptions): UseMediaUploadRe
         onError?.(msg);
       }
     },
-    [api, purpose, maxSizeBytes, acceptedTypes, pollStatus, onError]
+    [api, purpose, maxSizeBytes, acceptedTypes, spaceId, pollStatus, onComplete, onError]
   );
 
   return {

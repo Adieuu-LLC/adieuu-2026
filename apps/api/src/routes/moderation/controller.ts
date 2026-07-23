@@ -129,7 +129,9 @@ export const ReopenSchema = z.object({
   reason: z.string().min(1).max(4000).optional(),
 });
 
-export const AssignSchema = z.object({ identityId: z.string().min(1) });
+export const AssignSchema = z.object({
+  identityId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid identity id'),
+});
 
 export const CategorySchema = z.object({
   category: z.enum(REPORT_CATEGORIES as unknown as [string, ...string[]]),
@@ -153,8 +155,10 @@ export const CloseSchema = z.object({
 });
 
 function parseReportId(rawId: string | undefined): string | null {
-  if (!rawId || !isValidObjectId(rawId)) return null;
-  return rawId;
+  if (!rawId) return null;
+  const sanitized = sanitizeString(rawId, 'id').value;
+  if (!sanitized || !isValidObjectId(sanitized)) return null;
+  return sanitized;
 }
 
 export type ListReportsData = {
@@ -186,10 +190,22 @@ export async function listReportsResult(
   }
   if (assignedParam === 'unassigned') filter.assignedTo = null;
   else if (assignedParam === 'me') filter.assignedTo = moderatorId;
-  if (typeParam) filter.reportType = typeParam;
-  if (categoryParam) filter.category = categoryParam;
-  if (targetIdentityParam) filter.targetIdentityId = targetIdentityParam;
-  if (reporterIdentityParam) filter.reporterIdentityId = reporterIdentityParam;
+  if (typeParam) {
+    const sanitizedType = sanitizeString(typeParam, 'alphanumdash').value;
+    if (sanitizedType) filter.reportType = sanitizedType;
+  }
+  if (categoryParam) {
+    const sanitizedCategory = sanitizeString(categoryParam, 'alphanumdash').value;
+    if (sanitizedCategory) filter.category = sanitizedCategory;
+  }
+  if (targetIdentityParam) {
+    const sanitizedTarget = sanitizeString(targetIdentityParam, 'id').value;
+    if (sanitizedTarget) filter.targetIdentityId = sanitizedTarget;
+  }
+  if (reporterIdentityParam) {
+    const sanitizedReporter = sanitizeString(reporterIdentityParam, 'id').value;
+    if (sanitizedReporter) filter.reporterIdentityId = sanitizedReporter;
+  }
 
   const repo = getReportRepository();
   const result = await repo.list({ filter, page, limit });
@@ -366,7 +382,12 @@ export async function assignReportResult(
   const report = await repo.findById(id);
   if (!report) return { ok: false, kind: 'not_found' };
 
-  const updated = await repo.assign(id, parsed.data.identityId);
+  const sanitizedAssigneeId = sanitizeString(parsed.data.identityId, 'id').value;
+  if (!sanitizedAssigneeId || !isValidObjectId(sanitizedAssigneeId)) {
+    return { ok: false, kind: 'validation_failed' };
+  }
+
+  const updated = await repo.assign(id, sanitizedAssigneeId);
   if (!updated) return { ok: false, kind: 'not_found' };
 
   const previousAssignee = report.assignedTo ?? null;
@@ -376,9 +397,9 @@ export async function assignReportResult(
     eventType: 'assignment_change',
     actorIdentityId: actorId,
     body: previousAssignee
-      ? `Reassigned from ${previousAssignee.slice(0, 8)}… to ${parsed.data.identityId.slice(0, 8)}…`
-      : `Assigned to ${parsed.data.identityId.slice(0, 8)}…`,
-    metadata: { from: previousAssignee, assignedTo: parsed.data.identityId },
+      ? `Reassigned from ${previousAssignee.slice(0, 8)}… to ${sanitizedAssigneeId.slice(0, 8)}…`
+      : `Assigned to ${sanitizedAssigneeId.slice(0, 8)}…`,
+    metadata: { from: previousAssignee, assignedTo: sanitizedAssigneeId },
   });
 
   return { ok: true, data: toPublicReport(updated as unknown as Record<string, unknown>) };
@@ -483,12 +504,15 @@ export async function addReportCommentResult(
   const report = await repo.findById(id);
   if (!report) return { ok: false, kind: 'not_found' };
 
+  const sanitizedCommentBody = sanitizeString(parsed.data.body, 'general').value;
+  if (!sanitizedCommentBody) return { ok: false, kind: 'validation_failed' };
+
   const eventRepo = getReportEventRepository();
   const event = await eventRepo.createEvent({
     reportId: new ObjectId(id),
     eventType: parsed.data.visibility === 'internal' ? 'comment_internal' : 'comment_public',
     actorIdentityId: actorId,
-    body: parsed.data.body,
+    body: sanitizedCommentBody,
   });
 
   return { ok: true, data: toPublicEvent(event as unknown as Record<string, unknown>) };
@@ -516,6 +540,9 @@ export async function resolveReportResult(
     return { ok: false, kind: 'forbidden' };
   }
 
+  const sanitizedResolveReason = sanitizeString(parsed.data.reason, 'general').value;
+  if (!sanitizedResolveReason) return { ok: false, kind: 'validation_failed' };
+
   await executeEnforcement(
     {
       removeContent: parsed.data.removeContent,
@@ -528,7 +555,7 @@ export async function resolveReportResult(
       targetIdentityId: report.targetIdentityId,
       targetRef: report.targetRef,
       actorIdentityId: actorId,
-      reason: parsed.data.reason,
+      reason: sanitizedResolveReason,
     },
   );
 
@@ -537,7 +564,7 @@ export async function resolveReportResult(
     userWarned: parsed.data.warnUser,
     aliasSuspendedMs: parsed.data.suspendAliasMs,
     aliasBanned: parsed.data.banAlias,
-    reason: parsed.data.reason,
+    reason: sanitizedResolveReason,
     resolvedByIdentityId: actorId,
     resolvedAt: new Date(),
   });
@@ -547,7 +574,7 @@ export async function resolveReportResult(
     reportId: new ObjectId(id),
     eventType: 'status_change',
     actorIdentityId: actorId,
-    body: `Report resolved: ${parsed.data.reason}`,
+    body: `Report resolved: ${sanitizedResolveReason}`,
     metadata: { from: report.status, to: 'resolved', actions: parsed.data },
   });
 
@@ -580,14 +607,17 @@ export async function closeReportResult(
     return { ok: false, kind: 'forbidden' };
   }
 
-  const updated = await repo.close(id, actorId, parsed.data.reason);
+  const sanitizedCloseReason = sanitizeString(parsed.data.reason, 'general').value;
+  if (!sanitizedCloseReason) return { ok: false, kind: 'validation_failed' };
+
+  const updated = await repo.close(id, actorId, sanitizedCloseReason);
 
   const eventRepo = getReportEventRepository();
   await eventRepo.createEvent({
     reportId: new ObjectId(id),
     eventType: 'status_change',
     actorIdentityId: actorId,
-    body: `Report closed (invalid): ${parsed.data.reason}`,
+    body: `Report closed (invalid): ${sanitizedCloseReason}`,
     metadata: { from: report.status, to: 'closed' },
   });
 

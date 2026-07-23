@@ -40,6 +40,22 @@ mock.module('../repositories/message.repository', () => ({
   getMessageRepository: () => mockMessageRepo,
 }));
 
+const mockFindIdentityById = mock(() =>
+  Promise.resolve({ signingPublicKey: 'signing-key-b64' }),
+) as AnyMock;
+
+mock.module('../repositories/identity.repository', () => ({
+  getIdentityRepository: () => ({
+    findByIdentityId: mockFindIdentityById,
+  }),
+}));
+
+const mockVerifyReactionSignatureV2 = mock(() => true) as AnyMock;
+
+mock.module('../utils/crypto', () => ({
+  verifyReactionSignatureV2: mockVerifyReactionSignatureV2,
+}));
+
 mock.module('./notification.service', () => ({
   createNotification: mock(() => Promise.resolve()),
 }));
@@ -140,10 +156,15 @@ describe('reaction.service', () => {
     mockConversationRepo.findById.mockReset();
     mockMessageRepo.findById.mockReset();
 
+    mockFindIdentityById.mockReset();
+    mockVerifyReactionSignatureV2.mockReset();
+
     mockReactionRepo.countByIdentityAndMessage.mockResolvedValue(0);
     mockReactionRepo.countByMessage.mockResolvedValue(0);
     mockConversationRepo.findById.mockResolvedValue(makeConversation());
     mockMessageRepo.findById.mockResolvedValue(makeMessage());
+    mockFindIdentityById.mockResolvedValue({ signingPublicKey: 'signing-key-b64' });
+    mockVerifyReactionSignatureV2.mockImplementation(() => true);
   });
 
   // -------------------------------------------------------------------------
@@ -262,6 +283,64 @@ describe('reaction.service', () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toContain('Message not found');
+  });
+
+  // -------------------------------------------------------------------------
+  // addReaction: signature verification (ingest rejection)
+  // -------------------------------------------------------------------------
+
+  test('addReaction rejects a reaction with an invalid v2 signature', async () => {
+    mockVerifyReactionSignatureV2.mockImplementation(() => false);
+    mockReactionRepo.createReaction.mockResolvedValue(makeReactionDoc());
+
+    const result = await addReaction(
+      identityA.toHexString(),
+      convId.toHexString(),
+      msgId.toHexString(),
+      makeReactionData()
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('signature');
+    expect(mockReactionRepo.createReaction).not.toHaveBeenCalled();
+  });
+
+  test('addReaction rejects when the reactor has no registered signing key', async () => {
+    mockFindIdentityById.mockResolvedValue({ signingPublicKey: undefined });
+    mockReactionRepo.createReaction.mockResolvedValue(makeReactionDoc());
+
+    const result = await addReaction(
+      identityA.toHexString(),
+      convId.toHexString(),
+      msgId.toHexString(),
+      makeReactionData()
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('signature');
+    expect(mockReactionRepo.createReaction).not.toHaveBeenCalled();
+  });
+
+  test('addReaction verifies the signature against the full reaction context', async () => {
+    mockReactionRepo.createReaction.mockResolvedValue(makeReactionDoc());
+    const data = makeReactionData();
+
+    await addReaction(
+      identityA.toHexString(),
+      convId.toHexString(),
+      msgId.toHexString(),
+      data
+    );
+
+    const [publicKey, context] = mockVerifyReactionSignatureV2.mock.calls[0] as [
+      string,
+      { conversationId: string; messageId: string; fromIdentityId: string; clientReactionId: string },
+    ];
+    expect(publicKey).toBe('signing-key-b64');
+    expect(context.conversationId).toBe(convId.toHexString());
+    expect(context.messageId).toBe(msgId.toHexString());
+    expect(context.fromIdentityId).toBe(identityA.toHexString());
+    expect(context.clientReactionId).toBe(data.clientReactionId);
   });
 
   // -------------------------------------------------------------------------

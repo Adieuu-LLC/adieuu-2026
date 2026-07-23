@@ -836,6 +836,12 @@
     width: 18px;
     height: 18px;
   }
+
+  &--disabled,
+  &:has(input:disabled) {
+    cursor: not-allowed;
+    opacity: 0.65;
+  }
 }
 
 // Admin user management
@@ -1317,6 +1323,110 @@
 
   .admin-subscription-override-actions {
     justify-content: flex-end;
+  }
+}
+
+// Admin announcement list
+.admin-row-inactive {
+  opacity: 0.5;
+}
+
+.admin-table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-announcement-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-announcement-excerpt {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.admin-announcement-window {
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.admin-badge-warning {
+  background: var(--color-warning-subtle, #fff3e0);
+  color: var(--color-warning, #e65100);
+}
+
+.ann-form-group {
+  margin-bottom: var(--spacing-md);
+  flex: 1;
+  min-width: 0;
+}
+
+.ann-form-row {
+  display: flex;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+  margin-bottom: var(--spacing-md);
+}
+
+.admin-form-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.admin-toggle-inline {
+  display: inline-flex;
+}
+
+.admin-actions-cell {
+  display: flex;
+  gap: var(--spacing-xs);
+  flex-wrap: wrap;
+}
+
+.admin-card-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0 0 var(--spacing-md) 0;
+}
+
+.ann-input {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-sans);
+  transition: border-color var(--transition-fast);
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary);
+  }
+}
+
+@media (max-width: $mobile-breakpoint) {
+  .ann-form-row {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .ann-form-row .ann-form-group {
+    width: 100%;
+  }
+
+  .admin-announcement-window {
+    white-space: normal;
+  }
+
+  .admin-table-wrapper .admin-table {
+    min-width: 600px;
   }
 }
 

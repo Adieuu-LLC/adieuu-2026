@@ -2,6 +2,12 @@
  * Account (non-alias) settings and overview.
  */
 export const account = {
+    // Merged account page header
+    page: {
+      title: 'Account',
+      subtitle: 'Manage your account details, security settings, and active sessions.',
+    },
+
     // Overview
     overview: {
       title: 'Account Overview',
@@ -80,7 +86,7 @@ export const account = {
       location: {
         title: 'Location (account)',
         subtitle:
-          'Country may be visible to other users (via a flag by your name); other info you see here is used only for determining compliance requirements and localizing your support tickets.',
+          'Info you see here is used only for determining compliance requirements and localizing your support tickets.',
         maskedIp: 'Connection IP (masked)',
         jurisdiction: 'Jurisdiction',
         countryCode: 'Country',
@@ -110,6 +116,9 @@ export const account = {
         startedAt: 'Started on {{date}}',
         expiresAt: 'Expires on {{date}}',
         completedAt: 'Completed on {{date}}',
+        detailStarted: 'Started',
+        detailCompleted: 'Completed',
+        detailExpires: 'Expires',
         copyUrl: 'Copy Verification Link',
         copyUrlHint: 'Paste this link in any browser to resume verification.',
         urlCopied: 'Copied to Clipboard.',
@@ -323,9 +332,12 @@ export const account = {
       subtitle: 'Manage your security settings and active sessions.',
       // Tabs
       tabs: {
+        overview: 'Overview',
         authentication: 'Authentication',
         passphrase: 'Alias Password',
         sessions: 'Sessions',
+        dataExport: 'Data Export',
+        deleteAccount: 'Delete Account',
       },
       // Authentication tab
       authentication: {
@@ -349,6 +361,39 @@ export const account = {
         allSessionsRevoked: '{{count}} session(s) revoked successfully.',
         unknownDevice: 'Unknown device',
         unknownLocation: 'Unknown location',
+      },
+      // Data Export tab
+      dataExport: {
+        title: 'Account Data Export',
+        description: 'View and download all data associated with your account. This does not include Alias data, which is cryptographically separated from your account.',
+        loading: 'Loading your account data...',
+        error: 'Failed to load account data. Please try again.',
+        download: 'Download as JSON',
+        fileName: 'adieuu-account-data-export.json',
+      },
+      // Delete Account tab
+      deleteAccount: {
+        title: 'Delete Account',
+        description: 'Permanently delete your Adieuu account.',
+        warning: 'Deleting your account does NOT remove Alias data, but makes it permanently unrecoverable. If you return in the future, you will be unable to regain control of your Aliases.',
+        warningRemoveContent: 'Make sure to remove all Alias content you want removed before deleting your account.',
+        deleteButton: 'Delete My Account',
+        confirmTitle: 'Delete your account?',
+        confirmDescription: 'This is a permanent and irreversible decision. We can\'t undo this for you.',
+        confirmSendCode: 'We\'ll send a verification code to your email to confirm.',
+        confirmButton: 'Send Verification Code',
+        otpTitle: 'Enter verification code',
+        otpDescription: 'We sent a 6-digit code to your email. Enter it below to continue.',
+        otpResend: 'Resend code',
+        otpResendCooldown: 'Resend in {{seconds}}s',
+        finalTitle: 'Last check',
+        finalDescription: 'Code entered. Last check \u2014 we do NOT offer support for deleted accounts. We do not currently allow a signed up email to sign back up: you may never be able to create a new Adieuu account with that email.',
+        finalButton: 'Permanently Delete Account',
+        deleting: 'Deleting account...',
+        error: 'Failed to delete account. Please try again.',
+        noEmail: 'Account deletion requires an email address. Add and verify an email in Account Overview before deleting.',
+        rateLimited: 'Too many attempts. Please wait a few minutes and try again.',
+        codeError: 'Invalid or expired code. Please try again.',
       },
     },
 
@@ -434,11 +479,12 @@ export const account = {
         expiresInDays: 'Expires in {{count}} days',
         expiresAtTooltip: 'Expires {{datetime}}',
         noPlan:
-          'Without a paid plan, your account stays read-only. Paying for a subscription helps us cover costs without having to rely on ads, data collection, etc. It also makes it more expensive for bots. Subscribe below to unlock posting and full features.',
-        sponsorshipCta:
-          "Can't afford a plan? All good! Visit the Sponsorships tab to request sponsorship from the community.",
+          'You are on the Free plan. Paying for a subscription helps us cover costs without having to rely on ads, data collection, etc. It also makes it more expensive for bots. Subscribe below to unlock additional features and support Adieuu.',
+        sponsorshipCtaBefore: "Can't afford a paid plan? All good! ",
+        sponsorshipCtaLink: 'Visit the Sponsorships tab',
+        sponsorshipCtaAfter: ' to request sponsorship from the community.',
         readOnlyPlansIntro:
-          'Without a paid plan, your account stays read-only. Paying for a subscription helps us cover costs without having to rely on ads, data collection, etc. It also makes it more expensive for bots.Subscribe below to unlock posting and full features.',
+          'You are on the Free plan. Paying for a subscription helps us cover costs without having to rely on ads, data collection, etc. Subscribe below to unlock additional features and support Adieuu.',
         stripeBillingIntro:
           'Payments and invoices for your subscription are processed through Stripe.',
         giftedSubscription:
@@ -462,7 +508,7 @@ export const account = {
         inputPlaceholder: 'Enter your code',
         submit: 'Redeem code',
         success: 'Your promotional code was applied successfully.',
-        unpaidPrompt: 'Or, have a promotional code? Enter it below.',
+        freePrompt: 'Or, have a promotional code? Enter it below.',
         toolbarCta: 'Promo code',
         errors: {
           generic: 'We could not redeem that code. Please try again.',
@@ -497,6 +543,10 @@ export const account = {
           name: 'Public Read-Only',
           description: 'Read-only until you subscribe. You can browse public spaces, but posting and paid features stay locked.',
         },
+        free: {
+          name: 'Free',
+          description: 'You have basic access at no cost. Upgrade to a paid plan to unlock additional features and help support Adieuu.',
+        },
         access: {
           name: 'Access',
           description: 'Priority support and early access to new features.',
@@ -529,7 +579,8 @@ export const account = {
         aliases: 'Aliases: Anonymous handles you post or act as, cryptographically separated from your account. Included per subscription:',
         encryption: 'E2EE: End to end encryption on all private content',
         forwardSecrecy: 'E2EE: Forward Secrecy (optional)',
-        liveMedia: 'E2EE: Live voice, video, screensharing',
+        liveVoice: 'E2EE: Live Voice Calls',
+        liveVideo: 'E2EE: Live Video & Screensharing',
         streamQuality: 'Live Stream Quality (Camera / Screenshare)',
         uploadSize: 'Upload File Size (Images, Voice, Video, Files)',
         emojiLimit: 'Custom Emoji Limit',
@@ -553,7 +604,8 @@ export const account = {
 
       featureVariables: {
         aliases: {
-          access: 1,
+          free: 1,
+          access: 2,
           insider: 2,
           vanguard: 3,
           founder: 3,
@@ -583,8 +635,14 @@ export const account = {
         included: 'Included',
         notIncluded: 'Not included',
         billingRowLabel: 'Billing',
+        cellFree: 'Free',
+        cellFreeSubtext: 'Free but Unsustainable',
+        cellFreePopoverP1: "We are trying really hard to make private communications accessible for everyone, but the reality is nothing's free. Someone has to pay for technical and business costs.",
+        cellFreePopoverP2: "We will offer a Free tier as long as we can, but can't make any guarantees how long that is. Some people absolutely can not afford even our lowest subscription: we get that. All we're asking is that, if you're able, you consider purchasing a subscription so that those that are truly unable can have access to the privacy they deserve, too.",
+        cellFreePopoverP3: '',
         cellAnnual: 'Annual subscription',
         cellLifetime: 'One-time · lifetime access',
+        tierFree: 'Free',
         tierAnnual: 'Annual',
         tierLifetime: 'Lifetime',
         scrollPreviousTiers: 'Show previous plan columns',

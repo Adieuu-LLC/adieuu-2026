@@ -209,7 +209,7 @@ export function ChangePassphrasePanel({ api }: ChangePassphrasePanelProps) {
           onChange={(e) => setConfirmPassphrase(e.target.value)}
           autoComplete="new-password"
         />
-        <Button type="submit" disabled={!currentPassphrase || !newPassphrase || !confirmPassphrase}>
+        <Button className='mt-4' type="submit" disabled={!currentPassphrase || !newPassphrase || !confirmPassphrase}>
           {t('identity.privacy.changePassword.submit')}
         </Button>
       </form>

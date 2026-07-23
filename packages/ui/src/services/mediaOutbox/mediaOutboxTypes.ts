@@ -48,6 +48,8 @@ export type MediaOutboxStage =
 export interface MediaOutboxJobRecord {
   id: string;
   conversationId: string;
+  /** When set, send via Space channel API instead of DM conversations. */
+  spaceId?: string;
   stage: MediaOutboxStage;
   errorMessage?: string;
   createdAt: number;
@@ -79,10 +81,18 @@ export interface MediaOutboxJobRecord {
   e2eSnapshot?: MediaOutboxE2eSnapshotItem[];
   /** Set after API send succeeds; scan retry must not resend message. */
   messageSendCompleted?: boolean;
+  /** When set, this job is an edit (not a new message). The value is the message ID to patch. */
+  editMessageId?: string;
+  /** Original message clientMessageId for edit signature binding (v2 preimage). */
+  editClientMessageId?: string;
+  /** E2E media IDs from existing attachments that should be preserved in the edit. */
+  existingE2eMediaIds?: string[];
 }
 
 export interface MediaOutboxEnqueueInput {
   conversationId: string;
+  /** When set, send via Space channel API (channelId = conversationId). */
+  spaceId?: string;
   caption: string;
   mentions: MediaOutboxMention[];
   pageTags?: MediaOutboxPageTag[];
@@ -99,4 +109,10 @@ export interface MediaOutboxEnqueueInput {
   /** Sender's custom emoji list at enqueue time (embedded in encrypted payload for caption shortcodes). */
   composerCustomEmojisSnapshotJson?: string;
   files: File[];
+  /** When set, this send is an edit to an existing message (not a new message). */
+  editMessageId?: string;
+  /** Original message clientMessageId for edit signature binding (v2 preimage). */
+  editClientMessageId?: string;
+  /** E2E media IDs from existing attachments to preserve in the edit. */
+  existingE2eMediaIds?: string[];
 }

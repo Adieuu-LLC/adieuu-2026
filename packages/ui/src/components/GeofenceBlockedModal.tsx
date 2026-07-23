@@ -18,7 +18,7 @@ export function GeofenceBlockedModal({ open, onClose, jurisdiction, lawUrl }: Ge
   const { t } = useTranslation();
 
   return (
-    <Dialog.Root open={open} onOpenChange={(e) => { if (!e.open) onClose(); }}>
+    <Dialog.Root open={open} onOpenChange={(e) => { if (!e.open) onClose(); }} lazyMount>
       <Portal>
         <Dialog.Backdrop className="geofence-modal-backdrop" />
         <Dialog.Positioner className="geofence-modal-positioner">

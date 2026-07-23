@@ -15,7 +15,7 @@
   z-index: $z-content;
   height: 100vh;
   min-height: 100vh;
-  padding-left: min($sidebar-width, $sidebar-width-max);
+  padding-left: $sidebar-width-expanded;
   overflow-y: auto;
   background: var(--color-bg-primary);
   background-image: 
@@ -35,7 +35,8 @@
   min-height: 100%;
 
   &:has(> .conversation-page),
-  &:has(> .new-conversation) {
+  &:has(> .new-conversation),
+  &:has(> .space-page) {
     height: 100%;
   }
 }
@@ -48,7 +49,7 @@
 .app-layout-sidebar-right {
   .app-content {
     padding-left: 0;
-    padding-right: min($sidebar-width, $sidebar-width-max);
+    padding-right: $sidebar-width-expanded;
   }
 
   &.sidebar-is-collapsed .app-content {
@@ -79,11 +80,16 @@
   flex-shrink: 0;
 
   &-expanded {
-    width: min($sidebar-width, $sidebar-width-max);
+    width: $sidebar-width-expanded;
   }
 
   &-collapsed {
     width: $sidebar-width-collapsed;
+  }
+
+  // Toggle-expanded + narrow drag: condensed chrome, but width still follows the CSS var.
+  &.sidebar-width-expanded {
+    width: $sidebar-width-expanded;
   }
 
   // Left sidebar (default)
@@ -159,8 +165,8 @@
   }
 
   &:hover {
-    --logo-primary: var(--logo-secondary, #20d0e8);
-    --logo-secondary: var(--logo-primary, #e0e8f0);
+    --logo-primary: var(--color-accent-secondary);
+    --logo-secondary: var(--color-accent-primary);
 
     .app-logo-img {
       transform: scale(1.05);
@@ -174,12 +180,27 @@
   }
 }
 
-// Home page tabs
+// Home page beta badge
+.beta-badge {
+  display: inline-block;
+  margin-left: var(--spacing-sm);
+  padding: 0.15em 0.6em;
+  font-size: 0.5em;
+  font-weight: 600;
+  vertical-align: middle;
+  border-radius: var(--radius-full, 9999px);
+  background: var(--color-accent-primary);
+  color: var(--color-text-inverse);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+// Home page tabs (authenticated view)
 .home-tabs {
   margin-top: var(--spacing-lg);
 }
 
-.home-strengths-grid {
+.home-beta-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--spacing-lg);
@@ -307,7 +328,8 @@
 
 // Action steps (shared between account and identity modes)
 .action-steps {
-  padding: var(--spacing-lg);
+  padding-top: var(--spacing-lg);
+  padding-bottom: var(--spacing-lg);
 }
 
 .action-steps-loading {
@@ -451,6 +473,88 @@
 
 .action-step-disabled-action {
   display: inline-flex;
+}
+
+// Mobile: only the title row shares space with the check icon;
+// description, actions, and expandable areas span full width.
+// Also flatten the disclosure box-in-box-in-box nesting.
+@media (max-width: $mobile-breakpoint) {
+  .card.action-steps {
+    padding-inline: var(--spacing-md);
+  }
+
+  .action-step-item {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0 var(--spacing-sm);
+
+    > .action-step-check {
+      grid-column: 1;
+      grid-row: 1;
+      align-self: center;
+      margin-top: 0;
+    }
+
+    > .action-step-body {
+      display: contents;
+    }
+
+    // Title (or heading wrapper) sits beside the check icon
+    .action-step-body > .action-step-title,
+    .action-step-body > .action-step-heading {
+      grid-column: 2;
+      grid-row: 1;
+      align-self: center;
+    }
+
+    // Everything else spans the full container width
+    .action-step-body > .action-step-description,
+    .action-step-body > .action-step-actions,
+    .action-step-body > .jurisdiction-requirement-disclosure {
+      grid-column: 1 / -1;
+    }
+
+    .action-step-description {
+      margin-top: var(--spacing-xs);
+    }
+  }
+
+  // Flatten the disclosure accordion: drop the outer border
+  // (the parent .action-step-item already provides one) and
+  // reduce horizontal padding so content isn't doubly indented.
+  .action-step-item .jurisdiction-requirement-disclosure {
+    border: none;
+    border-radius: 0;
+    border-top: 1px solid var(--color-border-subtle, var(--color-border));
+    margin: var(--spacing-sm) 0 0;
+  }
+
+  .action-step-item .jurisdiction-requirement-disclosure__trigger {
+    padding-inline: 0;
+  }
+
+  .action-step-item .jurisdiction-requirement-disclosure__content {
+    padding-inline: 0;
+  }
+
+  // Switch cards from bordered boxes to divider-separated items
+  .action-step-item .jurisdiction-requirement-disclosure__cards {
+    gap: 0;
+
+    .jurisdiction-requirement-card {
+      border: none;
+      border-radius: 0;
+      padding: var(--spacing-sm) 0;
+
+      &:not(:last-child) {
+        border-bottom: 1px solid var(--color-border-subtle, var(--color-border));
+      }
+    }
+
+    .jurisdiction-requirement-card--compact {
+      margin-bottom: 0;
+    }
+  }
 }
 
 .jurisdiction-requirement-disclosure {
@@ -967,7 +1071,15 @@
   &__flat {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-md);
+
+    .jurisdiction-requirement-card + .jurisdiction-requirement-card {
+      border-top: 1px solid var(--color-border-subtle, var(--color-border));
+      padding-top: var(--spacing-md);
+    }
+
+    .jurisdiction-requirement-card:last-child {
+      padding-bottom: 0;
+    }
   }
 }
 
@@ -979,6 +1091,13 @@
 
   &--compact {
     margin-bottom: var(--spacing-md);
+  }
+
+  &--borderless {
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    padding-bottom: var(--spacing-md);
   }
 
   &__header {
@@ -1106,7 +1225,7 @@
 }
 
 .sidebar-toggle--left:not(.sidebar-toggle--collapsed) {
-  left: calc(min(#{$sidebar-width}, #{$sidebar-width-max}) - 12px);
+  left: calc(#{$sidebar-width-expanded} - 12px);
 }
 
 .sidebar-toggle--left.sidebar-toggle--collapsed {
@@ -1114,11 +1233,74 @@
 }
 
 .sidebar-toggle--right:not(.sidebar-toggle--collapsed) {
-  left: calc(100vw - min(#{$sidebar-width}, #{$sidebar-width-max}) - 12px);
+  left: calc(100vw - #{$sidebar-width-expanded} - 12px);
 }
 
 .sidebar-toggle--right.sidebar-toggle--collapsed {
   left: calc(100vw - #{$sidebar-width-collapsed} - 12px);
+}
+
+// ============================================================================
+// Horizontal panel resize handle (app nav + Space channel rail)
+// ============================================================================
+
+.panel-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0.75rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: ew-resize;
+  touch-action: none;
+  // Above panel content; below the collapse toggle (dropdown - 1).
+  z-index: 2;
+
+  &--end {
+    right: 0;
+  }
+
+  &--start {
+    left: 0;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 3px;
+    height: 2.5rem;
+    border-radius: 9999px;
+    background: var(--color-border);
+    opacity: 0;
+    transition:
+      background var(--transition-fast),
+      opacity var(--transition-fast);
+  }
+
+  &:hover::after,
+  &:active::after {
+    opacity: 1;
+    background: var(--color-accent-primary);
+  }
+}
+
+body.is-resizing-panel {
+  cursor: ew-resize;
+  user-select: none;
+
+  .sidebar,
+  .app-content,
+  .sidebar-toggle,
+  .call-overlay,
+  .modal-overlay,
+  .space-secondary-sidebar {
+    transition: none !important;
+  }
 }
 
 // ============================================================================
@@ -1179,7 +1361,7 @@
 @media (max-width: $mobile-breakpoint) {
   .sidebar-hamburger {
     display: flex;
-    top: 42px; // Hamburger menu
+    top: 10px; // Hamburger menu
     z-index: 100;
   }
 

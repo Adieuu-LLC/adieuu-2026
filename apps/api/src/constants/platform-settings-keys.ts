@@ -34,6 +34,8 @@ export const PLATFORM_SETTING_KEYS = {
   CSAM_HASH_SERVICES: 'platform-csam-hash-services',
   /** NCMEC CyberTipline environment override ('test' | 'production'). */
   NCMEC_CYBERTIPLINE_ENV: 'platform-ncmec-cybertipline-env',
+  /** Whether non-admin identities may create new Spaces. Platform admins always can. */
+  SPACE_CREATION_ENABLED: 'platform-space-creation-enabled',
 } as const;
 
 export type PlatformSettingKey =

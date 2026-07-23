@@ -55,6 +55,7 @@ import {
 import {
   updateProfileCtrl,
   getProfileCtrl,
+  getIdentityFriendsCtrl,
 } from './profile.controller';
 import {
   getIdentityPreferencesCtrl,
@@ -274,6 +275,9 @@ router.post('/identity/bundle-by-passphrase', async (ctx) => {
  * @returns 429 Too Many Requests if rate limited or locked out
  */
 router.post('/identity/login', async (ctx) => {
+  const { requireCaptchaForFreeTier } = await import('../../middleware/captcha');
+  const captchaError = await requireCaptchaForFreeTier(ctx);
+  if (captchaError) return captchaError;
   return await loginIdentityCtrl(ctx);
 });
 
@@ -679,6 +683,26 @@ router.put('/identity/me/preferences', async (ctx) => {
  */
 router.get('/identity/:id/profile', async (ctx) => {
   return await getProfileCtrl(ctx);
+});
+
+/**
+ * GET /identity/:id/friends - Get privacy-filtered friends list for a profile
+ *
+ * Returns the identity's friends list, filtered by the `friends` privacy setting.
+ * Supports cursor-based pagination and server-side search.
+ *
+ * @route GET /api/identity/:id/friends
+ *
+ * @param id (string, required): Identity ID
+ * @queryParam limit (number, optional): Page size (default 24, max 50)
+ * @queryParam cursor (string, optional): ObjectId cursor for next page
+ * @queryParam q (string, optional): Search query (min 2 chars) to filter by username/displayName
+ *
+ * @returns 200 OK with { friends: FriendInfo[], hidden: boolean, count: number, cursor: string | null }
+ * @returns 404 Not Found if identity doesn't exist
+ */
+router.get('/identity/:id/friends', async (ctx) => {
+  return await getIdentityFriendsCtrl(ctx);
 });
 
 // ============================================================================

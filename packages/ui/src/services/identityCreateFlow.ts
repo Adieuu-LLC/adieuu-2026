@@ -16,6 +16,7 @@ import {
 } from './e2eKeyService';
 import { getOrCreateWrappingSalt, storeDeviceKeys } from './deviceKeyStorage';
 import { generateAndUploadPreKeys } from './preKeyService';
+import { buildDeviceStaticKeyAttestationB64 } from './deviceStaticKeyAttestationUpload';
 import type { CreateIdentityResult } from '../hooks/useIdentity.types';
 
 type ApiClient = ReturnType<typeof createApiClient>;
@@ -130,10 +131,17 @@ export async function runCreateIdentityFlow(
   }
 
   try {
+    const staticKeyAttestation = buildDeviceStaticKeyAttestationB64({
+      signingPrivateKey: e2eResult.signingPrivateKey,
+      profile: 'default',
+      deviceId: e2eResult.device.deviceId,
+      ecdhPublicKey: e2eResult.device.ecdhPublicKey,
+      kemPublicKey: e2eResult.device.kemPublicKey,
+    });
     const initBody = {
       signingPublicKey: e2eResult.signingPublicKey,
       preferredCryptoProfile: 'default' as const,
-      device: e2eResult.device,
+      device: { ...e2eResult.device, staticKeyAttestation },
       bundle: e2eResult.encryptedBundle,
     };
     const initBytes = jsonUtf8ByteLength(initBody);

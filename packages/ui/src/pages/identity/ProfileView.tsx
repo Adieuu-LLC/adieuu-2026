@@ -13,6 +13,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   createApiClient,
+  type BadgeId,
   type PublicIdentity,
   type PublicAchievement,
   type PublicAchievementDefinition,
@@ -21,10 +22,13 @@ import {
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Icon } from '../../icons/Icon';
+import { BadgeDisplay } from '../../components/BadgeDisplay';
 import { ReportModal } from '../../components/ReportModal';
 import { AchievementGrid } from '../../components/AchievementGrid';
 import { ProfileContentTabs } from '../../components/ProfileContentTabs';
+import { ProfileFriendsList } from '../../components/ProfileFriendsList';
 import { BlockActionButton } from '../../components/BlockActionButton';
+import { useAuth } from '../../hooks/useAuth';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useFriends } from '../../hooks/useFriends';
 import { useBlockContext } from '../../hooks/useBlockContext';
@@ -58,10 +62,16 @@ export function IdentityProfileView() {
   const [achievements, setAchievements] = useState<PublicAchievement[]>([]);
   const [achievementDefinitions, setAchievementDefinitions] = useState<PublicAchievementDefinition[]>([]);
   const [achievementsLoaded, setAchievementsLoaded] = useState(false);
+  const [profileFriendsCount, setProfileFriendsCount] = useState<number | undefined>(undefined);
+  const [profileFriendsHidden, setProfileFriendsHidden] = useState(false);
   const [myAchievementIds, setMyAchievementIds] = useState<Set<string>>(new Set());
 
+  const { session } = useAuth();
   const isSelf = selfIdentity?.id === id;
   const isIdentityLoggedIn = selfIdentity != null;
+  const canReportProfiles = session?.isLifetime ||
+    (session?.subscriptions ?? []).some((t) => t === 'access' || t === 'insider') ||
+    (session?.entitlements ?? []).includes('gifted');
 
   useEffect(() => {
     if (!id) {
@@ -155,6 +165,46 @@ export function IdentityProfileView() {
 
     return () => { cancelled = true; };
   }, [id, loadState, api, isSelf, isIdentityLoggedIn]);
+
+  const fetchProfileFriends = useCallback(
+    async (params: { limit?: number; cursor?: string; q?: string }) => {
+      if (!id) return null;
+      const res = await api.identity.getIdentityFriends(id, params);
+      if (res.success && res.data) return res.data;
+      throw new Error('Failed to load friends');
+    },
+    [id, api],
+  );
+
+  useEffect(() => {
+    if (!id || loadState !== 'loaded') return;
+    let cancelled = false;
+
+    setProfileFriendsCount(undefined);
+    setProfileFriendsHidden(false);
+
+    fetchProfileFriends({ limit: 1 })
+      .then((result) => {
+        if (cancelled || !result) return;
+        setProfileFriendsCount(result.hidden ? undefined : result.count);
+        setProfileFriendsHidden(result.hidden);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setProfileFriendsCount(undefined);
+        setProfileFriendsHidden(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [id, loadState, fetchProfileFriends]);
+
+  const handleFriendsMeta = useCallback(
+    (meta: { count: number; hidden: boolean }) => {
+      setProfileFriendsCount(meta.hidden ? undefined : meta.count);
+      setProfileFriendsHidden(meta.hidden);
+    },
+    [],
+  );
 
   const handleAddFriend = useCallback(async () => {
     if (!id || friendActionLoading) return;
@@ -284,6 +334,9 @@ export function IdentityProfileView() {
                     {profile.displayName}
                   </h1>
                   <p className="profile-view-username">@{profile.username}</p>
+                  {profile.badges && profile.badges.length > 0 && (
+                    <BadgeDisplay badges={profile.badges as BadgeId[]} size="sm" className="profile-view-badges" />
+                  )}
                   {friendStatus === 'friends' && friendsSinceIso && (
                     <p
                       className="profile-view-friendship"
@@ -330,14 +383,16 @@ export function IdentityProfileView() {
                       </Button>
                     )}
                     <BlockActionButton identityId={id} />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setReportOpen(true)}
-                    >
-                      <Icon name="warning" />
-                      {t('report.reportProfile')}
-                    </Button>
+                    {canReportProfiles && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setReportOpen(true)}
+                      >
+                        <Icon name="warning" />
+                        {t('report.reportProfile')}
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
@@ -358,6 +413,7 @@ export function IdentityProfileView() {
 
           <ProfileContentTabs
             tabsChrome
+            friendsCount={profileFriendsCount}
             achievements={
               <AchievementGrid
                 title={t('identity.profileView.tabAchievements')}
@@ -369,6 +425,15 @@ export function IdentityProfileView() {
                 loading={!achievementsLoaded}
                 accentColor={accent}
                 cardBackgroundColor={cardBg}
+              />
+            }
+            friends={
+              <ProfileFriendsList
+                fetchFriends={fetchProfileFriends}
+                onMetaLoaded={handleFriendsMeta}
+                selfIdentityId={selfIdentity?.id}
+                onSendFriendRequest={isIdentityLoggedIn ? sendRequest : undefined}
+                onGetFriendshipStatus={isIdentityLoggedIn ? getFriendStatus : undefined}
               />
             }
           />

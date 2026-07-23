@@ -33,6 +33,7 @@ import {
 } from '../../services/platform-capabilities.service';
 import type { IdentitySessionData } from '../../services/session.service';
 import { isValidObjectId } from '../../utils/isValidObjectId';
+import { sanitizeString } from '../../utils/sanitize';
 import {
   toPublicTicket,
   toPublicTicketEvent,
@@ -101,8 +102,10 @@ export const ReopenSchema = z.object({
 });
 
 function parseTicketObjectId(rawId: string | undefined): string | null {
-  if (!rawId || !isValidObjectId(rawId)) return null;
-  return rawId;
+  if (!rawId) return null;
+  const sanitized = sanitizeString(rawId, 'id').value;
+  if (!sanitized || !isValidObjectId(sanitized)) return null;
+  return sanitized;
 }
 
 async function enrichTicket(doc: SupportTicketDocument): Promise<PublicTicket> {
@@ -306,7 +309,10 @@ export async function addTicketCommentResult(
   const parsed = CommentSchema.safeParse(body);
   if (!parsed.success) return { ok: false, kind: 'validation_failed' };
 
-  const result = await addStaffComment(actorId, id, parsed.data.body, parsed.data.visibility);
+  const sanitizedBody = sanitizeString(parsed.data.body, 'general').value;
+  if (!sanitizedBody) return { ok: false, kind: 'validation_failed' };
+
+  const result = await addStaffComment(actorId, id, sanitizedBody, parsed.data.visibility);
   if (!result.success) {
     return { ok: false, kind: 'not_found', message: result.error };
   }
@@ -361,7 +367,10 @@ export async function resolveTicketResult(
     return { ok: false, kind: 'forbidden' };
   }
 
-  const result = await resolveTicket(actorId, id, parsed.data.resolutionNote);
+  const sanitizedNote = sanitizeString(parsed.data.resolutionNote, 'general').value;
+  if (!sanitizedNote) return { ok: false, kind: 'validation_failed' };
+
+  const result = await resolveTicket(actorId, id, sanitizedNote);
   if (!result.success) {
     return { ok: false, kind: 'bad_request', message: result.error };
   }
@@ -392,7 +401,10 @@ export async function closeTicketResult(
     return { ok: false, kind: 'forbidden' };
   }
 
-  const result = await closeTicket(actorId, id, parsed.data.reason);
+  const sanitizedCloseReason = sanitizeString(parsed.data.reason, 'general').value;
+  if (!sanitizedCloseReason) return { ok: false, kind: 'validation_failed' };
+
+  const result = await closeTicket(actorId, id, sanitizedCloseReason);
   if (!result.success) {
     return { ok: false, kind: 'bad_request', message: result.error };
   }
@@ -416,7 +428,11 @@ export async function reopenTicketResult(
   const parsed = ReopenSchema.safeParse(body);
   if (!parsed.success) return { ok: false, kind: 'validation_failed' };
 
-  const result = await reopenTicket(actorId, id, parsed.data.reason);
+  const sanitizedReopenReason = parsed.data.reason
+    ? sanitizeString(parsed.data.reason, 'general').value || undefined
+    : undefined;
+
+  const result = await reopenTicket(actorId, id, sanitizedReopenReason);
   if (!result.success) {
     return { ok: false, kind: 'bad_request', message: result.error };
   }

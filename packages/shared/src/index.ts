@@ -2,11 +2,13 @@
 export * from './constants/http';
 export * from './constants/media-upload-limits';
 export * from './constants/stream-quality-caps';
+export * from './constants/message-history-limits';
 export * from './constants/report-context';
 export * from './constants/moderation-reason-map';
 export * from './constants/account-moderation';
 export * from './constants/support-ticket-categories';
 export * from './constants/feedback';
+export * from './constants/space-access-rules';
 export * from './feedback/roadmap-timeline';
 export * from './feedback/feedback-display';
 export * from './types';
@@ -15,6 +17,7 @@ export * from './api';
 export * from './utils/jsonUtf8';
 export * from './utils/themeChecksum';
 export * from './messaging/messagePagination';
+export * from './messaging/signatureBinding';
 export * from './subscriptions';
 export * from './achievements/pop-culture-text-patterns';
 export * from './achievements/tv-reference-text-patterns';
@@ -25,3 +28,8 @@ export {
   filenameToShortcode,
   filenameToDisplayName,
 } from './custom-emoji-shortcode';
+export {
+  REACTION_EMOJI_MAX_LENGTH,
+  CUSTOM_REACTION_TOKEN_RE,
+  isValidReactionEmoji,
+} from './reaction-emoji';

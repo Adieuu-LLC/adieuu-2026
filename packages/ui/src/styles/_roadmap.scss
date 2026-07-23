@@ -19,6 +19,13 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: var(--spacing-md) var(--spacing-lg);
+
+    @media screen and (max-width: 768px) {
+      h1 {
+        padding-left: 30px;
+        margin-top: -7px;
+      }
+    }
   }
 }
 
@@ -118,6 +125,10 @@
     background: var(--color-border);
     pointer-events: none;
   }
+
+  @media screen and (max-width: 768px) {
+    padding-left: calc(var(--spacing-md) + 16px);
+  }
 }
 
 .roadmap-timeline-progress {
@@ -175,6 +186,10 @@
   &--latest {
     background: var(--color-accent-primary);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent-primary) 20%, transparent);
+  }
+  
+  @media screen and (max-width: 768px) {
+    left: calc(-1 * (var(--spacing-md) + 16px) + var(--roadmap-track-x) - 5px);
   }
 }
 

@@ -47,6 +47,8 @@ test.describe('axe page scans', () => {
     { name: 'Download', path: '/download' },
     { name: 'Search', path: '/search' },
     { name: 'Spaces', path: '/spaces' },
+    { name: 'Create Space', path: '/spaces/new' },
+    { name: 'Space View (landing)', path: '/s/test-space' },
     { name: 'Legal Policies Directory', path: '/legal-policies' },
     { name: 'Legal - Terms of Service', path: '/legal-policies/tos' },
     { name: 'Legal - Privacy Policy', path: '/legal-policies/privacy' },
@@ -123,7 +125,7 @@ test.describe('landmark structure', () => {
     await page.goto('/auth/login', { waitUntil: 'networkidle' });
 
     const heading = page.locator('h1, h2, h3, [role="heading"]');
-    expect(await heading.count()).toBeGreaterThan(0);
+    await expect(heading.first()).toBeAttached({ timeout: 10_000 });
   });
 });
 

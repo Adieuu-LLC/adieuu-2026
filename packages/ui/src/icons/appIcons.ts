@@ -51,6 +51,8 @@ export const APP_ICON_NAMES = {
   camera: 'camera',
   image: 'image',
   globe: 'globe',
+  /** FA alias of earth-americas */
+  earth: 'earth-americas',
   desktop: 'desktop',
   server: 'server',
   bars: 'bars',
@@ -65,6 +67,8 @@ export const APP_ICON_NAMES = {
   fileArrowUp: 'file-arrow-up',
   arrowLeft: 'arrow-left',
   arrowRight: 'arrow-right',
+  /** Conversations + Spaces unified sidebar view */
+  swap: 'arrow-left-arrow-right',
   circle: 'circle',
   pen: 'pen',
   noteSticky: 'note-sticky',
@@ -131,6 +135,8 @@ export const APP_ICON_NAMES = {
   videoSlash: 'video-slash',
   microphone: 'microphone',
   microphoneSlash: 'microphone-slash',
+  volumeHigh: 'volume-high',
+  volumeMute: 'volume-slash',
   screenShare: 'screen-users',
   phoneIncoming: 'phone-arrow-down-left',
   expand: 'maximize',

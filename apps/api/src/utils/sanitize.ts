@@ -96,8 +96,9 @@ export const generateEmojiString = (): string => {
  * - `base64` - Base64 encoded strings (A-Z, a-z, 0-9, +, /, =)
  * - `alphanumdash` - Alphanumeric with hyphens only (good for slugs)
  * - `alphanumdashstop` - Alphanumeric with hyphens and periods only (used for route segment sanitization)
+ * - `hexColor` - 6-digit hex color with `#` prefix (e.g. `#aabbcc`); returns empty string if invalid
  */
-export type SanitizationType = 'default' | 'phone' | 'ip' | 'id' | 'idenhanced' | 'general' | 'authcode' | 'email' | 'hash' | 'base64' | 'base64url' | 'alphanumdash' | 'alphanumdashstop';
+export type SanitizationType = 'default' | 'phone' | 'ip' | 'id' | 'idenhanced' | 'general' | 'authcode' | 'email' | 'hash' | 'base64' | 'base64url' | 'alphanumdash' | 'alphanumdashstop' | 'hexColor';
 
 /**
  * Result of a sanitization operation.
@@ -195,6 +196,7 @@ interface SanitizationOptions {
  * - `base64`: Standard base64 character set
  * - `alphanumdash`: Alphanumeric and hyphens only
  * - `alphanumdashstop`: Like `alphanumdash`, plus ASCII periods
+ * - `hexColor`: Only `#` followed by exactly 6 hex digits; empty string if invalid
  * - `general`: Most printable characters including international scripts
  * 
  * @param target - The string to sanitize
@@ -347,6 +349,12 @@ export const sanitizeString = (target: SanitizationOptions['target'], type: Sani
       case 'hash':
         // Meant for hashes
         sanitized = sanitized.replace(/[^a-z0-9()_.=+-]/gi, '');
+        break;
+      case 'hexColor':
+        sanitized = sanitized.replace(/[^#0-9a-fA-F]/g, '');
+        if (!/^#[0-9a-fA-F]{6}$/.test(sanitized)) {
+          sanitized = '';
+        }
         break;
       case 'id':
         sanitized = sanitized.replace(/[^a-z0-9()]/gi, '');

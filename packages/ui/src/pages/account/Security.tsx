@@ -10,14 +10,12 @@ import { TotpSetup, WebAuthnSetup, MfaCredentialsList } from '../../components/M
 import { createApiClient, type SessionDetails } from '@adieuu/shared';
 import { useAppConfig } from '../../config';
 import { ChangePassphrasePanel } from './ChangePassphrasePanel';
-import {
-  useCrashReportingPreference,
-  setCrashReportingEnabled,
-  setCrashReportingIncludeUser,
-} from '../../hooks/useCrashReportingPreference';
+import { DataExportPanel } from './DataExportPanel';
+import { DeleteAccountPanel } from './DeleteAccountPanel';
+import { AccountOverviewContent } from './Overview';
 
-const VALID_TABS = ['authentication', 'passphrase', 'sessions'] as const;
-type SecurityTab = typeof VALID_TABS[number];
+const VALID_TABS = ['overview', 'authentication', 'passphrase', 'sessions', 'data-export', 'delete-account'] as const;
+type AccountTab = typeof VALID_TABS[number];
 
 /**
  * Parse user agent string to get a readable device/browser name
@@ -265,37 +263,47 @@ export function AccountSecurity() {
   const navigate = useNavigate();
   const { apiBaseUrl } = useAppConfig();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
-  const crashReporting = useCrashReportingPreference();
-
-  // Validate tab parameter and default to authentication
-  const activeTab: SecurityTab = VALID_TABS.includes(tab as SecurityTab)
-    ? (tab as SecurityTab)
-    : 'authentication';
+  const activeTab: AccountTab = VALID_TABS.includes(tab as AccountTab)
+    ? (tab as AccountTab)
+    : 'overview';
 
   const handleTabChange = (newTab: string) => {
-    navigate(`/account/security/${newTab}`, { replace: true });
+    navigate(`/account/${newTab}`, { replace: true });
   };
 
   return (
     <div className="page-content">
       <div className="container">
         <div className="page-header">
-          <h1 className="page-title">{t('account.security.title')}</h1>
-          <p className="page-subtitle">{t('account.security.subtitle')}</p>
+          <h1 className="page-title">{t('account.page.title')}</h1>
+          <p className="page-subtitle">{t('account.page.subtitle')}</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={handleTabChange} className="slide-up">
           <TabList>
-            <TabTrigger value="authentication">
+            <TabTrigger value="overview" data-tour="account-tab-overview">
+              {t('account.security.tabs.overview')}
+            </TabTrigger>
+            <TabTrigger value="authentication" data-tour="account-tab-authentication">
               {t('account.security.tabs.authentication')}
             </TabTrigger>
             <TabTrigger value="passphrase">
               {t('account.security.tabs.passphrase')}
             </TabTrigger>
-            <TabTrigger value="sessions">
+            <TabTrigger value="sessions" data-tour="account-tab-sessions">
               {t('account.security.tabs.sessions')}
             </TabTrigger>
+            <TabTrigger value="data-export" data-tour="account-tab-data-export">
+              {t('account.security.tabs.dataExport')}
+            </TabTrigger>
+            <TabTrigger value="delete-account">
+              {t('account.security.tabs.deleteAccount')}
+            </TabTrigger>
           </TabList>
+
+          <TabContent value="overview">
+            <AccountOverviewContent />
+          </TabContent>
 
           <TabContent value="authentication">
             <AuthenticationSettings />
@@ -312,59 +320,19 @@ export function AccountSecurity() {
               <SessionsList />
             </Card>
           </TabContent>
+
+          <TabContent value="data-export">
+            <Card variant="elevated">
+              <DataExportPanel />
+            </Card>
+          </TabContent>
+
+          <TabContent value="delete-account">
+            <Card variant="elevated">
+              <DeleteAccountPanel />
+            </Card>
+          </TabContent>
         </Tabs>
-
-        <Card variant="elevated" className="app-settings-card" style={{ marginTop: '1.5rem' }}>
-          <h2 className="app-settings-section-title">
-            {t('identity.privacy.errorReporting.title', 'Error Reporting')}
-          </h2>
-          <p className="app-settings-section-desc">
-            {t(
-              'identity.privacy.errorReporting.description',
-              'Help improve Adieuu by automatically sending crash reports when something goes wrong. Reports are anonymous by default and contain no personally identifiable information.',
-            )}
-          </p>
-
-          <label className="app-settings-toggle">
-            <input
-              type="checkbox"
-              checked={crashReporting.enabled}
-              onChange={(e) => setCrashReportingEnabled(e.target.checked)}
-            />
-            <span className="app-settings-toggle-label">
-              <span className="app-settings-toggle-title">
-                {t('identity.privacy.errorReporting.enabledLabel', 'Send anonymous crash reports')}
-              </span>
-              <span className="app-settings-toggle-hint">
-                {t(
-                  'identity.privacy.errorReporting.enabledHint',
-                  'Automatically send technical crash data (error messages, stack traces) when an error occurs. No personal data is included.',
-                )}
-              </span>
-            </span>
-          </label>
-
-          {crashReporting.enabled && (
-            <label className="app-settings-toggle">
-              <input
-                type="checkbox"
-                checked={crashReporting.includeUser}
-                onChange={(e) => setCrashReportingIncludeUser(e.target.checked)}
-              />
-              <span className="app-settings-toggle-label">
-                <span className="app-settings-toggle-title">
-                  {t('identity.privacy.errorReporting.includeContactLabel', 'Include my contact info')}
-                </span>
-                <span className="app-settings-toggle-hint">
-                  {t(
-                    'identity.privacy.errorReporting.includeContactHint',
-                    'Attach your email or phone number to crash reports so our team can reach out if needed.',
-                  )}
-                </span>
-              </span>
-            </label>
-          )}
-        </Card>
       </div>
     </div>
   );

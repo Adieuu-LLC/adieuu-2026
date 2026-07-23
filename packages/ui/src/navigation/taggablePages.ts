@@ -20,7 +20,6 @@ export interface TaggablePage {
 export const TAGGABLE_PAGES: readonly TaggablePage[] = [
   // Public
   { id: 'home', path: '/', labelKey: 'home.title', labelDefault: 'Home', icon: 'home', access: 'public' },
-  { id: 'about', path: '/about', labelKey: 'about.title', labelDefault: 'About', icon: 'info', access: 'public' },
   { id: 'learn', path: '/about/learn', labelKey: 'home.learn.navLabel', labelDefault: 'Learn', icon: 'info', access: 'public' },
   { id: 'roadmap', path: '/about/roadmap', labelKey: 'about.roadmap.title', labelDefault: 'Roadmap', icon: 'clock', access: 'public', aliases: ['map', 'planned', 'upcoming'] },
   { id: 'feedback', path: '/feedback', labelKey: 'feedback.title', labelDefault: 'Feedback', icon: 'info', access: 'public', aliases: ['vote', 'features', 'suggest'] },
@@ -34,8 +33,7 @@ export const TAGGABLE_PAGES: readonly TaggablePage[] = [
   { id: 'support', path: '/support', labelKey: 'support.title', labelDefault: 'Support', icon: 'mask', access: 'authenticated', aliases: ['help', 'tickets'] },
 
   // Account (authenticated session)
-  { id: 'account', path: '/account/overview', labelKey: 'account.overview.title', labelDefault: 'Account', icon: 'user', access: 'authenticated', aliases: ['account-overview'] },
-  { id: 'security', path: '/account/security', labelKey: 'account.security.title', labelDefault: 'Security', icon: 'user', access: 'authenticated', aliases: ['password', 'mfa', 'sessions'] },
+  { id: 'account', path: '/account/overview', labelKey: 'account.page.title', labelDefault: 'Account', icon: 'user', access: 'authenticated', aliases: ['account-overview', 'security', 'password', 'mfa', 'sessions'] },
   { id: 'account-subscription', path: '/account/subscription', labelKey: 'account.subscription.title', labelDefault: 'Subscription', icon: 'user', access: 'authenticated', aliases: ['billing', 'plan'] },
   { id: 'referrals', path: '/account/referrals', labelKey: 'account.referral.title', labelDefault: 'Referrals', icon: 'user', access: 'authenticated', aliases: ['invite', 'refer'] },
 
@@ -43,6 +41,7 @@ export const TAGGABLE_PAGES: readonly TaggablePage[] = [
   { id: 'profile', path: '/identity/profile', labelKey: 'identity.profile.title', labelDefault: 'Profile', icon: 'mask', access: 'identity', aliases: ['alias'] },
   { id: 'appearance', path: '/identity/appearance', labelKey: 'identity.appearance.title', labelDefault: 'Appearance', icon: 'palette', access: 'identity', aliases: ['theme', 'themes'] },
   { id: 'notifications', path: '/identity/notifications', labelKey: 'account.settings.title', labelDefault: 'Notifications', icon: 'bell', access: 'identity', aliases: ['notification-settings'] },
+  { id: 'audio-video', path: '/identity/audio-video', labelKey: 'identity.audioVideo.title', labelDefault: 'Audio & Video', icon: 'microphone', access: 'identity', aliases: ['av', 'camera', 'microphone', 'speakers', 'devices-av'] },
   { id: 'privacy', path: '/identity/privacy', labelKey: 'identity.privacy.title', labelDefault: 'Privacy', icon: 'lock', access: 'identity', aliases: ['privacy-settings', 'blocked'] },
   { id: 'devices', path: '/identity/devices', labelKey: 'identity.devices.title', labelDefault: 'Devices', icon: 'device', access: 'identity' },
   { id: 'ciphers', path: '/identity/ciphers', labelKey: 'ciphers.title', labelDefault: 'Ciphers', icon: 'key', access: 'identity', aliases: ['encryption', 'keys'] },

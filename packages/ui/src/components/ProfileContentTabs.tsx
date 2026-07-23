@@ -8,6 +8,9 @@ import { Tabs, TabList, TabTrigger, TabContent, type TabItem } from './Tabs';
 
 export interface ProfileContentTabsProps {
   achievements: ReactNode;
+  friends?: ReactNode;
+  /** Number of friends to display in the tab label, or undefined to hide the count. */
+  friendsCount?: number;
   className?: string;
   /** Pill-style background behind tab labels for readability on custom profile backgrounds. */
   tabsChrome?: boolean;
@@ -15,19 +18,26 @@ export interface ProfileContentTabsProps {
 
 export function ProfileContentTabs({
   achievements,
+  friends,
+  friendsCount,
   className = '',
   tabsChrome = false,
 }: ProfileContentTabsProps) {
   const { t } = useTranslation();
 
+  const friendsLabel = friendsCount != null
+    ? t('identity.profileView.tabFriendsCount', { count: friendsCount })
+    : t('identity.profileView.tabFriends');
+
   const profileTabItems = useMemo<TabItem[]>(
     () => [
+      { value: 'friends', label: friendsLabel },
       { value: 'posts', label: t('identity.profileView.tabPosts') },
       { value: 'spaces', label: t('identity.profileView.tabSpaces') },
       { value: 'achievements', label: t('identity.profileView.tabAchievements') },
       { value: 'reports', label: t('identity.profileView.tabReports') },
     ],
-    [t],
+    [t, friendsLabel],
   );
 
   const tabList = (
@@ -42,12 +52,16 @@ export function ProfileContentTabs({
 
   return (
     <div className={['profile-view-content', className].filter(Boolean).join(' ')}>
-      <Tabs defaultTab="achievements" className="profile-view-tabs">
+      <Tabs defaultTab="friends" className="profile-view-tabs">
         {tabsChrome ? (
           <div className="profile-view-tabs-chrome">{tabList}</div>
         ) : (
           tabList
         )}
+
+        <TabContent value="friends" className="profile-view-tab-panel">
+          {friends}
+        </TabContent>
 
         <TabContent value="posts" className="profile-view-tab-panel">
           <p className="profile-view-tab-placeholder">

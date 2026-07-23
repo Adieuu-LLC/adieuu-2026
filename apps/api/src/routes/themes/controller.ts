@@ -15,6 +15,7 @@ import {
   type PublicCommunityTheme,
 } from '../../models/community-theme';
 import { checkRateLimit, type RateLimitConfig } from '../../services/rate-limit.service';
+import { sanitizeString, sanitizeObjectId } from '../../utils/sanitize';
 
 export const THEME_UPLOAD_RATE_CONFIG: RateLimitConfig = {
   limit: 5,
@@ -24,7 +25,7 @@ export const THEME_UPLOAD_RATE_CONFIG: RateLimitConfig = {
 /** Pre-computed SHA-256 checksums of built-in preset theme colours. */
 export const BUILTIN_CHECKSUMS = new Set([
   '08115fe0f979e002004eeee7a02bc7f4bae8ed74e59bba9a338a63e333817346', // midnight
-  '652c443ae234ef3765eb277ec2b95f43cbe7e048993aa94b82d6ea21d8903834', // daylight
+  '2abfd3c06e8ad582478da80e37a83d69e6ebc87b518ac6318a6601ab443e5b87', // daylight
   '9265bb720887db34db2efb93dc4a9a21d230518f263e5e6e82c3bb2e9cb583ed', // ember
   '9672f39d347898d40485184a2148d5a58eb975842a325ac64df94c6ba28aacf7', // verdant
   '8b2676056db3376c1b91e4c083e055219df3848f7e1079cb9927c34d7dbeed1f', // royal
@@ -58,9 +59,13 @@ export function parseThemeListQuery(searchParams: URLSearchParams): ThemeListQue
   const page = Math.max(1, Number(searchParams.get('page')) || 1);
   const limit = Math.min(50, Math.max(1, Number(searchParams.get('limit')) || 20));
   const rawSearch = searchParams.get('search');
-  const search = rawSearch && rawSearch.length <= 100 ? rawSearch : undefined;
+  const search = rawSearch && rawSearch.length <= 100
+    ? sanitizeString(rawSearch, 'general').value || undefined
+    : undefined;
   const rawTag = searchParams.get('tag');
-  const tag = rawTag && rawTag.length <= 30 ? rawTag : undefined;
+  const tag = rawTag && rawTag.length <= 30
+    ? sanitizeString(rawTag, 'alphanumdash').value || undefined
+    : undefined;
   const sortParam = searchParams.get('sort');
   const sort: ThemeListQuery['sort'] =
     sortParam === 'downloads' ? 'downloads' : sortParam === 'upvotes' ? 'upvotes' : 'newest';
@@ -69,10 +74,10 @@ export function parseThemeListQuery(searchParams: URLSearchParams): ThemeListQue
 }
 
 export function parseThemeId(raw: string | undefined): ParseThemeIdResult {
-  if (!raw || !ObjectId.isValid(raw)) {
-    return { ok: false, kind: 'bad_request' };
-  }
-  return { ok: true, id: raw };
+  if (!raw) return { ok: false, kind: 'bad_request' };
+  const sanitized = sanitizeObjectId(raw);
+  if (!sanitized.ok) return { ok: false, kind: 'bad_request' };
+  return { ok: true, id: sanitized.id };
 }
 
 export type ListThemesData = {
@@ -142,7 +147,20 @@ export async function uploadThemeResult(
     return { ok: false, kind: 'validation_failed' };
   }
 
-  const { name, description, theme, tags } = parseResult.data;
+  const sanitizedName = sanitizeString(parseResult.data.name, 'general').value;
+  if (!sanitizedName) return { ok: false, kind: 'validation_failed' };
+
+  const sanitizedDescription = parseResult.data.description !== undefined
+    ? sanitizeString(parseResult.data.description, 'general').value
+    : undefined;
+  const sanitizedTags = parseResult.data.tags?.map(
+    (t: string) => sanitizeString(t, 'alphanumdash').value,
+  ).filter(Boolean);
+
+  const { theme, tags: _rawTags, name: _rawName, description: _rawDesc, ...rest } = parseResult.data;
+  const name = sanitizedName;
+  const description = sanitizedDescription;
+  const tags = sanitizedTags;
   const colorChecksum = await computeColorChecksum(theme.colors);
 
   if (BUILTIN_CHECKSUMS.has(colorChecksum)) {

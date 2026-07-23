@@ -419,6 +419,33 @@ export const Collections = {
   FEEDBACK_NOTIFICATION_PREFS: 'feedback_notification_prefs',
   /** Client-side crash reports (TTL-indexed, auto-expire after 90 days) */
   CLIENT_ERRORS: 'client_errors',
+  /** SHA-256 hashes of emails from deleted accounts (re-signup prevention) */
+  DELETED_EMAILS: 'deleted_emails',
+  /** Sitewide admin-managed announcements */
+  SITE_ANNOUNCEMENTS: 'site_announcements',
+  /** Spaces (Discord-like servers) */
+  SPACES: 'spaces',
+  /** Channels within a Space */
+  SPACE_CHANNELS: 'space_channels',
+  SPACE_CHANNEL_CATEGORIES: 'space_channel_categories',
+  /** Space membership (one document per space + identity) */
+  SPACE_MEMBERS: 'space_members',
+  /** Space roles (permission flags) */
+  SPACE_ROLES: 'space_roles',
+  /** Space invites (accept/decline/revoke flow) */
+  SPACE_INVITES: 'space_invites',
+  /** Messages posted in Space channels */
+  SPACE_MESSAGES: 'space_messages',
+  /** Reactions on Space channel messages */
+  SPACE_REACTIONS: 'space_message_reactions',
+  /** Pinned messages in Space channels */
+  SPACE_PINS: 'space_channel_pins',
+  /** Active/waiting voice-channel sessions (presence + optional LiveKit room) */
+  SPACE_VOICE_SESSIONS: 'space_voice_sessions',
+  /** Per-identity Space preferences (favorites) */
+  SPACE_PREFERENCES: 'space_preferences',
+  /** Space-scoped moderation / management audit logs */
+  SPACE_AUDIT_LOGS: 'space_audit_logs',
 } as const;
 
 /**
@@ -716,6 +743,11 @@ export async function createIndexes(): Promise<void> {
     { identityId: 1, conversationIds: 1 },
     { unique: true },
   );
+  try { await conversationFolders.dropIndex('identityId_1_spaceIds_1'); } catch { /* index may not exist yet */ }
+  await conversationFolders.createIndex(
+    { identityId: 1, spaceIds: 1 },
+    { unique: true },
+  );
 
   // Stripe webhook idempotency — TTL auto-deletes after 30 days
   const stripeEvents = database.collection(Collections.STRIPE_PROCESSED_EVENTS);
@@ -825,6 +857,105 @@ export async function createIndexes(): Promise<void> {
   const feedbackNotifPrefs = database.collection(Collections.FEEDBACK_NOTIFICATION_PREFS);
   await feedbackNotifPrefs.createIndex({ identityId: 1 }, { unique: true });
 
+  // Deleted emails (re-signup prevention)
+  const deletedEmails = database.collection(Collections.DELETED_EMAILS);
+  await deletedEmails.createIndex({ emailHash: 1 }, { unique: true });
+
+  // Site announcements — active-announcement queries + admin listing
+  const siteAnnouncements = database.collection(Collections.SITE_ANNOUNCEMENTS);
+  await siteAnnouncements.createIndex({ active: 1, showAfter: 1, showUntil: 1 });
+  await siteAnnouncements.createIndex({ createdAt: -1 });
+
+  // Spaces — unique slug + directory discovery
+  const spaces = database.collection(Collections.SPACES);
+  await spaces.createIndex({ slug: 1 }, { unique: true });
+  await spaces.createIndex({ visibility: 1, memberCount: -1 });
+  await spaces.createIndex(
+    { name: 'text', description: 'text' },
+    { default_language: 'english' },
+  );
+  await spaces.createIndex({ ownerIdentityId: 1 });
+
+  // Space channels — ordered listing per space / category
+  const spaceChannels = database.collection(Collections.SPACE_CHANNELS);
+  await spaceChannels.createIndex({ spaceId: 1, position: 1 });
+  await spaceChannels.createIndex({ spaceId: 1, categoryId: 1, position: 1 });
+
+  // Space channel categories — ordered listing per space
+  const spaceChannelCategories = database.collection(Collections.SPACE_CHANNEL_CATEGORIES);
+  await spaceChannelCategories.createIndex({ spaceId: 1, position: 1 });
+
+  // Space members — one membership per (space, identity); reverse lookup by identity
+  const spaceMembers = database.collection(Collections.SPACE_MEMBERS);
+  await spaceMembers.createIndex({ spaceId: 1, identityId: 1 }, { unique: true });
+  await spaceMembers.createIndex({ identityId: 1 });
+  await spaceMembers.createIndex({ spaceId: 1, joinedAt: 1 });
+
+  // Space roles — roles per space
+  const spaceRoles = database.collection(Collections.SPACE_ROLES);
+  await spaceRoles.createIndex({ spaceId: 1 });
+
+  // Space invites — inbox lookup + per-space listing
+  const spaceInvites = database.collection(Collections.SPACE_INVITES);
+  await spaceInvites.createIndex({ invitedIdentityId: 1, status: 1 });
+  await spaceInvites.createIndex({ spaceId: 1 });
+  await spaceInvites.createIndex(
+    { spaceId: 1, invitedIdentityId: 1 },
+    { unique: true, partialFilterExpression: { status: 'pending' } },
+  );
+
+  // Space messages — channel pagination + client dedup + TTL auto-delete
+  const spaceMessages = database.collection(Collections.SPACE_MESSAGES);
+  await spaceMessages.createIndex({ channelId: 1, createdAt: -1 });
+  await spaceMessages.createIndex({ channelId: 1, _id: -1 });
+  await spaceMessages.createIndex({ channelId: 1, clientMessageId: 1 }, { unique: true });
+  await spaceMessages.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, sparse: true });
+  await spaceMessages.createIndex({ e2eMediaIds: 1 }, { sparse: true });
+
+  // Space reactions — one reaction per emoji per user per message
+  const spaceReactions = database.collection(Collections.SPACE_REACTIONS);
+  await spaceReactions.createIndex({ messageId: 1 });
+  await spaceReactions.createIndex(
+    { messageId: 1, identityId: 1, emoji: 1 },
+    { unique: true },
+  );
+
+  // Space channel pins — one pin per message per channel
+  const spacePins = database.collection(Collections.SPACE_PINS);
+  await spacePins.createIndex(
+    { channelId: 1, messageId: 1 },
+    { unique: true },
+  );
+  await spacePins.createIndex({ channelId: 1, pinnedAt: -1 });
+
+  // Space voice sessions — one non-ended session per channel; lookup by room
+  const spaceVoiceSessions = database.collection(Collections.SPACE_VOICE_SESSIONS);
+  await spaceVoiceSessions.createIndex(
+    { channelId: 1 },
+    { unique: true, partialFilterExpression: { status: { $in: ['waiting', 'active'] } } },
+  );
+  await spaceVoiceSessions.createIndex({ spaceId: 1, status: 1 });
+  await spaceVoiceSessions.createIndex({ roomName: 1 }, { sparse: true });
+  await spaceVoiceSessions.createIndex({ emptyAt: 1 }, { sparse: true });
+  try {
+    await spaceVoiceSessions.dropIndex('endedAt_1');
+  } catch {
+    /* index may not exist yet */
+  }
+  await spaceVoiceSessions.createIndex(
+    { endedAt: 1 },
+    { expireAfterSeconds: 60 * 60, sparse: true },
+  );
+
+  // Space preferences — per-identity favorites
+  const spacePreferences = database.collection(Collections.SPACE_PREFERENCES);
+  await spacePreferences.createIndex({ identityId: 1, spaceId: 1 }, { unique: true });
+  await spacePreferences.createIndex({ identityId: 1 });
+
+  // Space audit logs — newest-first listing per Space
+  const spaceAuditLogs = database.collection(Collections.SPACE_AUDIT_LOGS);
+  await spaceAuditLogs.createIndex({ spaceId: 1, createdAt: -1 });
+
   elog.debug('MongoDB indexes created/verified');
 }
 
@@ -848,6 +979,29 @@ export async function ensureCriticalCollections(): Promise<void> {
 
   const identityCounts = database.collection(Collections.IDENTITY_COUNTS);
   await identityCounts.createIndex({ accountHash: 1 }, { unique: true });
+
+  // Seed global identity sequence counter from the current identities
+  // collection size so existing deployments start with an accurate baseline.
+  const hasGlobalSeq = await identityCounts.findOne({ accountHash: '__global_identity_seq__' });
+  if (!hasGlobalSeq) {
+    const identityTotal = await database
+      .collection(Collections.IDENTITIES)
+      .countDocuments({});
+    if (identityTotal > 0) {
+      await identityCounts.updateOne(
+        { accountHash: '__global_identity_seq__' },
+        {
+          $setOnInsert: {
+            count: identityTotal,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        },
+        { upsert: true },
+      );
+      elog.info('Seeded global identity sequence counter', { count: identityTotal });
+    }
+  }
 
   if (!names.has(Collections.COMMUNITY_THEMES)) {
     await database.createCollection(Collections.COMMUNITY_THEMES);

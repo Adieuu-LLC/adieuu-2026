@@ -21,6 +21,7 @@ import {
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import type { Conditions as PostCondition } from '@aws-sdk/s3-presigned-post/dist-types/types';
 import type { SubscriptionTierId } from '@adieuu/shared';
+import { hasPaidAccess } from './billing/resolve-access';
 import { config } from '../config';
 import { getMediaUploadRepository } from '../repositories/media-upload.repository';
 import {
@@ -36,6 +37,8 @@ import {
   isCloudFrontSigningEnabled,
   generateCloudFrontSignedUrl,
 } from '../utils/cloudfront-signer';
+import { isValidObjectId } from '../utils';
+import { resolveMemberPermissions, memberHasPermission } from './space/permissions';
 
 const PRESIGNED_URL_EXPIRY_SECONDS = 300; // 5 minutes
 
@@ -78,6 +81,8 @@ export interface RequestUploadInput {
   contentLength: number;
   identityId?: string;
   userId?: string;
+  /** Required when purpose is `space_media`. */
+  spaceId?: string;
   /** Active subscription tiers (from identity session) for limit resolution. */
   subscriptions?: SubscriptionTierId[];
   /** Entitlements merged from grants and identity overrides (e.g. `founder`). */
@@ -98,7 +103,13 @@ export interface RequestUploadResult {
   /** Headers the client must include in the PUT request (CloudFront signed URL mode). */
   uploadHeaders?: Record<string, string>;
   error?: string;
-  errorCode?: 'INVALID_CONTENT_TYPE' | 'FILE_TOO_LARGE' | 'RATE_LIMITED' | 'UPLOAD_DISABLED';
+  errorCode?:
+    | 'INVALID_CONTENT_TYPE'
+    | 'FILE_TOO_LARGE'
+    | 'RATE_LIMITED'
+    | 'UPLOAD_DISABLED'
+    | 'FORBIDDEN'
+    | 'INVALID_SPACE';
 }
 
 export interface CompleteUploadResult {
@@ -106,6 +117,22 @@ export interface CompleteUploadResult {
   error?: string;
   errorCode?: 'NOT_FOUND' | 'INVALID_STATUS' | 'FORBIDDEN';
 }
+
+/**
+ * Upload purposes restricted to paid (access+) subscription tiers.
+ * Free-tier users may only upload avatars; all other purposes require
+ * an active paid subscription.
+ */
+const PAID_ONLY_UPLOAD_PURPOSES: ReadonlySet<UploadPurpose> = new Set([
+  'banner',
+  'space_media',
+  'custom_emoji',
+  'dm_attachment',
+  'conv_media',
+  'conv_scan',
+  'ticket_attachment',
+  'feedback_attachment',
+]);
 
 /**
  * Request a presigned upload URL for a given purpose.
@@ -128,6 +155,56 @@ export async function requestUpload(
       error: 'Invalid upload purpose',
       errorCode: 'INVALID_CONTENT_TYPE',
     };
+  }
+
+  if (PAID_ONLY_UPLOAD_PURPOSES.has(input.purpose)) {
+    if (!hasPaidAccess({
+      subscriptions: input.subscriptions ?? [],
+      entitlements: input.entitlements,
+      isLifetime: input.isLifetime,
+    })) {
+      return {
+        success: false,
+        error: 'Upgrade to a paid plan to upload this content',
+        errorCode: 'UPLOAD_DISABLED',
+      };
+    }
+  }
+
+  let spaceObjId: import('mongodb').ObjectId | undefined;
+  if (input.purpose === 'space_media') {
+    if (!input.spaceId || !isValidObjectId(input.spaceId)) {
+      return {
+        success: false,
+        error: 'spaceId is required for space_media uploads',
+        errorCode: 'INVALID_SPACE',
+      };
+    }
+    if (!input.identityId) {
+      return {
+        success: false,
+        error: 'Identity session required for space_media uploads',
+        errorCode: 'FORBIDDEN',
+      };
+    }
+    const { ObjectId } = await import('mongodb');
+    spaceObjId = new ObjectId(input.spaceId);
+    const identityObjId = new ObjectId(input.identityId);
+    const perms = await resolveMemberPermissions(spaceObjId, identityObjId);
+    if (!perms.isMember) {
+      return {
+        success: false,
+        error: 'You are not a member of this Space',
+        errorCode: 'FORBIDDEN',
+      };
+    }
+    if (!memberHasPermission(perms, 'attachFiles')) {
+      return {
+        success: false,
+        error: 'You do not have permission to attach files in this Space',
+        errorCode: 'FORBIDDEN',
+      };
+    }
   }
 
   if (!purposeConfig.allowedContentTypes.includes(input.contentType)) {
@@ -252,6 +329,7 @@ export async function requestUpload(
     ...(input.identityId ? { identityId: new ObjectId(input.identityId) } : {}),
     ...(input.userId ? { userId: new ObjectId(input.userId) } : {}),
     purpose: input.purpose,
+    ...(spaceObjId ? { spaceId: spaceObjId } : {}),
     s3Key,
     contentType: input.contentType,
     contentLength: input.contentLength,

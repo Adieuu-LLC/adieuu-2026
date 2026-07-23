@@ -26,6 +26,7 @@ describe('kdf/hkdf', () => {
       expect(KDF_INFO.CHANNEL_CIPHER).toBe('adieuu-channel-cipher-v1');
       expect(KDF_INFO.FILE_ENCRYPT).toBe('adieuu-file-encrypt-v1');
       expect(KDF_INFO.CHUNK_KEY).toBe('adieuu-chunk-key-v1');
+      expect(KDF_INFO.VOICE_CHANNEL_MEDIA).toBe('adieuu-voice-channel-media-v1');
     });
   });
 

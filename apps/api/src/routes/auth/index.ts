@@ -16,13 +16,14 @@
 import { Router } from '../../router';
 import { success, error as errorResponse } from '../../utils/response';
 import { sanitizeString } from '../../utils/sanitize';
-import { MAX_IDENTITIES_PER_USER } from '../../services/identity.service';
 import { getPlatformCapabilities } from '../../services/platform-capabilities.service';
 import {
   getSessionFromRequest,
   getSessionIdFromRequest,
   maybeBootstrapCsrfCookie,
   buildAuthClearCookies,
+  requireAccountSession,
+  destroySession,
 } from '../../services/session.service';
 import {
   requestOtp,
@@ -35,6 +36,7 @@ import {
   verifyMfaTotpHandler,
   verifyMfaWebAuthnHandler,
   getClientIp,
+  getCaptchaSitekey,
 } from './controller';
 import { z } from '@adieuu/shared/schemas';
 
@@ -256,6 +258,9 @@ router.post('/auth/verify', async (ctx) => {
     if (result.error === 'max_attempts') {
       return ctx.errors.tooManyAttempts();
     }
+    if (result.error === 'account_deleted') {
+      return ctx.errors.accountDeleted();
+    }
     if (result.error === 'account_banned') {
       return errorResponse('ACCOUNT_BANNED', 'This account has been banned.', 403, {
         moderationReason: result.moderationReason,
@@ -358,6 +363,7 @@ router.get('/auth/session', async (ctx) => {
         subscriptions,
         entitlements,
         isLifetime,
+        captchaSitekey: getCaptchaSitekey(),
       });
       const headers = new Headers(response.headers);
       await attachCsrfBootstrapIfNeeded(ctx.request, headers);
@@ -377,6 +383,7 @@ router.get('/auth/session', async (ctx) => {
         subscriptions: rawSession.subscriptions,
         entitlements: rawSession.entitlements,
         isLifetime: rawSession.isLifetime ?? false,
+        captchaSitekey: getCaptchaSitekey(),
       });
       const headers = new Headers(response.headers);
       await attachCsrfBootstrapIfNeeded(ctx.request, headers);
@@ -388,18 +395,19 @@ router.get('/auth/session', async (ctx) => {
     return ctx.errors.unauthorized();
   }
 
-  const { session, signedToken, identityCount, maskedIp, geo, subscriptions, entitlements, ageVerification, aliasGate, compliance } = result;
+  const { session, signedToken, identityCount, maxIdentities, maskedIp, geo, subscriptions, entitlements, captchaSitekey, ageVerification, aliasGate, compliance } = result;
 
   const response = success({
     identifier: session.identifier,
     identifierType: session.identifierType,
     identityCount,
-    maxIdentities: MAX_IDENTITIES_PER_USER,
+    maxIdentities,
     signedToken,
     maskedIp,
     geo,
     subscriptions,
     entitlements,
+    captchaSitekey,
     ageVerification,
     aliasGate,
     compliance,
@@ -407,6 +415,60 @@ router.get('/auth/session', async (ctx) => {
   const headers = new Headers(response.headers);
   await attachCsrfBootstrapIfNeeded(ctx.request, headers);
   return new Response(response.body, { status: response.status, headers });
+});
+
+/**
+ * POST /auth/captcha-verify - Verify captcha for free-tier post-login gate.
+ *
+ * Free-tier users must complete a FriendlyCaptcha challenge after login.
+ * On success, marks the session as captcha-cleared so the signedToken is
+ * issued on the next session refresh. On failure, destroys the session
+ * (logs the user out).
+ *
+ * @route POST /api/auth/captcha-verify
+ *
+ * @requestBody
+ * - `frc-captcha-response` (string, required): The FriendlyCaptcha response token
+ *
+ * @returns 200 OK if captcha verified successfully
+ * @returns 401 Unauthorized if no session or captcha verification fails (session destroyed)
+ */
+router.post('/auth/captcha-verify', async (ctx) => {
+  const { verifyCaptcha } = await import('../../services/captcha.service');
+  const { markCaptchaVerified } = await import('../../services/captcha-session.service');
+
+  const session = await requireAccountSession(ctx.request);
+  if (!session) {
+    return ctx.errors.unauthorized();
+  }
+
+  const sessionId = getSessionIdFromRequest(ctx.request);
+  if (!sessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const body = ctx.body as Record<string, unknown> | undefined;
+  const captchaResponse = typeof body?.['frc-captcha-response'] === 'string'
+    ? body['frc-captcha-response']
+    : undefined;
+
+  const result = await verifyCaptcha(captchaResponse);
+
+  if (result.valid) {
+    await markCaptchaVerified(sessionId);
+    return success(undefined, 'Captcha verified successfully.');
+  }
+
+  await destroySession(sessionId);
+  const clearCookies = buildAuthClearCookies();
+  const errResp = errorResponse(
+    'CAPTCHA_FAILED',
+    'Captcha verification failed. You have been logged out.',
+    401,
+  );
+  const errHeaders = new Headers(errResp.headers);
+  applyClearCookies(errHeaders, clearCookies);
+  return new Response(errResp.body, { status: errResp.status, headers: errHeaders });
 });
 
 /**

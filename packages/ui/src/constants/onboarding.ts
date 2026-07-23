@@ -15,6 +15,12 @@ export const APPEARANCE_TOUR_COMPLETED_STORAGE_KEY = 'adieuu:appearanceTourCompl
 /** Event dispatched when the appearance tour completes. */
 export const APPEARANCE_TOUR_COMPLETED_EVENT = 'adieuu:appearanceTourCompleted';
 
+/** localStorage key for the last tour step the user saw (resume support). */
+export const TOUR_LAST_STEP_STORAGE_KEY = 'adieuu:tourLastStep';
+
+/** Event dispatched when tour progress updates (same-tab). */
+export const TOUR_PROGRESS_EVENT = 'adieuu:tourProgress';
+
 /** Base localStorage key for first message sent (account onboarding). */
 const FIRST_MESSAGE_SENT_STORAGE_BASE = 'adieuu:firstMessageSent';
 

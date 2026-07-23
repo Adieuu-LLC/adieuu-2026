@@ -1,6 +1,6 @@
 {
   "name": "@adieuu/api",
-  "version": "0.2.40",
+  "version": "0.4.4",
   "private": true,
   "type": "module",
   "scripts": {
@@ -23,6 +23,7 @@
     "@aws-sdk/cloudfront-signer": "3.1074.0",
     "@aws-sdk/s3-presigned-post": "3.1018.0",
     "@aws-sdk/s3-request-presigner": "3.1018.0",
+    "@friendlycaptcha/server-sdk": "0.3.0",
     "@simplewebauthn/server": "13.2.2",
     "ioredis": "5.9.3",
     "livekit-server-sdk": "2.15.4",

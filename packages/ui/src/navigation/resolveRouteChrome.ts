@@ -12,6 +12,7 @@ const IDENTITY_SETTINGS_SEGMENTS = new Set([
   'profile',
   'appearance',
   'notifications',
+  'audio-video',
   'privacy',
   'devices',
   'ciphers',
@@ -59,8 +60,14 @@ export function resolveRouteChrome(pathname: string): RouteChromeDescriptor {
   if (pathname === '/search') {
     return { icon: 'search', titleKey: 'search.title', titleDefault: 'Search' };
   }
+  if (pathname === '/spaces/new') {
+    return { icon: 'spaces', titleKey: 'spaces.create.title', titleDefault: 'Create a Space' };
+  }
   if (pathname === '/spaces') {
     return { icon: 'spaces', titleKey: 'spaces.title', titleDefault: 'Spaces' };
+  }
+  if (pathname.startsWith('/s/')) {
+    return { icon: 'spaces', titleKey: 'spaces.spaceTitle', titleDefault: 'Space' };
   }
   if (pathname === '/download') {
     return { icon: 'download', titleKey: 'download.title', titleDefault: 'Download the desktop app' };
@@ -75,10 +82,6 @@ export function resolveRouteChrome(pathname: string): RouteChromeDescriptor {
   if (pathname === '/about/updates') {
     return { icon: 'info', titleKey: 'about.updates.title', titleDefault: 'Check for Updates' };
   }
-  if (pathname === '/about') {
-    return { icon: 'info', titleKey: 'about.title', titleDefault: 'About Adieuu' };
-  }
-
   if (pathname === '/feedback/new') {
     return { icon: 'info', titleKey: 'feedback.newPost', titleDefault: 'Submit feedback' };
   }
@@ -114,6 +117,9 @@ export function resolveRouteChrome(pathname: string): RouteChromeDescriptor {
   if (pathname.startsWith('/identity/notifications')) {
     return { icon: 'bell', titleKey: 'account.settings.title', titleDefault: 'Notification Settings' };
   }
+  if (pathname.startsWith('/identity/audio-video')) {
+    return { icon: 'microphone', titleKey: 'identity.audioVideo.title', titleDefault: 'Audio & Video' };
+  }
   if (pathname.startsWith('/identity/privacy')) {
     return { icon: 'lock', titleKey: 'identity.privacy.title', titleDefault: 'Privacy & Security' };
   }
@@ -136,9 +142,6 @@ export function resolveRouteChrome(pathname: string): RouteChromeDescriptor {
     return { icon: 'mask', titleKey: 'identity.profile.title', titleDefault: 'Profile' };
   }
 
-  if (pathname.startsWith('/account/security')) {
-    return { icon: 'user', titleKey: 'account.security.title', titleDefault: 'Security' };
-  }
   if (pathname.startsWith('/account/subscription')) {
     return { icon: 'user', titleKey: 'account.subscription.title', titleDefault: 'Subscription' };
   }
@@ -151,11 +154,8 @@ export function resolveRouteChrome(pathname: string): RouteChromeDescriptor {
   if (pathname.startsWith('/account/age-verification')) {
     return { icon: 'shield', titleKey: 'account.overview.ageVerification.pageTitle', titleDefault: 'Age Verification' };
   }
-  if (pathname.startsWith('/account/overview')) {
-    return { icon: 'user', titleKey: 'account.overview.title', titleDefault: 'Account Overview' };
-  }
   if (pathname.startsWith('/account')) {
-    return { icon: 'user', titleKey: 'account.overview.title', titleDefault: 'Account Overview' };
+    return { icon: 'user', titleKey: 'account.page.title', titleDefault: 'Account' };
   }
 
   if (pathname === '/support/new') {
@@ -186,6 +186,9 @@ export function resolveRouteChrome(pathname: string): RouteChromeDescriptor {
   }
   if (pathname === '/admin/age-verification') {
     return { icon: 'shield', titleKey: 'admin.nav.ageVerification', titleDefault: 'Age/Geofencing' };
+  }
+  if (pathname === '/admin/spaces') {
+    return { icon: 'shield', titleKey: 'admin.spaces.title', titleDefault: 'Spaces' };
   }
   if (pathname.startsWith('/admin/users/')) {
     return { icon: 'shield', titleKey: 'admin.users.title', titleDefault: 'User Management' };

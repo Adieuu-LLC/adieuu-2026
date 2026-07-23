@@ -25,10 +25,12 @@ import {
   awardTvReferenceDisplayNameAchievements,
 } from '../../services/tv-reference-text-achievement.service';
 import { publishProfileUpdated } from '../../services/profile-event.service';
+import { hasPaidAccess } from '../../services/billing/resolve-access';
 import { contrastRatio } from '../../utils/color';
 import { getIdentityRepository } from '../../repositories/identity.repository';
 import { getMediaUploadRepository } from '../../repositories/media-upload.repository';
 import { getFriendshipRepository } from '../../repositories/friendship.repository';
+import { isBlockedByEither } from '../../services/block.service';
 import {
   toPublicIdentity,
   DEFAULT_PRIVACY_SETTINGS,
@@ -38,9 +40,15 @@ import {
   type IdentityDocument,
 } from '../../models/identity';
 
-const HEX_COLOR_REGEX = /^#[0-9a-fA-F]{6}$/;
+const VALID_BADGE_IDS = ['vanguard', 'founder', 'top100', 'top1000', 'overachiever'] as const;
+const BADGE_ENTITLEMENT_MAP: Record<string, string> = {
+  vanguard: 'vanguard',
+  founder: 'founder',
+};
+const MAX_SELECTED_BADGES = 3;
 
 const ProfileVisibilityEnum = z.enum(['public', 'friends', 'private']);
+const BadgeIdEnum = z.enum(VALID_BADGE_IDS);
 
 const UpdateProfileSchema = z.object({
   displayName: z.string().min(1).max(50).optional(),
@@ -51,9 +59,9 @@ const UpdateProfileSchema = z.object({
   removeBanner: z.boolean().optional(),
   profileColors: z
     .object({
-      accent: z.string().regex(HEX_COLOR_REGEX).optional().nullable(),
-      cardBackground: z.string().regex(HEX_COLOR_REGEX).optional().nullable(),
-      background: z.string().regex(HEX_COLOR_REGEX).optional().nullable(),
+      accent: z.string().optional().nullable(),
+      cardBackground: z.string().optional().nullable(),
+      background: z.string().optional().nullable(),
     })
     .optional(),
   privacySettings: z
@@ -64,10 +72,33 @@ const UpdateProfileSchema = z.object({
       lastActiveAt: ProfileVisibilityEnum.optional(),
       profileColors: ProfileVisibilityEnum.optional(),
       achievements: ProfileVisibilityEnum.optional(),
+      badges: ProfileVisibilityEnum.optional(),
+      friends: ProfileVisibilityEnum.optional(),
     })
     .optional(),
   requireGroupApproval: z.boolean().optional(),
+  selectedBadges: z.array(BadgeIdEnum).max(MAX_SELECTED_BADGES).optional(),
 });
+
+function deriveEarnedBadges(
+  entitlements: readonly string[],
+  storedBadges?: readonly string[],
+): string[] {
+  const hasFounder = entitlements.includes('founder');
+  const entitlementBadges = VALID_BADGE_IDS.filter((badge) => {
+    const entitlement = BADGE_ENTITLEMENT_MAP[badge];
+    return (entitlement != null && entitlements.includes(entitlement)) ||
+      (badge === 'vanguard' && hasFounder);
+  });
+
+  if (!storedBadges?.length) return entitlementBadges;
+
+  const merged = new Set<string>(entitlementBadges);
+  for (const b of storedBadges) {
+    if ((VALID_BADGE_IDS as readonly string[]).includes(b)) merged.add(b);
+  }
+  return [...merged];
+}
 
 /**
  * Check if two identities are mutual friends.
@@ -118,9 +149,13 @@ export function applyPrivacyFilter(
   if (!isVisible(privacy.profileColors)) {
     filtered.profileColors = undefined;
   }
+  if (!isVisible(privacy.badges ?? DEFAULT_PRIVACY_SETTINGS.badges)) {
+    filtered.badges = undefined;
+  }
 
-  // Only the owner sees their own privacy settings
+  // Only the owner sees their own privacy settings and earned badges
   filtered.privacySettings = undefined;
+  filtered.earnedBadges = undefined;
 
   return filtered;
 }
@@ -201,15 +236,24 @@ export async function updateProfileCtrl(ctx: RouteContext): Promise<Response> {
   }
 
   if (data.profileColors !== undefined) {
+    if (!hasPaidAccess(ctx.identitySession!)) {
+      return errors.forbidden('Upgrade to a paid plan to customize profile colors.');
+    }
     const colors: Record<string, string | undefined> = {};
     if (data.profileColors.accent !== undefined) {
-      colors.accent = data.profileColors.accent ?? undefined;
+      colors.accent = data.profileColors.accent
+        ? (sanitizeString(data.profileColors.accent, 'hexColor').value || undefined)
+        : undefined;
     }
     if (data.profileColors.cardBackground !== undefined) {
-      colors.cardBackground = data.profileColors.cardBackground ?? undefined;
+      colors.cardBackground = data.profileColors.cardBackground
+        ? (sanitizeString(data.profileColors.cardBackground, 'hexColor').value || undefined)
+        : undefined;
     }
     if (data.profileColors.background !== undefined) {
-      colors.background = data.profileColors.background ?? undefined;
+      colors.background = data.profileColors.background
+        ? (sanitizeString(data.profileColors.background, 'hexColor').value || undefined)
+        : undefined;
     }
     update.profileColors = colors;
   }
@@ -226,8 +270,28 @@ export async function updateProfileCtrl(ctx: RouteContext): Promise<Response> {
         data.privacySettings.profileColors ?? current.profileColors,
       achievements:
         data.privacySettings.achievements ?? current.achievements,
+      badges:
+        data.privacySettings.badges ?? current.badges ?? DEFAULT_PRIVACY_SETTINGS.badges,
+      friends:
+        data.privacySettings.friends ?? current.friends ?? DEFAULT_PRIVACY_SETTINGS.friends,
     };
     update.privacySettings = mergedPrivacy;
+  }
+
+  if (data.selectedBadges !== undefined) {
+    const uniqueBadges = new Set(data.selectedBadges);
+    if (uniqueBadges.size !== data.selectedBadges.length) {
+      return errors.badRequest('Duplicate badge IDs are not allowed');
+    }
+    const earned = deriveEarnedBadges(
+      ctx.identitySession!.entitlements,
+      identity.earnedBadges,
+    );
+    const invalid = data.selectedBadges.filter((b) => !earned.includes(b));
+    if (invalid.length > 0) {
+      return errors.badRequest(`You have not earned these badges: ${invalid.join(', ')}`);
+    }
+    update.selectedBadges = data.selectedBadges;
   }
 
   if (data.requireGroupApproval !== undefined) {
@@ -326,7 +390,148 @@ export async function getProfileCtrl(ctx: RouteContext): Promise<Response> {
     }
   }
 
+  if (viewerRelation === 'self' && ctx.identitySession) {
+    publicProfile.earnedBadges = deriveEarnedBadges(
+      ctx.identitySession.entitlements,
+      doc.earnedBadges,
+    );
+  }
+
   const filtered = applyPrivacyFilter(publicProfile, doc, viewerRelation);
 
   return success(filtered);
+}
+
+/**
+ * GET /identity/:id/friends - Get privacy-filtered friends list for a profile.
+ *
+ * Returns the identity's friends list, subject to the `friends` privacy setting.
+ * Self always sees their own friends. Friends see if privacy is `friends` or `public`.
+ * Strangers see only if privacy is `public`.
+ *
+ * Supports cursor-based pagination and server-side search:
+ *   ?limit=24&cursor=<objectIdHex>&q=<searchQuery>
+ */
+export async function getIdentityFriendsCtrl(ctx: RouteContext): Promise<Response> {
+  const parsed = sanitizeObjectId(ctx.params.id);
+  if (!parsed.ok) {
+    return ctx.errors.badRequest();
+  }
+
+  const repo = getIdentityRepository();
+  const doc = await repo.findByIdentityId(parsed.id);
+  if (!doc) {
+    return errors.notFound('Identity not found');
+  }
+
+  let viewerRelation: 'self' | 'friend' | 'stranger' = 'stranger';
+
+  if (ctx.identitySession) {
+    const viewerIdentity = ctx.identitySession.identity;
+    if (viewerIdentity._id.equals(doc._id)) {
+      viewerRelation = 'self';
+    } else {
+      const blocked = await isBlockedByEither(viewerIdentity._id, doc._id);
+      if (blocked) {
+        return success({ friends: [], hidden: true, count: 0, cursor: null });
+      }
+      const friends = await areFriends(viewerIdentity._id, doc._id);
+      if (friends) {
+        viewerRelation = 'friend';
+      }
+    }
+  }
+
+  const privacy = doc.privacySettings ?? DEFAULT_PRIVACY_SETTINGS;
+  const friendsVisibility = privacy.friends ?? DEFAULT_PRIVACY_SETTINGS.friends;
+
+  const isVisible =
+    viewerRelation === 'self' ||
+    friendsVisibility === 'public' ||
+    (friendsVisibility === 'friends' && viewerRelation === 'friend');
+
+  if (!isVisible) {
+    return success({ friends: [], hidden: true, count: 0, cursor: null });
+  }
+
+  const limit = clampProfileFriendsLimit(ctx.query.get('limit'));
+  const cursor = parseOptionalCursor(ctx.query.get('cursor'));
+  const rawQ = ctx.query.get('q')?.trim();
+  const searchQuery = rawQ && rawQ.length >= 2
+    ? sanitizeString(rawQ, 'general').value ?? null
+    : null;
+
+  const { getFriends, searchFriends } = await import('../../services/friend.service');
+  const friendshipRepo = getFriendshipRepository();
+
+  const totalCount = await friendshipRepo.countFriends(doc._id);
+
+  let friendInfos: import('../../services/friend.service').FriendInfo[];
+  let nextCursor: string | null;
+
+  if (searchQuery) {
+    friendInfos = await searchFriends(doc._id, searchQuery, limit);
+    nextCursor = null;
+  } else {
+    const result = await getFriends(doc._id, limit, cursor);
+    friendInfos = result.friends;
+    nextCursor = result.cursor;
+  }
+
+  const viewerObjId = ctx.identitySession?.identity._id ?? null;
+
+  const friendObjIds = friendInfos.map((fi) => new ObjectId(fi.identity.id));
+  const friendDocs = friendObjIds.length > 0
+    ? await repo.findMany({ _id: { $in: friendObjIds } } as Parameters<typeof repo.findMany>[0], friendObjIds.length)
+    : [];
+  const friendDocMap = new Map(friendDocs.map((d) => [d._id.toHexString(), d]));
+
+  const viewerFriendIdSet = new Set<string>();
+  if (viewerObjId && friendObjIds.length > 0) {
+    const viewerFriendships = await friendshipRepo.searchFriends(viewerObjId, friendObjIds);
+    for (const f of viewerFriendships) {
+      viewerFriendIdSet.add(f.friendIdentityId.toHexString());
+    }
+  }
+
+  const filteredFriends = [];
+  for (const friendInfo of friendInfos) {
+    const friendDoc = friendDocMap.get(friendInfo.identity.id);
+    if (!friendDoc) continue;
+
+    let friendViewerRelation: 'self' | 'friend' | 'stranger' = 'stranger';
+    if (viewerObjId) {
+      if (viewerObjId.equals(friendDoc._id)) {
+        friendViewerRelation = 'self';
+      } else if (viewerFriendIdSet.has(friendDoc._id.toHexString())) {
+        friendViewerRelation = 'friend';
+      }
+    }
+
+    filteredFriends.push({
+      ...friendInfo,
+      identity: applyPrivacyFilter(friendInfo.identity, friendDoc, friendViewerRelation),
+    });
+  }
+
+  return success({
+    friends: filteredFriends,
+    hidden: false,
+    count: totalCount,
+    cursor: nextCursor,
+  });
+}
+
+function clampProfileFriendsLimit(limitParam: string | null, defaultLimit = 24, max = 50): number {
+  let limit = limitParam ? parseInt(limitParam, 10) : defaultLimit;
+  if (isNaN(limit) || limit < 1) limit = defaultLimit;
+  if (limit > max) limit = max;
+  return limit;
+}
+
+function parseOptionalCursor(cursorParam: string | null): string | undefined {
+  if (!cursorParam) return undefined;
+  const s = sanitizeString(cursorParam, 'general');
+  if (s.value && /^[0-9a-fA-F]{24}$/.test(s.value)) return s.value;
+  return undefined;
 }

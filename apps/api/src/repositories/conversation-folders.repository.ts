@@ -2,8 +2,8 @@
  * Conversation folders repository
  * Data access layer for per-identity conversation folders.
  *
- * Each record is keyed by identityId and contains an ordered list
- * of conversation IDs that belong to the folder.
+ * Each record is keyed by identityId and contains ordered lists
+ * of conversation IDs and space IDs that belong to the folder.
  */
 
 import { ObjectId } from 'mongodb';
@@ -13,6 +13,7 @@ import type { ConversationFolderDocument } from '../models/conversation-folder';
 export interface CreateFolderParams {
   name: string;
   conversationIds: ObjectId[];
+  spaceIds: ObjectId[];
   iconType?: 'dynamic' | 'icon';
   iconName?: string;
   iconColor?: string;
@@ -72,6 +73,7 @@ export class ConversationFoldersRepository {
       ...(params.iconName ? { iconName: params.iconName } : {}),
       ...(params.iconColor ? { iconColor: params.iconColor } : {}),
       conversationIds: params.conversationIds,
+      spaceIds: params.spaceIds,
       favorited: false,
       sortOrder: nextSort,
       createdAt: now,
@@ -147,6 +149,36 @@ export class ConversationFoldersRepository {
     ) as Promise<ConversationFolderDocument | null>;
   }
 
+  async addSpace(
+    identityId: ObjectId,
+    folderId: ObjectId,
+    spaceId: ObjectId,
+  ): Promise<ConversationFolderDocument | null> {
+    return this.collection.findOneAndUpdate(
+      { _id: folderId, identityId },
+      {
+        $addToSet: { spaceIds: spaceId },
+        $set: { updatedAt: new Date() },
+      },
+      { returnDocument: 'after' },
+    ) as Promise<ConversationFolderDocument | null>;
+  }
+
+  async removeSpace(
+    identityId: ObjectId,
+    folderId: ObjectId,
+    spaceId: ObjectId,
+  ): Promise<ConversationFolderDocument | null> {
+    return this.collection.findOneAndUpdate(
+      { _id: folderId, identityId },
+      {
+        $pull: { spaceIds: spaceId },
+        $set: { updatedAt: new Date() },
+      },
+      { returnDocument: 'after' },
+    ) as Promise<ConversationFolderDocument | null>;
+  }
+
   async delete(
     identityId: ObjectId,
     folderId: ObjectId,
@@ -167,6 +199,19 @@ export class ConversationFoldersRepository {
     return this.collection.findOne({
       identityId,
       conversationIds: conversationId,
+    }) as Promise<ConversationFolderDocument | null>;
+  }
+
+  /**
+   * Find which folder (if any) contains a given space for this identity.
+   */
+  async findBySpace(
+    identityId: ObjectId,
+    spaceId: ObjectId,
+  ): Promise<ConversationFolderDocument | null> {
+    return this.collection.findOne({
+      identityId,
+      spaceIds: spaceId,
     }) as Promise<ConversationFolderDocument | null>;
   }
 }

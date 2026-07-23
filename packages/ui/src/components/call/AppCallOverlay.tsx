@@ -10,7 +10,7 @@ import { useConversations } from '../../hooks/useConversations';
 import { forceEndCall as apiForceEndCall } from '../../services/callService';
 import { setCallOverlayHeightCssVar } from '../../services/callOverlayPreferences';
 import { useToast } from '../Toast';
-import { CallDeviceSetupModal } from './CallDeviceSetupModal';
+import { CallDeviceSetupModal, type CallDeviceSelection } from './CallDeviceSetupModal';
 import { CallTroubleshootModal } from './CallTroubleshootModal';
 
 // The LiveKit room (and its heavy bundle) loads only when a call is active.
@@ -68,7 +68,7 @@ export function AppCallOverlay() {
   }, [phase, activeSession]);
 
   const handleConfirmDevices = useCallback(
-    async (devices: { audioDeviceId?: string }) => {
+    async (devices: CallDeviceSelection) => {
       try {
         await confirmDeviceSetup(devices);
       } catch (err) {

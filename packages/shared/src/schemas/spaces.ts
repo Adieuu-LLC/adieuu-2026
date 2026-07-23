@@ -1,0 +1,559 @@
+/**
+ * Zod validation schemas for Space request payloads.
+ *
+ * Shared between the client (create/edit flows) and the API routes so slug,
+ * name, visibility, and cipher-challenge rules stay in a single place.
+ *
+ * @module schemas/spaces
+ */
+
+import { z } from 'zod';
+import { isValidReactionEmoji, REACTION_EMOJI_MAX_LENGTH } from '../reaction-emoji';
+import {
+  SPACE_VISIBILITY_VALUES,
+  SPACE_CHANNEL_TYPES,
+  SPACE_SLUG_MIN_LENGTH,
+  SPACE_SLUG_MAX_LENGTH,
+  SPACE_SLUG_PATTERN,
+  SPACE_NAME_MIN_LENGTH,
+  SPACE_NAME_MAX_LENGTH,
+  SPACE_DESCRIPTION_MAX_LENGTH,
+  SPACE_CHANNEL_NAME_MIN_LENGTH,
+  SPACE_CHANNEL_NAME_MAX_LENGTH,
+  SPACE_MESSAGE_MAX_LENGTH,
+  SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH,
+  SPACE_MESSAGE_MAX_EXPIRES_SECONDS,
+  SPACE_MESSAGE_MAX_ATTACHMENTS,
+  SPACE_SEED_ROLE_SYSTEMS,
+  SPACE_PERMISSIONS,
+} from '../api/spaces-types';
+
+export const SpaceVisibilitySchema = z.enum(SPACE_VISIBILITY_VALUES);
+
+// ---------------------------------------------------------------------------
+// Charset guards for opaque cipher fields (blind relay).
+//
+// The server never decrypts these, but their encodings are fixed by
+// @adieuu/crypto: binary fields are standard base64 (`serializeCipherPayload`,
+// `createCipherCheck`), `knownValue` is base64url (`generateKnownValue`), and
+// cipher ids are hex digests (`generateCipherId`). A cheap charset check stops
+// arbitrary text/JSON being smuggled through fields that bypass sanitization.
+// ---------------------------------------------------------------------------
+
+const BASE64_PATTERN = /^[A-Za-z0-9+/]+={0,2}$/;
+const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/;
+const HEX_PATTERN = /^[0-9a-fA-F]+$/;
+
+const base64Field = (max: number) =>
+  z.string().min(1).max(max).regex(BASE64_PATTERN, 'must be base64');
+
+const CipherIdSchema = z
+  .string()
+  .min(1)
+  .max(256)
+  .regex(HEX_PATTERN, 'cipherId must be a hex digest');
+
+export const SpaceSlugSchema = z
+  .string()
+  .min(SPACE_SLUG_MIN_LENGTH)
+  .max(SPACE_SLUG_MAX_LENGTH)
+  .regex(SPACE_SLUG_PATTERN, 'Slug must be lowercase letters, numbers, and internal hyphens');
+
+/** Blind-relay cipher verification challenge (opaque to the server). */
+export const CipherCheckSchema = z.object({
+  knownValue: z.string().min(1).max(64).regex(BASE64URL_PATTERN, 'must be base64url'),
+  encryptedKnownValue: base64Field(500),
+  nonce: base64Field(100),
+});
+
+const EncryptedSpaceFieldSchema = z.object({
+  encryptedName: base64Field(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH),
+  nameNonce: base64Field(500),
+  cipherId: CipherIdSchema,
+});
+
+export const CreateSpaceEncryptedSeedSchema = z.object({
+  category: EncryptedSpaceFieldSchema,
+  channel: EncryptedSpaceFieldSchema,
+  roles: z
+    .array(
+      EncryptedSpaceFieldSchema.extend({
+        system: z.enum(SPACE_SEED_ROLE_SYSTEMS),
+      }),
+    )
+    .length(2)
+    .refine(
+      (roles) => {
+        const systems = new Set(roles.map((r) => r.system));
+        return systems.has('admin') && systems.has('everyone');
+      },
+      { message: 'encryptedSeed.roles must include admin and everyone' },
+    ),
+});
+
+export const CreateSpaceSchema = z
+  .object({
+    id: z.string().length(24).optional(),
+    slug: SpaceSlugSchema.optional(),
+    name: z.string().min(SPACE_NAME_MIN_LENGTH).max(SPACE_NAME_MAX_LENGTH).optional(),
+    description: z.string().max(SPACE_DESCRIPTION_MAX_LENGTH).optional(),
+    visibility: SpaceVisibilitySchema,
+    allowFreeMembers: z.boolean().optional(),
+    cipherCheck: CipherCheckSchema.optional(),
+    e2ee: z.boolean().optional(),
+    encryptIdentity: z.boolean().optional(),
+    cipherRequired: z.boolean().optional(),
+    encryptedSeed: CreateSpaceEncryptedSeedSchema.optional(),
+    encryptedName: base64Field(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
+    nameNonce: base64Field(500).optional(),
+    cipherId: CipherIdSchema.optional(),
+    encryptedDescription: base64Field(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
+    descriptionNonce: base64Field(500).optional(),
+  })
+  .refine(
+    (v) =>
+      !(
+        v.visibility === 'public' &&
+        (v.cipherCheck || v.e2ee || v.cipherRequired || v.encryptIdentity)
+      ),
+    {
+      message: 'Public spaces cannot use Cipher gates or E2EE',
+      path: ['cipherCheck'],
+    },
+  )
+  .refine((v) => !((v.e2ee || v.cipherRequired) && !v.cipherCheck), {
+    message: 'cipherCheck is required when e2ee or cipherRequired is enabled',
+    path: ['cipherCheck'],
+  })
+  .refine((v) => !(v.encryptIdentity && !v.e2ee), {
+    message: 'encryptIdentity requires e2ee',
+    path: ['encryptIdentity'],
+  })
+  .refine((v) => !(v.e2ee && !v.encryptedSeed), {
+    message: 'encryptedSeed is required when e2ee is enabled',
+    path: ['encryptedSeed'],
+  })
+  .refine(
+    (v) => {
+      if (!v.encryptIdentity) return true;
+      return !!(v.encryptedName && v.nameNonce && v.cipherId);
+    },
+    {
+      message: 'encryptedName, nameNonce, and cipherId are required when encryptIdentity is enabled',
+      path: ['encryptedName'],
+    },
+  )
+  .refine(
+    (v) => {
+      if (!v.encryptIdentity) return true;
+      // No plaintext identity when encrypting for the directory.
+      return !v.name && !v.description;
+    },
+    {
+      message: 'plaintext name/description are not allowed when encryptIdentity is enabled',
+      path: ['name'],
+    },
+  )
+  .refine(
+    (v) => {
+      if (v.encryptIdentity) return true;
+      return typeof v.name === 'string' && v.name.length >= SPACE_NAME_MIN_LENGTH;
+    },
+    {
+      message: 'name is required when encryptIdentity is not enabled',
+      path: ['name'],
+    },
+  )
+  .refine(
+    (v) => {
+      const hasDesc = !!v.encryptedDescription;
+      const hasNonce = !!v.descriptionNonce;
+      return hasDesc === hasNonce;
+    },
+    {
+      message: 'encryptedDescription and descriptionNonce must be provided together',
+      path: ['encryptedDescription'],
+    },
+  )
+  .refine((v) => !(v.encryptedDescription && !v.encryptIdentity), {
+    message: 'encryptedDescription requires encryptIdentity',
+    path: ['encryptedDescription'],
+  })
+  // Public/listed Spaces need a custom vanity slug; Hidden Spaces use ObjectId.
+  .refine(
+    (v) => {
+      if (v.visibility === 'hidden') return true;
+      return typeof v.slug === 'string' && v.slug.length >= SPACE_SLUG_MIN_LENGTH;
+    },
+    {
+      message: 'slug is required for public and listed spaces',
+      path: ['slug'],
+    },
+  )
+  .refine(
+    (v) => {
+      if (v.visibility !== 'hidden') return true;
+      return typeof v.id === 'string' && v.id.length === 24;
+    },
+    {
+      message: 'id is required for hidden spaces (used as the routing slug)',
+      path: ['id'],
+    },
+  )
+  .refine(
+    (v) => {
+      if (v.visibility !== 'hidden' || !v.id) return true;
+      // Client may omit slug (server assigns id) or must send slug === id.
+      return v.slug === undefined || v.slug === v.id;
+    },
+    {
+      message: 'hidden space slug must equal id when provided',
+      path: ['slug'],
+    },
+  );
+
+export const UpdateSpaceSchema = z
+  .object({
+    name: z.string().min(SPACE_NAME_MIN_LENGTH).max(SPACE_NAME_MAX_LENGTH).optional(),
+    description: z.string().max(SPACE_DESCRIPTION_MAX_LENGTH).optional(),
+    visibility: SpaceVisibilitySchema.optional(),
+    allowFreeMembers: z.boolean().optional(),
+    cipherRequired: z.boolean().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, {
+    message: 'At least one field is required',
+  });
+
+export const CreateSpaceInviteSchema = z.object({
+  identityId: z.string().length(24),
+});
+
+const SpaceMessageCommonFields = {
+  clientMessageId: z.string().uuid(),
+  replyToMessageId: z.string().length(24).optional(),
+  mentionedIdentityIds: z.array(z.string().length(24)).max(50).optional(),
+  expiresInSeconds: z
+    .number()
+    .int()
+    .positive()
+    .max(SPACE_MESSAGE_MAX_EXPIRES_SECONDS)
+    .optional(),
+  attachmentMediaIds: z
+    .array(z.string().min(1).max(100))
+    .max(SPACE_MESSAGE_MAX_ATTACHMENTS)
+    .optional(),
+  e2eMediaIds: z
+    .array(z.string().min(1).max(100))
+    .max(SPACE_MESSAGE_MAX_ATTACHMENTS)
+    .optional(),
+};
+
+const SpaceMessageCipherFields = {
+  ciphertext: base64Field(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH),
+  nonce: base64Field(500),
+  cipherId: CipherIdSchema,
+};
+
+function spaceMessageBodyRefine(v: {
+  content?: string;
+  ciphertext?: string;
+  nonce?: string;
+  cipherId?: string;
+  attachmentMediaIds?: string[];
+  e2eMediaIds?: string[];
+}): boolean {
+  const hasContent = !!v.content;
+  const hasCipher = !!(v.ciphertext && v.nonce && v.cipherId);
+  const hasClearAttachments = !!v.attachmentMediaIds?.length;
+  const hasE2eAttachments = !!v.e2eMediaIds?.length;
+  if (hasContent && hasCipher) return false;
+  if (hasClearAttachments && hasE2eAttachments) return false;
+  if (hasClearAttachments && hasCipher) return false;
+  if (hasE2eAttachments && hasContent) return false;
+  // Encrypted path requires the cipher triple; e2eMediaIds are optional extras.
+  if (hasCipher || hasE2eAttachments) return hasCipher;
+  // Plaintext: text and/or cleartext attachments.
+  return hasContent || hasClearAttachments;
+}
+
+export const SendSpaceMessageSchema = z
+  .object({
+    content: z.string().min(1).max(SPACE_MESSAGE_MAX_LENGTH).optional(),
+    ...SpaceMessageCipherFields,
+    ciphertext: SpaceMessageCipherFields.ciphertext.optional(),
+    nonce: SpaceMessageCipherFields.nonce.optional(),
+    cipherId: SpaceMessageCipherFields.cipherId.optional(),
+    ...SpaceMessageCommonFields,
+  })
+  .refine(spaceMessageBodyRefine, {
+    message:
+      'Provide either content (+ optional attachmentMediaIds) or ciphertext+nonce+cipherId (+ optional e2eMediaIds), not mixed',
+  });
+
+export const EditSpaceMessageSchema = z
+  .object({
+    content: z.string().min(1).max(SPACE_MESSAGE_MAX_LENGTH).optional(),
+    ciphertext: SpaceMessageCipherFields.ciphertext.optional(),
+    nonce: SpaceMessageCipherFields.nonce.optional(),
+    cipherId: SpaceMessageCipherFields.cipherId.optional(),
+    attachmentMediaIds: z
+      .array(z.string().min(1).max(100))
+      .max(SPACE_MESSAGE_MAX_ATTACHMENTS)
+      .optional(),
+    e2eMediaIds: z
+      .array(z.string().min(1).max(100))
+      .max(SPACE_MESSAGE_MAX_ATTACHMENTS)
+      .optional(),
+  })
+  .refine(spaceMessageBodyRefine, {
+    message:
+      'Provide either content (+ optional attachmentMediaIds) or ciphertext+nonce+cipherId (+ optional e2eMediaIds), not mixed',
+  });
+
+export const AddSpaceReactionSchema = z.object({
+  emoji: z
+    .string()
+    .min(1)
+    .max(REACTION_EMOJI_MAX_LENGTH)
+    .refine(isValidReactionEmoji, {
+      message: 'emoji must be a Unicode emoji or a custom emoji token',
+    }),
+});
+
+export const PinSpaceMessageSchema = z.object({
+  messageId: z.string().length(24),
+});
+
+const SpacePermissionSchema = z.enum(SPACE_PERMISSIONS);
+
+export const CreateSpaceRoleSchema = z
+  .object({
+    name: z.string().min(1).max(100).optional(),
+    permissions: z.array(SpacePermissionSchema).max(SPACE_PERMISSIONS.length).optional(),
+    color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+    displaySeparately: z.boolean().optional(),
+    mentionable: z.boolean().optional(),
+    position: z.number().int().min(0).max(10_000).optional(),
+    encryptedName: base64Field(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
+    nameNonce: base64Field(500).optional(),
+    cipherId: CipherIdSchema.optional(),
+  })
+  .refine(
+    (v) => {
+      const hasCipher = !!(v.encryptedName && v.nameNonce && v.cipherId);
+      const hasPartial =
+        !!(v.encryptedName || v.nameNonce || v.cipherId) && !hasCipher;
+      return !hasPartial;
+    },
+    { message: 'encryptedName, nameNonce, and cipherId must be provided together' },
+  );
+
+export const UpdateSpaceRoleSchema = z
+  .object({
+    name: z.string().min(1).max(100).optional(),
+    permissions: z.array(SpacePermissionSchema).max(SPACE_PERMISSIONS.length).optional(),
+    color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+    displaySeparately: z.boolean().optional(),
+    mentionable: z.boolean().optional(),
+    isDefaultMember: z.boolean().optional(),
+    position: z.number().int().min(0).max(10_000).optional(),
+    encryptedName: base64Field(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
+    nameNonce: base64Field(500).optional(),
+    cipherId: CipherIdSchema.optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, {
+    message: 'At least one field is required',
+  })
+  .refine(
+    (v) => {
+      const hasCipher = !!(v.encryptedName && v.nameNonce && v.cipherId);
+      const hasPartial =
+        !!(v.encryptedName || v.nameNonce || v.cipherId) && !hasCipher;
+      return !hasPartial;
+    },
+    { message: 'encryptedName, nameNonce, and cipherId must be provided together' },
+  );
+
+export const SetMemberRolesSchema = z.object({
+  roleIds: z.array(z.string().length(24)).max(50),
+});
+
+export const BanSpaceMemberSchema = z.object({
+  reason: z.string().trim().min(1).max(500),
+  duration: z.enum(['1h', '1d', '7d', '30d', 'permanent']),
+});
+
+/** Patch Space-scoped nickname / colour for a member. Null clears a field. */
+export const UpdateSpaceMemberProfileSchema = z
+  .object({
+    nickname: z.union([z.string().max(50), z.null()]).optional(),
+    color: z.union([z.string().regex(/^#[0-9a-fA-F]{6}$/), z.null()]).optional(),
+  })
+  .refine((v) => v.nickname !== undefined || v.color !== undefined, {
+    message: 'At least one of nickname or color is required',
+  });
+
+export const CreateSpaceChannelSchema = z
+  .object({
+    name: z.string().min(SPACE_CHANNEL_NAME_MIN_LENGTH).max(SPACE_CHANNEL_NAME_MAX_LENGTH).optional(),
+    type: z.enum(SPACE_CHANNEL_TYPES),
+    allowedRoleIds: z.array(z.string().length(24)).max(50).optional(),
+    categoryId: z.string().length(24).optional(),
+    encryptedName: base64Field(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
+    nameNonce: base64Field(500).optional(),
+    cipherId: CipherIdSchema.optional(),
+    /**
+     * When true (or omitted on an e2ee Space), the channel inherits the parent
+     * Space's `cipherCheck` unless an explicit `cipherCheck` is provided.
+     * When false, the channel stores no `cipherCheck`.
+     */
+    encrypt: z.boolean().optional(),
+    cipherCheck: CipherCheckSchema.optional(),
+    inheritAllowedRoleIds: z.boolean().optional(),
+    inheritCipherCheck: z.boolean().optional(),
+  })
+  .refine(
+    (v) => {
+      const hasPlain = typeof v.name === 'string' && v.name.length > 0;
+      const hasCipher = !!(v.encryptedName && v.nameNonce && v.cipherId);
+      return (hasPlain || hasCipher) && !(hasPlain && hasCipher);
+    },
+    { message: 'Provide either name (plaintext) or encryptedName+nameNonce+cipherId, not both' },
+  )
+  .refine((v) => !(v.encrypt === false && v.cipherCheck), {
+    message: 'cipherCheck cannot be set when encrypt is false',
+    path: ['cipherCheck'],
+  });
+
+export const UpdateSpaceChannelSchema = z
+  .object({
+    name: z.string().min(SPACE_CHANNEL_NAME_MIN_LENGTH).max(SPACE_CHANNEL_NAME_MAX_LENGTH).optional(),
+    allowedRoleIds: z.array(z.string().length(24)).max(50).optional(),
+    categoryId: z.string().length(24).nullable().optional(),
+    position: z.number().int().min(0).max(10_000).optional(),
+    encryptedName: base64Field(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
+    nameNonce: base64Field(500).optional(),
+    cipherId: CipherIdSchema.optional(),
+    /** Set/clear channel content encryption (`cipherCheck`). */
+    encrypt: z.boolean().optional(),
+    cipherCheck: CipherCheckSchema.optional(),
+    inheritAllowedRoleIds: z.boolean().optional(),
+    inheritCipherCheck: z.boolean().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, {
+    message: 'At least one field is required',
+  })
+  .refine(
+    (v) => {
+      const hasPlain = typeof v.name === 'string' && v.name.length > 0;
+      const hasCipher = !!(v.encryptedName && v.nameNonce && v.cipherId);
+      const hasPartial =
+        !!(v.encryptedName || v.nameNonce || v.cipherId) && !hasCipher;
+      if (hasPartial) return false;
+      if (hasPlain && hasCipher) return false;
+      return true;
+    },
+    { message: 'Provide either name (plaintext) or encryptedName+nameNonce+cipherId, not both' },
+  )
+  .refine((v) => !(v.encrypt === false && v.cipherCheck), {
+    message: 'cipherCheck cannot be set when encrypt is false',
+    path: ['cipherCheck'],
+  });
+
+const spaceCategoryNameFields = {
+  name: z.string().min(SPACE_CHANNEL_NAME_MIN_LENGTH).max(SPACE_CHANNEL_NAME_MAX_LENGTH).optional(),
+  allowedRoleIds: z.array(z.string().length(24)).max(50).optional(),
+  encryptedName: base64Field(SPACE_MESSAGE_CIPHERTEXT_MAX_LENGTH).optional(),
+  nameNonce: base64Field(500).optional(),
+  cipherId: CipherIdSchema.optional(),
+  parentCategoryId: z.string().length(24).nullable().optional(),
+  /**
+   * Default content Cipher for channels created in this category.
+   * When true (or omitted on an e2ee Space / under an encrypted parent),
+   * inherits parent/Space `cipherCheck` unless an explicit one is provided.
+   */
+  encrypt: z.boolean().optional(),
+  cipherCheck: CipherCheckSchema.optional(),
+  inheritAllowedRoleIds: z.boolean().optional(),
+  inheritCipherCheck: z.boolean().optional(),
+  forceChildrenAcl: z.boolean().optional(),
+  forceChildrenCipher: z.boolean().optional(),
+};
+
+export const CreateSpaceChannelCategorySchema = z
+  .object(spaceCategoryNameFields)
+  .refine(
+    (v) => {
+      const hasPlain = typeof v.name === 'string' && v.name.length > 0;
+      const hasCipher = !!(v.encryptedName && v.nameNonce && v.cipherId);
+      return (hasPlain || hasCipher) && !(hasPlain && hasCipher);
+    },
+    { message: 'Provide either name (plaintext) or encryptedName+nameNonce+cipherId, not both' },
+  )
+  .refine((v) => !(v.encrypt === false && v.cipherCheck), {
+    message: 'cipherCheck cannot be set when encrypt is false',
+    path: ['cipherCheck'],
+  });
+
+export const UpdateSpaceChannelCategorySchema = z
+  .object({
+    ...spaceCategoryNameFields,
+    position: z.number().int().min(0).max(10_000).optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, {
+    message: 'At least one field is required',
+  })
+  .refine(
+    (v) => {
+      const hasPlain = typeof v.name === 'string' && v.name.length > 0;
+      const hasCipher = !!(v.encryptedName && v.nameNonce && v.cipherId);
+      const hasPartial =
+        !!(v.encryptedName || v.nameNonce || v.cipherId) && !hasCipher;
+      if (hasPartial) return false;
+      if (hasPlain && hasCipher) return false;
+      return true;
+    },
+    { message: 'Provide either name (plaintext) or encryptedName+nameNonce+cipherId, not both' },
+  )
+  .refine((v) => !(v.encrypt === false && v.cipherCheck), {
+    message: 'cipherCheck cannot be set when encrypt is false',
+    path: ['cipherCheck'],
+  });
+
+export const UpdateSpaceChannelLayoutSchema = z.object({
+  groups: z
+    .array(
+      z.object({
+        parentCategoryId: z.string().length(24).nullable(),
+        items: z
+          .array(
+            z.discriminatedUnion('type', [
+              z.object({ type: z.literal('channel'), id: z.string().length(24) }),
+              z.object({ type: z.literal('category'), id: z.string().length(24) }),
+            ]),
+          )
+          .max(500),
+      }),
+    )
+    .max(201),
+});
+
+export const UpdateSpacePreferencesSchema = z.object({
+  favorited: z.boolean().optional(),
+});
+
+export type CreateSpaceBody = z.infer<typeof CreateSpaceSchema>;
+export type UpdateSpaceBody = z.infer<typeof UpdateSpaceSchema>;
+export type CreateSpaceInviteBody = z.infer<typeof CreateSpaceInviteSchema>;
+export type SendSpaceMessageBody = z.infer<typeof SendSpaceMessageSchema>;
+export type CreateSpaceChannelBody = z.infer<typeof CreateSpaceChannelSchema>;
+export type UpdateSpaceChannelBody = z.infer<typeof UpdateSpaceChannelSchema>;
+export type CreateSpaceChannelCategoryBody = z.infer<typeof CreateSpaceChannelCategorySchema>;
+export type UpdateSpaceChannelCategoryBody = z.infer<typeof UpdateSpaceChannelCategorySchema>;
+export type UpdateSpaceChannelLayoutBody = z.infer<typeof UpdateSpaceChannelLayoutSchema>;
+export type CreateSpaceRoleBody = z.infer<typeof CreateSpaceRoleSchema>;
+export type UpdateSpaceRoleBody = z.infer<typeof UpdateSpaceRoleSchema>;
+export type SetMemberRolesBody = z.infer<typeof SetMemberRolesSchema>;
+export type BanSpaceMemberBody = z.infer<typeof BanSpaceMemberSchema>;
+export type UpdateSpaceMemberProfileBody = z.infer<typeof UpdateSpaceMemberProfileSchema>;
+export type UpdateSpacePreferencesBody = z.infer<typeof UpdateSpacePreferencesSchema>;

@@ -10,8 +10,9 @@
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import type { PublicIdentity, FriendshipStatus, FriendshipStatusResult } from '@adieuu/shared';
+import type { BadgeId, PublicIdentity, FriendshipStatus, FriendshipStatusResult } from '@adieuu/shared';
 import { formatFriendsForLine } from '../utils/friendshipDuration';
+import { BadgeDisplay } from './BadgeDisplay';
 import { Button } from './Button';
 import { Icon } from '../icons/Icon';
 
@@ -90,23 +91,17 @@ export function IdentityCard({
 
   const colors = identity.profileColors;
 
-  const cardStyle: React.CSSProperties = colors?.cardBackground
-    ? { backgroundColor: colors.cardBackground }
-    : {};
-
-  const bannerStyle: React.CSSProperties = {
-    backgroundImage: identity.bannerUrl ? `url(${identity.bannerUrl})` : undefined,
-    backgroundColor: colors?.accent || 'var(--color-bg-tertiary)',
-  };
-
-  const nameStyle: React.CSSProperties = colors?.accent
-    ? { color: colors.accent }
-    : {};
+  const cssVars: Record<string, string> = {};
+  if (colors?.accent) cssVars['--identity-card-accent'] = colors.accent;
+  if (colors?.cardBackground) cssVars['--identity-card-bg'] = colors.cardBackground;
+  if (identity.bannerUrl) cssVars['--identity-card-banner-img'] = `url(${identity.bannerUrl})`;
 
   return (
-    <div className={`identity-card ${className}`.trim()} style={cardStyle}>
-      {/* Mini banner */}
-      <div className="identity-card-banner" style={bannerStyle} />
+    <div
+      className={`identity-card ${className}`.trim()}
+      style={cssVars as React.CSSProperties}
+    >
+      <div className="identity-card-banner" />
 
       <div className="identity-card-header">
         <div className="identity-card-avatar">
@@ -121,15 +116,23 @@ export function IdentityCard({
           )}
         </div>
         <div className="identity-card-info">
-          <h3 className="identity-card-name" style={nameStyle}>{identity.displayName}</h3>
+          <h3 className="identity-card-name">{identity.displayName}</h3>
           <span className="identity-card-username">@{identity.username}</span>
+        </div>
+      </div>
+
+      {(identity.badges?.length || (friendStatus === 'friends' && friendsSinceIso)) && (
+        <div className="identity-card-meta">
+          {identity.badges && identity.badges.length > 0 && (
+            <BadgeDisplay badges={identity.badges as BadgeId[]} size="sm" className="identity-card-badges" />
+          )}
           {friendStatus === 'friends' && friendsSinceIso && (
             <span className="identity-card-friendship" title={new Date(friendsSinceIso).toLocaleString()}>
               {formatFriendsForLine(friendsSinceIso, t)}
             </span>
           )}
         </div>
-      </div>
+      )}
 
       {identity.bio && (
         <p className="identity-card-bio">{identity.bio}</p>

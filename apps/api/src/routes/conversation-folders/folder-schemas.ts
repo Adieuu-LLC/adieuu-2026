@@ -23,13 +23,19 @@ const FOLDER_ICON_NAMES = [
   'game-console-handheld',
 ] as const;
 
-export const CreateFolderSchema = z.object({
-  name: z.string().min(1).max(100),
-  conversationIds: z.array(objectIdString).min(1).max(50),
-  iconType: z.enum(['dynamic', 'icon']).optional(),
-  iconName: z.enum(FOLDER_ICON_NAMES).optional(),
-  iconColor: z.string().max(20).optional(),
-});
+export const CreateFolderSchema = z
+  .object({
+    name: z.string().min(1).max(100),
+    conversationIds: z.array(objectIdString).max(50).optional().default([]),
+    spaceIds: z.array(objectIdString).max(50).optional().default([]),
+    iconType: z.enum(['dynamic', 'icon']).optional(),
+    iconName: z.enum(FOLDER_ICON_NAMES).optional(),
+    iconColor: z.string().max(20).optional(),
+  })
+  .refine(
+    (data) => data.conversationIds.length + data.spaceIds.length >= 1,
+    { message: 'At least one conversation or space is required.' },
+  );
 
 export const UpdateFolderSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -37,9 +43,14 @@ export const UpdateFolderSchema = z.object({
   iconName: z.enum(FOLDER_ICON_NAMES).optional(),
   iconColor: z.string().max(20).nullable().optional(),
   favorited: z.boolean().optional(),
-  sortOrder: z.number().int().min(0).optional(),
+  // Upper-bounded so stored sort keys stay in a sane range (no Infinity/2^53).
+  sortOrder: z.number().int().min(0).max(1_000_000).optional(),
 });
 
 export const AddConversationToFolderSchema = z.object({
   conversationId: objectIdString,
+});
+
+export const AddSpaceToFolderSchema = z.object({
+  spaceId: objectIdString,
 });

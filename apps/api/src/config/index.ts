@@ -257,6 +257,12 @@ export const config = {
      * In production, injected by ECS from AWS Secrets Manager.
      */
     tokenSigningKey: optionalEnv('TOKEN_SIGNING_KEY', 'dev-token-signing-key-change-in-prod'),
+    /**
+     * Require a valid static-key attestation when registering new E2E devices.
+     * Existing devices without attestations are unaffected (lazy backfill).
+     * Escape hatch for older clients: set E2E_REQUIRE_DEVICE_ATTESTATION=false.
+     */
+    requireDeviceAttestation: optionalEnvBool('E2E_REQUIRE_DEVICE_ATTESTATION', true),
   },
 
   /** CSRF protection (double-submit cookie + X-CSRF-Token header) */
@@ -402,6 +408,16 @@ export const config = {
     timeoutMs: optionalEnvInt('VERIFYMY_TIMEOUT_MS', 10_000),
   },
 
+  /** FriendlyCaptcha anti-bot verification (free-tier users only) */
+  friendlyCaptcha: {
+    /** Whether FriendlyCaptcha verification is enabled */
+    enabled: optionalEnvBool('FRIENDLY_CAPTCHA_ENABLED', false),
+    /** FriendlyCaptcha API key (server-side only, for siteverify calls) */
+    apiKey: optionalEnv('FRIENDLY_CAPTCHA_API_KEY', ''),
+    /** FriendlyCaptcha sitekey (safe for client, used to validate response origin) */
+    sitekey: optionalEnv('FRIENDLY_CAPTCHA_SITEKEY', ''),
+  },
+
   /** Klipy GIF/sticker API proxy configuration */
   klipy: {
     /** Klipy API key (required in production; empty disables the proxy in dev) */
@@ -448,6 +464,7 @@ export const config = {
     publishableKey: optionalEnv('STRIPE_PUBLISHABLE_KEY', ''),
     /** Stripe price IDs (created in the Stripe Dashboard, referenced by env) */
     prices: {
+      freeMonthly: optionalEnv('STRIPE_PRICE_FREE_MONTHLY', ''),
       accessAnnual: optionalEnv('STRIPE_PRICE_ACCESS_ANNUAL', ''),
       insiderAnnual: optionalEnv('STRIPE_PRICE_INSIDER_ANNUAL', ''),
       vanguardLifetime: optionalEnv('STRIPE_PRICE_VANGUARD_LIFETIME', ''),
@@ -500,7 +517,7 @@ export const config = {
     authVerifyIpWindow: optionalEnvInt('RATE_LIMIT_AUTH_VERIFY_IP_WINDOW', 900),
 
     /** Global rate limit per user (authenticated) */
-    globalUserLimit: optionalEnvInt('RATE_LIMIT_GLOBAL_USER', 100),
+    globalUserLimit: optionalEnvInt('RATE_LIMIT_GLOBAL_USER', 150),
     /** Global per user window in seconds */
     globalUserWindow: optionalEnvInt('RATE_LIMIT_GLOBAL_USER_WINDOW', 60),
 
@@ -522,6 +539,15 @@ export const config = {
     callsInitiateIdentityWindow: optionalEnvInt('RATE_LIMIT_CALLS_INITIATE_IDENTITY_WINDOW', 300),
     /** Call initiate progressive throttle cooldown in seconds */
     callsInitiateThrottleCooldown: optionalEnvInt('RATE_LIMIT_CALLS_INITIATE_THROTTLE_COOLDOWN', 900),
+
+    /** Pre-key claim limit per caller identity (all targets combined) */
+    prekeyClaimIdentityLimit: optionalEnvInt('RATE_LIMIT_PREKEY_CLAIM_IDENTITY', 120),
+    /** Pre-key claim per caller identity window in seconds */
+    prekeyClaimIdentityWindow: optionalEnvInt('RATE_LIMIT_PREKEY_CLAIM_IDENTITY_WINDOW', 60),
+    /** Pre-key claim limit per caller-target pair (prevents draining one target's OTPK pool) */
+    prekeyClaimTargetLimit: optionalEnvInt('RATE_LIMIT_PREKEY_CLAIM_TARGET', 30),
+    /** Pre-key claim per caller-target pair window in seconds */
+    prekeyClaimTargetWindow: optionalEnvInt('RATE_LIMIT_PREKEY_CLAIM_TARGET_WINDOW', 300),
   },
 } as const;
 
@@ -553,6 +579,10 @@ export function validateProductionConfig(): void {
 
   if (process.env.DEV_CLIENT_IP?.trim()) {
     errors.push('DEV_CLIENT_IP must not be set in production');
+  }
+
+  if (process.env.DEV_FORCE_ANONYMOUS_IP?.trim()) {
+    errors.push('DEV_FORCE_ANONYMOUS_IP must not be set in production');
   }
 
   // Check security secrets aren't defaults
@@ -612,6 +642,7 @@ export function validateProductionConfig(): void {
       errors.push('STRIPE_PUBLISHABLE_KEY must be set when STRIPE_ENABLED is true');
     }
     const stripePriceEnvs: [keyof typeof config.stripe.prices, string][] = [
+      ['freeMonthly', 'STRIPE_PRICE_FREE_MONTHLY'],
       ['accessAnnual', 'STRIPE_PRICE_ACCESS_ANNUAL'],
       ['insiderAnnual', 'STRIPE_PRICE_INSIDER_ANNUAL'],
       ['vanguardLifetime', 'STRIPE_PRICE_VANGUARD_LIFETIME'],
@@ -621,6 +652,15 @@ export function validateProductionConfig(): void {
       if (!config.stripe.prices[key]) {
         errors.push(`${envName} must be set when STRIPE_ENABLED is true`);
       }
+    }
+  }
+
+  if (config.friendlyCaptcha.enabled) {
+    if (!config.friendlyCaptcha.apiKey) {
+      errors.push('FRIENDLY_CAPTCHA_API_KEY must be set when FRIENDLY_CAPTCHA_ENABLED is true');
+    }
+    if (!config.friendlyCaptcha.sitekey) {
+      errors.push('FRIENDLY_CAPTCHA_SITEKEY must be set when FRIENDLY_CAPTCHA_ENABLED is true');
     }
   }
 

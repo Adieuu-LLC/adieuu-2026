@@ -1,5 +1,5 @@
-import { NavLink, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { NavLink, Outlet } from 'react-router-dom';
 
 /**
  * Nested admin shell: secondary sidebar + main content.
@@ -26,6 +26,9 @@ export function AdminLayout() {
           <NavLink to="/admin/age-verification" className={navClass}>
             {t('admin.nav.ageVerification', 'Age/Geofencing')}
           </NavLink>
+          <NavLink to="/admin/spaces" className={navClass}>
+            {t('admin.nav.spaces')}
+          </NavLink>
           <NavLink to="/admin/users" className={navClass}>
             {t('admin.nav.userManagement')}
           </NavLink>
@@ -34,6 +37,9 @@ export function AdminLayout() {
           </NavLink>
           <NavLink to="/admin/promo-codes" className={navClass}>
             {t('admin.nav.promoCodes')}
+          </NavLink>
+          <NavLink to="/admin/announcements" className={navClass}>
+            {t('admin.nav.announcements')}
           </NavLink>
         </nav>
       </aside>

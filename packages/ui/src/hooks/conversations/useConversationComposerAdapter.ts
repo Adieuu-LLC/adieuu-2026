@@ -1,4 +1,4 @@
-import { useCallback, useMemo, type MutableRefObject } from 'react';
+import { useCallback, useMemo, useRef, type MutableRefObject } from 'react';
 import type { TFunction } from 'i18next';
 import type { PublicIdentity } from '@adieuu/shared';
 import type { ComposerSendFn, ComposerReplyContext, MentionSource, MentionableUser, PageTagSource } from '../../components/composer';
@@ -38,7 +38,7 @@ export function useConversationComposerAdapter(params: {
     convId: string,
     messageId: string,
     plaintext: string,
-    options?: { useForwardSecrecy?: boolean }
+    options?: { useForwardSecrecy?: boolean; e2eMediaIds?: string[]; clientMessageId?: string }
   ) => Promise<unknown>;
   onEditMaxReached: () => void;
   participantProfiles: Record<string, PublicIdentity>;
@@ -72,12 +72,20 @@ export function useConversationComposerAdapter(params: {
     scrollToMessageId,
   } = params;
 
+  const editingMessageRef = useRef(editingMessage);
+  editingMessageRef.current = editingMessage;
+  const activeMessagesHasNewerPagesRef = useRef(activeMessagesHasNewerPages);
+  activeMessagesHasNewerPagesRef.current = activeMessagesHasNewerPages;
+
   const composerSend: ComposerSendFn = useCallback(
     async (plaintext, options) => {
       if (!conversationId) return null;
-      if (editingMessage) {
-        const r = await editTextMessage(conversationId, editingMessage.id, plaintext, {
+      const currentEditing = editingMessageRef.current;
+      if (currentEditing) {
+        const r = await editTextMessage(conversationId, currentEditing.id, plaintext, {
           useForwardSecrecy: options?.useForwardSecrecy,
+          e2eMediaIds: options?.e2eMediaIds,
+          clientMessageId: currentEditing.clientMessageId,
         });
         if (r != null && typeof r === 'object' && 'errorCode' in r) {
           if ((r as { errorCode: string }).errorCode === 'MAX_EDITS_REACHED') {
@@ -88,7 +96,7 @@ export function useConversationComposerAdapter(params: {
         }
         return r;
       }
-      const hadNewerPages = activeMessagesHasNewerPages;
+      const hadNewerPages = activeMessagesHasNewerPagesRef.current;
       const headBefore = activeMessagesRef.current[0]?.id;
       const lastBefore = conversationRef.current?.lastMessageId;
       const atLiveTailBefore =
@@ -125,13 +133,11 @@ export function useConversationComposerAdapter(params: {
     },
     [
       conversationId,
-      editingMessage,
       editTextMessage,
       setEditingMessage,
       onEditMaxReached,
       sendTextMessage,
       checkMessageAchievements,
-      activeMessagesHasNewerPages,
       jumpToLatestMessages,
       scrollToBottom,
       markJustSent,
@@ -142,16 +148,22 @@ export function useConversationComposerAdapter(params: {
     ]
   );
 
+  const cancelReply = useCallback(() => setReplyingTo(null), [setReplyingTo]);
+  const replyMessageId = replyingTo?.id;
+  const jumpToReply = useCallback(() => {
+    if (replyMessageId) scrollToMessageId(replyMessageId);
+  }, [replyMessageId, scrollToMessageId]);
+
   const composerReplyContext: ComposerReplyContext | null = useMemo(() => {
     if (!replyingTo) return null;
     return {
       messageId: replyingTo.id,
       authorName: resolveDisplayName(replyingTo.fromIdentityId, participantProfiles, memberSettings),
       snippet: buildReplySnippet(replyingTo, t),
-      onCancel: () => setReplyingTo(null),
-      onClick: () => scrollToMessageId(replyingTo.id),
+      onCancel: cancelReply,
+      onClick: jumpToReply,
     };
-  }, [replyingTo, participantProfiles, memberSettings, t, scrollToMessageId, setReplyingTo]);
+  }, [replyingTo, participantProfiles, memberSettings, t, cancelReply, jumpToReply]);
 
   const composerMentionSource: MentionSource | undefined = useMemo(() => {
     if (!conversation) return undefined;

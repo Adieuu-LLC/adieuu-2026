@@ -516,6 +516,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
       closeOnEscape={!isNonDismissable && !webDeviceChoiceOpen && !migrationPromptOpen}
       trapFocus
       preventScroll
+      lazyMount
     >
       <Portal>
         <Dialog.Backdrop className="confirm-dialog-backdrop identity-modal-backdrop" />
@@ -603,22 +604,31 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
                   </div>
                 </form>
 
-                {canCreateMore && (
-                  <div className="identity-modal-footer">
-                    {!hasIdentity ? (
-                      <>
-                        <p>{t('identity.login.noIdentity')}</p>
+                <div className="identity-modal-footer">
+                  {canCreateMore && (
+                    <>
+                      {!hasIdentity ? (
+                        <>
+                          <p>{t('identity.login.noIdentity')}</p>
+                          <Button variant="ghost" size="sm" onClick={() => setView('create')}>
+                            {t('identity.login.createPrompt')}
+                          </Button>
+                        </>
+                      ) : (
                         <Button variant="ghost" size="sm" onClick={() => setView('create')}>
-                          {t('identity.login.createPrompt')}
+                          {t('identity.login.createAnotherPrompt')}
                         </Button>
-                      </>
-                    ) : (
-                      <Button variant="ghost" size="sm" onClick={() => setView('create')}>
-                        {t('identity.login.createAnotherPrompt')}
-                      </Button>
-                    )}
-                  </div>
-                )}
+                      )}
+                    </>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { onClose(); navigate('/account/passphrase'); }}
+                  >
+                    {t('identity.login.changePasswordLink')}
+                  </Button>
+                </div>
               </div>
             )}
 

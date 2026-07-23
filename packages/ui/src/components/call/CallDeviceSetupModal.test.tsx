@@ -12,6 +12,14 @@ mock.module('../Button', () => ({
 
 mock.module('../../hooks/useCallMedia', () => ({
   enumerateMediaDevices: async () => [],
+  isBrowserDefaultDeviceId: (id: string) => id === 'default' || id === 'communications',
+}));
+
+mock.module('../../hooks/avPreferenceStorage', () => ({
+  getAvMicDeviceId: () => null,
+  getAvCameraDeviceId: () => null,
+  getAvSpeakerDeviceId: () => null,
+  getAvJoinCameraOff: () => true,
 }));
 
 const arkUi = await import('@ark-ui/react');
@@ -42,7 +50,7 @@ const { CallDeviceSetupModal } = await import('./CallDeviceSetupModal');
 const noop = () => {};
 
 describe('CallDeviceSetupModal', () => {
-  test('renders mic select and in-call hint', () => {
+  test('renders mic, speaker, and camera selects', () => {
     const html = renderToStaticMarkup(
       <CallDeviceSetupModal
         open
@@ -52,6 +60,8 @@ describe('CallDeviceSetupModal', () => {
       />,
     );
     expect(html).toContain('call-mic-select');
+    expect(html).toContain('call-speaker-select');
+    expect(html).toContain('call-camera-select');
     expect(html).toContain('call.confirmCall');
     expect(html).toContain('call-device-setup__note');
   });
@@ -66,6 +76,18 @@ describe('CallDeviceSetupModal', () => {
       />,
     );
     expect(html).toContain('call.confirmJoin');
+  });
+
+  test('shows voice confirm label for voice variant', () => {
+    const html = renderToStaticMarkup(
+      <CallDeviceSetupModal
+        open
+        variant="voice"
+        onConfirm={noop}
+        onCancel={noop}
+      />,
+    );
+    expect(html).toContain('call.confirmJoinVoice');
   });
 
   test('not rendered when open is false', () => {

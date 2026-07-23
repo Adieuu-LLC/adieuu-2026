@@ -15,12 +15,14 @@ export function RoadmapTimelineCard({
   highlighted,
   isFocused,
   onToggle,
+  dataTourId,
 }: {
   post: PublicFeedbackPost;
   expanded: boolean;
   highlighted?: boolean;
   isFocused?: boolean;
   onToggle: () => void;
+  dataTourId?: string;
 }) {
   const { t } = useTranslation();
   const isCommunityIdea = shouldShowFeedbackAuthorCredit(post);
@@ -39,6 +41,7 @@ export function RoadmapTimelineCard({
         highlighted ? 'roadmap-timeline-card--highlighted' : '',
         isFocused ? 'roadmap-timeline-card--focused' : '',
       ].filter(Boolean).join(' ')}
+      {...(dataTourId ? { 'data-tour': dataTourId } : {})}
       onClick={(e) => {
         if (isTruncated && !(e.metaKey || e.ctrlKey)) {
           const target = e.target as HTMLElement;

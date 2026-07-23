@@ -1,4 +1,4 @@
-import { useState, createContext, useContext, useMemo, type ReactNode } from 'react';
+import { useState, createContext, useContext, useMemo, type ReactNode, type ButtonHTMLAttributes } from 'react';
 import { Select, Portal, createListCollection } from '@ark-ui/react';
 import { Icon } from '../icons/Icon';
 
@@ -122,13 +122,13 @@ export function TabList({ children, className = '', mobileItems }: TabListProps)
   );
 }
 
-interface TabTriggerProps {
+interface TabTriggerProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'type' | 'role' | 'onClick'> {
   value: string;
   children: ReactNode;
   className?: string;
 }
 
-export function TabTrigger({ value, children, className = '' }: TabTriggerProps) {
+export function TabTrigger({ value, children, className = '', ...rest }: TabTriggerProps) {
   const { activeTab, setActiveTab } = useTabsContext();
   const isActive = activeTab === value;
 
@@ -139,6 +139,7 @@ export function TabTrigger({ value, children, className = '' }: TabTriggerProps)
       aria-selected={isActive}
       className={`tabs-trigger ${isActive ? 'tabs-trigger-active' : ''} ${className}`}
       onClick={() => setActiveTab(value)}
+      {...rest}
     >
       {children}
     </button>

@@ -9,7 +9,9 @@ import {
   computeHasNewerPagesFromLastMessageId,
   messagePageBoundsFromNewestFirst,
   type MessagePaginationDirection,
+  type SubscriptionTierId,
 } from '@adieuu/shared';
+import { hasPaidAccess } from '../billing/resolve-access';
 import { getConversationRepository } from '../../repositories/conversation.repository';
 import { getIdentityRepository } from '../../repositories/identity.repository';
 import { getMessageRepository } from '../../repositories/message.repository';
@@ -27,9 +29,13 @@ import {
 } from '../../models/message';
 import type { CryptoProfile } from '../../models/identity';
 import { deleteE2EMedia } from '../e2e-upload.service';
+import { verifyMessageSignatureV2 } from '../../utils/crypto';
 import elog from '../../utils/adieuuLogger';
 import type { MessagePagePayload, MessageResult } from './types';
 import { publishConversationEvent, publishToParticipants } from './redis-events';
+
+/** Free tier message history depth: only the most recent 14 days are visible. */
+const FREE_TIER_HISTORY_DAYS = 14;
 
 function minCreatedAtForRequester(
   conversation: ConversationDocument,
@@ -40,6 +46,23 @@ function minCreatedAtForRequester(
   const v = m[requester.toHexString()];
   if (v == null) return undefined;
   return v instanceof Date ? v : new Date(String(v));
+}
+
+interface BillingContext {
+  subscriptions: readonly SubscriptionTierId[];
+  entitlements?: readonly string[];
+  isLifetime?: boolean;
+}
+
+function effectiveMinDate(
+  minJoin: Date | undefined,
+  billing?: BillingContext,
+): Date | undefined {
+  if (billing && hasPaidAccess(billing)) return minJoin;
+
+  const freeFloor = new Date(Date.now() - FREE_TIER_HISTORY_DAYS * 24 * 60 * 60 * 1000);
+  if (!minJoin) return freeFloor;
+  return freeFloor > minJoin ? freeFloor : minJoin;
 }
 
 export async function sendMessage(
@@ -94,6 +117,42 @@ export async function sendMessage(
     return {
       success: true,
       message: toPublicMessage(existing, senderObjId),
+    };
+  }
+
+  // Verify the sender's context-bound (v2) message signature. This rejects
+  // payloads whose signature does not cover this conversation, sender, and
+  // clientMessageId, so stored messages cannot later be replayed by a
+  // compromised server into a different context without detection.
+  const senderIdentity = await getIdentityRepository().findByIdentityId(senderObjId);
+  if (!senderIdentity?.signingPublicKey) {
+    return {
+      success: false,
+      error: 'Sender has no registered signing key.',
+      errorCode: 'INVALID_SIGNATURE',
+    };
+  }
+  const signatureValid = verifyMessageSignatureV2(
+    senderIdentity.signingPublicKey,
+    {
+      conversationId: convObjId.toHexString(),
+      fromIdentityId: senderObjId.toHexString(),
+      clientMessageId: input.clientMessageId,
+    },
+    input.ciphertext,
+    input.nonce,
+    input.wrappedKeys,
+    input.signature
+  );
+  if (!signatureValid) {
+    elog.warn('Rejected message with invalid signature', {
+      conversationId: convObjId.toHexString(),
+      senderIdentityId: senderObjId.toHexString(),
+    });
+    return {
+      success: false,
+      error: 'Message signature verification failed.',
+      errorCode: 'INVALID_SIGNATURE',
     };
   }
 
@@ -238,6 +297,7 @@ export async function editMessage(
     signature: string;
     cryptoProfile: CryptoProfile;
     clientEditId: string;
+    e2eMediaIds?: string[];
   }
 ): Promise<MessageResult> {
   const conversationRepo = getConversationRepository();
@@ -279,14 +339,75 @@ export async function editMessage(
     }
   }
 
-  const { ciphertext, nonce, wrappedKeys, signature, cryptoProfile, clientEditId } = input;
+  const { ciphertext, nonce, wrappedKeys, signature, cryptoProfile, clientEditId, e2eMediaIds } = input;
+
+  if (e2eMediaIds?.length) {
+    const e2eRepo = getE2EMediaRepository();
+    const mediaRecords = await e2eRepo.findManyByE2EMediaIds(e2eMediaIds);
+
+    if (mediaRecords.length !== e2eMediaIds.length) {
+      return { success: false, error: 'One or more E2E media references not found', errorCode: 'INVALID_MEDIA' as const };
+    }
+
+    for (const media of mediaRecords) {
+      if (!media.identityId.equals(senderObjId)) {
+        return { success: false, error: 'E2E media does not belong to sender', errorCode: 'INVALID_MEDIA' as const };
+      }
+      if (media.status === 'pending') {
+        return { success: false, error: 'E2E media upload has not been completed', errorCode: 'INVALID_MEDIA' as const };
+      }
+      if (media.moderationStatus === 'rejected') {
+        return { success: false, error: 'E2E media has not cleared moderation', errorCode: 'INVALID_MEDIA' as const };
+      }
+    }
+  }
+
+  // Verify the context-bound (v2) signature over the replacement ciphertext.
+  // Edits sign with the original message's clientMessageId (stable across
+  // revisions), so the message doc is loaded first to resolve it.
+  const existingMessage = await messageRepo.findByIdInConversation(convObjId, msgObjId);
+  if (!existingMessage) {
+    return { success: false, error: 'Message not found', errorCode: 'MESSAGE_NOT_FOUND' };
+  }
+  const editorIdentity = await getIdentityRepository().findByIdentityId(senderObjId);
+  if (!editorIdentity?.signingPublicKey) {
+    return {
+      success: false,
+      error: 'Sender has no registered signing key.',
+      errorCode: 'INVALID_SIGNATURE',
+    };
+  }
+  const editSignatureValid = verifyMessageSignatureV2(
+    editorIdentity.signingPublicKey,
+    {
+      conversationId: convObjId.toHexString(),
+      fromIdentityId: senderObjId.toHexString(),
+      clientMessageId: existingMessage.clientMessageId,
+    },
+    ciphertext,
+    nonce,
+    wrappedKeys,
+    signature
+  );
+  if (!editSignatureValid) {
+    elog.warn('Rejected message edit with invalid signature', {
+      conversationId: convObjId.toHexString(),
+      messageId: msgObjId.toHexString(),
+      senderIdentityId: senderObjId.toHexString(),
+    });
+    return {
+      success: false,
+      error: 'Message signature verification failed.',
+      errorCode: 'INVALID_SIGNATURE',
+    };
+  }
 
   const result = await messageRepo.applyMessageEdit(
     convObjId,
     msgObjId,
     senderObjId,
     clientEditId,
-    { ciphertext, nonce, wrappedKeys, signature, cryptoProfile }
+    { ciphertext, nonce, wrappedKeys, signature, cryptoProfile, ...(e2eMediaIds ? { e2eMediaIds } : {}) }
   );
 
   if (result.idempotentReplay && result.doc) {
@@ -314,6 +435,11 @@ export async function editMessage(
   }
 
   const message = result.doc;
+
+  if (e2eMediaIds?.length && message.expiresAt) {
+    const e2eRepo = getE2EMediaRepository();
+    await e2eRepo.setExpiresAt(e2eMediaIds, message.expiresAt);
+  }
 
   // Fan-out: same as send — exclude ineligible in groups
   const deliveryRecipients = blockedPairSet
@@ -350,7 +476,8 @@ export async function getMessage(
   conversationId: string | ObjectId,
   messageId: string | ObjectId,
   requesterIdentityId: string | ObjectId,
-  options?: { includeRevisionHistory?: boolean }
+  options?: { includeRevisionHistory?: boolean },
+  billing?: BillingContext,
 ): Promise<MessageResult> {
   const conversationRepo = getConversationRepository();
   const messageRepo = getMessageRepository();
@@ -375,8 +502,11 @@ export async function getMessage(
   if (!message) {
     return { success: false, error: 'Message not found', errorCode: 'MESSAGE_NOT_FOUND' };
   }
-  const minJoin = minCreatedAtForRequester(conversation, requesterObjId);
-  if (minJoin && message.createdAt.getTime() < minJoin.getTime()) {
+  const minDate = effectiveMinDate(
+    minCreatedAtForRequester(conversation, requesterObjId),
+    billing,
+  );
+  if (minDate && message.createdAt.getTime() < minDate.getTime()) {
     return { success: false, error: 'Message not found', errorCode: 'MESSAGE_NOT_FOUND' };
   }
 
@@ -397,7 +527,29 @@ async function buildMessagePagePayload(
   nextOlderCursor: string | null,
   minCreatedAtForRequester?: Date,
 ): Promise<MessagePagePayload> {
-  const publicMessages = docs.map((m) => toPublicMessage(m, requesterObjId));
+  // Flag messages carrying reactions so the client reserves reaction-bar space
+  // before the (separately batch-fetched) reactions load. Count-only distinct
+  // query; the deleted branch of toPublicMessage drops the flag on tombstones.
+  // Best-effort: on failure fall back to an empty set so the page still delivers
+  // (with hasReactions false) rather than failing outright.
+  let withReactions: Set<string>;
+  try {
+    withReactions = await getReactionRepository().messageIdsWithReactions(
+      convObjId,
+      docs.map((m) => m._id),
+    );
+  } catch (err) {
+    elog.error('Failed to load reaction flags for message page', {
+      conversationId: convObjId.toHexString(),
+      err,
+    });
+    withReactions = new Set();
+  }
+  const publicMessages = docs.map((m) =>
+    toPublicMessage(m, requesterObjId, {
+      hasReactions: withReactions.has(m._id.toHexString()),
+    }),
+  );
   const bounds = messagePageBoundsFromNewestFirst(publicMessages);
   let hasNewerPages = false;
   if (bounds.pageNewestId) {
@@ -428,7 +580,8 @@ export async function getMessages(
   requesterIdentityId: string | ObjectId,
   limit = 50,
   cursor?: string,
-  direction?: MessagePaginationDirection
+  direction?: MessagePaginationDirection,
+  billing?: BillingContext,
 ): Promise<MessagePagePayload | MessageResult> {
   const conversationRepo = getConversationRepository();
   const messageRepo = getMessageRepository();
@@ -462,7 +615,10 @@ export async function getMessages(
     return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
   }
 
-  const minJoin = minCreatedAtForRequester(conversation, requesterObjId);
+  const minJoin = effectiveMinDate(
+    minCreatedAtForRequester(conversation, requesterObjId),
+    billing,
+  );
 
   if (hasCursor && direction === 'newer') {
     const anchorObjId = new ObjectId(cursor!);
@@ -566,6 +722,7 @@ export async function getMessagesAround(
   centerMessageId: string,
   beforeLimit = 15,
   afterLimit = 15,
+  billing?: BillingContext,
 ): Promise<MessagePagePayload | MessageResult> {
   const conversationRepo = getConversationRepository();
   const messageRepo = getMessageRepository();
@@ -590,7 +747,10 @@ export async function getMessagesAround(
     return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
   }
 
-  const minJoin = minCreatedAtForRequester(conversation, requesterObjId);
+  const minJoin = effectiveMinDate(
+    minCreatedAtForRequester(conversation, requesterObjId),
+    billing,
+  );
 
   const centerObjId = new ObjectId(centerMessageId);
   const centerDoc = await messageRepo.findByIdInConversation(convObjId, centerObjId);

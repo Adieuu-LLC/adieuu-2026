@@ -11,6 +11,7 @@
 import { Router, type RouteContext } from '../../router';
 import { success, error } from '../../utils/response';
 import { getErrorMessage } from '../../i18n';
+import { hasPaidAccess } from '../../services/billing/resolve-access';
 import { submitReportResult, type ReportSubmitResult } from './controller';
 
 const router = new Router();
@@ -47,6 +48,21 @@ function mapReportSubmitFailure(
 router.post('/reports', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
+
+  const { requireCaptchaForFreeTier } = await import('../../middleware/captcha');
+  const captchaError = await requireCaptchaForFreeTier(ctx, undefined, { skipSessionCache: true });
+  if (captchaError) return captchaError;
+
+  const body = ctx.body as Record<string, unknown> | undefined;
+  if (body?.type === 'profile') {
+    if (!hasPaidAccess(ctx.identitySession)) {
+      return error(
+        'FREE_TIER_RESTRICTED',
+        'Profile reporting is not available on the free plan.',
+        403,
+      );
+    }
+  }
 
   const result = await submitReportResult(identity._id.toHexString(), ctx.body);
   if (!result.ok) {

@@ -91,6 +91,46 @@ If you didn't request this, you can safely ignore this email. No changes will be
 </div>`,
     },
 
+    otpAccountDeletion: {
+      subject: 'Account deletion code: {{otp}} - {{appName}}',
+      text: `You requested to permanently delete your {{appName}} account.
+
+Your account deletion code is: {{otp}}
+
+This code expires in {{expiresInMinutes}} minutes.
+
+WARNING: This action is irreversible. Your account, sessions, and personal data will be removed. Some records (such as audit logs and support tickets) are retained in anonymised form. Alias data will NOT be deleted but will become unrecoverable.
+
+If you did not request this, you can safely ignore this email. No changes will be made to your account.`,
+      html: `
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+  <h2 style="color: #dc2626; margin-bottom: 24px;">Account Deletion Request</h2>
+  <p style="color: #1a1a1a; line-height: 1.6;">
+    You requested to permanently delete your {{appName}} account.
+  </p>
+  <p style="color: #666; line-height: 1.6; margin-top: 16px;">
+    Enter this code to confirm account deletion:
+  </p>
+  <p style="font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 24px 0; color: #dc2626; font-family: monospace;">
+    {{otp}}
+  </p>
+  <p style="color: #666; font-size: 14px; margin-top: 24px;">
+    This code expires in {{expiresInMinutes}} minutes.
+  </p>
+  <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; margin-top: 24px;">
+    <p style="color: #991b1b; font-size: 14px; font-weight: 600; margin: 0 0 8px 0;">
+      This action is irreversible
+    </p>
+    <p style="color: #991b1b; font-size: 13px; margin: 0;">
+      Your account, sessions, and personal data will be removed. Some records (such as audit logs and support tickets) are retained in anonymised form. Alias data will NOT be deleted but will become unrecoverable.
+    </p>
+  </div>
+  <p style="color: #999; font-size: 12px; margin-top: 16px;">
+    If you did not request this, you can safely ignore this email. No changes will be made to your account.
+  </p>
+</div>`,
+    },
+
     accountLocked: {
       subject: '{{appName}} account security alert',
       text: `Your {{appName}} account has been temporarily locked due to multiple failed login attempts.
@@ -279,5 +319,6 @@ Sign in to enjoy your new plan. Thank you for being part of the community!`,
       'Request body exceeds the maximum size ({{maxKb}} KiB, {{maxBytes}} bytes). Shorten the message or reduce the number of recipient devices.',
     alreadyOwned: 'This is already attached to another Adieuu account. You may have signed up with it previously.',
     signInRestricted: 'Sign-in is restricted to an allowlist. This is temporary. IYKYK.',
+    accountDeleted: 'This email is associated with a deleted account and cannot be used to create a new account.',
   },
 };

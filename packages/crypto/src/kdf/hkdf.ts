@@ -137,6 +137,8 @@ export const KDF_INFO = {
   FILE_ENCRYPT: 'adieuu-file-encrypt-v1',
   /** Chunk key derivation for large files */
   CHUNK_KEY: 'adieuu-chunk-key-v1',
+  /** Voice-channel LiveKit media E2EE (Community Cipher-derived) */
+  VOICE_CHANNEL_MEDIA: 'adieuu-voice-channel-media-v1',
 } as const;
 
 /**

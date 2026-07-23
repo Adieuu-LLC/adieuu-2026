@@ -129,7 +129,7 @@
 
 .profile-preview-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   flex-wrap: wrap;
   gap: var(--spacing-sm);
@@ -370,33 +370,331 @@
 }
 
 .profile-edit-inline-input {
+  display: block;
   width: 100%;
   background: var(--color-bg-tertiary);
-  border: 1px solid var(--color-border-focus);
-  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   color: var(--color-text-primary);
-  padding: var(--spacing-xs) var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
   font-family: inherit;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 
   &--name {
     font-size: var(--font-size-lg);
     font-weight: 600;
+    padding: var(--spacing-xs) var(--spacing-sm);
   }
 
   &--bio {
-    font-size: var(--font-size-sm);
     resize: vertical;
-    min-height: 60px;
-    line-height: 1.5;
+    min-height: 80px;
+    max-height: 200px;
   }
 
   &:focus {
     outline: none;
-    border-color: var(--color-accent-primary);
-    box-shadow: 0 0 0 2px var(--color-accent-glow);
+    border-color: var(--profile-accent, var(--color-accent-primary));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--profile-accent, var(--color-accent-primary)) 20%, transparent);
+  }
+
+  &::placeholder {
+    color: var(--color-text-muted);
   }
 }
 
 .profile-edit-colors-section {
   margin-top: var(--spacing-md);
+}
+
+// ============================================================================
+// Badge Row (between bio and "Last active" in the editor)
+// ============================================================================
+
+.profile-edit-badges-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-sm);
+  flex-wrap: wrap;
+
+  .profile-preview-meta {
+    margin: 0;
+  }
+}
+
+// ============================================================================
+// Badge Display (text chip row, used across profile surfaces)
+// ============================================================================
+
+.badge-display {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+
+  &--sm {
+    gap: 4px;
+  }
+}
+
+.badge-display-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: default;
+  font-family: inherit;
+  border-radius: var(--radius-full);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  white-space: nowrap;
+
+  .badge-display--sm & {
+    font-size: var(--font-size-xs);
+    padding: 2px 8px;
+  }
+
+  .badge-display--md & {
+    font-size: var(--font-size-sm);
+    padding: 3px 10px;
+  }
+
+  &--vanguard {
+    color: var(--color-accent-primary);
+    background: color-mix(in srgb, var(--color-accent-primary) 14%, transparent);
+  }
+
+  &--founder {
+    color: #e8a838;
+    background: color-mix(in srgb, #e8a838 14%, transparent);
+  }
+
+  &--top100 {
+    color: #c0392b;
+    background: color-mix(in srgb, #c0392b 14%, transparent);
+  }
+
+  &--top1000 {
+    color: #8e44ad;
+    background: color-mix(in srgb, #8e44ad 14%, transparent);
+  }
+
+  &--overachiever {
+    color: #27ae60;
+    background: color-mix(in srgb, #27ae60 14%, transparent);
+  }
+}
+
+// ============================================================================
+// Badge Selector (popover for profile editor)
+// ============================================================================
+
+.badge-selector-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 150ms ease;
+
+  &:hover:not(:disabled) {
+    color: var(--color-text-primary);
+    border-color: var(--color-border-focus);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.badge-selector-popover {
+  width: 280px;
+}
+
+.badge-selector {
+  padding: var(--spacing-sm);
+}
+
+.badge-selector-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0 0 var(--spacing-sm) 0;
+}
+
+.badge-selector-limit {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin: 0 0 var(--spacing-sm) 0;
+}
+
+.badge-selector-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.badge-selector-item-wrapper {
+  display: flex;
+}
+
+.badge-selector-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: var(--spacing-sm);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  position: relative;
+  transition: all 150ms ease;
+
+  &:hover:not(:disabled) {
+    background: var(--color-bg-tertiary);
+    border-color: var(--color-border-hover);
+  }
+
+  &--selected {
+    border-color: var(--color-accent-primary);
+    background: color-mix(in srgb, var(--color-accent-primary) 8%, transparent);
+  }
+
+  &--vanguard {
+    color: var(--color-accent-primary);
+  }
+
+  &--founder {
+    color: #e8a838;
+  }
+
+  &--locked {
+    opacity: 0.4;
+    cursor: not-allowed;
+    color: var(--color-text-muted);
+  }
+
+  &--disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &-label {
+    flex: 1;
+    text-align: left;
+  }
+
+  &-order {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-full);
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    flex-shrink: 0;
+  }
+}
+
+// Profile view badge display (full profile page)
+.profile-view-badges {
+  margin-top: var(--spacing-xs);
+}
+
+// Identity card badge display
+.identity-card-badges {
+  display: block;
+  margin-top: 2px;
+}
+
+// Hover card badge display
+.identity-hover-card-badges {
+  display: block;
+  margin-top: 2px;
+}
+
+// ============================================================================
+// Profile Friends List (Friends tab)
+// ============================================================================
+
+.profile-friends-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+
+  &--loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-lg) 0;
+  }
+
+  &-search {
+    max-width: 400px;
+  }
+
+  &-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-md);
+
+    @media (max-width: 640px) {
+      grid-template-columns: 1fr;
+    }
+
+    .identity-card {
+      display: flex;
+      flex-direction: column;
+
+      &-banner {
+        height: 72px;
+      }
+
+      &-header {
+        margin-top: -32px;
+        padding: 0 var(--spacing-lg);
+        margin-bottom: var(--spacing-sm);
+      }
+
+      &-avatar {
+        border-width: 3px;
+      }
+
+      &-info {
+        padding-top: 34px;
+      }
+
+      &-bio {
+        margin-bottom: var(--spacing-sm);
+      }
+
+      &-actions {
+        margin-top: auto;
+      }
+    }
+  }
+
+  &-sentinel {
+    display: flex;
+    justify-content: center;
+    padding: var(--spacing-sm) 0;
+    min-height: 1px;
+  }
 }

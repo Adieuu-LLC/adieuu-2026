@@ -16,6 +16,7 @@ import { ObjectId } from 'mongodb';
 import { config } from '../../config';
 import { getCallRepository } from '../../repositories/call.repository';
 import { getConversationRepository } from '../../repositories/conversation.repository';
+import { getSpaceVoiceSessionRepository } from '../../repositories/space-voice-session.repository';
 import { publishConversationEvent, publishToParticipants } from '../../services/conversation/redis-events';
 import { deleteRoom as livekitDeleteRoom } from '../../services/livekit-room.service';
 import type { StreamQualityCaps } from '@adieuu/shared';
@@ -140,6 +141,10 @@ async function handleTrackPublished(event: WebhookEvent): Promise<void> {
 async function handleParticipantLeft(event: WebhookEvent): Promise<void> {
   const { room, participant } = event;
   if (!room?.name || !participant?.identity) return;
+
+  // Voice-channel rooms tear down via emptyAt grace + reaper, not LiveKit leave.
+  const voiceSession = await getSpaceVoiceSessionRepository().findActiveByRoomName(room.name);
+  if (voiceSession) return;
 
   const callRepo = getCallRepository();
   const call = await callRepo.findActiveByRoomName(room.name);

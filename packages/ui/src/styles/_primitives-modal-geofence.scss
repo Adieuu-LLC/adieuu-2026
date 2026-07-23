@@ -1,0 +1,180 @@
+@use 'variables' as *;
+
+// ============================================================================
+// Geofence / compliance modals (VPN attestation, abusive IP, geofence blocked)
+// ============================================================================
+
+.geofence-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: var(--z-modal-backdrop);
+
+  &[data-state='open'] {
+    animation: fadeIn var(--transition-fast) ease;
+  }
+
+  &[data-state='closed'] {
+    display: none;
+  }
+}
+
+.geofence-modal-positioner {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+
+  &[data-state='closed'] {
+    display: none;
+  }
+}
+
+.geofence-modal-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  max-width: 520px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: var(--spacing-2xl);
+  animation: fadeIn var(--transition-fast) ease;
+}
+
+.geofence-modal-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.geofence-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.geofence-modal-title {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  margin: 0;
+  line-height: var(--line-height-tight);
+}
+
+.geofence-modal-description {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+  margin: 0;
+}
+
+.geofence-modal-emphasis {
+  color: var(--color-accent-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.geofence-modal-jurisdiction {
+  margin: 0;
+  padding-left: var(--spacing-lg);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+
+  li {
+    margin-bottom: var(--spacing-xs);
+  }
+
+  strong {
+    color: var(--color-text-primary);
+  }
+}
+
+.geofence-modal-jurisdiction-scroll {
+  max-height: 12rem;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+  margin: 0;
+  padding: var(--spacing-sm) 0 var(--spacing-sm) var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg-primary);
+
+  // Persistent track lane so the scroll gutter is visible even when the OS uses overlay scrollbars.
+  background-image: linear-gradient(
+    to left,
+    var(--color-border) 0,
+    var(--color-border) 12px,
+    transparent 12px
+  );
+  background-repeat: no-repeat;
+  background-position: right top;
+  background-size: 12px 100%;
+  -ms-overflow-style: scrollbar;
+  scrollbar-width: auto;
+  scrollbar-color: var(--color-text-secondary) var(--color-border);
+
+  .geofence-modal-jurisdiction {
+    margin: 0;
+    padding-right: calc(var(--spacing-md) + 4px);
+  }
+
+  &::-webkit-scrollbar {
+    width: 12px;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: var(--color-border);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: var(--color-text-secondary);
+    border-radius: var(--radius-full);
+    border: 2px solid var(--color-border);
+    box-shadow: inset 0 0 0 1px rgb(0 0 0 / 12%);
+
+    &:hover {
+      background-color: var(--color-text-primary);
+    }
+  }
+
+  &::-webkit-scrollbar-thumb:vertical {
+    background-color: var(--color-text-secondary);
+  }
+}
+
+.geofence-modal-question {
+  color: var(--color-accent-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.geofence-modal-law-link {
+  color: var(--color-accent-primary);
+  font-size: var(--font-size-sm);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+
+  &:hover {
+    color: var(--color-accent-hover);
+  }
+}
+
+.geofence-modal-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
+}

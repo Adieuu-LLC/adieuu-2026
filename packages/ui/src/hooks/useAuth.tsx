@@ -3,18 +3,15 @@ import type { ReactNode } from 'react';
 import {
   createApiClient,
   API_ERROR_SESSION_EXPIRED,
-  API_ERROR_ACCOUNT_BANNED,
-  API_ERROR_ACCOUNT_SUSPENDED,
   API_ERROR_ABUSIVE_IP_BLOCKED,
+  API_ERROR_ACCOUNT_DELETED,
   type SessionInfo,
   type SubscriptionTierId,
   type PublicKeyCredentialRequestOptionsJSON,
-  type AccountModerationCategory,
 } from '@adieuu/shared';
 import { useAppConfig, usePlatformCapabilities } from '../config';
 import {
   resolveAccountRestriction,
-  isSilentAccountBan,
   type AccountRestrictionInfo,
 } from '../services/authRestrictionFlow';
 import { ComplianceModals } from '../components/ComplianceModals';
@@ -157,6 +154,7 @@ function useAuthState(): AuthContextValue {
             subscriptions: (data.subscriptions as SubscriptionTierId[]) ?? [],
             entitlements: (data.entitlements as string[]) ?? [],
             isLifetime: (data.isLifetime as boolean) ?? false,
+            captchaSitekey: (data.captchaSitekey as string) ?? undefined,
           };
           const nextIdentityState: AuthState = { status: 'identity_mode', session: identitySession };
           setState((prev) => (authStateEqual(prev, nextIdentityState) ? prev : nextIdentityState));
@@ -177,12 +175,6 @@ function useAuthState(): AuthContextValue {
         const code = response.error?.code;
         if (code === API_ERROR_ABUSIVE_IP_BLOCKED) {
           setAbusiveIpNotice(response.error?.message ?? null);
-          setState({ status: 'unauthenticated', session: null });
-          return null;
-        }
-        if (code === API_ERROR_ACCOUNT_BANNED && isSilentAccountBan(
-          response.error?.details?.moderationCategory as AccountModerationCategory | undefined,
-        )) {
           setState({ status: 'unauthenticated', session: null });
           return null;
         }
@@ -221,16 +213,17 @@ function useAuthState(): AuthContextValue {
   }, [state.status, refreshSession]);
 
   const handleVerifyError = useCallback((errorCode?: string, message?: string, details?: Record<string, unknown>) => {
+    if (errorCode === API_ERROR_ACCOUNT_DELETED) {
+      return {
+        success: false as const,
+        error: message ?? 'This email is associated with a deleted account and cannot be used to create a new account.',
+        restriction: undefined,
+      };
+    }
     if (errorCode === API_ERROR_ABUSIVE_IP_BLOCKED) {
       setAbusiveIpNotice(message ?? null);
       setState({ status: 'unauthenticated', session: null });
       return { success: false as const, error: message ?? 'Network blocked', restriction: undefined };
-    }
-    if (errorCode === API_ERROR_ACCOUNT_BANNED && isSilentAccountBan(
-      details?.moderationCategory as AccountModerationCategory | undefined,
-    )) {
-      setState({ status: 'unauthenticated', session: null });
-      return { success: false as const, error: 'Access denied', restriction: undefined };
     }
     const restriction = resolveAccountRestriction(
       errorCode,

@@ -39,17 +39,14 @@ export function AccountRestrictionPanel({ info }: AccountRestrictionPanelProps) 
     ? t(`auth.restriction.category.${info.category}`, info.category)
     : undefined;
 
-  const clubMessage = isBanned
+  const banMessage = isBanned
     ? isOfacBan
       ? info.reason ?? t('auth.restriction.ofacMessage')
-      : info.category && categoryLabel
-        ? t('auth.restriction.bannedClubWithCategory', {
-            count: info.bannedPeerCount ?? 0,
-            category: categoryLabel,
-          })
-        : t('auth.restriction.bannedClubTotal', {
-            count: info.bannedPeerCount ?? 0,
-          })
+      : info.reason
+        ? t('auth.restriction.bannedMessageWithReason', { reason: info.reason })
+        : info.category && categoryLabel
+          ? t('auth.restriction.bannedMessageWithCategory', { category: categoryLabel })
+          : t('auth.restriction.bannedMessage')
     : t('auth.restriction.suspendedSubtitle');
 
   return (
@@ -60,10 +57,10 @@ export function AccountRestrictionPanel({ info }: AccountRestrictionPanelProps) 
         </Alert>
 
         <p style={{ marginTop: 'var(--spacing-sm)', color: 'var(--color-text-secondary)' }}>
-          {clubMessage}
+          {banMessage}
         </p>
 
-        {info.reason && !isOfacBan && (
+        {info.reason && !isBanned && (
           <div className="suspension-modal-field" style={{ marginTop: 'var(--spacing-md)' }}>
             <span className="suspension-modal-label">{t('auth.restriction.reason')}</span>
             <span className="suspension-modal-value">{info.reason}</span>

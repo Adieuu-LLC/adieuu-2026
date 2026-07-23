@@ -642,6 +642,86 @@ describe('sanitizeString', () => {
     });
   });
 
+  describe('type: hexColor', () => {
+    test('allows valid 6-digit hex color with # prefix', () => {
+      const result = sanitizeString('#aabbcc', 'hexColor');
+      expect(result.value).toBe('#aabbcc');
+      expect(result.deltas).toBe(0);
+    });
+
+    test('preserves lowercase hex digits', () => {
+      const result = sanitizeString('#abcdef', 'hexColor');
+      expect(result.value).toBe('#abcdef');
+      expect(result.deltas).toBe(0);
+    });
+
+    test('preserves uppercase hex digits', () => {
+      const result = sanitizeString('#AABBCC', 'hexColor');
+      expect(result.value).toBe('#AABBCC');
+      expect(result.deltas).toBe(0);
+    });
+
+    test('preserves mixed case', () => {
+      const result = sanitizeString('#AaBbCc', 'hexColor');
+      expect(result.value).toBe('#AaBbCc');
+      expect(result.deltas).toBe(0);
+    });
+
+    test('returns empty string for non-hex characters', () => {
+      const result = sanitizeString('#gg0000', 'hexColor');
+      expect(result.value).toBe('');
+      expect(result.deltas).toBeGreaterThan(0);
+    });
+
+    test('returns empty string when # prefix is missing', () => {
+      const result = sanitizeString('aabbcc', 'hexColor');
+      expect(result.value).toBe('');
+      expect(result.deltas).toBeGreaterThan(0);
+    });
+
+    test('returns empty string for 3-digit shorthand hex', () => {
+      const result = sanitizeString('#fff', 'hexColor');
+      expect(result.value).toBe('');
+      expect(result.deltas).toBeGreaterThan(0);
+    });
+
+    test('returns empty string for 8-digit hex (with alpha)', () => {
+      const result = sanitizeString('#aabbccdd', 'hexColor');
+      expect(result.value).toBe('');
+      expect(result.deltas).toBeGreaterThan(0);
+    });
+
+    test('strips control characters and invalidates result', () => {
+      const result = sanitizeString('#aa\u200Bbb\u0000cc', 'hexColor');
+      expect(result.value).toBe('#aabbcc');
+      expect(result.deltas).toBeGreaterThan(0);
+    });
+
+    test('handles empty string input', () => {
+      const result = sanitizeString('', 'hexColor');
+      expect(result.value).toBe('');
+      expect(result.deltas).toBe(0);
+    });
+
+    test('strips template injection characters', () => {
+      const result = sanitizeString('#aa${bb}cc', 'hexColor');
+      expect(result.value).toBe('#aabbcc');
+      expect(result.deltas).toBeGreaterThan(0);
+    });
+
+    test('returns empty for just a # character', () => {
+      const result = sanitizeString('#', 'hexColor');
+      expect(result.value).toBe('');
+      expect(result.deltas).toBeGreaterThan(0);
+    });
+
+    test('strips spaces and non-hex characters', () => {
+      const result = sanitizeString('# aa bb cc', 'hexColor');
+      expect(result.value).toBe('#aabbcc');
+      expect(result.deltas).toBeGreaterThan(0);
+    });
+  });
+
   describe('type: id', () => {
     test('allows alphanumeric and parentheses', () => {
       const result = sanitizeString('abc123()', 'id');

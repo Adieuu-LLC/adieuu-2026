@@ -37,7 +37,8 @@ mock.module('react-i18next', () => ({
     t: _translate,
     i18n: { language: 'en' },
   }),
-  Trans: ({ children }: { children?: ReactNode }) => children ?? null,
+  Trans: ({ i18nKey, children }: { i18nKey?: string; children?: ReactNode }) =>
+    children ?? (i18nKey ? _translate(i18nKey) : null),
   I18nextProvider: ({ children }: { children?: ReactNode }) =>
     createElement('div', { 'data-testid': 'i18next-provider' }, children),
   initReactI18next: {

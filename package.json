@@ -25,7 +25,7 @@
     "test:force": "turbo run test --force",
     "test:video-processing": "node scripts/test-video-processing.mjs",
     "test:fs": "pnpm --filter @adieuu/ui test -- ./src/hooks/usePreKeys.scheduler.test.ts ./src/services/preKeyStorage.test.ts ./src/services/preKeyService.test.ts && pnpm --filter @adieuu/api test -- ./src/repositories/pre-key.repository.test.ts ./src/routes/identity/pre-key.controller.test.ts",
-    "test:security": "pnpm --filter @adieuu/api test -- ./src/repositories/session.repository.test.ts ./src/repositories/block.repository.test.ts ./src/repositories/mfa.repository.test.ts ./src/services/session.service.test.ts ./src/services/rate-limit.service.test.ts ./src/services/block.service.test.ts ./src/services/mfa.service.test.ts && pnpm --filter @adieuu/api test -- ./src/routes/blocks/controller.test.ts ./src/routes/mfa/controller.test.ts",
+    "test:security": "pnpm --filter @adieuu/api test -- ./src/repositories/session.repository.test.ts ./src/repositories/block.repository.test.ts ./src/repositories/mfa.repository.test.ts ./src/services/session.service.test.ts ./src/services/rate-limit.service.test.ts ./src/services/block.service.test.ts ./src/services/mfa.service.test.ts && pnpm --filter @adieuu/api test -- ./src/routes/blocks/controller.test.ts ./src/routes/mfa/controller.test.ts ./src/services/space/blind-relay.security.test.ts",
     "typecheck": "turbo run typecheck",
     "clean": "turbo run clean && rm -rf node_modules",
     "prepare": "simple-git-hooks"
@@ -52,25 +52,31 @@
     "@emoji-mart/data": "1.2.1",
     "@emoji-mart/react": "1.1.1"
   },
-  "overrides": {
-    "immutable": ">=5.1.5",
-    "rollup": ">=4.59.0",
-    "tar": ">=7.5.9",
-    "minimatch": "10.2.4",
-    "@develar/schema-utils": "workspace:*",
-    "ajv": "8.18.0",
-    "ajv-keywords": "5.1.0",
-    "ajv-formats": "2.1.1",
-    "dmg-license>ajv": ">=6.14.0",
-    "picomatch": ">=4.0.4",
-    "brace-expansion": "5.0.6",
-    "fast-uri": "3.1.2",
-    "tmp": "0.2.6",
-    "@xmldom/xmldom": ">=0.8.13 <0.9.0",
-    "lodash": ">=4.18.0",
-    "postcss": ">=8.5.10 <9.0.0",
-    "fast-xml-parser": ">=5.7.0 <6.0.0",
-    "ip-address": ">=10.1.1 <11.0.0",
-    "vite": ">=6.4.2 <7.0.0"
+  "pnpm": {
+    "overrides": {
+      "immutable": ">=5.1.5",
+      "rollup": ">=4.59.0",
+      "tar": ">=7.5.16",
+      "minimatch": "10.2.4",
+      "@develar/schema-utils": "workspace:*",
+      "ajv": "8.18.0",
+      "ajv-keywords": "5.1.0",
+      "ajv-formats": "2.1.1",
+      "dmg-license>ajv": ">=6.14.0",
+      "picomatch": ">=4.0.4",
+      "brace-expansion": "5.0.6",
+      "fast-uri": "3.1.2",
+      "tmp": "0.2.7",
+      "@xmldom/xmldom": ">=0.8.13 <0.9.0",
+      "lodash": ">=4.18.0",
+      "postcss": ">=8.5.10 <9.0.0",
+      "fast-xml-parser": ">=5.7.0 <6.0.0",
+      "ip-address": ">=10.1.1 <11.0.0",
+      "vite": ">=6.4.3 <7.0.0",
+      "ws": ">=8.21.0",
+      "form-data": ">=4.0.6",
+      "js-yaml": ">=4.2.0",
+      "@babel/core": ">=7.29.6"
+    }
   }
 }

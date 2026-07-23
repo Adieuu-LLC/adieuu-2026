@@ -3,6 +3,8 @@ import { forwardRef, useId } from 'react';
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
+  /** Visually hide the label while keeping it accessible to screen readers. */
+  hideLabel?: boolean;
   hint?: string;
   error?: string;
   inputSize?: 'sm' | 'md' | 'lg';
@@ -14,6 +16,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
   (
     {
       label,
+      hideLabel,
       hint,
       error,
       inputSize = 'md',
@@ -42,7 +45,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="input-wrapper">
         {label && (
-          <label htmlFor={inputId} className="input-label">
+          <label htmlFor={inputId} className={hideLabel ? 'sr-only' : 'input-label'}>
             {label}
           </label>
         )}

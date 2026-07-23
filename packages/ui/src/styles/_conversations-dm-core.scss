@@ -19,6 +19,7 @@
 }
 
 .conversation-body {
+  position: relative;
   display: flex;
   flex: 1;
   min-height: 0;
@@ -225,6 +226,11 @@
     &-item {
       padding-top: var(--spacing-md);
       position: relative;
+
+      // We own scroll preservation in JS (useMessageScroll). Disable the
+      // browser's native scroll anchoring so it doesn't fight our anchoring
+      // when async content (reactions/media/replies) grows a row.
+      overflow-anchor: none;
     }
 
     &-loading,
@@ -501,12 +507,12 @@
       }
 
       .dm-page-tag {
-        color: var(--color-accent-secondary, var(--color-accent-primary));
+        color: var(--color-accent-primary);
         cursor: pointer;
         font-weight: 500;
         border-radius: var(--radius-xs, 2px);
         padding: 0 2px;
-        background: color-mix(in srgb, var(--color-accent-secondary, var(--color-accent-primary)) 10%, transparent);
+        background: color-mix(in srgb, var(--color-accent-primary) 10%, transparent);
         transition: background var(--transition-fast), color var(--transition-fast);
         display: inline-flex;
         align-items: center;
@@ -518,7 +524,8 @@
         }
 
         &:hover {
-          background: color-mix(in srgb, var(--color-accent-secondary, var(--color-accent-primary)) 20%, transparent);
+          background: color-mix(in srgb, var(--color-accent-primary) 20%, transparent);
+          color: var(--color-accent-primary-hover);
         }
 
         &:focus-visible {
@@ -634,6 +641,21 @@
         height: 100%;
         object-fit: cover;
         display: block;
+      }
+
+      // Fixed-height placeholders shown while the parent message hydrates so the
+      // quote reserves its final height and does not shift the timeline.
+      &-avatar--skeleton {
+        background: var(--color-bg-muted);
+        opacity: 0.6;
+      }
+
+      &-author--skeleton {
+        width: 72px;
+        height: 12px;
+        border-radius: var(--radius-sm);
+        background: var(--color-bg-muted);
+        opacity: 0.6;
       }
 
       &-avatar-placeholder {
@@ -783,6 +805,11 @@
       &--active {
         color: var(--color-success);
         background: var(--color-success-bg);
+      }
+
+      &--downgraded {
+        color: var(--color-warning);
+        background: var(--color-warning-bg);
       }
     }
 

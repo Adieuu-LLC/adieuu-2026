@@ -81,6 +81,8 @@ beforeEach(() => {
   mockLookupIp.mockReset();
   mockUpdateGeo.mockReset();
 
+  delete process.env.DEV_FORCE_ANONYMOUS_IP;
+
   mockRedisGet.mockImplementation(() => Promise.resolve(null));
   mockRedisSet.mockImplementation((..._args: unknown[]) => Promise.resolve('OK'));
   mockLookupIp.mockImplementation(() =>
@@ -173,6 +175,55 @@ describe('resolveJurisdiction', () => {
     );
     expect(negCacheCall).toBeDefined();
   });
+
+  test('DEV_FORCE_ANONYMOUS_IP overrides IPLocate privacy on cache miss', async () => {
+    const previous = process.env.DEV_FORCE_ANONYMOUS_IP;
+    process.env.DEV_FORCE_ANONYMOUS_IP = 'true';
+    try {
+      mockLookupIp.mockImplementation(() =>
+        Promise.resolve({
+          countryCode: 'GB',
+          privacy: { isAnonymous: false, isAbuser: false },
+        }),
+      );
+
+      const result = await resolveJurisdiction('185.248.85.59');
+      expect(result?.isAnonymous).toBe(true);
+    } finally {
+      if (previous === undefined) {
+        delete process.env.DEV_FORCE_ANONYMOUS_IP;
+      } else {
+        process.env.DEV_FORCE_ANONYMOUS_IP = previous;
+      }
+    }
+  });
+
+  test('DEV_FORCE_ANONYMOUS_IP overrides cached geo privacy flags on cache hit', async () => {
+    const previous = process.env.DEV_FORCE_ANONYMOUS_IP;
+    process.env.DEV_FORCE_ANONYMOUS_IP = 'true';
+    try {
+      const cached = JSON.stringify({
+        jurisdiction: 'GB',
+        countryCode: 'GB',
+        isAnonymous: false,
+      });
+      mockRedisGet.mockImplementation(() => Promise.resolve(cached));
+
+      const result = await resolveJurisdiction('185.248.85.59');
+      expect(result).toEqual({
+        jurisdiction: 'GB',
+        countryCode: 'GB',
+        isAnonymous: true,
+      });
+      expect(mockLookupIp).not.toHaveBeenCalled();
+    } finally {
+      if (previous === undefined) {
+        delete process.env.DEV_FORCE_ANONYMOUS_IP;
+      } else {
+        process.env.DEV_FORCE_ANONYMOUS_IP = previous;
+      }
+    }
+  });
 });
 
 describe('refreshUserGeoIfStale', () => {
@@ -258,5 +309,33 @@ describe('refreshUserGeoIfStale', () => {
 
     const result = await refreshUserGeoIfStale(user, '1.2.3.4');
     expect(result).toBeNull();
+  });
+
+  test('DEV_FORCE_ANONYMOUS_IP overrides fresh user geo on cache hit', async () => {
+    const previous = process.env.DEV_FORCE_ANONYMOUS_IP;
+    process.env.DEV_FORCE_ANONYMOUS_IP = 'true';
+    try {
+      const cached = JSON.stringify({
+        jurisdiction: 'GB',
+        countryCode: 'GB',
+        isAnonymous: false,
+      });
+      mockRedisGet.mockImplementation(() => Promise.resolve(cached));
+
+      const user = makeUser();
+      const result = await refreshUserGeoIfStale(user, '185.248.85.59');
+
+      expect(result?.isAnonymous).toBe(true);
+      expect(mockUpdateGeo).toHaveBeenCalledWith(
+        user._id,
+        expect.objectContaining({ isAnonymous: true }),
+      );
+    } finally {
+      if (previous === undefined) {
+        delete process.env.DEV_FORCE_ANONYMOUS_IP;
+      } else {
+        process.env.DEV_FORCE_ANONYMOUS_IP = previous;
+      }
+    }
   });
 });

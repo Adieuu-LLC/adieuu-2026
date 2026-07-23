@@ -1,10 +1,10 @@
 /**
  * Conversation folder model
- * Per-identity folders for organising conversations into groups.
+ * Per-identity folders for organising conversations and spaces into groups.
  *
- * Each identity can create folders to visually group conversations
+ * Each identity can create folders to visually group conversations and spaces
  * in the sidebar. Folders are identity-scoped and do not affect
- * the underlying conversations themselves.
+ * the underlying conversations or spaces themselves.
  */
 
 import type { ObjectId } from 'mongodb';
@@ -20,7 +20,7 @@ export interface ConversationFolderDocument extends BaseDocument {
   name: string;
 
   /**
-   * 'dynamic' — show overlapping conversation avatars (up to 3).
+   * 'dynamic' — show overlapping conversation/space avatars (up to 3).
    * 'icon' — show a single FontAwesome icon with optional colour.
    */
   iconType: FolderIconType;
@@ -33,6 +33,9 @@ export interface ConversationFolderDocument extends BaseDocument {
 
   /** Ordered list of conversation IDs in this folder */
   conversationIds: ObjectId[];
+
+  /** Ordered list of space IDs in this folder */
+  spaceIds: ObjectId[];
 
   /** Whether the folder is pinned as a favourite */
   favorited: boolean;
@@ -48,6 +51,7 @@ export interface PublicConversationFolder {
   iconName?: string;
   iconColor?: string;
   conversationIds: string[];
+  spaceIds: string[];
   favorited: boolean;
   sortOrder: number;
 }
@@ -61,7 +65,8 @@ export function toPublicConversationFolder(
     iconType: doc.iconType,
     ...(doc.iconName ? { iconName: doc.iconName } : {}),
     ...(doc.iconColor ? { iconColor: doc.iconColor } : {}),
-    conversationIds: doc.conversationIds.map((id) => id.toHexString()),
+    conversationIds: (doc.conversationIds ?? []).map((id) => id.toHexString()),
+    spaceIds: (doc.spaceIds ?? []).map((id) => id.toHexString()),
     favorited: doc.favorited,
     sortOrder: doc.sortOrder,
   };

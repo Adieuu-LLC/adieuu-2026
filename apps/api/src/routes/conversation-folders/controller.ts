@@ -2,7 +2,7 @@
  * Conversation folder controllers.
  *
  * CRUD operations for per-identity conversation folders used
- * to organise conversations in the sidebar.
+ * to organise conversations and spaces in the sidebar.
  *
  * @module routes/conversation-folders/controller
  */
@@ -17,7 +17,9 @@ import {
   CreateFolderSchema,
   UpdateFolderSchema,
   AddConversationToFolderSchema,
+  AddSpaceToFolderSchema,
 } from './folder-schemas';
+import { sanitizeString } from '../../utils/sanitize';
 
 export async function listFoldersCtrl(
   ctx: RouteContext,
@@ -40,15 +42,24 @@ export async function createFolderCtrl(
   const parseResult = CreateFolderSchema.safeParse(ctx.body);
   if (!parseResult.success) return { kind: 'validation_failed' };
 
-  const { name, conversationIds, iconType, iconName, iconColor } = parseResult.data;
+  const { conversationIds, spaceIds, iconType, iconName } = parseResult.data;
+  const sanitizedName = sanitizeString(parseResult.data.name, 'general').value;
+  if (!sanitizedName) return { kind: 'validation_failed' };
+  let sanitizedIconColor: string | undefined;
+  if (parseResult.data.iconColor) {
+    const colorValue = sanitizeString(parseResult.data.iconColor, 'hexColor').value;
+    if (!colorValue) return { kind: 'validation_failed' };
+    sanitizedIconColor = colorValue;
+  }
 
   const repo = getConversationFoldersRepository();
   const doc = await repo.create(identity._id, {
-    name,
+    name: sanitizedName,
     conversationIds: conversationIds.map((id) => new ObjectId(id)),
+    spaceIds: spaceIds.map((id) => new ObjectId(id)),
     iconType,
     iconName,
-    iconColor,
+    iconColor: sanitizedIconColor,
   });
 
   return { kind: 'ok', data: toPublicConversationFolder(doc) };
@@ -66,7 +77,7 @@ export async function updateFolderCtrl(
   const parseResult = UpdateFolderSchema.safeParse(ctx.body);
   if (!parseResult.success) return { kind: 'validation_failed' };
 
-  const patch = parseResult.data;
+  let patch = parseResult.data;
   if (
     patch.name === undefined &&
     patch.iconType === undefined &&
@@ -78,8 +89,30 @@ export async function updateFolderCtrl(
     return { kind: 'bad_request', message: 'At least one field is required.' };
   }
 
+  if (patch.name !== undefined) {
+    const sanitizedName = sanitizeString(patch.name, 'general').value;
+    if (!sanitizedName) return { kind: 'validation_failed' };
+    patch = { ...patch, name: sanitizedName };
+  }
+
+  let sanitizedIconColor: string | null | undefined;
+  if (patch.iconColor === undefined) {
+    sanitizedIconColor = undefined;
+  } else if (patch.iconColor === null) {
+    sanitizedIconColor = null;
+  } else {
+    const colorValue = sanitizeString(patch.iconColor, 'hexColor').value;
+    if (!colorValue) return { kind: 'validation_failed' };
+    sanitizedIconColor = colorValue;
+  }
+
+  const sanitizedPatch = {
+    ...patch,
+    iconColor: sanitizedIconColor,
+  };
+
   const repo = getConversationFoldersRepository();
-  const doc = await repo.update(identity._id, new ObjectId(folder.id), patch);
+  const doc = await repo.update(identity._id, new ObjectId(folder.id), sanitizedPatch);
   if (!doc) return { kind: 'not_found', message: 'Folder not found.' };
 
   return { kind: 'ok', data: toPublicConversationFolder(doc) };
@@ -148,6 +181,74 @@ export async function removeConversationFromFolderCtrl(
     identity._id,
     new ObjectId(folder.id),
     new ObjectId(conv.id),
+  );
+  if (!doc) return { kind: 'not_found', message: 'Folder not found.' };
+
+  return { kind: 'ok', data: toPublicConversationFolder(doc) };
+}
+
+export async function addSpaceToFolderCtrl(
+  ctx: RouteContext,
+): Promise<ConversationRouteResult<unknown>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const folder = sanitizeObjectId24(ctx.params.id);
+  if (!folder.ok) return { kind: 'bad_request', message: 'Invalid folder ID.' };
+
+  const parseResult = AddSpaceToFolderSchema.safeParse(ctx.body);
+  if (!parseResult.success) return { kind: 'validation_failed' };
+
+  const space = sanitizeObjectId24(parseResult.data.spaceId);
+  if (!space.ok) return { kind: 'bad_request', message: 'Invalid space ID.' };
+
+  const repo = getConversationFoldersRepository();
+
+  const existing = await repo.findBySpace(identity._id, new ObjectId(space.id));
+  if (existing && existing._id.toHexString() !== folder.id) {
+    return {
+      kind: 'bad_request',
+      message: 'Space is already in another folder.',
+    };
+  }
+
+  try {
+    const doc = await repo.addSpace(
+      identity._id,
+      new ObjectId(folder.id),
+      new ObjectId(space.id),
+    );
+    if (!doc) return { kind: 'not_found', message: 'Folder not found.' };
+
+    return { kind: 'ok', data: toPublicConversationFolder(doc) };
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message.includes('E11000')) {
+      return {
+        kind: 'bad_request',
+        message: 'Space is already in another folder.',
+      };
+    }
+    throw err;
+  }
+}
+
+export async function removeSpaceFromFolderCtrl(
+  ctx: RouteContext,
+): Promise<ConversationRouteResult<unknown>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const folder = sanitizeObjectId24(ctx.params.id);
+  if (!folder.ok) return { kind: 'bad_request', message: 'Invalid folder ID.' };
+
+  const space = sanitizeObjectId24(ctx.params.spaceId);
+  if (!space.ok) return { kind: 'bad_request', message: 'Invalid space ID.' };
+
+  const repo = getConversationFoldersRepository();
+  const doc = await repo.removeSpace(
+    identity._id,
+    new ObjectId(folder.id),
+    new ObjectId(space.id),
   );
   if (!doc) return { kind: 'not_found', message: 'Folder not found.' };
 

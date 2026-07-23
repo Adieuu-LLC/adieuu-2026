@@ -12,6 +12,13 @@ export interface WsUserData {
   sessionId: string;
   deviceId?: string;
   connectedAt: number;
+  /**
+   * Space ids the identity is (or was at upgrade) an active member of. The
+   * connection subscribes to each `space:{spaceId}` channel so Space broadcasts
+   * are delivered. Seeded at upgrade; live leave/kick events remove ids while
+   * the socket stays connected.
+   */
+  spaceIds?: string[];
 }
 
 /**
@@ -87,6 +94,11 @@ export type WsOutgoingMessage =
  */
 export const RedisChannels = {
   identity: (identityId: string) => `identity:${identityId}`,
+  /**
+   * Space broadcast channel. MUST stay in sync with `RedisKeys.spaceChannel`
+   * in `apps/api/src/db/redis.ts` (the API publishes here).
+   */
+  space: (spaceId: string) => `space:${spaceId}`,
 } as const;
 
 /**

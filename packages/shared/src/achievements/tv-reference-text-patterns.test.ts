@@ -33,9 +33,6 @@ describe('tv reference display name achievements', () => {
     expect(getTvReferenceDisplayNameAchievementActions('Not Sure')).toContain(
       TV_REFERENCE_BIO_OR_MESSAGE_ACTIONS.notSureIf,
     );
-    expect(getTvReferenceDisplayNameAchievementActions('President Camacho')).toContain(
-      TV_REFERENCE_DISPLAY_NAME_ACTIONS.camacho,
-    );
   });
 });
 

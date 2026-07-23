@@ -2,6 +2,7 @@
  * Compliance routes (account session only).
  */
 
+import { ACCOUNT_MODERATION_PRESETS } from '@adieuu/shared';
 import { Router } from '../../router';
 import { success, error as errorResponse } from '../../utils/response';
 import { appendAuthClearCookies, requireAccountSession } from '../../services/session.service';
@@ -23,7 +24,9 @@ router.post('/compliance/vpn-attestation', async (ctx) => {
   const result = await postVpnAttestationHandler(ip, user, ctx.body);
 
   if ('banned' in result && result.banned) {
-    const response = errorResponse('ACCOUNT_BANNED', 'Access denied.', 403, {
+    const moderationReason = ACCOUNT_MODERATION_PRESETS.ofac_self_attestation;
+    const response = errorResponse('ACCOUNT_BANNED', moderationReason, 403, {
+      moderationReason,
       moderationCategory: 'ofac_self_attestation',
     });
     const headers = new Headers(response.headers);

@@ -66,6 +66,7 @@ import {
 } from '../../services/billing/billing.service';
 import { reconcileMfaDiscount } from '../../services/billing/mfa-discount.service';
 import { resolveEffectiveAccess } from '../../services/billing/resolve-access';
+import { resolveMaxIdentities } from '../../services/identity.service';
 import { evaluateAliasGate, type AliasGateResult } from '../../services/age-verification/alias-gate';
 import { isAgeVerificationEnabled } from '../../services/age-verification/av-settings';
 import { checkVerificationStatus } from '../../services/age-verification/age-verification.service';
@@ -536,6 +537,7 @@ export type VerifyOtpHandlerResult =
       | 'account_banned'
       | 'account_suspended'
       | 'abusive_ip_blocked'
+      | 'account_deleted'
       | 'not_allowed';
     retryAfterSeconds?: number;
     suspendedUntil?: string;
@@ -585,7 +587,7 @@ function detectIdentifierType(identifier: string): 'email' | 'phone' {
 async function findOrCreateUser(
   identifier: string,
   identifierType: 'email' | 'phone'
-): Promise<UserDocument> {
+): Promise<UserDocument | 'account_deleted'> {
   const userRepo = getUserRepository();
   const existingUser = await userRepo.findByIdentifier(identifier);
 
@@ -595,11 +597,31 @@ async function findOrCreateUser(
     await userRepo.recordLogin(existingUser._id);
     user = existingUser;
   } else {
-    user = await userRepo.create({
-      ...(identifierType === 'email'
-        ? { email: identifier, emailVerified: true }
-        : { phone: identifier, phoneVerified: true }),
+    const { withTransaction } = await import('../../db');
+    const { isEmailDeleted } = await import('./../../routes/account/data/controller');
+
+    const result = await withTransaction(async (session) => {
+      if (identifierType === 'email') {
+        if (await isEmailDeleted(identifier, { session })) {
+          return 'account_deleted' as const;
+        }
+      }
+
+      return userRepo.create(
+        {
+          ...(identifierType === 'email'
+            ? { email: identifier, emailVerified: true }
+            : { phone: identifier, phoneVerified: true }),
+        },
+        { session },
+      );
     });
+
+    if (result === 'account_deleted') {
+      return 'account_deleted';
+    }
+
+    user = result;
 
     elog.info('New user created', {
       userId: user._id.toHexString(),
@@ -607,15 +629,20 @@ async function findOrCreateUser(
     });
   }
 
-  if (config.stripe?.enabled && !user.stripeCustomerId) {
-    import('../../services/billing/billing.service')
-      .then(({ getOrCreateStripeCustomer }) => getOrCreateStripeCustomer(user))
-      .catch((err) =>
-        elog.warn('Failed to ensure Stripe customer', {
+  const needsFreeSubscription =
+    !user.stripeCustomerId || !user.billing?.activeSubscriptions?.length;
+  if (config.stripe?.enabled && needsFreeSubscription) {
+    void (async () => {
+      try {
+        const { ensureFreeSubscription } = await import('../../services/billing/billing.service');
+        await ensureFreeSubscription(user);
+      } catch (err) {
+        elog.warn('Failed to create Stripe customer/free subscription for user', {
           userId: user._id.toHexString(),
           error: err instanceof Error ? err.message : String(err),
-        }),
-      );
+        });
+      }
+    })();
   }
 
   return user;
@@ -750,7 +777,11 @@ export async function verifyOtpHandler(
   }
 
   // Find or create user
-  let user = await findOrCreateUser(sanitizedIdentifier.value, identifierType);
+  const userOrDeleted = await findOrCreateUser(sanitizedIdentifier.value, identifierType);
+  if (userOrDeleted === 'account_deleted') {
+    return { success: false, error: 'account_deleted' as const };
+  }
+  let user = userOrDeleted;
   const userId = user._id.toHexString();
 
   // Account-level moderation enforcement
@@ -918,6 +949,26 @@ async function reconcileBillingIfStale(user: UserDocument): Promise<UserDocument
     }
   }
 
+  // Last resort: user has a customer but still no active subscription after
+  // reconciliation attempts. Create a free subscription so they aren't stuck.
+  if (!user.billing?.activeSubscriptions?.length) {
+    try {
+      const { ensureFreeSubscription } = await import('../../services/billing/billing.service');
+      const freeBilling = await ensureFreeSubscription(user);
+      if (freeBilling) {
+        elog.info('Session-time free subscription fallback created', {
+          userId: user._id.toHexString(),
+        });
+        return { ...user, billing: freeBilling };
+      }
+    } catch (err) {
+      elog.warn('Session-time free subscription fallback failed', {
+        userId: user._id.toHexString(),
+        ...billingErrorLogFields(err),
+      });
+    }
+  }
+
   // Reconcile MFA discount in the background (ensures subscription coupon
   // stays in sync if credentials were added/removed while offline)
   void reconcileMfaDiscount(user._id.toHexString());
@@ -929,10 +980,12 @@ export type GetSessionHandlerSuccess = {
   session: AccountSessionData;
   signedToken: string | undefined;
   identityCount: number;
+  maxIdentities: number;
   maskedIp?: string;
   geo?: { jurisdiction: string; countryCode: string; regionCode?: string; checkedAt: string };
   subscriptions: string[];
   entitlements: string[];
+  captchaSitekey?: string;
   ageVerification?: {
     status: AgeVerificationStatus;
     verifiedAt?: string;
@@ -953,7 +1006,7 @@ export type GetSessionHandlerSuccess = {
     vpnAttestation?: {
       required: true;
       step: 'sanctioned_membership' | 'utah_residency';
-      sanctionedCountries: Array<{ countryCode: string; countryName: string }>;
+      sanctionedCountries: Array<{ countryCode: string; countryName: string; program?: string }>;
       vpnCountryCode?: string;
     };
   };
@@ -1056,6 +1109,13 @@ export async function getSessionHandler(
 
   const { subscriptions, entitlements, isLifetime } = resolved;
 
+  const maxIdentities = resolveMaxIdentities(
+    subscriptions,
+    entitlements,
+    isLifetime,
+    user.maxIdentities,
+  );
+
   const billingMeta = user.billing || isLifetime
     ? {
         currentPeriodEnd: user.billing?.currentPeriodEnd
@@ -1067,7 +1127,7 @@ export async function getSessionHandler(
 
   const signedToken = createSignedToken(
     accountHash,
-    user.maxIdentities ?? 2,
+    maxIdentities,
     maxVideoDurationSeconds,
     subscriptions,
     entitlements,
@@ -1192,14 +1252,25 @@ export async function getSessionHandler(
     session,
     signedToken: effectiveToken,
     identityCount,
+    maxIdentities,
     maskedIp,
     geo,
     subscriptions,
     entitlements,
+    captchaSitekey: getCaptchaSitekey(),
     ageVerification,
     aliasGate,
     compliance,
   };
+}
+
+export function getCaptchaSitekey(): string | undefined {
+  if (!config.friendlyCaptcha?.enabled) return undefined;
+  if (!config.friendlyCaptcha.sitekey) {
+    elog.warn('FriendlyCaptcha is enabled but FRIENDLY_CAPTCHA_SITEKEY is not configured');
+    return undefined;
+  }
+  return config.friendlyCaptcha.sitekey;
 }
 
 /**

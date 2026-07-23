@@ -1,6 +1,6 @@
 {
   "name": "@adieuu/chat",
-  "version": "0.2.40",
+  "version": "0.4.4",
   "private": true,
   "type": "module",
   "scripts": {
@@ -22,10 +22,10 @@
   "devDependencies": {
     "@adieuu/tsconfig": "workspace:*",
     "@types/node": "25.5.0",
-    "@vitest/coverage-v8": "3.2.4",
-    "esbuild": "0.25.12",
+    "@vitest/coverage-v8": "3.2.6",
+    "esbuild": "0.28.1",
     "tsx": "4.21.0",
     "typescript": "5.9.3",
-    "vitest": "3.2.4"
+    "vitest": "3.2.6"
   }
 }

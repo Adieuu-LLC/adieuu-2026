@@ -22,6 +22,7 @@ mock.module('../../utils/adieuuLogger', () => ({
 
 const {
   getAgeVerificationPolicy,
+  getDefaultAgeVerificationPolicy,
   requiresAgeVerification,
   resolveBusinessSettingsId,
   resolveBusinessSettings,
@@ -150,6 +151,28 @@ describe('getAgeVerificationPolicy', () => {
     const policy = await getAgeVerificationPolicy('US-TN');
 
     expect(policy?.vmyBusinessSettingsId).toBe('legacy-id');
+  });
+});
+
+describe('getDefaultAgeVerificationPolicy', () => {
+  test('returns US standard method set', () => {
+    const policy = getDefaultAgeVerificationPolicy();
+    expect(policy.required).toBe(true);
+    expect(policy.leastInvasiveMethod).toBe('Email');
+    expect(policy.compatibleMethods).toEqual(['Email', 'AgeEstimation', 'IDScanFaceMatch']);
+    expect(policy.compatibleMethodSlugs).toEqual([
+      'email_age_check',
+      'facial_age_estimation',
+      'id_scan_face_match',
+    ]);
+    expect(policy.legislation).toEqual([]);
+  });
+
+  test('has no business settings or parent jurisdiction', () => {
+    const policy = getDefaultAgeVerificationPolicy();
+    expect(policy.vmyBusinessSettingsId).toBeUndefined();
+    expect(policy.vmyBusinessSettingsCountry).toBeUndefined();
+    expect(policy.parentJurisdiction).toBeUndefined();
   });
 });
 

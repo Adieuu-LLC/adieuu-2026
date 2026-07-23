@@ -4,7 +4,7 @@
  */
 
 import { Router } from './router';
-import { securityHeaders, requestId, cors, csrf, sessionCookieRenewal, requireActiveSubscription, enrichIdentitySession } from './middleware';
+import { securityHeaders, requestId, cors, csrf, sessionCookieRenewal, requireActiveSubscription, enrichIdentitySession, globalRateLimit } from './middleware';
 import { registerRoutes } from './routes';
 import { initializeDatabases, closeDatabases } from './db';
 import { config, validateProductionConfig } from './config';
@@ -13,6 +13,7 @@ import {
   ensureAgeVerificationPlatformSettingsExist,
   ensureCsamHashServicesPlatformSettingExists,
   ensureNcmecCyberTiplinePlatformSettingExists,
+  ensureSpaceCreationPlatformSettingExists,
 } from './services/platform-settings.service';
 import { elog } from './utils';
 import { verifyStripeCredentials } from './services/billing/stripe.client';
@@ -36,6 +37,7 @@ app.use(csrf());
 app.use(sessionCookieRenewal());
 app.use(requireActiveSubscription());
 app.use(enrichIdentitySession());
+app.use(globalRateLimit());
 
 // Register routes
 registerRoutes(app);
@@ -56,6 +58,7 @@ async function start(): Promise<void> {
     await ensureAgeVerificationPlatformSettingsExist();
     await ensureCsamHashServicesPlatformSettingExists();
     await ensureNcmecCyberTiplinePlatformSettingExists();
+    await ensureSpaceCreationPlatformSettingExists();
   } catch (error) {
     elog.warn('Could not ensure platform settings exist', { error });
     if (config.features.requireDatabase) {

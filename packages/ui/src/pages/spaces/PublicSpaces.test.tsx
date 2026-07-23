@@ -1,0 +1,434 @@
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { createElement } from 'react';
+import { act } from 'react';
+import { GlobalWindow } from 'happy-dom';
+import { createRoot } from 'react-dom/client';
+import * as sharedActual from '@adieuu/shared';
+import { mockNavigate, resetReactRouterDomMock } from '../../test/react-router-dom-mock';
+import { resetReactI18nextMock, setMockTranslate } from '../../test/react-i18next-mock';
+
+setMockTranslate((key) => key);
+
+// Mutable identity status — read at render time by the mocked hook.
+let mockIdentityStatus = 'logged_in';
+let mockIsPlatformAdmin = false;
+
+mock.module('../../config', () => ({
+  useAppConfig: () => ({ apiBaseUrl: 'http://localhost:3000' }),
+}));
+
+const mockDiscover = mock(
+  (_opts?: unknown) =>
+    Promise.resolve({ success: true, data: { spaces: [] as unknown[], cursor: null } }) as Promise<{
+      success: boolean;
+      data?: { spaces: unknown[]; cursor: string | null };
+      error?: { code: string; message: string };
+    }>,
+);
+
+const mockJoin = mock(
+  (_spaceId: string) =>
+    Promise.resolve({ success: true, data: {} }) as Promise<{
+      success: boolean;
+      data?: unknown;
+      error?: { code: string; message: string };
+    }>,
+);
+
+const mockGetCreationEnabled = mock(
+  () =>
+    Promise.resolve({ success: true, data: { enabled: false } }) as Promise<{
+      success: boolean;
+      data?: { enabled: boolean };
+      error?: { code: string; message: string };
+    }>,
+);
+
+mock.module('@adieuu/shared', () => ({
+  ...sharedActual,
+  createApiClient: () => ({
+    spaces: {
+      discover: mockDiscover,
+      join: mockJoin,
+      getCreationEnabled: mockGetCreationEnabled,
+    },
+  }),
+}));
+
+mock.module('../../hooks/useIdentity', () => ({
+  useIdentity: () => ({ status: mockIdentityStatus }),
+}));
+
+mock.module('../../hooks/useAuth', () => ({
+  useAuth: () => ({
+    session: mockIsPlatformAdmin ? { isPlatformAdmin: true } : { isPlatformAdmin: false },
+  }),
+}));
+
+let mockJoinedSpaces: Array<{ id: string; slug: string }> = [];
+
+mock.module('../../hooks/useSpaces', () => ({
+  useSpaces: () => ({
+    spaces: mockJoinedSpaces,
+    spacesLoading: false,
+  }),
+}));
+
+mock.module('../../hooks/useCipherStore', () => ({
+  useCipherStore: () => ({
+    ciphers: [],
+    getCipherKey: () => null,
+    createCipher: async () => ({ success: false }),
+    bookmarkSpaceCipher: async () => ({ success: true }),
+    findLocalIdByCipherId: () => undefined,
+    encryptionAvailable: false,
+  }),
+}));
+
+mock.module('./JoinSpaceInterstitial', () => ({
+  JoinSpaceInterstitial: ({
+    space,
+    open,
+  }: {
+    space: { name: string } | null;
+    open: boolean;
+  }) =>
+    open && space
+      ? createElement(
+          'div',
+          { 'data-testid': 'join-interstitial' },
+          createElement('span', null, 'spaces.joinModal.rulesTitle'),
+          createElement('span', null, space.name),
+        )
+      : null,
+}));
+
+const toastSuccess = mock((_title: string) => {});
+const toastError = mock((_title: string) => {});
+
+mock.module('../../components/Toast', () => ({
+  useToast: () => ({
+    success: toastSuccess,
+    error: toastError,
+    info: mock(() => {}),
+    warning: mock(() => {}),
+    toast: mock(() => {}),
+    message: mock(() => {}),
+  }),
+}));
+
+const { PublicSpaces } = await import('./PublicSpaces');
+
+type G = typeof globalThis & {
+  window?: GlobalWindow & typeof globalThis;
+  document?: Document;
+  IS_REACT_ACT_ENVIRONMENT?: boolean;
+};
+
+let happy: GlobalWindow;
+let prevWindow: typeof globalThis.window;
+let prevDocument: typeof globalThis.document;
+
+function makeSpace(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'space-1',
+    slug: 'test-space',
+    name: 'Test Space',
+    description: 'A lovely place',
+    visibility: 'public',
+    e2ee: false,
+    encryptIdentity: false,
+    cipherRequired: false,
+    createdBy: 'id-owner',
+    ownerIdentityId: 'id-owner',
+    allowFreeMembers: true,
+    memberCount: 3,
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+beforeEach(() => {
+  resetReactI18nextMock();
+  setMockTranslate((key) => key);
+  resetReactRouterDomMock();
+  mockIdentityStatus = 'logged_in';
+  mockIsPlatformAdmin = false;
+  mockJoinedSpaces = [];
+  mockDiscover.mockClear();
+  mockJoin.mockClear();
+  mockGetCreationEnabled.mockClear();
+  toastSuccess.mockClear();
+  toastError.mockClear();
+  mockDiscover.mockImplementation(() =>
+    Promise.resolve({ success: true, data: { spaces: [], cursor: null } }),
+  );
+  mockJoin.mockImplementation(() => Promise.resolve({ success: true, data: {} }));
+  mockGetCreationEnabled.mockImplementation(() =>
+    Promise.resolve({ success: true, data: { enabled: false } }),
+  );
+
+  const g = globalThis as G;
+  prevWindow = g.window;
+  prevDocument = g.document;
+  happy = new GlobalWindow({ url: 'https://example.test/' });
+  g.IS_REACT_ACT_ENVIRONMENT = true;
+  g.window = happy as unknown as GlobalWindow & typeof globalThis;
+  g.document = happy.document;
+});
+
+afterEach(async () => {
+  await new Promise((r) => setTimeout(r, 0));
+  happy?.close();
+  const g = globalThis as G;
+  delete g.IS_REACT_ACT_ENVIRONMENT;
+  g.window = prevWindow;
+  g.document = prevDocument;
+});
+
+async function renderDirectory() {
+  const container = happy.document.createElement('div');
+  happy.document.body.appendChild(container);
+  const root = createRoot(container as unknown as Element);
+  await act(async () => {
+    root.render(createElement(PublicSpaces));
+    await new Promise((r) => setTimeout(r, 0));
+  });
+  // Flush creation-policy fetch used for the Create CTA.
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 0));
+  });
+  return { root, container };
+}
+
+describe('PublicSpaces directory', () => {
+  it('renders discovered spaces from the API', async () => {
+    mockDiscover.mockImplementation(() =>
+      Promise.resolve({
+        success: true,
+        data: {
+          spaces: [makeSpace(), makeSpace({ id: 'space-2', slug: 'second', name: 'Second Space' })],
+          cursor: null,
+        },
+      }),
+    );
+
+    const { root, container } = await renderDirectory();
+
+    expect(mockDiscover).toHaveBeenCalledTimes(1);
+    const text = happy.document.body.textContent ?? '';
+    expect(text).toContain('Test Space');
+    expect(text).toContain('Second Space');
+    expect(text).toContain('/s/test-space');
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('shows the empty state when no spaces are returned', async () => {
+    mockDiscover.mockImplementation(() =>
+      Promise.resolve({ success: true, data: { spaces: [], cursor: null } }),
+    );
+
+    const { root, container } = await renderDirectory();
+
+    expect(happy.document.body.textContent).toContain('spaces.empty.heading');
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('shows the error state when discovery fails', async () => {
+    mockDiscover.mockImplementation(() =>
+      Promise.resolve({ success: false, error: { code: 'SERVER_ERROR', message: 'nope' } }),
+    );
+
+    const { root, container } = await renderDirectory();
+
+    expect(happy.document.body.textContent).toContain('spaces.error.heading');
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('shows a sign-in prompt and does not fetch when not in an Alias session', async () => {
+    mockIdentityStatus = 'logged_out';
+
+    const { root, container } = await renderDirectory();
+
+    expect(mockDiscover).not.toHaveBeenCalled();
+    expect(happy.document.body.textContent).toContain('spaces.signInHeading');
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('hides the Create Space CTA when creation is disabled for non-admins', async () => {
+    mockGetCreationEnabled.mockImplementation(() =>
+      Promise.resolve({ success: true, data: { enabled: false } }),
+    );
+    const { root, container } = await renderDirectory();
+
+    expect(happy.document.querySelector('.spaces-create-cta')).toBeNull();
+    expect(happy.document.body.textContent).not.toContain('spaces.create.cta');
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('shows the Create Space CTA when creation is enabled', async () => {
+    mockGetCreationEnabled.mockImplementation(() =>
+      Promise.resolve({ success: true, data: { enabled: true } }),
+    );
+    const { root, container } = await renderDirectory();
+
+    expect(happy.document.querySelector('.spaces-create-cta')).not.toBeNull();
+    expect(happy.document.body.textContent).toContain('spaces.create.cta');
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('shows the Create Space CTA for platform admins even when creation is disabled', async () => {
+    mockIsPlatformAdmin = true;
+    mockGetCreationEnabled.mockImplementation(() =>
+      Promise.resolve({ success: true, data: { enabled: false } }),
+    );
+    const { root, container } = await renderDirectory();
+
+    expect(happy.document.querySelector('.spaces-create-cta')).not.toBeNull();
+    expect(mockGetCreationEnabled).not.toHaveBeenCalled();
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('opens the join interstitial instead of joining immediately', async () => {
+    mockDiscover.mockImplementation(() =>
+      Promise.resolve({ success: true, data: { spaces: [makeSpace()], cursor: null } }),
+    );
+
+    const { root, container } = await renderDirectory();
+
+    const joinButton = [...happy.document.querySelectorAll('button')].find((b) =>
+      b.textContent?.includes('spaces.join'),
+    );
+    expect(joinButton).toBeDefined();
+
+    await act(async () => {
+      joinButton?.click();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    expect(mockJoin).not.toHaveBeenCalled();
+    expect(happy.document.body.textContent).toContain('spaces.joinModal.rulesTitle');
+    expect(happy.document.body.textContent).toContain('Test Space');
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('offers Browse on browsable cards and links name/slug to the space', async () => {
+    mockDiscover.mockImplementation(() =>
+      Promise.resolve({
+        success: true,
+        data: {
+          spaces: [
+            makeSpace(),
+            makeSpace({ id: 'space-e2ee', slug: 'secret', name: 'Secret', e2ee: true }),
+          ],
+          cursor: null,
+        },
+      }),
+    );
+
+    const { root, container } = await renderDirectory();
+
+    const browseLinks = [...happy.document.querySelectorAll('a')].filter((a) =>
+      a.textContent?.includes('spaces.joinModal.browse'),
+    );
+    expect(browseLinks).toHaveLength(1);
+    expect(browseLinks[0]?.getAttribute('href')).toBe('/s/test-space');
+
+    const nameLink = [...happy.document.querySelectorAll('a.spaces-card-name')].find(
+      (a) => a.textContent === 'Test Space',
+    );
+    const slugLink = [...happy.document.querySelectorAll('a.spaces-card-slug')].find((a) =>
+      a.textContent?.includes('/s/test-space'),
+    );
+    expect(nameLink?.getAttribute('href')).toBe('/s/test-space');
+    expect(slugLink?.getAttribute('href')).toBe('/s/test-space');
+
+    expect(
+      [...happy.document.querySelectorAll('a.spaces-card-name')].some(
+        (a) => a.textContent === 'Secret',
+      ),
+    ).toBe(false);
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('shows Joined + Open instead of Join/Browse for Spaces the user already belongs to', async () => {
+    mockJoinedSpaces = [{ id: 'space-1', slug: 'test-space' }];
+    mockDiscover.mockImplementation(() =>
+      Promise.resolve({
+        success: true,
+        data: {
+          spaces: [
+            makeSpace(),
+            makeSpace({ id: 'space-2', slug: 'other', name: 'Other Space' }),
+          ],
+          cursor: null,
+        },
+      }),
+    );
+
+    const { root, container } = await renderDirectory();
+
+    const text = happy.document.body.textContent ?? '';
+    expect(text).toContain('spaces.joined');
+    expect(text).toContain('spaces.open');
+
+    const openLinks = [...happy.document.querySelectorAll('a')].filter((a) =>
+      a.textContent?.includes('spaces.open'),
+    );
+    expect(openLinks).toHaveLength(1);
+    expect(openLinks[0]?.getAttribute('href')).toBe('/s/test-space');
+
+    // Joined card must not offer Join or Browse.
+    const joinButtons = [...happy.document.querySelectorAll('button')].filter((b) =>
+      b.textContent?.includes('spaces.join'),
+    );
+    expect(joinButtons).toHaveLength(1); // only on the unjoined "Other Space" card
+    const browseLinks = [...happy.document.querySelectorAll('a')].filter((a) =>
+      a.textContent?.includes('spaces.joinModal.browse'),
+    );
+    expect(browseLinks).toHaveLength(1);
+    expect(browseLinks[0]?.getAttribute('href')).toBe('/s/other');
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+});

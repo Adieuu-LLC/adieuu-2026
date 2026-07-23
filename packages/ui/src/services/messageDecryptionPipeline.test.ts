@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { PublicMessage } from '@adieuu/shared';
+import type { PublicMessage, MessageSignatureContext } from '@adieuu/shared';
 import {
   generateIdentityKeyBundle,
   generateSignedPreKey,
@@ -19,7 +19,10 @@ function makeMessage(overrides: Partial<PublicMessage> = {}): PublicMessage {
     wrappedKeys: [],
     signature: 'sig',
     cryptoProfile: 'default',
+    clientMessageId: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
+    deleted: false,
+    revisionCount: 0,
     ...overrides,
   };
 }
@@ -89,20 +92,31 @@ function buildRecipient(user: TestUser, preKeys?: { claimed: unknown }): Recipie
   };
 }
 
+function makeMsgContext(fromIdentityId: string): MessageSignatureContext {
+  return {
+    conversationId: 'conv-1',
+    fromIdentityId,
+    clientMessageId: crypto.randomUUID(),
+  };
+}
+
 function toPublicMsg(
   encrypted: ReturnType<typeof encryptMessage>,
-  fromIdentityId: string
+  context: MessageSignatureContext
 ): PublicMessage {
   return {
     id: crypto.randomUUID(),
-    conversationId: 'conv-1',
-    fromIdentityId,
+    conversationId: context.conversationId,
+    fromIdentityId: context.fromIdentityId,
     ciphertext: encrypted.ciphertext,
     nonce: encrypted.nonce,
     wrappedKeys: encrypted.wrappedKeys,
     signature: encrypted.signature,
     cryptoProfile: encrypted.cryptoProfile,
+    clientMessageId: context.clientMessageId,
     createdAt: new Date().toISOString(),
+    deleted: false,
+    revisionCount: 0,
   };
 }
 
@@ -143,9 +157,9 @@ describe('messageDecryptionPipeline', () => {
     const bob = createTestUser('bob');
 
     const recipient = buildRecipient(bob);
-    const encrypted = encryptMessage('static test', [recipient], alice.bundle.signing.privateKey);
-    const msg = toPublicMsg(encrypted, alice.identityId);
-    msg.fromIdentityId = alice.identityId;
+    const context = makeMsgContext(alice.identityId);
+    const encrypted = encryptMessage('static test', [recipient], alice.bundle.signing.privateKey, context);
+    const msg = toPublicMsg(encrypted, context);
 
     // First-pass decrypt to obtain the session key
     const first = decryptMessage(
@@ -188,8 +202,9 @@ describe('messageDecryptionPipeline', () => {
     };
 
     const recipient = buildRecipient(bob, { claimed });
-    const encrypted = encryptMessage('spk test', [recipient], alice.bundle.signing.privateKey);
-    const msg = toPublicMsg(encrypted, alice.identityId);
+    const context = makeMsgContext(alice.identityId);
+    const encrypted = encryptMessage('spk test', [recipient], alice.bundle.signing.privateKey, context);
+    const msg = toPublicMsg(encrypted, context);
 
     expect(msg.wrappedKeys[0]?.preKeyType).toBe('spk');
 
@@ -238,8 +253,9 @@ describe('messageDecryptionPipeline', () => {
     };
 
     const recipient = buildRecipient(bob, { claimed });
-    const encrypted = encryptMessage('otpk test', [recipient], alice.bundle.signing.privateKey);
-    const msg = toPublicMsg(encrypted, alice.identityId);
+    const context = makeMsgContext(alice.identityId);
+    const encrypted = encryptMessage('otpk test', [recipient], alice.bundle.signing.privateKey, context);
+    const msg = toPublicMsg(encrypted, context);
 
     expect(msg.wrappedKeys[0]?.preKeyType).toBe('otpk');
 
@@ -275,8 +291,9 @@ describe('messageDecryptionPipeline', () => {
     const bob = createTestUser('bob');
 
     const recipient = buildRecipient(bob);
-    const encrypted = encryptMessage('fallback test', [recipient], alice.bundle.signing.privateKey);
-    const msg = toPublicMsg(encrypted, alice.identityId);
+    const context = makeMsgContext(alice.identityId);
+    const encrypted = encryptMessage('fallback test', [recipient], alice.bundle.signing.privateKey, context);
+    const msg = toPublicMsg(encrypted, context);
 
     const { params } = createBaseParams([msg]);
     params.identityId = bob.identityId;

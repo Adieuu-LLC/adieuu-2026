@@ -309,6 +309,12 @@ export function useReactions(conversationId: string | null) {
           identity.id,
           recipients,
           signingKey,
+          {
+            conversationId,
+            messageId,
+            fromIdentityId: identity.id,
+            clientReactionId,
+          },
           'default',
           customEmoji,
         );

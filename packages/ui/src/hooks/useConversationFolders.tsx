@@ -2,7 +2,7 @@
  * Conversation Folders Hook
  *
  * Manages per-identity conversation folders with optimistic updates
- * and server synchronisation.
+ * and server synchronisation. Folders may contain conversations and/or spaces.
  */
 
 import {
@@ -34,17 +34,33 @@ interface ConversationFoldersContextValue {
   deleteFolder: (folderId: string) => Promise<void>;
   addConversationToFolder: (folderId: string, conversationId: string) => Promise<void>;
   removeConversationFromFolder: (folderId: string, conversationId: string) => Promise<void>;
+  addSpaceToFolder: (folderId: string, spaceId: string) => Promise<void>;
+  removeSpaceFromFolder: (folderId: string, spaceId: string) => Promise<void>;
   toggleFolderFavorite: (folderId: string, favorited: boolean) => Promise<void>;
 
   /** Returns the folder that contains this conversation, or undefined. */
   getFolderForConversation: (conversationId: string) => ConversationFolder | undefined;
 
+  /** Returns the folder that contains this space, or undefined. */
+  getFolderForSpace: (spaceId: string) => ConversationFolder | undefined;
+
   /** Set of all conversation IDs that belong to any folder. */
   folderedConversationIds: Set<string>;
+
+  /** Set of all space IDs that belong to any folder. */
+  folderedSpaceIds: Set<string>;
 }
 
 const ConversationFoldersContext =
   createContext<ConversationFoldersContextValue | null>(null);
+
+function normalizeFolder(folder: ConversationFolder): ConversationFolder {
+  return {
+    ...folder,
+    conversationIds: folder.conversationIds ?? [],
+    spaceIds: folder.spaceIds ?? [],
+  };
+}
 
 export function ConversationFoldersProvider({ children }: { children: ReactNode }) {
   const { status: identityStatus } = useIdentity();
@@ -75,7 +91,7 @@ export function ConversationFoldersProvider({ children }: { children: ReactNode 
       .list()
       .then((res) => {
         if (cancelled) return;
-        if (res.data) setFolders(res.data);
+        if (res.data) setFolders(res.data.map(normalizeFolder));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -94,9 +110,24 @@ export function ConversationFoldersProvider({ children }: { children: ReactNode 
     return ids;
   }, [folders]);
 
+  const folderedSpaceIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const f of folders) {
+      for (const sid of f.spaceIds) ids.add(sid);
+    }
+    return ids;
+  }, [folders]);
+
   const getFolderForConversation = useCallback(
     (conversationId: string): ConversationFolder | undefined => {
       return folders.find((f) => f.conversationIds.includes(conversationId));
+    },
+    [folders],
+  );
+
+  const getFolderForSpace = useCallback(
+    (spaceId: string): ConversationFolder | undefined => {
+      return folders.find((f) => f.spaceIds.includes(spaceId));
     },
     [folders],
   );
@@ -106,9 +137,10 @@ export function ConversationFoldersProvider({ children }: { children: ReactNode 
       try {
         const res = await api.conversationFolders.create(params);
         if (res.data) {
-          setFolders((prev) => [...prev, res.data!]);
+          const folder = normalizeFolder(res.data);
+          setFolders((prev) => [...prev, folder]);
           toast.success(t('conversations.folders.folderCreatedToast'));
-          return res.data;
+          return folder;
         }
       } catch {
         toast.error(t('conversations.folders.folderCreateErrorToast'));
@@ -145,7 +177,7 @@ export function ConversationFoldersProvider({ children }: { children: ReactNode 
         const res = await api.conversationFolders.update(folderId, params);
         if (res.data) {
           setFolders((list) =>
-            list.map((f) => (f.id === folderId ? res.data! : f)),
+            list.map((f) => (f.id === folderId ? normalizeFolder(res.data!) : f)),
           );
         }
         toast.success(t('conversations.folders.folderUpdatedToast'));
@@ -188,7 +220,7 @@ export function ConversationFoldersProvider({ children }: { children: ReactNode 
         const res = await api.conversationFolders.addConversation(folderId, conversationId);
         if (res.data) {
           setFolders((list) =>
-            list.map((f) => (f.id === folderId ? res.data! : f)),
+            list.map((f) => (f.id === folderId ? normalizeFolder(res.data!) : f)),
           );
         }
       } catch {
@@ -221,7 +253,66 @@ export function ConversationFoldersProvider({ children }: { children: ReactNode 
         const res = await api.conversationFolders.removeConversation(folderId, conversationId);
         if (res.data) {
           setFolders((list) =>
-            list.map((f) => (f.id === folderId ? res.data! : f)),
+            list.map((f) => (f.id === folderId ? normalizeFolder(res.data!) : f)),
+          );
+        }
+      } catch {
+        setFolders((list) =>
+          list.map((f) => (f.id === folderId ? prevFolder : f)),
+        );
+      }
+    },
+    [folders, api],
+  );
+
+  const addSpaceToFolder = useCallback(
+    async (folderId: string, spaceId: string) => {
+      setFolders((list) =>
+        list.map((f) =>
+          f.id === folderId && !f.spaceIds.includes(spaceId)
+            ? { ...f, spaceIds: [...f.spaceIds, spaceId] }
+            : f,
+        ),
+      );
+
+      try {
+        const res = await api.conversationFolders.addSpace(folderId, spaceId);
+        if (res.data) {
+          setFolders((list) =>
+            list.map((f) => (f.id === folderId ? normalizeFolder(res.data!) : f)),
+          );
+        }
+      } catch {
+        setFolders((list) =>
+          list.map((f) =>
+            f.id === folderId
+              ? { ...f, spaceIds: f.spaceIds.filter((id) => id !== spaceId) }
+              : f,
+          ),
+        );
+      }
+    },
+    [api],
+  );
+
+  const removeSpaceFromFolder = useCallback(
+    async (folderId: string, spaceId: string) => {
+      const prevFolder = folders.find((f) => f.id === folderId);
+      if (!prevFolder) return;
+
+      setFolders((list) =>
+        list.map((f) =>
+          f.id === folderId
+            ? { ...f, spaceIds: f.spaceIds.filter((id) => id !== spaceId) }
+            : f,
+        ),
+      );
+
+      try {
+        const res = await api.conversationFolders.removeSpace(folderId, spaceId);
+        if (res.data) {
+          setFolders((list) =>
+            list.map((f) => (f.id === folderId ? normalizeFolder(res.data!) : f)),
           );
         }
       } catch {
@@ -246,7 +337,7 @@ export function ConversationFoldersProvider({ children }: { children: ReactNode 
         const res = await api.conversationFolders.update(folderId, { favorited });
         if (res.data) {
           setFolders((list) =>
-            list.map((f) => (f.id === folderId ? res.data! : f)),
+            list.map((f) => (f.id === folderId ? normalizeFolder(res.data!) : f)),
           );
         }
         toast.success(
@@ -272,9 +363,13 @@ export function ConversationFoldersProvider({ children }: { children: ReactNode 
       deleteFolder,
       addConversationToFolder,
       removeConversationFromFolder,
+      addSpaceToFolder,
+      removeSpaceFromFolder,
       toggleFolderFavorite,
       getFolderForConversation,
+      getFolderForSpace,
       folderedConversationIds,
+      folderedSpaceIds,
     }),
     [
       folders,
@@ -284,9 +379,13 @@ export function ConversationFoldersProvider({ children }: { children: ReactNode 
       deleteFolder,
       addConversationToFolder,
       removeConversationFromFolder,
+      addSpaceToFolder,
+      removeSpaceFromFolder,
       toggleFolderFavorite,
       getFolderForConversation,
+      getFolderForSpace,
       folderedConversationIds,
+      folderedSpaceIds,
     ],
   );
 

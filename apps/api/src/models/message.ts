@@ -69,6 +69,8 @@ export interface SerializedWrappedKey {
   otpkKemCiphertext?: string;
   /** Truncated SHA-256 routing tag for O(1) wrapped key lookup on multi-device identities */
   routingTag?: string;
+  /** Wrap format version (2 = wrap metadata bound as AEAD associated data) */
+  wrapVersion?: number;
 }
 
 /**
@@ -220,6 +222,8 @@ export interface PublicMessage {
   lastEditedAt?: string;
   /** Omitted in list views unless the client asked for full history. */
   encryptedRevisionHistory?: PublicMessageRevision[];
+  /** Present when the serializer was asked to flag that this message has reactions. */
+  hasReactions?: boolean;
 }
 
 function toPublicMessageRevisions(
@@ -239,6 +243,8 @@ function toPublicMessageRevisions(
 export type ToPublicMessageOptions = {
   /** When true, include full `encryptedRevisionHistory` in the response. */
   includeRevisionHistory?: boolean;
+  /** When true, the message carries at least one reaction (count-only, no decryption). */
+  hasReactions?: boolean;
 };
 
 /**
@@ -303,5 +309,6 @@ export function toPublicMessage(
     ...(doc.replyToMessageId
       ? { replyToMessageId: doc.replyToMessageId.toHexString() }
       : {}),
+    ...(options?.hasReactions ? { hasReactions: true } : {}),
   };
 }

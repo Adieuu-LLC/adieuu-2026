@@ -354,10 +354,11 @@ function tierAllowsIdentitySession(status: GrantStatus | undefined): boolean {
 
 /**
  * Checks whether the evaluated grants indicate the user should retain
- * their identity session (at least one of `access` or `insider` is active).
+ * their identity session (at least one subscription tier grant is active).
  */
 export function hasActiveSubscriptionGrant(grants: EvaluatedGrants): boolean {
   return (
+    tierAllowsIdentitySession(grants.subscriptions.free) ||
     tierAllowsIdentitySession(grants.subscriptions.access) ||
     tierAllowsIdentitySession(grants.subscriptions.insider)
   );

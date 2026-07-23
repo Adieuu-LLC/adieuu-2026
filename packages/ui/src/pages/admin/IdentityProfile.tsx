@@ -80,7 +80,7 @@ export function AdminIdentityProfile() {
     if (!id) return;
     const res = await api.admin.getIdentityEntitlements(id);
     if (res.success && res.data) {
-      setEntitlements(res.data.overrides);
+      setEntitlements(res.data.overrides ?? []);
     }
   }, [api, id]);
 
@@ -199,8 +199,8 @@ export function AdminIdentityProfile() {
     );
   }
 
-  const isSuspended = profile.moderation.status === 'suspended';
-  const isBanned = profile.moderation.status === 'banned';
+  const isSuspended = profile.moderation?.status === 'suspended';
+  const isBanned = profile.moderation?.status === 'banned';
 
   return (
     <div className="admin-page admin-user-profile">
@@ -209,7 +209,7 @@ export function AdminIdentityProfile() {
           {t('admin.identities.backToSearch')}
         </Button>
         <h2 className="admin-page-title">{profile.displayName} (@{profile.username})</h2>
-        <StatusBadge status={profile.moderation.status} />
+        <StatusBadge status={profile.moderation?.status ?? 'active'} />
       </div>
 
       {/* Action bar */}
@@ -243,11 +243,11 @@ export function AdminIdentityProfile() {
       {(isSuspended || isBanned) && (
         <div className={`admin-alert ${isBanned ? 'admin-alert--error' : 'admin-alert--warning'}`}>
           <strong>{isBanned ? t('admin.identities.bannedBanner') : t('admin.identities.suspendedBanner')}</strong>
-          {profile.moderation.category && (
+          {profile.moderation?.category && (
             <p>{t('admin.identities.moderationCategory')}: {t(`admin.identities.modals.categories.${profile.moderation.category}`, profile.moderation.category)}</p>
           )}
-          {profile.moderation.reason && <p>{profile.moderation.reason}</p>}
-          {profile.moderation.suspendedUntil && (
+          {profile.moderation?.reason && <p>{profile.moderation.reason}</p>}
+          {profile.moderation?.suspendedUntil && (
             <p>
               {t('admin.identities.timeRemaining')}:{' '}
               <SuspensionCountdown isoTarget={profile.moderation.suspendedUntil} onExpired={loadProfile} />
@@ -292,13 +292,13 @@ export function AdminIdentityProfile() {
         <h3>{t('admin.identities.sections.stats')}</h3>
         <dl className="admin-dl">
           <dt>{t('admin.identities.fields.messagesSent')}</dt>
-          <dd>{profile.stats.messagesSent.toLocaleString()}</dd>
+          <dd>{(profile.stats?.messagesSent ?? 0).toLocaleString()}</dd>
           <dt>{t('admin.identities.fields.conversationsJoined')}</dt>
-          <dd>{profile.stats.conversationsJoined.toLocaleString()}</dd>
+          <dd>{(profile.stats?.conversationsJoined ?? 0).toLocaleString()}</dd>
           <dt>{t('admin.identities.fields.friends')}</dt>
-          <dd>{profile.stats.friends.toLocaleString()}</dd>
+          <dd>{(profile.stats?.friends ?? 0).toLocaleString()}</dd>
           <dt>{t('admin.identities.fields.achievementsEarned')}</dt>
-          <dd>{profile.stats.achievementsEarned.toLocaleString()}</dd>
+          <dd>{(profile.stats?.achievementsEarned ?? 0).toLocaleString()}</dd>
         </dl>
       </Card>
 

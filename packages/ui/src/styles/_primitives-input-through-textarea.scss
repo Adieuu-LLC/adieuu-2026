@@ -17,8 +17,9 @@
   gap: var(--spacing-xs);
   align-items: stretch;
 
-  .input {
+  .input-wrapper {
     flex: 1;
+    min-width: 0;
   }
 }
 

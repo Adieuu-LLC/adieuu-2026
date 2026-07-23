@@ -66,6 +66,50 @@ export function getSessionsCollection(): Collection<SessionDocument> {
 }
 
 /**
+ * Space membership document — the chat service only reads (spaceId, identityId,
+ * status) to resolve which Space channels a connection should subscribe to.
+ */
+export interface SpaceMemberDocument {
+  _id: ObjectId;
+  spaceId: ObjectId;
+  identityId: ObjectId;
+  status: 'active' | 'banned';
+}
+
+/** Gets the space members collection (read-only for subscription resolution). */
+export function getSpaceMembersCollection(): Collection<SpaceMemberDocument> {
+  return getDb().collection<SpaceMemberDocument>('space_members');
+}
+
+/**
+ * Resolves the Space ids an identity is an active member of, so a new
+ * connection can subscribe to the matching `space:{spaceId}` channels.
+ * Best-effort: on any error it returns an empty list (Space realtime degrades
+ * to none rather than breaking the connection).
+ */
+export async function findActiveSpaceIdsForIdentity(identityId: string): Promise<string[]> {
+  let identityObjId: ObjectId;
+  try {
+    identityObjId = new ObjectId(identityId);
+  } catch {
+    return [];
+  }
+
+  try {
+    const members = await getSpaceMembersCollection()
+      .find(
+        { identityId: identityObjId, status: 'active' },
+        { projection: { spaceId: 1 }, maxTimeMS: 2000 },
+      )
+      .toArray();
+    return members.map((m) => m.spaceId.toHexString());
+  } catch (error) {
+    logger.warn('Failed to resolve Space memberships for identity', { error });
+    return [];
+  }
+}
+
+/**
  * Health check for MongoDB
  */
 export interface MongoHealthResult {

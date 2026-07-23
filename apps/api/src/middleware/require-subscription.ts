@@ -46,6 +46,8 @@ const EXEMPT_PATH_PREFIXES: readonly string[] = [
   '/api/account/referral',
   '/api/refer',
   '/api/account/events',
+  '/api/account/data-export',
+  '/api/account/delete',
   '/api/sponsorship',
   '/api/v1/releases',
   '/api/users/me',

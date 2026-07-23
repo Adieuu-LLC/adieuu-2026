@@ -8,6 +8,8 @@ export type ComposerSendOptions = {
   useForwardSecrecy?: boolean;
   replyToMessageId?: string;
   e2eMediaIds?: string[];
+  /** Cleartext `space_media` ids (plaintext Space channels). */
+  attachmentMediaIds?: string[];
   expiresInSeconds?: number;
   mentionedIdentityIds?: string[];
 };
@@ -61,6 +63,8 @@ export interface PendingAttachment {
   uploadStatus: AttachmentUploadStatus;
   uploadProgress: number;
   uploadError?: string;
+  /** When set, this attachment already exists on the server and should not be re-uploaded. */
+  existingMediaId?: string;
 }
 
 export interface TrackedMention {

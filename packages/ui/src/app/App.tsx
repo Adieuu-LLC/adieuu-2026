@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, type ComponentType, type ReactNode } from 'react';
-import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet, useParams } from 'react-router-dom';
 import { useIdentity } from '../hooks/useIdentity';
 import { AppLayout } from '../components/AppLayout';
 import { TourRoot } from '../components/Tour';
@@ -9,13 +9,18 @@ import { TourProvider, useTourContext, useAppearanceTour } from '../hooks/useTou
 import { CipherStoreProvider } from '../hooks/useCipherStore';
 import { ChatSocketProvider } from '../hooks/useChatSocket';
 import { FriendsProvider } from '../hooks/useFriends';
+import { CaptchaGateProvider } from '../components/CaptchaGateProvider';
 import { BlockProvider } from '../hooks/useBlockContext';
 import { ConversationsProvider } from '../hooks/useConversations';
+import { SpacesProvider } from '../hooks/useSpaces';
 import { MediaOutboxProvider } from '../services/mediaOutbox';
 import { ConversationPreferencesProvider } from '../hooks/useConversationPreferences';
+import { SpacePreferencesProvider } from '../hooks/useSpacePreferences';
 import { ConversationFoldersProvider } from '../hooks/useConversationFolders';
 import { usePreKeys } from '../hooks/usePreKeys';
 import { KeyStorageBanner } from '../components/KeyStorageBanner';
+import { SiteAnnouncementBanner } from '../components/SiteAnnouncementBanner';
+import { SiteAnnouncementsProvider } from '../hooks/useSiteAnnouncements';
 import { UpdateOverlay } from '../components/UpdateOverlay';
 import { AchievementListener } from '../components/AchievementListener';
 import { SubscriptionChangeListener } from '../components/SubscriptionChangeListener';
@@ -24,8 +29,10 @@ import { UpdateProvider } from '../hooks/useUpdateContext';
 import { ToasterOutlet } from '../components/Toast';
 import { IdentityModalProvider } from '../hooks/useIdentityModal';
 import { CallSessionProvider } from '../hooks/useCallSession';
+import { VoiceChannelSessionProvider } from '../hooks/useVoiceChannelSession';
 import { GlobalCallEventsProvider } from '../hooks/useGlobalCallEvents';
 import { AppCallOverlay } from '../components/call/AppCallOverlay';
+import { VoiceChannelOverlay } from '../components/call/VoiceChannelOverlay';
 import { useIncomingCallRinger } from '../hooks/useIncomingCallRinger';
 import { AppSidebar } from './AppSidebar';
 import { RouteErrorBoundary } from '../components/RouteErrorBoundary';
@@ -48,17 +55,25 @@ function lazyRoute<M, K extends keyof M>(loader: () => Promise<M>, key: K) {
 
 const Home = lazyRoute(() => import('../pages/Home'), 'Home');
 const PublicHome = lazyRoute(() => import('../pages/PublicHome'), 'PublicHome');
-const About = lazyRoute(() => import('../pages/About'), 'About');
 const AboutLearn = lazyRoute(() => import('../pages/about'), 'AboutLearn');
 const AboutUpdates = lazyRoute(() => import('../pages/about'), 'AboutUpdates');
 const AboutRoadmap = lazyRoute(() => import('../pages/about'), 'AboutRoadmap');
 const Download = lazyRoute(() => import('../pages/Download'), 'Download');
 const Search = lazyRoute(() => import('../pages/Search'), 'Search');
 const PublicSpaces = lazyRoute(() => import('../pages/spaces'), 'PublicSpaces');
+const CreateSpace = lazyRoute(() => import('../pages/spaces'), 'CreateSpace');
+const SpaceLayout = lazyRoute(() => import('../pages/spaces'), 'SpaceLayout');
+const SpaceLanding = lazyRoute(() => import('../pages/spaces'), 'SpaceLanding');
+const SpaceChannelView = lazyRoute(() => import('../pages/spaces'), 'SpaceChannelView');
+const SpaceManageGate = lazyRoute(() => import('../pages/spaces'), 'SpaceManageGate');
+const SpaceManageLayout = lazyRoute(() => import('../pages/spaces'), 'SpaceManageLayout');
+const SpaceManageOverviewGate = lazyRoute(() => import('../pages/spaces'), 'SpaceManageOverviewGate');
+const SpaceManageRoles = lazyRoute(() => import('../pages/spaces'), 'SpaceManageRoles');
+const SpaceManageRoleDetail = lazyRoute(() => import('../pages/spaces'), 'SpaceManageRoleDetail');
+const SpaceManageAuditLog = lazyRoute(() => import('../pages/spaces'), 'SpaceManageAuditLog');
 const Login = lazyRoute(() => import('../pages/auth'), 'Login');
 const Verify = lazyRoute(() => import('../pages/auth'), 'Verify');
 const MfaVerify = lazyRoute(() => import('../pages/auth'), 'MfaVerify');
-const AccountOverview = lazyRoute(() => import('../pages/account'), 'AccountOverview');
 const AccountSecurity = lazyRoute(() => import('../pages/account'), 'AccountSecurity');
 const AccountSubscription = lazyRoute(() => import('../pages/account'), 'AccountSubscription');
 const ThemeBrowser = lazyRoute(() => import('../pages/account'), 'ThemeBrowser');
@@ -72,6 +87,7 @@ const IdentityCiphers = lazyRoute(() => import('../pages/identity'), 'IdentityCi
 const IdentityCustomEmojis = lazyRoute(() => import('../pages/identity'), 'IdentityCustomEmojis');
 const IdentityDevices = lazyRoute(() => import('../pages/identity'), 'IdentityDevices');
 const IdentityNotifications = lazyRoute(() => import('../pages/identity'), 'IdentityNotifications');
+const IdentityAudioVideo = lazyRoute(() => import('../pages/identity'), 'IdentityAudioVideo');
 const IdentityPrivacy = lazyRoute(() => import('../pages/identity'), 'IdentityPrivacy');
 const IdentityProfile = lazyRoute(() => import('../pages/identity'), 'IdentityProfile');
 const IdentityProfileView = lazyRoute(() => import('../pages/identity'), 'IdentityProfileView');
@@ -81,6 +97,7 @@ const ConversationView = lazyRoute(() => import('../pages/conversations/Conversa
 const NewConversation = lazyRoute(() => import('../pages/conversations/NewConversation'), 'NewConversation');
 const AdminAuthAllowlist = lazyRoute(() => import('../pages/admin'), 'AdminAuthAllowlist');
 const AdminAgeVerification = lazyRoute(() => import('../pages/admin'), 'AdminAgeVerification');
+const AdminSpaces = lazyRoute(() => import('../pages/admin'), 'AdminSpaces');
 const AdminDashboard = lazyRoute(() => import('../pages/admin'), 'AdminDashboard');
 const AdminGate = lazyRoute(() => import('../pages/admin'), 'AdminGate');
 const AdminLayout = lazyRoute(() => import('../pages/admin'), 'AdminLayout');
@@ -90,6 +107,7 @@ const AdminUserProfile = lazyRoute(() => import('../pages/admin'), 'AdminUserPro
 const AdminIdentitySearch = lazyRoute(() => import('../pages/admin'), 'AdminIdentitySearch');
 const AdminIdentityProfile = lazyRoute(() => import('../pages/admin'), 'AdminIdentityProfile');
 const AdminPromoCodes = lazyRoute(() => import('../pages/admin'), 'AdminPromoCodes');
+const AdminAnnouncements = lazyRoute(() => import('../pages/admin'), 'AdminAnnouncements');
 const ModeratorGate = lazyRoute(() => import('../pages/moderation'), 'ModeratorGate');
 const ModeratorLayout = lazyRoute(() => import('../pages/moderation'), 'ModeratorLayout');
 const ReportList = lazyRoute(() => import('../pages/moderation'), 'ReportList');
@@ -134,38 +152,59 @@ function AuthenticatedShell() {
 
   if (status === 'authenticated' || status === 'identity_mode') {
     return (
-      <TourProvider>
-        <CipherStoreProvider>
-          <ChatSocketProvider>
-            <FriendsProvider>
-              <BlockProvider>
-                <ConversationPreferencesProvider>
-                  <ConversationFoldersProvider>
-                    <ConversationsProvider>
-                      <MediaOutboxProvider>
-                      <CallSessionProvider>
-                        <GlobalCallEventsProvider>
-                          <AuthenticatedShellContent />
-                        </GlobalCallEventsProvider>
-                      </CallSessionProvider>
-                      </MediaOutboxProvider>
-                    </ConversationsProvider>
-                  </ConversationFoldersProvider>
-                </ConversationPreferencesProvider>
-              </BlockProvider>
-            </FriendsProvider>
-          </ChatSocketProvider>
-        </CipherStoreProvider>
-      </TourProvider>
+      <SiteAnnouncementsProvider>
+        <TourProvider>
+          <CipherStoreProvider>
+            <ChatSocketProvider>
+              <CaptchaGateProvider>
+                <FriendsProvider>
+                  <BlockProvider>
+                    <ConversationPreferencesProvider>
+                      <SpacePreferencesProvider>
+                        <ConversationFoldersProvider>
+                          <ConversationsProvider>
+                            <SpacesProvider>
+                            <MediaOutboxProvider>
+                            <CallSessionProvider>
+                            <VoiceChannelSessionProvider>
+                              <GlobalCallEventsProvider>
+                                <AuthenticatedShellContent />
+                              </GlobalCallEventsProvider>
+                            </VoiceChannelSessionProvider>
+                            </CallSessionProvider>
+                            </MediaOutboxProvider>
+                            </SpacesProvider>
+                          </ConversationsProvider>
+                        </ConversationFoldersProvider>
+                      </SpacePreferencesProvider>
+                    </ConversationPreferencesProvider>
+                  </BlockProvider>
+                </FriendsProvider>
+              </CaptchaGateProvider>
+            </ChatSocketProvider>
+          </CipherStoreProvider>
+        </TourProvider>
+      </SiteAnnouncementsProvider>
     );
   }
 
+  // Public shell still mounts Spaces (and its ChatSocket/Cipher deps) because
+  // `/spaces` and `/s/:slug` are public routes that call useSpaces / useCipherStore.
   return (
-    <AppLayout sidebar={<AppSidebar variant="public" />}>
-      <Suspense fallback={<RouteFallback />}>
-        <Outlet />
-      </Suspense>
-    </AppLayout>
+    <SiteAnnouncementsProvider>
+      <CipherStoreProvider>
+        <ChatSocketProvider>
+          <SpacesProvider>
+            <AppLayout sidebar={<AppSidebar variant="public" />}>
+              <SiteAnnouncementBanner />
+              <Suspense fallback={<RouteFallback />}>
+                <Outlet />
+              </Suspense>
+            </AppLayout>
+          </SpacesProvider>
+        </ChatSocketProvider>
+      </CipherStoreProvider>
+    </SiteAnnouncementsProvider>
   );
 }
 
@@ -187,12 +226,14 @@ function AuthenticatedShellContent() {
       <IdentityModalProvider>
         <AppLayout sidebar={<AppSidebar />}>
           <KeyStorageBanner />
+          <SiteAnnouncementBanner />
           <Suspense fallback={<RouteFallback />}>
             <Outlet />
           </Suspense>
         </AppLayout>
       </IdentityModalProvider>
       <AppCallOverlay />
+      <VoiceChannelOverlay />
       <UpdateOverlay />
       <AchievementListener />
       <SubscriptionChangeListener />
@@ -247,6 +288,12 @@ function AccountSessionOnlyOutlet() {
     return <Navigate to="/identity/profile" replace />;
   }
   return <Outlet />;
+}
+
+/** Redirect legacy /account/security/:tab URLs to /account/:tab */
+function SecurityTabRedirect() {
+  const { tab } = useParams<{ tab: string }>();
+  return <Navigate to={`/account/${tab ?? 'authentication'}`} replace />;
 }
 
 function AuthRoute({ children }: { children: ReactNode }) {
@@ -337,18 +384,33 @@ export function App() {
 
         {/* Public Routes (no auth required) */}
         <Route path="/" element={<RootRedirect />} />
-        <Route path="/about" element={<About />} />
         <Route path="/about/learn" element={<AboutLearn />} />
         <Route path="/about/roadmap" element={<AboutRoadmap />} />
         <Route path="/about/updates" element={<AboutUpdates />} />
         <Route path="/download" element={<Download />} />
         <Route path="/search" element={<Search />} />
         <Route path="/spaces" element={<PublicSpaces />} />
+        <Route path="/spaces/new" element={<CreateSpace />} />
+        <Route path="/s/:slug" element={<SpaceLayout />}>
+          <Route index element={<SpaceLanding />} />
+          <Route path="c/:channelId" element={<SpaceChannelView />} />
+          <Route path="manage" element={<SpaceManageGate />}>
+            <Route element={<SpaceManageLayout />}>
+              <Route index element={<SpaceManageOverviewGate />} />
+              <Route path="roles" element={<SpaceManageRoles />} />
+              <Route path="roles/:roleId" element={<SpaceManageRoleDetail />} />
+              <Route path="roles/:roleId/:tab" element={<SpaceManageRoleDetail />} />
+              <Route path="audit" element={<SpaceManageAuditLog />} />
+            </Route>
+          </Route>
+        </Route>
         <Route path="/identity/:id" element={<IdentityProfileView />} />
         <Route path="/legal-policies" element={<LegalPoliciesPage />} />
         <Route path="/legal-policies/:slug" element={<LegalPolicyPage />} />
         <Route path="/feedback" element={<FeedbackList />} />
         <Route path="/feedback/:postId" element={<FeedbackDetail />} />
+        <Route path="/refer/:code" element={<ReferralLanding />} />
+        <Route path="/service-status" element={<ServiceStatus />} />
 
         {/* Protected Routes (auth required — ProtectedGuard redirects guests to login) */}
         <Route element={<ProtectedGuard />}>
@@ -356,9 +418,9 @@ export function App() {
           {/* Account Routes (not available while alias session is unlocked) */}
           <Route element={<AccountSessionOnlyOutlet />}>
             <Route path="/account" element={<Navigate to="/account/overview" replace />} />
-            <Route path="/account/overview" element={<AccountOverview />} />
-            <Route path="/account/security" element={<Navigate to="/account/security/authentication" replace />} />
-            <Route path="/account/security/:tab" element={<AccountSecurity />} />
+            <Route path="/account/security" element={<Navigate to="/account/authentication" replace />} />
+            <Route path="/account/security/:tab" element={<SecurityTabRedirect />} />
+            <Route path="/account/:tab" element={<AccountSecurity />} />
             <Route path="/account/subscription" element={<Navigate to="/account/subscription/manage" replace />} />
             <Route path="/account/subscription/:tab" element={<AccountSubscription />} />
             <Route path="/account/referrals" element={<ReferralPage />} />
@@ -385,6 +447,7 @@ export function App() {
           <Route path="/identity/appearance/community" element={<ThemeBrowser />} />
           <Route path="/identity/appearance" element={<IdentityAppearance />} />
           <Route path="/identity/notifications" element={<IdentityNotifications />} />
+          <Route path="/identity/audio-video" element={<IdentityAudioVideo />} />
           <Route path="/identity/privacy" element={<IdentityPrivacy />} />
           <Route path="/identity/devices" element={<IdentityDevices />} />
           <Route path="/identity/ciphers" element={<IdentityCiphers />} />
@@ -404,11 +467,13 @@ export function App() {
               <Route path="platform-admins" element={<AdminPlatformAdmins />} />
               <Route path="auth-allowlist" element={<AdminAuthAllowlist />} />
               <Route path="age-verification" element={<AdminAgeVerification />} />
+              <Route path="spaces" element={<AdminSpaces />} />
               <Route path="users" element={<AdminUserSearch />} />
               <Route path="users/:id" element={<AdminUserProfile />} />
               <Route path="identities" element={<AdminIdentitySearch />} />
               <Route path="identities/:id" element={<AdminIdentityProfile />} />
               <Route path="promo-codes" element={<AdminPromoCodes />} />
+              <Route path="announcements" element={<AdminAnnouncements />} />
             </Route>
           </Route>
 
@@ -425,9 +490,7 @@ export function App() {
         </Route>
       </Route>
 
-      {/* Utility Routes (no auth required) */}
-      <Route path="/refer/:code" element={<ReferralLanding />} />
-      <Route path="/service-status" element={<ServiceStatus />} />
+      {/* Utility Routes (no auth required, no shell layout) */}
       <Route path="/checkout/complete" element={<CheckoutComplete />} />
 
       {/* Dev-only crash test routes */}

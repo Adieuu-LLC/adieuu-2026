@@ -15,6 +15,15 @@ export type CryptoProfile = 'default' | 'cnsa2';
 export type ProfileVisibility = 'public' | 'friends' | 'private';
 
 /**
+ * Known badge identifiers.
+ *
+ * 'vanguard' / 'founder' are entitlement-derived (subscription tiers).
+ * 'top100' / 'top1000' are awarded based on global alias creation order.
+ * 'overachiever' is awarded for earning all achievements at a point in time.
+ */
+export type BadgeId = 'vanguard' | 'founder' | 'top100' | 'top1000' | 'overachiever';
+
+/**
  * Per-field privacy settings for identity profiles.
  */
 export interface ProfilePrivacySettings {
@@ -24,6 +33,8 @@ export interface ProfilePrivacySettings {
   lastActiveAt: ProfileVisibility;
   profileColors: ProfileVisibility;
   achievements: ProfileVisibility;
+  badges: ProfileVisibility;
+  friends: ProfileVisibility;
 }
 
 /**
@@ -73,6 +84,10 @@ export interface PublicIdentity {
    * locally-stored keys need re-wrapping after a remote passphrase change.
    */
   passphraseChangedAt?: string | null;
+  /** Ordered list of selected badges visible to the viewer (privacy-filtered). */
+  badges?: BadgeId[];
+  /** All badges the user has earned (only returned to the profile owner). */
+  earnedBadges?: BadgeId[];
 }
 
 /**
@@ -142,6 +157,8 @@ export interface InitializeE2EParams {
     name: string;
     ecdhPublicKey: string;
     kemPublicKey?: string;
+    /** Ed25519 attestation (base64) over the device's static public keys */
+    staticKeyAttestation?: string;
   };
   bundle: {
     encryptedBundle: string;

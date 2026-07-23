@@ -1,14 +1,14 @@
 /**
- * @fileoverview Identity Management Service
+ * @fileoverview Alias Management Service
  *
- * Provides secure identity management for anonymous, unlinkable user identities.
- * Handles identity creation, login, logout, and deletion with rate limiting.
+ * Provides secure alias management for anonymous, unlinkable user identities.
+ * Handles alias creation, login, logout, and deletion with rate limiting.
  *
- * After the account-identity session separation, this service:
+ * After the account-alias session separation, this service:
  * - Accepts `accountHash` instead of `userId`/`userCreatedAt`
  * - Uses the unified `adieuu_session` cookie (type=identity)
  * - Tracks rate limiting per-accountHash in Redis
- * - Tracks identity creation counts in the `identity_counts` collection
+ * - Tracks alias creation counts in the `identity_counts` collection
  *
  * @module services/identity
  */
@@ -31,6 +31,7 @@ import { getKeyBundleRepository } from '../repositories/key-bundle.repository';
 import { checkDisplayNameAchievements } from './display-name-achievement.service';
 import { awardPopCultureTextAchievements } from './pop-culture-text-achievement.service';
 import { awardTvReferenceDisplayNameAchievements } from './tv-reference-text-achievement.service';
+import { awardOrderBadges } from './badge.service';
 import { deriveBundleId } from '../utils/crypto';
 import {
   createIdentitySession,
@@ -48,9 +49,47 @@ import type { UserBilling } from '../models/user';
 import elog from '../utils/adieuuLogger';
 import type { IdentityDocument, PublicIdentity } from '../models/identity';
 import { toPublicIdentity } from '../models/identity';
+import { IDENTITY_LIMITS } from '../constants/identity-limits';
 
-/** Maximum identities per user (exported for auth session response) */
-export const MAX_IDENTITIES_PER_USER = 1;
+// ---------------------------------------------------------------------------
+// Tier-limit resolution
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolves the maximum number of aliases (identities) a user may create based on
+ * their effective subscriptions and entitlements. Vanguard/Founder
+ * entitlements (lifetime) receive the highest allowance; otherwise the
+ * subscription tier determines the limit.
+ *
+ * An optional per-account `maxIdentities` override (from the user
+ * document) can raise the limit further.
+ */
+export function resolveMaxIdentities(
+  subscriptions: SubscriptionTierId[],
+  entitlements: string[],
+  isLifetime: boolean,
+  accountOverride?: number,
+): number {
+  let resolved: number;
+  if (entitlements.includes('founder') || entitlements.includes('vanguard')) {
+    resolved = IDENTITY_LIMITS.lifetime;
+  } else if (isLifetime) {
+    resolved = IDENTITY_LIMITS.lifetime;
+  } else if (subscriptions.includes('insider')) {
+    resolved = IDENTITY_LIMITS.insider;
+  } else if (subscriptions.includes('access')) {
+    resolved = IDENTITY_LIMITS.access;
+  } else if (subscriptions.includes('free')) {
+    resolved = IDENTITY_LIMITS.free;
+  } else {
+    resolved = 0;
+  }
+  const safeOverride =
+    Number.isFinite(accountOverride) && accountOverride! > 0
+      ? Math.floor(accountOverride!)
+      : 0;
+  return Math.max(resolved, safeOverride);
+}
 
 /** Backoff delays in milliseconds for failed attempts */
 const BACKOFF_DELAYS = [
@@ -305,6 +344,9 @@ export async function createIdentity(
   checkDisplayNameAchievements(identity._id, displayName).catch(() => {});
   awardPopCultureTextAchievements(identity._id, displayName);
   awardTvReferenceDisplayNameAchievements(identity._id, displayName);
+  identityCountRepo.incrementGlobalSequence()
+    .then((seq) => awardOrderBadges(identity._id, seq))
+    .catch(() => {});
 
   // Session creation is best-effort: it touches Redis as well as MongoDB,
   // and a failure here is recoverable (user can simply log in).

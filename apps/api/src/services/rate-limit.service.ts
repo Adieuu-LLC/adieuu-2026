@@ -102,7 +102,7 @@ function getRateLimits(): Record<string, RateLimitConfig> {
 
     /**
      * Global request limit per authenticated user
-     * 100 requests per minute for general API usage
+     * 150 requests per minute for general API usage
      */
     'global:user': {
       limit: config.rateLimit.globalUserLimit,
@@ -169,6 +169,24 @@ function getRateLimits(): Record<string, RateLimitConfig> {
       limit: config.rateLimit.callsInitiateIdentityLimit,
       windowSeconds: config.rateLimit.callsInitiateIdentityWindow,
     },
+
+    /**
+     * Pre-key claim per caller identity (all targets combined).
+     * Generous to allow large-conversation session establishment bursts.
+     */
+    'prekeys:claim:identity': {
+      limit: config.rateLimit.prekeyClaimIdentityLimit,
+      windowSeconds: config.rateLimit.prekeyClaimIdentityWindow,
+    },
+
+    /**
+     * Pre-key claim per caller-target pair.
+     * Prevents a single caller from draining one target's one-time pre-key pool.
+     */
+    'prekeys:claim:target': {
+      limit: config.rateLimit.prekeyClaimTargetLimit,
+      windowSeconds: config.rateLimit.prekeyClaimTargetWindow,
+    },
   };
 }
 
@@ -183,7 +201,7 @@ export const RATE_LIMITS = {
   'auth:request:ip': { limit: 10, windowSeconds: 900 } as RateLimitConfig,
   'auth:verify:identifier': { limit: 5, windowSeconds: 900 } as RateLimitConfig,
   'auth:verify:ip': { limit: 20, windowSeconds: 900 } as RateLimitConfig,
-  'global:user': { limit: 100, windowSeconds: 60 } as RateLimitConfig,
+  'global:user': { limit: 150, windowSeconds: 60 } as RateLimitConfig,
   'global:ip': { limit: 1000, windowSeconds: 60 } as RateLimitConfig,
   'user:email:ip': { limit: 10, windowSeconds: 900 } as RateLimitConfig,
   'user:email:identifier': { limit: 3, windowSeconds: 900 } as RateLimitConfig,

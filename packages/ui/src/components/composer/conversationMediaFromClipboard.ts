@@ -171,7 +171,10 @@ export async function gatherConversationMediaFromDataTransfer(
   const maxBytes = options?.maxBytes ?? CONV_MEDIA_BASE_MAX_BYTES;
   const files: File[] = [];
   let oversized = false;
-  const seen = new Set<string>();
+  const seenRaw = new Set<string>();
+  const seenResolved = new Set<string>();
+
+  const rawDedupeKey = (f: File) => `${f.name}\0${f.size}\0${f.type}\0${f.lastModified}`;
 
   const tryAdd = async (raw: File | null) => {
     if (!raw) return;
@@ -179,11 +182,14 @@ export async function gatherConversationMediaFromDataTransfer(
       oversized = true;
       return;
     }
+    const rk = rawDedupeKey(raw);
+    if (seenRaw.has(rk)) return;
+    seenRaw.add(rk);
     const resolved = await resolveConversationMediaFile(raw, options);
     if (!resolved) return;
     const k = fileDedupeKey(resolved.file);
-    if (seen.has(k)) return;
-    seen.add(k);
+    if (seenResolved.has(k)) return;
+    seenResolved.add(k);
     files.push(resolved.file);
   };
 
@@ -260,6 +266,7 @@ export async function readClipboardMediaFilesViaApi(
       return { files, oversized };
     }
     const items = await navigator.clipboard.read();
+    const seen = new Set<string>();
     let seq = 0;
     for (const item of items) {
       const type = pickReadableClipboardType(item.types);
@@ -273,6 +280,9 @@ export async function readClipboardMediaFilesViaApi(
       const mime = normalizeMimeType(blob.type || type);
       const useType = isAcceptedConversationMediaType(mime) ? mime : normalizeMimeType(type);
       if (!isAcceptedConversationMediaType(useType)) continue;
+      const dedupeKey = `${blob.size}\0${useType}\0${seq}`;
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
       const f = new File([blob], `pasted-${Date.now()}-${seq}.${extensionForMime(useType)}`, { type: useType });
       seq += 1;
       files.push(f);

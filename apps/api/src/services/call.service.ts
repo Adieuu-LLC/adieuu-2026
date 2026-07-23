@@ -27,6 +27,7 @@ import { checkAndAward } from './achievement.service';
 import { checkRateLimit, getCallInitiateConfig } from './rate-limit.service';
 import { resolveStreamQualityCaps } from '@adieuu/shared';
 import type { StreamQualityCaps, SubscriptionTierId } from '@adieuu/shared';
+import { hasPaidAccess } from './billing/resolve-access';
 import type { CallDocument, CallMediaOptions, PublicCall, SerializedWrappedCallKey } from '../models/call';
 import { toPublicCall } from '../models/call';
 import elog from '../utils/adieuuLogger';
@@ -64,7 +65,7 @@ export async function initiateCall(
   conversationId: string,
   initiatorIdentityId: string,
   requestedMedia: CallMediaOptions,
-  access: { subscriptions: readonly SubscriptionTierId[]; entitlements: readonly string[] },
+  access: { subscriptions: readonly SubscriptionTierId[]; entitlements: readonly string[]; isLifetime?: boolean },
   wrappedE2EEKeys?: SerializedWrappedCallKey[],
 ): Promise<CallResult> {
   const rlConfig = await getCallInitiateConfig(initiatorIdentityId);
@@ -95,8 +96,8 @@ export async function initiateCall(
     return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
   }
 
-  // Enforce admin call-type toggles
-  const allowedMedia = enforceCallSettings(requestedMedia, conversation);
+  // Enforce admin call-type toggles and tier restrictions
+  const allowedMedia = enforceCallSettings(requestedMedia, conversation, access);
   if (!allowedMedia.audio && !allowedMedia.video && !allowedMedia.screenshare) {
     return { success: false, error: 'All requested media types are disabled for this conversation', errorCode: 'MEDIA_DISABLED' };
   }
@@ -108,6 +109,7 @@ export async function initiateCall(
 
   let livekitToken: string | undefined;
   const streamQualityCaps = resolveStreamQualityCaps(access.subscriptions, access.entitlements);
+  const isFreeTier = !access.subscriptions.some((t) => t === 'access' || t === 'insider');
 
   if (config.livekit.enabled) {
     try {
@@ -116,6 +118,7 @@ export async function initiateCall(
         identityId: initiatorIdentityId,
         displayName,
         streamQualityCaps,
+        audioOnly: isFreeTier,
       });
     } catch (err) {
       elog.warn('Failed to mint LiveKit token on initiate', { conversationId, err });
@@ -221,7 +224,7 @@ export async function joinCall(
   callId: string,
   identityId: string,
   mediaState: CallMediaOptions,
-  access: { subscriptions: readonly SubscriptionTierId[]; entitlements: readonly string[] },
+  access: { subscriptions: readonly SubscriptionTierId[]; entitlements: readonly string[]; isLifetime?: boolean },
 ): Promise<CallResult> {
   const callRepo = getCallRepository();
   const conversationRepo = getConversationRepository();
@@ -258,13 +261,14 @@ export async function joinCall(
     void livekitRemoveParticipant(call.roomName, identityId);
   }
 
-  const enforcedMedia = enforceCallSettings(mediaState, conversation);
+  const enforcedMedia = enforceCallSettings(mediaState, conversation, access);
 
   const identity = await identityRepo.findById(identityObjId);
   const displayName = identity?.displayName || identity?.username || 'Unknown';
 
   let livekitToken: string | undefined;
   const streamQualityCaps = resolveStreamQualityCaps(access.subscriptions, access.entitlements);
+  const isFreeTierJoin = !access.subscriptions.some((t) => t === 'access' || t === 'insider');
 
   if (config.livekit.enabled) {
     try {
@@ -273,6 +277,7 @@ export async function joinCall(
         identityId,
         displayName,
         streamQualityCaps,
+        audioOnly: isFreeTierJoin,
       });
     } catch (err) {
       elog.warn('Failed to mint LiveKit token on join', { callId, err });
@@ -561,7 +566,8 @@ export async function updateMediaState(
   conversationId: string,
   callId: string,
   identityId: string,
-  mediaState: CallMediaOptions
+  mediaState: CallMediaOptions,
+  billing?: { subscriptions: readonly SubscriptionTierId[]; entitlements?: readonly string[]; isLifetime?: boolean },
 ): Promise<CallResult> {
   const callRepo = getCallRepository();
   const conversationRepo = getConversationRepository();
@@ -583,7 +589,7 @@ export async function updateMediaState(
     return { success: false, error: 'Conversation not found', errorCode: 'CONVERSATION_NOT_FOUND' };
   }
 
-  const enforcedMedia = enforceCallSettings(mediaState, conversation);
+  const enforcedMedia = enforceCallSettings(mediaState, conversation, billing);
 
   const updated = await callRepo.updateParticipantMediaState(callObjId, identityObjId, enforcedMedia);
   if (!updated) {
@@ -620,12 +626,15 @@ async function notifyCallEnded(
  */
 function enforceCallSettings(
   requested: CallMediaOptions,
-  conversation: { audioCallsDisabled?: boolean; videoCallsDisabled?: boolean; screenshareDisabled?: boolean }
+  conversation: { audioCallsDisabled?: boolean; videoCallsDisabled?: boolean; screenshareDisabled?: boolean },
+  billing?: { subscriptions: readonly SubscriptionTierId[]; entitlements?: readonly string[]; isLifetime?: boolean },
 ): CallMediaOptions {
+  const isFreeTier = billing ? !hasPaidAccess(billing) : true;
+
   return {
     audio: requested.audio && !conversation.audioCallsDisabled,
-    video: requested.video && !conversation.videoCallsDisabled,
-    screenshare: requested.screenshare && !conversation.screenshareDisabled,
+    video: requested.video && !conversation.videoCallsDisabled && !isFreeTier,
+    screenshare: requested.screenshare && !conversation.screenshareDisabled && !isFreeTier,
   };
 }
 

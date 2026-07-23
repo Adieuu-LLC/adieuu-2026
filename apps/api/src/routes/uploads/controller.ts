@@ -16,12 +16,27 @@ import {
   getUploadStatus,
   processCallback,
 } from '../../services/upload.service';
+import { sanitizeString } from '../../utils/sanitize';
 
-export const RequestUploadSchema = z.object({
-  purpose: z.enum(['avatar', 'banner', 'dm_attachment', 'space_media', 'custom_emoji', 'ticket_attachment', 'feedback_attachment']),
-  contentType: z.string().min(1).max(100),
-  contentLength: z.number().int().positive(),
-});
+export const RequestUploadSchema = z
+  .object({
+    purpose: z.enum([
+      'avatar',
+      'banner',
+      'dm_attachment',
+      'space_media',
+      'custom_emoji',
+      'ticket_attachment',
+      'feedback_attachment',
+    ]),
+    contentType: z.string().min(1).max(100),
+    contentLength: z.number().int().positive(),
+    spaceId: z.string().length(24).optional(),
+  })
+  .refine((v) => v.purpose !== 'space_media' || !!v.spaceId, {
+    message: 'spaceId is required when purpose is space_media',
+    path: ['spaceId'],
+  });
 
 export const ProcessCallbackSchema = z.object({
   mediaId: z.string().min(1).max(200),
@@ -51,7 +66,9 @@ export function parseMediaId(raw: string | undefined): ParseMediaIdResult {
   if (!raw || raw.length > MAX_MEDIA_ID_LENGTH) {
     return { ok: false, kind: 'bad_request' };
   }
-  return { ok: true, mediaId: raw };
+  const sanitized = sanitizeString(raw, 'idenhanced').value;
+  if (!sanitized) return { ok: false, kind: 'bad_request' };
+  return { ok: true, mediaId: sanitized };
 }
 
 export type RequestUploadSession =
@@ -89,10 +106,14 @@ export async function requestUploadResult(
     return { ok: false, kind: 'validation_failed' };
   }
 
+  const sanitizedContentType = sanitizeString(parseResult.data.contentType, 'general').value;
+  if (!sanitizedContentType) return { ok: false, kind: 'validation_failed' };
+
   const result = await requestUpload({
     purpose: parseResult.data.purpose as UploadPurpose,
-    contentType: parseResult.data.contentType,
+    contentType: sanitizedContentType,
     contentLength: parseResult.data.contentLength,
+    ...(parseResult.data.spaceId ? { spaceId: parseResult.data.spaceId } : {}),
     ...(session.type === 'identity'
       ? {
           identityId: session.identityId,

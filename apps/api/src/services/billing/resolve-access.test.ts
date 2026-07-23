@@ -9,6 +9,7 @@ import {
   hasLifetimeIdentityOverrides,
   requiresTier,
   requiresEntitlement,
+  hasPaidAccess,
 } from './resolve-access';
 
 // ---------------------------------------------------------------------------
@@ -384,5 +385,51 @@ describe('requiresEntitlement', () => {
     const ctx = makeCtx({ entitlements: ['beta_feature'] });
     expect(requiresEntitlement(ctx, 'beta_feature')).toBe(true);
     expect(requiresEntitlement(ctx, 'other_feature')).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// hasPaidAccess
+// ---------------------------------------------------------------------------
+
+describe('hasPaidAccess', () => {
+  test('access subscription -> true', () => {
+    expect(hasPaidAccess({ subscriptions: ['access'] })).toBe(true);
+  });
+
+  test('insider subscription -> true', () => {
+    expect(hasPaidAccess({ subscriptions: ['insider'] })).toBe(true);
+  });
+
+  test('free subscription only -> false', () => {
+    expect(hasPaidAccess({ subscriptions: ['free'] })).toBe(false);
+  });
+
+  test('empty subscriptions -> false', () => {
+    expect(hasPaidAccess({ subscriptions: [] })).toBe(false);
+  });
+
+  test('isLifetime true with free subscription only -> true', () => {
+    expect(hasPaidAccess({ subscriptions: ['free'], isLifetime: true })).toBe(true);
+  });
+
+  test('isLifetime true with empty subscriptions -> true', () => {
+    expect(hasPaidAccess({ subscriptions: [], isLifetime: true })).toBe(true);
+  });
+
+  test('gifted entitlement with free subscription -> true', () => {
+    expect(hasPaidAccess({ subscriptions: ['free'], entitlements: ['gifted'] })).toBe(true);
+  });
+
+  test('non-gifted entitlement with free subscription -> false', () => {
+    expect(hasPaidAccess({ subscriptions: ['free'], entitlements: ['beta_feature'] })).toBe(false);
+  });
+
+  test('no entitlements, no lifetime, no paid tier -> false', () => {
+    expect(hasPaidAccess({ subscriptions: ['free'], entitlements: [], isLifetime: false })).toBe(false);
+  });
+
+  test('mixed free + access -> true (access wins)', () => {
+    expect(hasPaidAccess({ subscriptions: ['free', 'access'] })).toBe(true);
   });
 });

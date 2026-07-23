@@ -136,6 +136,12 @@ export interface WrappedKey {
   wrappedSessionKey: Uint8Array;
   /** Nonce used for AES-GCM wrapping */
   wrappingNonce: Uint8Array;
+  /**
+   * Wrap format version. Version 2 binds the wrap metadata (recipient
+   * identity, ephemeral public key, KEM ciphertext) as AEAD associated data.
+   * Absent/1 = legacy wraps with no associated data.
+   */
+  wrapVersion?: number;
 }
 
 /**

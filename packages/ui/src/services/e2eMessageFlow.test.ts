@@ -27,6 +27,8 @@ import type {
   PublicMessage,
   PublicReaction,
   ClaimedDevicePreKeys,
+  MessageSignatureContext,
+  ReactionSignatureContext,
 } from '@adieuu/shared';
 import {
   encryptMessage,
@@ -125,20 +127,41 @@ function buildRecipientKeys(
   };
 }
 
+function makeMsgContext(fromIdentityId: string): MessageSignatureContext {
+  return {
+    conversationId: crypto.randomUUID(),
+    fromIdentityId,
+    clientMessageId: crypto.randomUUID(),
+  };
+}
+
+function makeReactionContext(fromIdentityId: string): ReactionSignatureContext {
+  return {
+    conversationId: crypto.randomUUID(),
+    messageId: crypto.randomUUID(),
+    fromIdentityId,
+    clientReactionId: crypto.randomUUID(),
+  };
+}
+
+/**
+ * Server-shaped message. Context fields must match those used at encryption
+ * time for v2 signature verification to succeed.
+ */
 function toPublicMessage(
   encrypted: ReturnType<typeof encryptMessage>,
-  fromIdentityId: string
+  context: MessageSignatureContext
 ): PublicMessage {
   return {
     id: crypto.randomUUID(),
-    conversationId: crypto.randomUUID(),
-    fromIdentityId,
+    conversationId: context.conversationId,
+    fromIdentityId: context.fromIdentityId,
     ciphertext: encrypted.ciphertext,
     nonce: encrypted.nonce,
     wrappedKeys: encrypted.wrappedKeys,
     signature: encrypted.signature,
     cryptoProfile: encrypted.cryptoProfile,
-    clientMessageId: crypto.randomUUID(),
+    clientMessageId: context.clientMessageId,
     deleted: false,
     createdAt: new Date().toISOString(),
   };
@@ -146,19 +169,19 @@ function toPublicMessage(
 
 function toPublicReaction(
   encrypted: ReturnType<typeof encryptReaction>,
-  fromIdentityId: string
+  context: ReactionSignatureContext
 ): PublicReaction {
   return {
     id: crypto.randomUUID(),
-    messageId: crypto.randomUUID(),
-    conversationId: crypto.randomUUID(),
-    fromIdentityId,
+    messageId: context.messageId,
+    conversationId: context.conversationId,
+    fromIdentityId: context.fromIdentityId,
     ciphertext: encrypted.ciphertext,
     nonce: encrypted.nonce,
     wrappedKeys: encrypted.wrappedKeys,
     signature: encrypted.signature,
     cryptoProfile: encrypted.cryptoProfile,
-    clientReactionId: crypto.randomUUID(),
+    clientReactionId: context.clientReactionId,
     createdAt: new Date().toISOString(),
   };
 }
@@ -176,10 +199,12 @@ describe('E2E forward-secrecy message flow', () => {
     const bobPreKeys = generatePreKeys(bob, { withOtpk: true });
 
     const recipientBob = buildRecipientKeys(bob, bobPreKeys);
+    const context = makeMsgContext(alice.identityId);
     const encrypted = encryptMessage(
       'Hello Bob, this is Alice.',
       [recipientBob],
-      alice.bundle.signing.privateKey
+      alice.bundle.signing.privateKey,
+      context
     );
 
     expect(encrypted.wrappedKeys).toHaveLength(1);
@@ -191,7 +216,7 @@ describe('E2E forward-secrecy message flow', () => {
       bobPreKeys.claimed.oneTimePreKey!.keyId
     );
 
-    const msg = toPublicMessage(encrypted, alice.identityId);
+    const msg = toPublicMessage(encrypted, context);
     const decrypted = decryptMessage(
       msg,
       bob.identityId,
@@ -221,7 +246,12 @@ describe('E2E forward-secrecy message flow', () => {
     const recipient1 = buildRecipientKeys(bob, bobPreKeys1);
 
     // Message 1: uses SPK+OTPK
-    const enc1 = encryptMessage('Message 1', [recipient1], alice.bundle.signing.privateKey);
+    const enc1 = encryptMessage(
+      'Message 1',
+      [recipient1],
+      alice.bundle.signing.privateKey,
+      makeMsgContext(alice.identityId)
+    );
     expect(enc1.wrappedKeys[0]?.preKeyType).toBe('otpk');
 
     // Simulate OTPK consumed -- Bob re-publishes with SPK-only (no fresh OTPK)
@@ -229,11 +259,17 @@ describe('E2E forward-secrecy message flow', () => {
     const recipient2 = buildRecipientKeys(bob, bobPreKeys2);
 
     // Message 2: uses SPK-only
-    const enc2 = encryptMessage('Message 2', [recipient2], alice.bundle.signing.privateKey);
+    const context2 = makeMsgContext(alice.identityId);
+    const enc2 = encryptMessage(
+      'Message 2',
+      [recipient2],
+      alice.bundle.signing.privateKey,
+      context2
+    );
     expect(enc2.wrappedKeys[0]?.preKeyType).toBe('spk');
 
     // Bob decrypts message 2 with SPK-only private keys
-    const msg2 = toPublicMessage(enc2, alice.identityId);
+    const msg2 = toPublicMessage(enc2, context2);
     const dec2 = decryptMessage(
       msg2,
       bob.identityId,
@@ -257,15 +293,17 @@ describe('E2E forward-secrecy message flow', () => {
     const bob = createUser('bob');
 
     const recipientBob = buildRecipientKeys(bob); // no preKeys
+    const context = makeMsgContext(alice.identityId);
     const encrypted = encryptMessage(
       'Static fallback message',
       [recipientBob],
-      alice.bundle.signing.privateKey
+      alice.bundle.signing.privateKey,
+      context
     );
 
     expect(encrypted.wrappedKeys[0]?.preKeyType).toBe('static');
 
-    const msg = toPublicMessage(encrypted, alice.identityId);
+    const msg = toPublicMessage(encrypted, context);
     const decrypted = decryptMessage(
       msg,
       bob.identityId,
@@ -290,8 +328,9 @@ describe('E2E forward-secrecy message flow', () => {
 
     // A -> B
     const recipientBob = buildRecipientKeys(bob, bobPreKeys);
-    const enc1 = encryptMessage('Hi Bob!', [recipientBob], alice.bundle.signing.privateKey);
-    const msg1 = toPublicMessage(enc1, alice.identityId);
+    const context1 = makeMsgContext(alice.identityId);
+    const enc1 = encryptMessage('Hi Bob!', [recipientBob], alice.bundle.signing.privateKey, context1);
+    const msg1 = toPublicMessage(enc1, context1);
 
     const dec1 = decryptMessage(
       msg1,
@@ -311,8 +350,9 @@ describe('E2E forward-secrecy message flow', () => {
 
     // B -> A
     const recipientAlice = buildRecipientKeys(alice, alicePreKeys);
-    const enc2 = encryptMessage('Hi Alice!', [recipientAlice], bob.bundle.signing.privateKey);
-    const msg2 = toPublicMessage(enc2, bob.identityId);
+    const context2 = makeMsgContext(bob.identityId);
+    const enc2 = encryptMessage('Hi Alice!', [recipientAlice], bob.bundle.signing.privateKey, context2);
+    const msg2 = toPublicMessage(enc2, context2);
 
     const dec2 = decryptMessage(
       msg2,
@@ -346,16 +386,18 @@ describe('E2E forward-secrecy message flow', () => {
       buildRecipientKeys(charlie, charliePreKeys),
     ];
 
+    const context = makeMsgContext(alice.identityId);
     const encrypted = encryptMessage(
       'Hello group!',
       recipients,
-      alice.bundle.signing.privateKey
+      alice.bundle.signing.privateKey,
+      context
     );
 
     expect(encrypted.wrappedKeys).toHaveLength(2);
 
     // Bob decrypts (SPK+OTPK)
-    const msg = toPublicMessage(encrypted, alice.identityId);
+    const msg = toPublicMessage(encrypted, context);
     const bobDec = decryptMessage(
       msg,
       bob.identityId,
@@ -396,13 +438,15 @@ describe('E2E forward-secrecy message flow', () => {
       const bob = createUser('bob');
       const bobPreKeys = generatePreKeys(bob, { withOtpk: true });
 
+      const context = makeMsgContext(alice.identityId);
       const encrypted = encryptMessage(
         'Tamper me',
         [buildRecipientKeys(bob, bobPreKeys)],
-        alice.bundle.signing.privateKey
+        alice.bundle.signing.privateKey,
+        context
       );
 
-      const msg = toPublicMessage(encrypted, alice.identityId);
+      const msg = toPublicMessage(encrypted, context);
       const ct = fromBase64(msg.ciphertext!);
       ct[0] ^= 0xff;
       msg.ciphertext = toBase64(ct);
@@ -429,13 +473,15 @@ describe('E2E forward-secrecy message flow', () => {
       const bob = createUser('bob');
       const bobPreKeys = generatePreKeys(bob, { withOtpk: true });
 
+      const context = makeMsgContext(alice.identityId);
       const encrypted = encryptMessage(
         'Tamper nonce',
         [buildRecipientKeys(bob, bobPreKeys)],
-        alice.bundle.signing.privateKey
+        alice.bundle.signing.privateKey,
+        context
       );
 
-      const msg = toPublicMessage(encrypted, alice.identityId);
+      const msg = toPublicMessage(encrypted, context);
       const n = fromBase64(msg.nonce!);
       n[0] ^= 0xff;
       msg.nonce = toBase64(n);
@@ -462,13 +508,15 @@ describe('E2E forward-secrecy message flow', () => {
       const bob = createUser('bob');
       const eve = createUser('eve');
 
+      const context = makeMsgContext(alice.identityId);
       const encrypted = encryptMessage(
         'Who signed this?',
         [buildRecipientKeys(bob)],
-        alice.bundle.signing.privateKey
+        alice.bundle.signing.privateKey,
+        context
       );
 
-      const msg = toPublicMessage(encrypted, alice.identityId);
+      const msg = toPublicMessage(encrypted, context);
       const decrypted = decryptMessage(
         msg,
         bob.identityId,
@@ -486,13 +534,15 @@ describe('E2E forward-secrecy message flow', () => {
       const bob = createUser('bob');
       const eve = createUser('eve');
 
+      const context = makeMsgContext(alice.identityId);
       const encrypted = encryptMessage(
         'Not for Eve',
         [buildRecipientKeys(bob)],
-        alice.bundle.signing.privateKey
+        alice.bundle.signing.privateKey,
+        context
       );
 
-      const msg = toPublicMessage(encrypted, alice.identityId);
+      const msg = toPublicMessage(encrypted, context);
 
       // Eve tries to decrypt with her own keys but Bob's identityId
       // (she would need to spoof identityId to even find a wrappedKey)
@@ -516,16 +566,18 @@ describe('E2E forward-secrecy message flow', () => {
     const bobPreKeys = generatePreKeys(bob, { withOtpk: true });
 
     const recipientBob = buildRecipientKeys(bob, bobPreKeys);
+    const reactionContext = makeReactionContext(alice.identityId);
     const encrypted = encryptReaction(
       '\uD83D\uDE80',
       alice.identityId,
       [recipientBob],
-      alice.bundle.signing.privateKey
+      alice.bundle.signing.privateKey,
+      reactionContext
     );
 
     expect(encrypted.wrappedKeys[0]?.preKeyType).toBe('otpk');
 
-    const reaction = toPublicReaction(encrypted, alice.identityId);
+    const reaction = toPublicReaction(encrypted, reactionContext);
     const decrypted = decryptReaction(
       reaction,
       bob.identityId,
@@ -553,17 +605,19 @@ describe('E2E forward-secrecy message flow', () => {
     const bobPreKeys = generatePreKeys(bob, { withOtpk: true, profile: 'cnsa2' });
 
     const recipientBob = buildRecipientKeys(bob, bobPreKeys);
+    const context = makeMsgContext(alice.identityId);
     const encrypted = encryptMessage(
       'CNSA2 secure message',
       [recipientBob],
       alice.bundle.signing.privateKey,
+      context,
       'cnsa2'
     );
 
     expect(encrypted.cryptoProfile).toBe('cnsa2');
     expect(encrypted.wrappedKeys[0]?.preKeyType).toBe('otpk');
 
-    const msg = toPublicMessage(encrypted, alice.identityId);
+    const msg = toPublicMessage(encrypted, context);
     const decrypted = decryptMessage(
       msg,
       bob.identityId,
@@ -644,10 +698,12 @@ describe('E2E forward-secrecy message flow', () => {
       ],
     };
 
+    const context = makeMsgContext(alice.identityId);
     const encrypted = encryptMessage(
       'Multi-device test',
       [recipientBob],
-      alice.bundle.signing.privateKey
+      alice.bundle.signing.privateKey,
+      context
     );
 
     // Both devices should receive a wrapped key
@@ -665,7 +721,7 @@ describe('E2E forward-secrecy message flow', () => {
     expect(desktopWrapped!.ephemeralPublicKey).not.toBe(mobileWrapped!.ephemeralPublicKey);
     expect(desktopWrapped!.wrappedSessionKey).not.toBe(mobileWrapped!.wrappedSessionKey);
 
-    const msg = toPublicMessage(encrypted, alice.identityId);
+    const msg = toPublicMessage(encrypted, context);
 
     // Desktop decrypts with its own pre-key private material
     const desktopDec = decryptMessage(
@@ -728,12 +784,14 @@ describe('E2E forward-secrecy message flow', () => {
     const enc1 = encryptMessage(
       'Same plaintext',
       [buildRecipientKeys(bob, bundle1)],
-      alice.bundle.signing.privateKey
+      alice.bundle.signing.privateKey,
+      makeMsgContext(alice.identityId)
     );
     const enc2 = encryptMessage(
       'Same plaintext',
       [buildRecipientKeys(bob, bundle2)],
-      alice.bundle.signing.privateKey
+      alice.bundle.signing.privateKey,
+      makeMsgContext(alice.identityId)
     );
 
     expect(enc1.ciphertext).not.toBe(enc2.ciphertext);
@@ -754,7 +812,8 @@ describe('E2E forward-secrecy message flow', () => {
     const msgEnc = encryptMessage(
       'domain check',
       [recipientBob],
-      alice.bundle.signing.privateKey
+      alice.bundle.signing.privateKey,
+      makeMsgContext(alice.identityId)
     );
 
     // Build a fake "reaction" using message-encrypted data

@@ -45,5 +45,43 @@ export {
   CommunityThemeUploadSchema,
 } from './theme';
 
+// Space schemas
+export {
+  SpaceVisibilitySchema,
+  SpaceSlugSchema,
+  CipherCheckSchema,
+  CreateSpaceSchema,
+  CreateSpaceEncryptedSeedSchema,
+  UpdateSpaceSchema,
+  CreateSpaceInviteSchema,
+  SendSpaceMessageSchema,
+  EditSpaceMessageSchema,
+  AddSpaceReactionSchema,
+  PinSpaceMessageSchema,
+  CreateSpaceRoleSchema,
+  UpdateSpaceRoleSchema,
+  SetMemberRolesSchema,
+  BanSpaceMemberSchema,
+  UpdateSpaceMemberProfileSchema,
+  UpdateSpacePreferencesSchema,
+  CreateSpaceChannelSchema,
+  UpdateSpaceChannelSchema,
+  CreateSpaceChannelCategorySchema,
+  UpdateSpaceChannelCategorySchema,
+  UpdateSpaceChannelLayoutSchema,
+  type CreateSpaceBody,
+  type UpdateSpaceBody,
+  type CreateSpaceInviteBody,
+  type SendSpaceMessageBody,
+  type CreateSpaceChannelBody,
+  type UpdateSpaceChannelBody,
+  type CreateSpaceChannelCategoryBody,
+  type UpdateSpaceChannelCategoryBody,
+  type UpdateSpaceChannelLayoutBody,
+  type BanSpaceMemberBody,
+  type UpdateSpaceMemberProfileBody,
+  type UpdateSpacePreferencesBody,
+} from './spaces';
+
 // Re-export zod for convenience
 export { z };

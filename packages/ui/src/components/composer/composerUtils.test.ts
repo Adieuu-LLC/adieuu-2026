@@ -1,7 +1,14 @@
 import { describe, expect, test } from 'bun:test';
-import { detectShortcodeQuery, detectMentionQuery, updateMentionOffsets, resolveMentionedIdentityIds } from './composerUtils';
-import type { TrackedMention } from './composerTypes';
-import { MENTION_EVERYONE_ID, MENTION_HERE_ID, isGroupMentionId } from './composerTypes';
+import {
+  detectShortcodeQuery,
+  detectMentionQuery,
+  detectPageTagQuery,
+  updateMentionOffsets,
+  updatePageTagOffsets,
+  resolveMentionedIdentityIds,
+} from './composerUtils';
+import type { TrackedMention, TrackedPageTag } from './composerTypes';
+import { MENTION_EVERYONE_ID, MENTION_HERE_ID } from './composerTypes';
 
 describe('detectShortcodeQuery', () => {
   test('returns null when no colon present', () => {
@@ -52,6 +59,64 @@ describe('detectMentionQuery', () => {
 
   test('allows spaces in mention query', () => {
     expect(detectMentionQuery('@Alice B', 8)).toEqual({ query: 'Alice B', atIdx: 0 });
+  });
+});
+
+describe('detectPageTagQuery', () => {
+  test('returns null when no hash present', () => {
+    expect(detectPageTagQuery('hello world', 11)).toBeNull();
+  });
+
+  test('returns null when # not preceded by whitespace', () => {
+    expect(detectPageTagQuery('foo#bar', 7)).toBeNull();
+  });
+
+  test('detects # at start of text', () => {
+    expect(detectPageTagQuery('#set', 4)).toEqual({ query: 'set', hashIdx: 0 });
+  });
+
+  test('detects # after whitespace', () => {
+    expect(detectPageTagQuery('go #sett', 8)).toEqual({ query: 'sett', hashIdx: 3 });
+  });
+
+  test('returns null for invalid page-tag chars', () => {
+    expect(detectPageTagQuery('#set!', 5)).toBeNull();
+  });
+
+  test('allows spaces in page-tag query', () => {
+    expect(detectPageTagQuery('#My Page', 8)).toEqual({ query: 'My Page', hashIdx: 0 });
+  });
+});
+
+describe('updatePageTagOffsets', () => {
+  test('returns entries unchanged when delta is 0', () => {
+    const entries: TrackedPageTag[] = [{ pageId: 'settings', offset: 5, length: 4 }];
+    const result = updatePageTagOffsets(entries, 'hello', 'hello', 3);
+    expect(result).toEqual([{ pageId: 'settings', offset: 5, length: 4 }]);
+  });
+
+  test('shifts page tags after insertion point', () => {
+    const entries: TrackedPageTag[] = [{ pageId: 'settings', offset: 10, length: 4 }];
+    const result = updatePageTagOffsets(entries, 'hello world', 'hello X world', 5);
+    expect(result[0]!.offset).toBe(12);
+  });
+
+  test('preserves page tags before insertion point', () => {
+    const entries: TrackedPageTag[] = [{ pageId: 'settings', offset: 0, length: 4 }];
+    const result = updatePageTagOffsets(entries, 'hello world', 'hello world!!', 11);
+    expect(result[0]!.offset).toBe(0);
+  });
+
+  test('removes page tags that overlap edit region', () => {
+    const entries: TrackedPageTag[] = [{ pageId: 'settings', offset: 3, length: 5 }];
+    const result = updatePageTagOffsets(entries, 'hi #Page world', 'hi # world', 5);
+    expect(result.length).toBe(0);
+  });
+
+  test('handles deletion shifting page tags back', () => {
+    const entries: TrackedPageTag[] = [{ pageId: 'settings', offset: 10, length: 4 }];
+    const result = updatePageTagOffsets(entries, 'hello world', 'helloworld', 5);
+    expect(result[0]!.offset).toBe(9);
   });
 });
 

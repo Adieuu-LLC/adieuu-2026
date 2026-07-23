@@ -1,5 +1,5 @@
 /**
- * FolderPanel — secondary sidebar showing conversations inside a folder.
+ * FolderPanel — secondary sidebar showing conversations and spaces inside a folder.
  *
  * Follows the same pattern as FriendsPanel: slides out to the right of the
  * primary sidebar, closes on Escape / click outside.
@@ -9,6 +9,7 @@ import { useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Menu, Portal } from '@ark-ui/react';
+import type { ConversationFolder, PublicSpace } from '@adieuu/shared';
 import { useSidebar } from '../../components/Sidebar';
 import { Button } from '../../components/Button';
 import { Icon } from '../../icons/Icon';
@@ -20,25 +21,20 @@ import { useConversationFolders } from '../../hooks/useConversationFolders';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useGlobalCallEvents } from '../../hooks/useGlobalCallEvents';
 import { useCallSession } from '../../hooks/useCallSession';
+import { useSpaces } from '../../hooks/useSpaces';
 import { getSidebarListAvatarMemberIds } from '../../pages/conversations/conversationViewModel';
 import { useSidebarPanelDismiss } from './useSidebarPanelDismiss';
-import type { ConversationFolder } from '@adieuu/shared';
-
-function resolveDisplayName(
-  conversation: DecryptedConversation,
-  selfId: string | undefined,
-  profiles: Record<string, { displayName?: string; username?: string }>,
-): string {
-  if (conversation.type === 'group') return conversation.decryptedName ?? 'Group';
-  if (conversation.decryptedName?.trim()) return conversation.decryptedName.trim();
-  const others = conversation.participants.filter((p) => p !== selfId);
-  return others
-    .map((pid) => {
-      const p = profiles[pid];
-      return p?.displayName ?? p?.username ?? pid;
-    })
-    .join(', ');
-}
+import { resolveConversationDisplayName } from './resolveConversationDisplayName';
+import {
+  SpaceListItem,
+  useSpaceSidebarDisplayName,
+  getLastChannelId,
+} from './spaces';
+import {
+  useSidebarListViewOptional,
+  isConversationMutedInView,
+  isSpaceMutedInView,
+} from './sidebarListView';
 
 function FolderConversationItem({
   conversation,
@@ -48,6 +44,7 @@ function FolderConversationItem({
   isArchived,
   hasActiveCall,
   isUserInCall,
+  muted,
   onClose,
 }: {
   conversation: DecryptedConversation;
@@ -57,6 +54,7 @@ function FolderConversationItem({
   isArchived: boolean;
   hasActiveCall: boolean;
   isUserInCall: boolean;
+  muted?: boolean;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
@@ -144,8 +142,15 @@ function FolderConversationItem({
       </div>
     );
 
+  const itemClasses = [
+    'conversation-list-item',
+    muted && 'sidebar-list-item-muted',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   const row = (
-    <button type="button" className="conversation-list-item" onClick={handleClick}>
+    <button type="button" className={itemClasses} onClick={handleClick}>
       {avatarEl}
       <div className="conversation-list-item-info">
         <span className="conversation-list-item-title">{displayName}</span>
@@ -237,6 +242,72 @@ function FolderConversationItem({
   );
 }
 
+function FolderSpaceItem({
+  space,
+  displayName,
+  folderId,
+  unread,
+  muted,
+  onClose,
+}: {
+  space: PublicSpace;
+  displayName: string;
+  folderId: string;
+  unread: number;
+  muted?: boolean;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { closeMobile } = useSidebar();
+  const { removeSpaceFromFolder } = useConversationFolders();
+
+  const handleOpen = useCallback(
+    (target: { id: string; slug: string }) => {
+      const lastChannelId = getLastChannelId(target.id);
+      navigate(lastChannelId ? `/s/${target.slug}/c/${lastChannelId}` : `/s/${target.slug}`);
+      closeMobile();
+      onClose();
+    },
+    [navigate, closeMobile, onClose],
+  );
+
+  const handleContextAction = useCallback(
+    (details: { value: string }) => {
+      if (details.value === 'remove-from-folder') {
+        void removeSpaceFromFolder(folderId, space.id);
+      }
+    },
+    [folderId, space.id, removeSpaceFromFolder],
+  );
+
+  return (
+    <Menu.Root onSelect={handleContextAction}>
+      <Menu.ContextTrigger asChild>
+        <div className="conversation-list-item-context-anchor">
+          <SpaceListItem
+            space={space}
+            displayName={displayName}
+            unread={unread}
+            muted={muted}
+            onOpen={handleOpen}
+          />
+        </div>
+      </Menu.ContextTrigger>
+      <Portal>
+        <Menu.Positioner>
+          <Menu.Content className="conversation-context-menu">
+            <Menu.Item value="remove-from-folder" className="conversation-context-menu-item">
+              <Icon name="x" className="conversation-context-menu-item-icon" />
+              {t('conversations.folders.removeFromFolder')}
+            </Menu.Item>
+          </Menu.Content>
+        </Menu.Positioner>
+      </Portal>
+    </Menu.Root>
+  );
+}
+
 export function FolderPanel({
   isOpen,
   folder,
@@ -252,6 +323,12 @@ export function FolderPanel({
   const { identity } = useIdentity();
   const { activeCallConversationIds } = useGlobalCallEvents();
   const { activeSession } = useCallSession();
+  const { spaces, unreadBySpace } = useSpaces();
+  const resolveSpaceDisplayName = useSpaceSidebarDisplayName();
+  const listViewCtx = useSidebarListViewOptional();
+  const listView = listViewCtx?.listView ?? 'all';
+  const conversationMuted = isConversationMutedInView(listView);
+  const spaceMuted = isSpaceMutedInView(listView);
   const panelRef = useRef<HTMLDivElement>(null);
 
   useSidebarPanelDismiss({
@@ -266,6 +343,12 @@ export function FolderPanel({
   const folderConversations = folder.conversationIds
     .map((cid) => conversations.find((c) => c.id === cid))
     .filter(Boolean) as DecryptedConversation[];
+
+  const folderSpaces = folder.spaceIds
+    .map((sid) => spaces.find((s) => s.id === sid))
+    .filter(Boolean) as PublicSpace[];
+
+  const isEmpty = folderConversations.length === 0 && folderSpaces.length === 0;
 
   return (
     <div className="sidebar-folder-panel" ref={panelRef}>
@@ -283,24 +366,38 @@ export function FolderPanel({
       </div>
 
       <div className="sidebar-folder-panel-list">
-        {folderConversations.length > 0 ? (
-          folderConversations.map((conv) => {
-            const displayName = resolveDisplayName(conv, identity?.id, participantProfiles);
-            const pref = preferences[conv.id];
-            return (
-              <FolderConversationItem
-                key={conv.id}
-                conversation={conv}
-                displayName={displayName}
+        {!isEmpty ? (
+          <>
+            {folderConversations.map((conv) => {
+              const displayName = resolveConversationDisplayName(conv, identity?.id, participantProfiles);
+              const pref = preferences[conv.id];
+              return (
+                <FolderConversationItem
+                  key={conv.id}
+                  conversation={conv}
+                  displayName={displayName}
+                  folderId={folder.id}
+                  isFavorited={!!pref?.favorited}
+                  isArchived={!!pref?.archived}
+                  hasActiveCall={activeCallConversationIds.has(conv.id)}
+                  isUserInCall={activeSession?.conversationId === conv.id}
+                  muted={conversationMuted}
+                  onClose={onClose}
+                />
+              );
+            })}
+            {folderSpaces.map((space) => (
+              <FolderSpaceItem
+                key={space.id}
+                space={space}
+                displayName={resolveSpaceDisplayName(space)}
                 folderId={folder.id}
-                isFavorited={!!pref?.favorited}
-                isArchived={!!pref?.archived}
-                hasActiveCall={activeCallConversationIds.has(conv.id)}
-                isUserInCall={activeSession?.conversationId === conv.id}
+                unread={unreadBySpace[space.id] ?? 0}
+                muted={spaceMuted}
                 onClose={onClose}
               />
-            );
-          })
+            ))}
+          </>
         ) : (
           <div className="sidebar-folder-panel-empty">
             {t('conversations.folders.emptyFolder')}

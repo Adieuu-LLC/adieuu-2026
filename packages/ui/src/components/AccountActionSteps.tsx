@@ -5,7 +5,7 @@ import { Button } from './Button';
 import { Spinner } from './Spinner';
 import { Tooltip } from './Tooltip';
 import { Icon } from '../icons/Icon';
-import { useTourContext, useAppearanceTour } from '../hooks/useTourContext';
+import { useTourContext, useTourProgress } from '../hooks/useTourContext';
 import { useIdentityModal } from '../hooks/useIdentityModal';
 import { JurisdictionRequirementDisclosure } from './compliance/JurisdictionRequirementDisclosure';
 import type { AccountProgress, AccountProgressStep } from '../hooks/useHomeProgress';
@@ -32,12 +32,18 @@ function VerifyAgeDescription({ progress }: { progress: AccountProgress }) {
     );
   }
 
-  if (progress.aliasGateJurisdiction) {
+  if (progress.canSkipAvWithUpgrade) {
     return (
       <p className="action-step-description">
-        {t('home.account.steps.verifyAge.descriptionJurisdiction', {
-          jurisdiction: progress.aliasGateJurisdiction,
-        })}
+        {t('home.account.steps.verifyAge.descriptionFreeCanSkip')}
+      </p>
+    );
+  }
+
+  if (progress.aliasGateJurisdiction && !progress.canSkipAvWithUpgrade) {
+    return (
+      <p className="action-step-description">
+        {t('home.account.steps.verifyAge.descriptionJurisdictionRequired')}
       </p>
     );
   }
@@ -70,23 +76,30 @@ function PrimaryStepAction({
   const navigate = useNavigate();
   const { openIdentityModal } = useIdentityModal();
 
-  if (step.completed) return null;
+  if (step.completed && step.id !== 'subscribe') return null;
 
   switch (step.id) {
     case 'subscribe':
+      if (progress.isPaidPlan) return null;
+      if (progress.isFreeTier) {
+        return (
+          <>
+            <Link to="/account/subscription" className="btn btn-primary btn-sm">
+              {t('home.account.steps.subscribe.upgradeAction')}
+            </Link>
+            <Link
+              to="/account/subscription/sponsorships"
+              className="btn btn-secondary btn-sm"
+            >
+              {t('home.account.steps.subscribe.sponsorshipAction')}
+            </Link>
+          </>
+        );
+      }
       return (
-        <>
-          <Link to="/account/subscription" className="btn btn-primary btn-sm">
-            {t('home.account.steps.subscribe.action')}
-          </Link>
-          <Link
-            to="/account/subscription/manage"
-            state={{ scrollToPromo: true }}
-            className="btn btn-secondary btn-sm"
-          >
-            {t('home.account.steps.subscribe.promoAction')}
-          </Link>
-        </>
+        <Link to="/account/subscription" className="btn btn-primary btn-sm">
+          {t('home.account.steps.subscribe.action')}
+        </Link>
       );
     case 'verifyAge':
       if (step.disabled) {
@@ -153,24 +166,70 @@ function PrimaryStepAction({
   }
 }
 
+function TourStepContent({ stepId, completed }: { stepId: string; completed: boolean }) {
+  const { t } = useTranslation();
+  const tourProgress = useTourProgress();
+
+  if (stepId === 'tour' && !completed && tourProgress.started && tourProgress.nextStepTitle) {
+    return (
+      <>
+        <span className="action-step-title">
+          {t('home.account.secondary.tour.titleContinue')}
+        </span>
+        <p className="action-step-description">
+          {t('home.account.secondary.tour.descriptionContinue', {
+            nextStep: tourProgress.nextStepTitle,
+          })}
+        </p>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <span className="action-step-title">
+        {t(`home.account.secondary.${stepId}.title`)}
+      </span>
+      <p className="action-step-description">
+        {t(`home.account.secondary.${stepId}.description`)}
+      </p>
+    </>
+  );
+}
+
 function SecondaryStepAction({ step }: { step: AccountProgressStep }) {
   const { t } = useTranslation();
   const tour = useTourContext();
-  const appearanceTour = useAppearanceTour();
+  const tourProgress = useTourProgress();
 
   switch (step.id) {
-    case 'tour':
+    case 'tour': {
+      const canResume = !step.completed && tourProgress.started && tourProgress.nextStepId;
       return (
-        <Button variant="secondary" size="sm" type="button" onClick={() => tour.start()}>
+        <Button
+          variant="secondary"
+          size="sm"
+          type="button"
+          onClick={() => {
+            if (canResume && tourProgress.nextStepId) {
+              tour.start(tourProgress.nextStepId);
+            } else {
+              tour.start();
+            }
+          }}
+        >
           {step.completed
             ? t('home.account.secondary.tour.actionRetake')
-            : t('home.account.secondary.tour.action')}
+            : canResume
+              ? t('home.account.secondary.tour.actionContinue')
+              : t('home.account.secondary.tour.action')}
         </Button>
       );
+    }
     case 'mfa':
       if (step.completed) return null;
       return (
-        <Link to="/account/security" className="btn btn-secondary btn-sm">
+        <Link to="/account/authentication" className="btn btn-secondary btn-sm">
           {t('home.account.secondary.mfa.action')}
         </Link>
       );
@@ -180,14 +239,6 @@ function SecondaryStepAction({ step }: { step: AccountProgressStep }) {
         <Link to="/account" className="btn btn-secondary btn-sm">
           {t('home.account.secondary.verify.action')}
         </Link>
-      );
-    case 'appearance':
-      return (
-        <Button variant="secondary" size="sm" type="button" onClick={() => appearanceTour.start()}>
-          {step.completed
-            ? t('home.account.secondary.appearance.actionRetake')
-            : t('home.account.secondary.appearance.action')}
-        </Button>
       );
     default:
       return null;
@@ -231,7 +282,7 @@ export function AccountActionSteps({ progress }: AccountActionStepsProps) {
               </Link>
             </li>
             <li>
-              <Link to="/account/security" className="btn btn-secondary">
+              <Link to="/account/authentication" className="btn btn-secondary">
                 {t('home.account.allComplete.security')}
               </Link>
             </li>
@@ -247,7 +298,7 @@ export function AccountActionSteps({ progress }: AccountActionStepsProps) {
   }
 
   return (
-    <Card variant="elevated" className="action-steps">
+    <Card variant="elevated" className="action-steps" data-tour="get-started">
       <div className="action-steps-section">
         <h3 className="action-steps-section-title">{t('home.account.sectionPrimary')}</h3>
         <p className="action-steps-section-subtitle">{t('home.account.sectionPrimarySubtitle')}</p>
@@ -260,7 +311,13 @@ export function AccountActionSteps({ progress }: AccountActionStepsProps) {
               <StepCheckMark done={step.completed} />
               <div className="action-step-body">
                 <span className="action-step-title">
-                  {t(`home.account.steps.${step.id}.title`)}
+                  {step.id === 'subscribe'
+                    ? progress.isPaidPlan
+                      ? t('home.account.steps.subscribe.titlePaid')
+                      : progress.isFreeTier
+                        ? t('home.account.steps.subscribe.titleFree')
+                        : t('home.account.steps.subscribe.title')
+                    : t(`home.account.steps.${step.id}.title`)}
                 </span>
                 {step.id === 'verifyAge' ? (
                   <>
@@ -271,6 +328,14 @@ export function AccountActionSteps({ progress }: AccountActionStepsProps) {
                       primaryJurisdiction={progress.aliasGateJurisdiction}
                     />
                   </>
+                ) : step.id === 'subscribe' ? (
+                  <p className="action-step-description">
+                    {progress.isPaidPlan
+                      ? t('home.account.steps.subscribe.descriptionPaid')
+                      : progress.isFreeTier
+                        ? t('home.account.steps.subscribe.descriptionFree')
+                        : t('home.account.steps.subscribe.description')}
+                  </p>
                 ) : (
                   <p className="action-step-description">
                     {t(`home.account.steps.${step.id}.description`)}
@@ -295,12 +360,7 @@ export function AccountActionSteps({ progress }: AccountActionStepsProps) {
             >
               <StepCheckMark done={step.completed} />
               <div className="action-step-body">
-                <span className="action-step-title">
-                  {t(`home.account.secondary.${step.id}.title`)}
-                </span>
-                <p className="action-step-description">
-                  {t(`home.account.secondary.${step.id}.description`)}
-                </p>
+                <TourStepContent stepId={step.id} completed={step.completed} />
                 <div className="action-step-actions">
                   <SecondaryStepAction step={step} />
                 </div>

@@ -33,6 +33,14 @@ mock.module('../../services/identity-keys-access.service', () => ({
   canViewerAccessTargetIdentityKeys: canViewerAccessTargetIdentityKeysMock,
 }));
 
+const checkRateLimitMock = mock(() =>
+  Promise.resolve({ allowed: true, remaining: 10, resetAt: 0, limit: 10 }),
+);
+
+mock.module('../../services/rate-limit.service', () => ({
+  checkRateLimit: checkRateLimitMock,
+}));
+
 
 mock.module('../../repositories/identity.repository', () => ({
   getIdentityRepository: () => ({
