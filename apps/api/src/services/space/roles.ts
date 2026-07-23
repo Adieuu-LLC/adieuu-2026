@@ -1,9 +1,11 @@
 /**
- * Space role CRUD and member role assignment.
+ * Space role CRUD (`manageRoles`) and member role assignment (`manageMemberRoles`).
  *
- * Requires `manageRoles`. Actors may only grant permissions they themselves
- * hold. System roles cannot be deleted. The Space must retain at least one
- * holder of the system Admin role.
+ * Assignment (`setMemberRoles`) requires `manageMemberRoles` or `manageRoles`:
+ * - `manageMemberRoles` only: next role-set permissions must be ⊆ actor's
+ * - `manageRoles`: may assign any role except system Admin (unless actor is Admin)
+ *
+ * System roles cannot be deleted. The Space must retain at least one Admin holder.
  *
  * @module services/space/roles
  */
@@ -87,6 +89,34 @@ async function requireManageRoles(
     return {
       ok: false,
       error: 'You do not have permission to manage roles.',
+      errorCode: 'FORBIDDEN',
+    };
+  }
+  return { ok: true, actorPerms };
+}
+
+async function requireAssignMemberRoles(
+  spaceId: ObjectId,
+  actingId: ObjectId,
+): Promise<
+  | { ok: true; actorPerms: Awaited<ReturnType<typeof resolveMemberPermissions>> }
+  | { ok: false; error: string; errorCode: SpaceErrorCode }
+> {
+  const space = await getSpaceRepository().findById(spaceId);
+  if (!space) {
+    return { ok: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' };
+  }
+  const actorPerms = await resolveMemberPermissions(spaceId, actingId);
+  if (!actorPerms.isMember) {
+    return { ok: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
+  }
+  const canAssign =
+    memberHasPermission(actorPerms, 'manageMemberRoles') ||
+    memberHasPermission(actorPerms, 'manageRoles');
+  if (!canAssign) {
+    return {
+      ok: false,
+      error: 'You do not have permission to assign member roles.',
       errorCode: 'FORBIDDEN',
     };
   }
@@ -202,18 +232,33 @@ export async function updateSpaceRole(
     }
   }
 
-  if (params.isDefaultMember === false && existing.isDefaultMember) {
-    return {
-      success: false,
-      error: 'A Space must have a default role. Make another role the default first.',
-      errorCode: 'INVALID_CONTENT',
-    };
+  // Everyone is permanently the default join role; it cannot be cleared or transferred.
+  if (params.isDefaultMember !== undefined) {
+    if (existing.systemKey === 'member') {
+      if (params.isDefaultMember === false) {
+        return {
+          success: false,
+          error: 'The Everyone role is always the default role for new members.',
+          errorCode: 'INVALID_CONTENT',
+        };
+      }
+      // no-op true → ignore below
+    } else if (params.isDefaultMember === true) {
+      return {
+        success: false,
+        error: 'The Everyone role is always the default role for new members.',
+        errorCode: 'INVALID_CONTENT',
+      };
+    } else if (params.isDefaultMember === false && existing.isDefaultMember) {
+      return {
+        success: false,
+        error: 'The Everyone role is always the default role for new members.',
+        errorCode: 'INVALID_CONTENT',
+      };
+    }
   }
 
   const roleRepo = getSpaceRoleRepository();
-  if (params.isDefaultMember === true) {
-    await roleRepo.clearDefaultMemberExcept(spaceId, roleId);
-  }
 
   const updated = await roleRepo.updateRole(spaceId, roleId, {
     ...(params.name !== undefined ? { name: params.name.trim() } : {}),
@@ -225,9 +270,7 @@ export async function updateSpaceRole(
       ? { displaySeparately: params.displaySeparately }
       : {}),
     ...(params.mentionable !== undefined ? { mentionable: params.mentionable } : {}),
-    ...(params.isDefaultMember !== undefined
-      ? { isDefaultMember: params.isDefaultMember }
-      : {}),
+    // isDefaultMember is immutable (Everyone is permanently the default).
     ...(params.position !== undefined ? { position: params.position } : {}),
     ...(params.encryptedName !== undefined ? { encryptedName: params.encryptedName } : {}),
     ...(params.nameNonce !== undefined ? { nameNonce: params.nameNonce } : {}),
@@ -290,8 +333,8 @@ export async function deleteSpaceRole(
 }
 
 /**
- * Replace a member's role set. Always retains the default Member role when present.
- * Protects the last Admin-role holder.
+ * Replace a member's role set. Requires `manageMemberRoles` or `manageRoles`.
+ * Always retains the default Member role when present. Protects the last Admin.
  */
 export async function setMemberRoles(
   spaceIdRaw: string | ObjectId,
@@ -306,7 +349,7 @@ export async function setMemberRoles(
     return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
   }
 
-  const gate = await requireManageRoles(spaceId, actingId);
+  const gate = await requireAssignMemberRoles(spaceId, actingId);
   if (!gate.ok) return { success: false, error: gate.error, errorCode: gate.errorCode };
 
   const memberRepo = getSpaceMemberRepository();
@@ -318,7 +361,9 @@ export async function setMemberRoles(
   const roles = await getSpaceRoleRepository().findBySpace(spaceId);
   const roleById = new Map(roles.map((r) => [r._id.toHexString(), r]));
   const adminRole = roles.find((r) => r.systemKey === 'admin');
-  const defaultMember = roles.find((r) => r.isDefaultMember || r.systemKey === 'member');
+  const defaultMember =
+    roles.find((r) => r.systemKey === 'member') ?? roles.find((r) => r.isDefaultMember);
+  const actorCanManageRoles = memberHasPermission(gate.actorPerms, 'manageRoles');
 
   const nextIds: ObjectId[] = [];
   const seen = new Set<string>();
@@ -342,28 +387,37 @@ export async function setMemberRoles(
     seen.add(defaultMember._id.toHexString());
   }
 
-  // Escalation: union of permissions on the new role set must be ⊆ actor's.
-  const granted = new Set<SpacePermission>();
-  for (const id of nextIds) {
-    const role = roleById.get(id.toHexString());
-    if (!role) continue;
-    for (const p of normalizeSpacePermissions(role.permissions)) granted.add(p);
-  }
-  if (!spacePermissionsSubsetOf([...granted], [...gate.actorPerms.permissions])) {
-    return {
-      success: false,
-      error: 'You cannot assign roles with permissions you do not hold.',
-      errorCode: 'ESCALATION',
-    };
-  }
-
-  // Last Admin protection: cannot strip Admin when this member is the sole holder.
+  // Last Admin protection + Admin grant gate (only system Admins may newly assign Admin).
   if (adminRole) {
     const hadAdmin = target.roleIds.some((id) => id.equals(adminRole._id));
     const willHaveAdmin = nextIds.some((id) => id.equals(adminRole._id));
+    if (willHaveAdmin && !hadAdmin && !gate.actorPerms.isAdmin) {
+      return {
+        success: false,
+        error: 'Only system admins can assign the Admin role.',
+        errorCode: 'ESCALATION',
+      };
+    }
     if (hadAdmin && !willHaveAdmin) {
       const blocked = await assertNotLastAdmin(spaceId, targetId);
       if (blocked) return blocked;
+    }
+  }
+
+  // Without manageRoles, next role-set permissions must be ⊆ actor's.
+  if (!actorCanManageRoles) {
+    const granted = new Set<SpacePermission>();
+    for (const id of nextIds) {
+      const role = roleById.get(id.toHexString());
+      if (!role) continue;
+      for (const p of normalizeSpacePermissions(role.permissions)) granted.add(p);
+    }
+    if (!spacePermissionsSubsetOf([...granted], [...gate.actorPerms.permissions])) {
+      return {
+        success: false,
+        error: 'You cannot assign roles with permissions you do not hold.',
+        errorCode: 'ESCALATION',
+      };
     }
   }
 
@@ -411,7 +465,10 @@ export async function listRoleMembers(
   }
 
   const gate = await resolveMemberPermissions(spaceId, requesterId);
-  if (!memberHasPermission(gate, 'manageRoles')) {
+  const canList =
+    memberHasPermission(gate, 'manageRoles') ||
+    memberHasPermission(gate, 'manageMemberRoles');
+  if (!canList) {
     return {
       success: false,
       error: 'You do not have permission to manage roles.',

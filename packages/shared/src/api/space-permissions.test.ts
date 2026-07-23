@@ -7,6 +7,7 @@ import {
   normalizeSpacePermissions,
   spacePermissionToggleOptions,
   spacePermissionsSubsetOf,
+  canGrantSpaceMemberRole,
   canAccessSpaceManageUi,
   DEFAULT_ADMIN_PERMISSIONS,
   DEFAULT_MEMBER_PERMISSIONS,
@@ -92,5 +93,56 @@ describe('canAccessSpaceManageUi', () => {
   test('true when any manage-UI permission is present', () => {
     expect(canAccessSpaceManageUi(['manageRoles'])).toBe(true);
     expect(canAccessSpaceManageUi(['sendMessages'])).toBe(false);
+  });
+});
+
+describe('canGrantSpaceMemberRole', () => {
+  test('Admin role requires system admin', () => {
+    expect(
+      canGrantSpaceMemberRole({
+        role: { systemKey: 'admin', permissions: [...DEFAULT_ADMIN_PERMISSIONS] },
+        actorPermissions: ['manageRoles', 'manageMemberRoles'],
+        actorIsAdmin: false,
+        actorCanManageRoles: true,
+      }),
+    ).toBe(false);
+    expect(
+      canGrantSpaceMemberRole({
+        role: { systemKey: 'admin', permissions: [...DEFAULT_ADMIN_PERMISSIONS] },
+        actorPermissions: [...DEFAULT_ADMIN_PERMISSIONS],
+        actorIsAdmin: true,
+        actorCanManageRoles: true,
+      }),
+    ).toBe(true);
+  });
+
+  test('manageRoles may grant any non-admin role', () => {
+    expect(
+      canGrantSpaceMemberRole({
+        role: { permissions: ['kickMembers', 'banMembers'] },
+        actorPermissions: ['manageRoles', 'viewChannels'],
+        actorIsAdmin: false,
+        actorCanManageRoles: true,
+      }),
+    ).toBe(true);
+  });
+
+  test('manageMemberRoles-only requires permission subset', () => {
+    expect(
+      canGrantSpaceMemberRole({
+        role: { permissions: ['kickMembers'] },
+        actorPermissions: ['manageMemberRoles', 'viewChannels'],
+        actorIsAdmin: false,
+        actorCanManageRoles: false,
+      }),
+    ).toBe(false);
+    expect(
+      canGrantSpaceMemberRole({
+        role: { permissions: ['viewChannels'] },
+        actorPermissions: ['manageMemberRoles', 'viewChannels'],
+        actorIsAdmin: false,
+        actorCanManageRoles: false,
+      }),
+    ).toBe(true);
   });
 });

@@ -32,13 +32,25 @@ export interface SpacesSocketEffectsParams {
   setUnreadByChannel: React.Dispatch<React.SetStateAction<Record<string, SpaceChannelUnreadState>>>;
   setUnreadBySpace: React.Dispatch<React.SetStateAction<Record<string, number>>>;
   fireNotificationRef: MutableRefObject<
-    ((title: string, body: string, options: { isMention?: boolean; channelId: string; spaceId?: string; spaceSlug?: string; onClick?: () => void }) => void) | undefined
+    | ((
+        title: string,
+        body: string,
+        options?: {
+          isMention?: boolean;
+          channelId?: string;
+          spaceId?: string;
+          spaceSlug?: string;
+          onClick?: () => void;
+        },
+      ) => void)
+    | undefined
   >;
   channelNamesRef: MutableRefObject<Record<string, string>>;
   participantProfilesRef: MutableRefObject<Record<string, PublicIdentity>>;
   activeChannelMessagesRef: MutableRefObject<PublicSpaceMessage[]>;
   /** Called after local state is cleaned up for a deleted Space. */
   onSpaceDeleted?: (spaceId: string) => void;
+  tRef?: MutableRefObject<(key: string, options?: Record<string, unknown>) => string>;
 }
 
 export function useSpacesSocketEffects(params: SpacesSocketEffectsParams): void {
@@ -63,6 +75,7 @@ export function useSpacesSocketEffects(params: SpacesSocketEffectsParams): void 
     participantProfilesRef,
     activeChannelMessagesRef,
     onSpaceDeleted,
+    tRef,
   } = params;
 
   // Keep the delete callback on a ref so an inline parent identity cannot
@@ -101,6 +114,7 @@ export function useSpacesSocketEffects(params: SpacesSocketEffectsParams): void 
         participantProfiles: participantProfilesRef.current,
         activeChannelMessages: activeChannelMessagesRef.current,
         onSpaceDeleted: (spaceId) => onSpaceDeletedRef.current?.(spaceId),
+        t: tRef?.current,
       });
     });
 

@@ -142,6 +142,17 @@ export class SpacesApi {
     );
   }
 
+  async banMember(
+    spaceId: string,
+    identityId: string,
+    body: { reason: string; duration: '1h' | '1d' | '7d' | '30d' | 'permanent' },
+  ): Promise<ApiResponse<{ member: PublicSpaceMember }>> {
+    return this.client.post(
+      `/api/spaces/${encodeURIComponent(spaceId)}/members/${encodeURIComponent(identityId)}/ban`,
+      body,
+    );
+  }
+
   /** Update Space-scoped nickname / colour for a member. Null clears a field. */
   async updateMemberProfile(
     spaceId: string,

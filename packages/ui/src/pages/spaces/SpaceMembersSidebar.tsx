@@ -1,18 +1,22 @@
+import type {
+  PublicIdentity,
+  PublicSpaceMember,
+  PublicSpaceRole,
+  SpaceBanDuration,
+  SpacePermission,
+} from '@adieuu/shared';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
-import type { PublicIdentity, PublicSpaceMember, PublicSpaceRole } from '@adieuu/shared';
 import { Button } from '../../components/Button';
 import { HoverCard } from '../../components/HoverCard';
-import { IdentityCard } from '../../components/IdentityCard';
+import { IdentityHoverCardContent } from '../../components/IdentityHoverCard';
+import { MemberColorDisplayControl } from '../../components/MemberColorDisplayControl';
+import { Spinner } from '../../components/Spinner';
 import { Tooltip } from '../../components/Tooltip';
 import { Icon } from '../../icons/Icon';
-import { Spinner } from '../../components/Spinner';
-import { MemberColorDisplayControl } from '../../components/MemberColorDisplayControl';
-import { useFriends } from '../../hooks/useFriends';
 import { onSpaceMemberUpdated } from '../../services/spacesMembershipEvents';
-import { MemberEditPanel } from '../conversations/MemberEditPanel';
 import { resolveDisplayName } from '../conversations/conversationUtils';
+import { MemberEditPanel } from '../conversations/MemberEditPanel';
 import { actorTopRolePosition } from './channelRoleHierarchy';
 import {
   getMemberRoleBadges,
@@ -20,14 +24,22 @@ import {
   resolveSpaceMemberColor,
   spaceMembersToSettingsMap,
 } from './groupSpaceMembersByRole';
+import { SpaceMemberModerationMenu } from './SpaceMemberModerationMenu';
 
 interface SpaceMembersSidebarProps {
   spaceId: string;
   roles: PublicSpaceRole[];
   selfId: string | undefined;
   actorRoleIds: readonly string[];
+  actorPermissions: readonly SpacePermission[];
+  ownerIdentityId: string | undefined;
   canChangeNickname: boolean;
   canManageNicknames: boolean;
+  canKick: boolean;
+  canBan: boolean;
+  canManageMemberRoles: boolean;
+  canManageRoles: boolean;
+  actorIsAdmin: boolean;
   listMembers: (
     spaceId: string,
     options?: { limit?: number; cursor?: string },
@@ -36,6 +48,24 @@ interface SpaceMembersSidebarProps {
     spaceId: string,
     identityId: string,
     body: { nickname?: string | null; color?: string | null },
+  ) => Promise<{
+    success: boolean;
+    data?: { member: PublicSpaceMember };
+    error?: string | { message?: string };
+  }>;
+  removeMember: (
+    spaceId: string,
+    identityId: string,
+  ) => Promise<{ success: boolean; error?: string | { message?: string } }>;
+  banMember: (
+    spaceId: string,
+    identityId: string,
+    body: { reason: string; duration: SpaceBanDuration },
+  ) => Promise<{ success: boolean; error?: string | { message?: string } }>;
+  setMemberRoles: (
+    spaceId: string,
+    identityId: string,
+    roleIds: string[],
   ) => Promise<{
     success: boolean;
     data?: { member: PublicSpaceMember };
@@ -54,22 +84,32 @@ export function SpaceMembersSidebar({
   roles,
   selfId,
   actorRoleIds,
+  actorPermissions,
+  ownerIdentityId,
   canChangeNickname,
   canManageNicknames,
+  canKick,
+  canBan,
+  canManageMemberRoles,
+  canManageRoles,
+  actorIsAdmin,
   listMembers,
   updateMemberProfile,
+  removeMember,
+  banMember,
+  setMemberRoles,
   resolveProfile,
   resolveRoleName,
   onMembersChange,
   onClose,
 }: SpaceMembersSidebarProps) {
   const { t } = useTranslation();
-  const { getFriendshipStatus } = useFriends();
   const [members, setMembers] = useState<PublicSpaceMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [cursor, setCursor] = useState<string | null>(null);
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
-  const [memberHoverKey, setMemberHoverKey] = useState<string | null>(null);
+  /** Profile popover opened by left-click (not hover). */
+  const [profileMemberId, setProfileMemberId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const loadingRef = useRef(false);
   const generationRef = useRef(0);
@@ -198,6 +238,16 @@ export function SpaceMembersSidebar({
     [spaceId, updateMemberProfile, t],
   );
 
+  const handleMemberUpdated = useCallback((updated: PublicSpaceMember) => {
+    setMembers((prev) =>
+      prev.map((m) => (m.identityId === updated.identityId ? updated : m)),
+    );
+  }, []);
+
+  const handleMemberRemoved = useCallback((identityId: string) => {
+    setMembers((prev) => prev.filter((m) => m.identityId !== identityId));
+  }, []);
+
   return (
     <div className="conversation-members-sidebar">
       <div className="conversation-members-header">
@@ -248,11 +298,18 @@ export function SpaceMembersSidebar({
               const isEditing = editingMemberId === member.identityId;
               const showEdit = canEditMember(member);
 
+              const profileOpen = profileMemberId === member.identityId;
+
               const rowInner = (
                 <>
-                  <Link
-                    to={`/identity/${member.identityId}`}
+                  <button
+                    type="button"
                     className="conversation-member-item-link"
+                    onClick={() => {
+                      setProfileMemberId((cur) =>
+                        cur === member.identityId ? null : member.identityId,
+                      );
+                    }}
                   >
                     <div className="conversation-member-avatar">
                       {profile?.avatarUrl ? (
@@ -310,7 +367,7 @@ export function SpaceMembersSidebar({
                         <span className="conversation-member-username">@{profile.username}</span>
                       )}
                     </div>
-                  </Link>
+                  </button>
                   {showEdit && (
                     <div className="conversation-member-actions">
                       <Tooltip content={t('conversations.editMember', 'Edit member')} position="top">
@@ -329,30 +386,65 @@ export function SpaceMembersSidebar({
                 </>
               );
 
+              const rowEl = (
+                <div className="conversation-member-item">{rowInner}</div>
+              );
+
+              // Controlled click-to-open profile card (hover-driven opens are ignored).
+              const profileWrapped = profile ? (
+                <HoverCard
+                  className="identity-hover-card"
+                  positioning={{ placement: 'left-start', gutter: 10 }}
+                  open={profileOpen}
+                  openDelay={10_000}
+                  closeDelay={200}
+                  onOpenChange={(d) => {
+                    // Only honor closes (outside click / leave); opens come from the row button.
+                    if (!d.open) {
+                      setProfileMemberId((cur) =>
+                        cur === member.identityId ? null : cur,
+                      );
+                    }
+                  }}
+                  trigger={rowEl}
+                >
+                  <IdentityHoverCardContent identity={profile} />
+                </HoverCard>
+              ) : (
+                rowEl
+              );
+
               return (
                 <div key={member.id} className="conversation-member-item-wrap">
-                  {profile ? (
-                    <HoverCard
-                      className="conversation-member-hover-card-content"
-                      positioning={{ placement: 'left-start', gutter: 10 }}
-                      open={memberHoverKey === `member:${member.identityId}`}
-                      onOpenChange={(d) => {
-                        const key = `member:${member.identityId}`;
-                        setMemberHoverKey(d.open ? key : (cur) => (cur === key ? null : cur));
-                      }}
-                      trigger={<div className="conversation-member-item">{rowInner}</div>}
-                    >
-                      <IdentityCard
-                        identity={profile}
-                        showActions
-                        selfIdentityId={selfId}
-                        onGetFriendshipStatus={selfId ? getFriendshipStatus : undefined}
-                        showFriendshipLength={!isSelf}
-                      />
-                    </HoverCard>
-                  ) : (
-                    <div className="conversation-member-item">{rowInner}</div>
-                  )}
+                  <SpaceMemberModerationMenu
+                    member={member}
+                    roles={roles}
+                    spaceMembers={members}
+                    actorPermissions={actorPermissions}
+                    ownerIdentityId={ownerIdentityId}
+                    selfId={selfId}
+                    canKick={canKick}
+                    canBan={canBan}
+                    canManageMemberRoles={canManageMemberRoles}
+                    canManageRoles={canManageRoles}
+                    actorIsAdmin={actorIsAdmin}
+                    resolveRoleName={resolveRoleName}
+                    removeMember={(identityId) => removeMember(spaceId, identityId)}
+                    banMember={(identityId, body) => banMember(spaceId, identityId, body)}
+                    setMemberRoles={(identityId, roleIds) =>
+                      setMemberRoles(spaceId, identityId, roleIds)
+                    }
+                    onMemberUpdated={handleMemberUpdated}
+                    onMemberRemoved={handleMemberRemoved}
+                    onMenuOpen={() => setProfileMemberId(null)}
+                    onEditNicknameColor={
+                      showEdit
+                        ? () => setEditingMemberId(member.identityId)
+                        : undefined
+                    }
+                  >
+                    {profileWrapped}
+                  </SpaceMemberModerationMenu>
                   {isEditing && (
                     <MemberEditPanel
                       initialNickname={member.nickname ?? ''}

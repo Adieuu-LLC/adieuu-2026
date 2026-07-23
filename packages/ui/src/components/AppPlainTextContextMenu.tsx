@@ -53,6 +53,8 @@ export function AppPlainTextContextMenu() {
       target.closest('.conversation-composer') ||
       target.closest('.conversation-list-item') ||
       target.closest('.conversation-context-menu') ||
+      target.closest('.conversation-members-sidebar') ||
+      target.closest('.space-member-moderation-trigger') ||
       target.closest('.dm-context-menu') ||
       target.closest('.space-secondary-sidebar') ||
       target.closest('.emoji-picker-popover') ||

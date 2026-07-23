@@ -26,6 +26,7 @@ import { isValidObjectId } from '../../utils';
 import elog from '../../utils/adieuuLogger';
 import { toPublicSpace } from '../../models/space';
 import { resolveMemberPermissions, memberHasPermission } from './permissions';
+import { isSpaceBanActive } from './ban-utils';
 import { publishSpaceEvent, publishSpaceEventToIdentity } from './redis-events';
 import { seedNewSpace } from './space-seed';
 import { isSpaceCreationEnabled } from './space-settings';
@@ -623,13 +624,16 @@ export async function listMySpaces(
 
 /**
  * Discover public/listed Spaces for the directory. Hidden Spaces never appear.
+ * When `viewerIdentityId` is provided, each card is enriched with the viewer's
+ * `membershipStatus` (and ban expiry when banned).
  */
 export async function discoverSpaces(options: {
   q?: string;
   limit?: number;
   cursor?: string;
+  viewerIdentityId?: string | ObjectId;
 } = {}): Promise<SpaceListPayload> {
-  const { q, limit = 30, cursor } = options;
+  const { q, limit = 30, cursor, viewerIdentityId } = options;
   const cursorObjId = cursor && isValidObjectId(cursor) ? new ObjectId(cursor) : undefined;
 
   const spaces = await getSpaceRepository().discover({
@@ -640,9 +644,40 @@ export async function discoverSpaces(options: {
 
   const hasMore = spaces.length > limit;
   const page = hasMore ? spaces.slice(0, limit) : spaces;
+  const publicSpaces = page.map(toPublicSpace);
+
+  const viewerId =
+    viewerIdentityId instanceof ObjectId
+      ? viewerIdentityId
+      : viewerIdentityId && isValidObjectId(viewerIdentityId)
+        ? new ObjectId(viewerIdentityId)
+        : null;
+
+  if (viewerId && publicSpaces.length > 0) {
+    const memberships = await getSpaceMemberRepository().findForIdentityInSpaces(
+      viewerId,
+      page.map((s) => s._id),
+    );
+    const bySpace = new Map(memberships.map((m) => [m.spaceId.toHexString(), m]));
+    for (const pub of publicSpaces) {
+      const m = bySpace.get(pub.id);
+      if (!m) {
+        pub.membershipStatus = 'none';
+        continue;
+      }
+      if (m.status === 'active') {
+        pub.membershipStatus = 'active';
+      } else if (isSpaceBanActive(m)) {
+        pub.membershipStatus = 'banned';
+        pub.banExpiresAt = m.banExpiresAt ? m.banExpiresAt.toISOString() : null;
+      } else {
+        pub.membershipStatus = 'none';
+      }
+    }
+  }
 
   return {
-    spaces: page.map(toPublicSpace),
+    spaces: publicSpaces,
     cursor: hasMore && page.length > 0 ? page[page.length - 1]!._id.toHexString() : null,
   };
 }

@@ -24,6 +24,7 @@ import { isValidObjectId } from '../../utils';
 import { toPublicSpaceInvite } from '../../models/space-invite';
 import { toPublicSpace } from '../../models/space';
 import { resolveMemberPermissions, memberHasPermission } from './permissions';
+import { isSpaceBanActive } from './ban-utils';
 import { addSpaceMembership, resolveEffectiveTier } from './members';
 import { publishSpaceEvent, publishSpaceEventToIdentity } from './redis-events';
 import type {
@@ -78,8 +79,15 @@ export async function createSpaceInvite(
 
   const memberRepo = getSpaceMemberRepository();
   const alreadyMember = await memberRepo.findMember(spaceId, invitedId);
-  if (alreadyMember) {
+  if (alreadyMember?.status === 'active') {
     return { success: false, error: 'That identity is already a member.', errorCode: 'ALREADY_MEMBER' };
+  }
+  if (alreadyMember && isSpaceBanActive(alreadyMember)) {
+    return {
+      success: false,
+      error: 'That identity is banned from this Space.',
+      errorCode: 'MEMBER_BANNED',
+    };
   }
 
   const inviteRepo = getSpaceInviteRepository();
@@ -136,6 +144,15 @@ export async function acceptSpaceInvite(
   const space = await getSpaceRepository().findById(invite.spaceId);
   if (!space) {
     return { success: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' };
+  }
+
+  const existing = await getSpaceMemberRepository().findMember(invite.spaceId, identityId);
+  if (existing && isSpaceBanActive(existing)) {
+    return {
+      success: false,
+      error: 'You are banned from this Space.',
+      errorCode: 'MEMBER_BANNED',
+    };
   }
 
   const decision = evaluateSpaceJoin({

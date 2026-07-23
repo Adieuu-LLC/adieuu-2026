@@ -30,13 +30,13 @@ export class SpaceMemberRepository extends BaseRepository<SpaceMemberDocument> {
     return await this.findOne({ spaceId, identityId } as Filter<SpaceMemberDocument>);
   }
 
-  /** Members of a Space, oldest first, cursor-paginated by _id. */
+  /** Active members of a Space, oldest first, cursor-paginated by _id. */
   async listBySpace(
     spaceId: ObjectId,
     limit = 50,
     cursor?: ObjectId
   ): Promise<SpaceMemberDocument[]> {
-    const filter: Record<string, unknown> = { spaceId };
+    const filter: Record<string, unknown> = { spaceId, status: 'active' };
     if (cursor) {
       filter._id = { $gt: cursor };
     }
@@ -47,25 +47,25 @@ export class SpaceMemberRepository extends BaseRepository<SpaceMemberDocument> {
       .toArray()) as SpaceMemberDocument[];
   }
 
-  /** Most recently joined members of a Space (by joinedAt, then _id). */
+  /** Most recently joined active members of a Space (by joinedAt, then _id). */
   async listRecentBySpace(
     spaceId: ObjectId,
     limit = 10,
   ): Promise<SpaceMemberDocument[]> {
     return (await this.collection
-      .find({ spaceId } as Filter<SpaceMemberDocument>)
+      .find({ spaceId, status: 'active' } as Filter<SpaceMemberDocument>)
       .sort({ joinedAt: -1, _id: -1 })
       .limit(limit)
       .toArray()) as SpaceMemberDocument[];
   }
 
-  /** Spaces an identity belongs to, most recently joined first. */
+  /** Active Spaces an identity belongs to, most recently joined first. */
   async findForIdentity(
     identityId: ObjectId,
     limit = 100,
     cursor?: ObjectId
   ): Promise<SpaceMemberDocument[]> {
-    const filter: Record<string, unknown> = { identityId };
+    const filter: Record<string, unknown> = { identityId, status: 'active' };
     if (cursor) {
       filter._id = { $lt: cursor };
     }
@@ -74,6 +74,64 @@ export class SpaceMemberRepository extends BaseRepository<SpaceMemberDocument> {
       .sort({ _id: -1 })
       .limit(limit)
       .toArray()) as SpaceMemberDocument[];
+  }
+
+  /** Memberships for an identity across a set of Spaces (any status). */
+  async findForIdentityInSpaces(
+    identityId: ObjectId,
+    spaceIds: readonly ObjectId[],
+  ): Promise<SpaceMemberDocument[]> {
+    if (spaceIds.length === 0) return [];
+    return (await this.collection
+      .find({
+        identityId,
+        spaceId: { $in: [...spaceIds] },
+      } as Filter<SpaceMemberDocument>)
+      .toArray()) as SpaceMemberDocument[];
+  }
+
+  async banMember(
+    spaceId: ObjectId,
+    identityId: ObjectId,
+    fields: { banReason: string; bannedAt: Date; banExpiresAt: Date | null },
+  ): Promise<SpaceMemberDocument | null> {
+    const result = await this.collection.findOneAndUpdate(
+      { spaceId, identityId, status: 'active' } as Filter<SpaceMemberDocument>,
+      {
+        $set: {
+          status: 'banned' as SpaceMemberStatus,
+          banReason: fields.banReason,
+          bannedAt: fields.bannedAt,
+          banExpiresAt: fields.banExpiresAt,
+          roleIds: [],
+          updatedAt: new Date(),
+        },
+      } as UpdateFilter<SpaceMemberDocument>,
+      { returnDocument: 'after' },
+    );
+    return (result as SpaceMemberDocument | null) ?? null;
+  }
+
+  /** Clear a ban and restore active membership with the given roles. */
+  async clearBanAndActivate(
+    spaceId: ObjectId,
+    identityId: ObjectId,
+    roleIds: ObjectId[],
+  ): Promise<SpaceMemberDocument | null> {
+    const result = await this.collection.findOneAndUpdate(
+      { spaceId, identityId, status: 'banned' } as Filter<SpaceMemberDocument>,
+      {
+        $set: {
+          status: 'active' as SpaceMemberStatus,
+          roleIds,
+          joinedAt: new Date(),
+          updatedAt: new Date(),
+        },
+        $unset: { banReason: '', bannedAt: '', banExpiresAt: '' },
+      } as UpdateFilter<SpaceMemberDocument>,
+      { returnDocument: 'after' },
+    );
+    return (result as SpaceMemberDocument | null) ?? null;
   }
 
   async removeMember(spaceId: ObjectId, identityId: ObjectId): Promise<boolean> {

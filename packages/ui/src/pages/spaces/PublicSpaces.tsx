@@ -222,8 +222,11 @@ export function PublicSpaces() {
                 });
                 const description = resolveSpaceDisplayDescription(space, cipher);
                 const spacePath = `/s/${space.slug}`;
-                const isJoined = joinedSpaceIds.has(space.id);
-                const canBrowse = isJoined || canBrowseSpace(space);
+                const isBanned = space.membershipStatus === 'banned';
+                const isJoined =
+                  !isBanned &&
+                  (space.membershipStatus === 'active' || joinedSpaceIds.has(space.id));
+                const canBrowse = !isBanned && (isJoined || canBrowseSpace(space));
                 return (
                   <Card key={space.id} variant="elevated" className="spaces-card">
                     <div className="spaces-card-header">
@@ -258,6 +261,11 @@ export function PublicSpaces() {
                             {t('spaces.joinModal.cipherRequiredBadge')}
                           </span>
                         )}
+                        {isBanned && (
+                          <span className="spaces-badge spaces-badge--banned">
+                            {t('spaces.banned', 'Banned')}
+                          </span>
+                        )}
                         {isJoined && (
                           <span className="spaces-badge spaces-badge--joined">
                             {t('spaces.joined')}
@@ -275,7 +283,16 @@ export function PublicSpaces() {
                         {t('spaces.memberCount', { count: space.memberCount })}
                       </span>
                       <div className="spaces-card-actions">
-                        {isJoined ? (
+                        {isBanned ? (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            disabled
+                            aria-label={t('spaces.bannedCannotJoin', 'You are banned from this Space')}
+                          >
+                            {t('spaces.banned', 'Banned')}
+                          </Button>
+                        ) : isJoined ? (
                           <Link
                             to={spacePath}
                             className="btn btn-primary btn-sm"

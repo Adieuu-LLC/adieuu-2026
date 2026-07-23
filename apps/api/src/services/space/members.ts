@@ -15,7 +15,7 @@
  */
 
 import { ObjectId } from 'mongodb';
-import type { SubscriptionTierId } from '@adieuu/shared';
+import type { SpaceBanDuration, SubscriptionTierId } from '@adieuu/shared';
 import { evaluateSpaceJoin } from '@adieuu/shared';
 import { getSpaceRepository } from '../../repositories/space.repository';
 import { getSpaceMemberRepository } from '../../repositories/space-member.repository';
@@ -25,6 +25,7 @@ import { isValidObjectId } from '../../utils';
 import { toPublicSpaceMember } from '../../models/space-member';
 import type { SpaceMemberDocument } from '../../models/space-member';
 import { toPublicSpaceRole } from '../../models/space-role';
+import { banExpiresAtForDuration, isSpaceBanActive } from './ban-utils';
 import { resolveMemberPermissions, memberHasPermission } from './permissions';
 import { canReadSpace } from './access';
 import { assertNotLastAdmin } from './last-admin';
@@ -36,6 +37,8 @@ import type {
   SpaceMembersListResult,
   SpaceRolesResult,
 } from './types';
+
+export { banExpiresAtForDuration, isSpaceBanActive } from './ban-utils';
 
 function parseObjId(raw: string | ObjectId): ObjectId | null {
   if (raw instanceof ObjectId) return raw;
@@ -63,8 +66,9 @@ export function resolveEffectiveTier(billing: SpaceBillingContext): Subscription
 
 /**
  * Adds a membership (default Member role) idempotently and bumps `memberCount`.
- * Returns the existing membership unchanged when already a member. Shared by
- * open-join and invite-accept; callers own any tier/visibility gating.
+ * Returns the existing active membership unchanged. Reactivates an expired ban.
+ * Throws/`MEMBER_BANNED` is handled by callers via {@link resolveJoinableMembership}.
+ * Shared by open-join and invite-accept; callers own any tier/visibility gating.
  */
 export async function addSpaceMembership(
   spaceId: ObjectId,
@@ -73,10 +77,26 @@ export async function addSpaceMembership(
   const memberRepo = getSpaceMemberRepository();
 
   const existing = await memberRepo.findMember(spaceId, identityId);
-  if (existing) return existing;
+  if (existing?.status === 'active') return existing;
+  if (existing && isSpaceBanActive(existing)) {
+    // Callers should reject before reaching here; keep a safe hard stop.
+    return existing;
+  }
 
   const defaultRole = await getSpaceRoleRepository().findDefaultMember(spaceId);
   const roleIds = defaultRole ? [defaultRole._id] : [];
+
+  if (existing?.status === 'banned') {
+    const reactivated = await memberRepo.clearBanAndActivate(spaceId, identityId, roleIds);
+    if (reactivated) {
+      await getSpaceRepository().incrementMemberCount(spaceId, 1);
+      await publishSpaceEvent(spaceId.toHexString(), {
+        type: 'space_member_joined',
+        data: { spaceId: spaceId.toHexString(), member: toPublicSpaceMember(reactivated) },
+      });
+      return reactivated;
+    }
+  }
 
   let member: SpaceMemberDocument;
   try {
@@ -84,7 +104,19 @@ export async function addSpaceMembership(
   } catch (err) {
     if (isDuplicateKeyError(err)) {
       const now = await memberRepo.findMember(spaceId, identityId);
-      if (now) return now;
+      if (now?.status === 'active') return now;
+      if (now && isSpaceBanActive(now)) return now;
+      if (now?.status === 'banned') {
+        const reactivated = await memberRepo.clearBanAndActivate(spaceId, identityId, roleIds);
+        if (reactivated) {
+          await getSpaceRepository().incrementMemberCount(spaceId, 1);
+          await publishSpaceEvent(spaceId.toHexString(), {
+            type: 'space_member_joined',
+            data: { spaceId: spaceId.toHexString(), member: toPublicSpaceMember(reactivated) },
+          });
+          return reactivated;
+        }
+      }
     }
     throw err;
   }
@@ -100,8 +132,25 @@ export async function addSpaceMembership(
   return member;
 }
 
+async function rejectIfActivelyBanned(
+  spaceId: ObjectId,
+  identityId: ObjectId,
+): Promise<SpaceMemberResult | null> {
+  const existing = await getSpaceMemberRepository().findMember(spaceId, identityId);
+  if (existing && isSpaceBanActive(existing)) {
+    return {
+      success: false,
+      error: 'You are banned from this Space.',
+      errorCode: 'MEMBER_BANNED',
+      member: toPublicSpaceMember(existing),
+    };
+  }
+  return null;
+}
+
 /**
- * Open-join a Space. Idempotent: an existing membership is returned as success.
+ * Open-join a Space. Idempotent: an existing active membership is returned as success.
+ * Active bans are rejected; expired bans are cleared and the member rejoins.
  * Invite-authorized joins are handled separately in the invites phase.
  */
 export async function joinSpace(
@@ -120,10 +169,12 @@ export async function joinSpace(
     return { success: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' };
   }
 
-  const memberRepo = getSpaceMemberRepository();
+  const banned = await rejectIfActivelyBanned(spaceId, identityId);
+  if (banned) return banned;
 
+  const memberRepo = getSpaceMemberRepository();
   const existing = await memberRepo.findMember(spaceId, identityId);
-  if (existing) {
+  if (existing?.status === 'active') {
     return { success: true, member: toPublicSpaceMember(existing) };
   }
 
@@ -145,6 +196,14 @@ export async function joinSpace(
   }
 
   const member = await addSpaceMembership(spaceId, identityId);
+  if (isSpaceBanActive(member)) {
+    return {
+      success: false,
+      error: 'You are banned from this Space.',
+      errorCode: 'MEMBER_BANNED',
+      member: toPublicSpaceMember(member),
+    };
+  }
   return { success: true, member: toPublicSpaceMember(member) };
 }
 
@@ -186,7 +245,11 @@ export async function leaveSpace(
   await getSpaceRepository().incrementMemberCount(spaceId, -1);
   await publishSpaceEvent(spaceId.toHexString(), {
     type: 'space_member_left',
-    data: { spaceId: spaceId.toHexString(), identityId: identityId.toHexString() },
+    data: {
+      spaceId: spaceId.toHexString(),
+      identityId: identityId.toHexString(),
+      reason: 'left',
+    },
   });
   return { success: true };
 }
@@ -242,9 +305,94 @@ export async function removeSpaceMember(
   await getSpaceRepository().incrementMemberCount(spaceId, -1);
   await publishSpaceEvent(spaceId.toHexString(), {
     type: 'space_member_left',
-    data: { spaceId: spaceId.toHexString(), identityId: targetId.toHexString() },
+    data: {
+      spaceId: spaceId.toHexString(),
+      identityId: targetId.toHexString(),
+      reason: 'kicked',
+    },
   });
   return { success: true };
+}
+
+/**
+ * Ban another member. Requires `banMembers`. Keeps the membership row so join/discover
+ * can detect the ban. The Space owner can never be banned.
+ */
+export async function banSpaceMember(
+  spaceIdRaw: string | ObjectId,
+  actingIdentityIdRaw: string | ObjectId,
+  targetIdentityIdRaw: string | ObjectId,
+  params: { reason: string; duration: SpaceBanDuration },
+): Promise<SpaceMemberResult> {
+  const spaceId = parseObjId(spaceIdRaw);
+  const actingId = parseObjId(actingIdentityIdRaw);
+  const targetId = parseObjId(targetIdentityIdRaw);
+  if (!spaceId || !actingId || !targetId) {
+    return { success: false, error: 'Invalid id.', errorCode: 'INVALID_ID' };
+  }
+
+  const reason = params.reason.trim();
+  if (!reason) {
+    return { success: false, error: 'A ban reason is required.', errorCode: 'INVALID_CONTENT' };
+  }
+
+  const space = await getSpaceRepository().findById(spaceId);
+  if (!space) {
+    return { success: false, error: 'Space not found.', errorCode: 'SPACE_NOT_FOUND' };
+  }
+
+  const perms = await resolveMemberPermissions(spaceId, actingId);
+  if (!perms.isMember) {
+    return { success: false, error: 'You are not a member of this Space.', errorCode: 'NOT_MEMBER' };
+  }
+  if (!memberHasPermission(perms, 'banMembers')) {
+    return {
+      success: false,
+      error: 'You do not have permission to ban members.',
+      errorCode: 'FORBIDDEN',
+    };
+  }
+
+  if (space.ownerIdentityId.equals(targetId)) {
+    return {
+      success: false,
+      error: 'The Space owner cannot be banned.',
+      errorCode: 'CANNOT_REMOVE_OWNER',
+    };
+  }
+
+  if (actingId.equals(targetId)) {
+    return {
+      success: false,
+      error: 'You cannot ban yourself.',
+      errorCode: 'FORBIDDEN',
+    };
+  }
+
+  const lastAdmin = await assertNotLastAdmin(spaceId, targetId);
+  if (lastAdmin) return lastAdmin;
+
+  const bannedAt = new Date();
+  const banExpiresAt = banExpiresAtForDuration(params.duration, bannedAt);
+  const banned = await getSpaceMemberRepository().banMember(spaceId, targetId, {
+    banReason: reason,
+    bannedAt,
+    banExpiresAt,
+  });
+  if (!banned) {
+    return { success: false, error: 'That member was not found.', errorCode: 'MEMBER_NOT_FOUND' };
+  }
+
+  await getSpaceRepository().incrementMemberCount(spaceId, -1);
+  await publishSpaceEvent(spaceId.toHexString(), {
+    type: 'space_member_left',
+    data: {
+      spaceId: spaceId.toHexString(),
+      identityId: targetId.toHexString(),
+      reason: 'banned',
+    },
+  });
+  return { success: true, member: toPublicSpaceMember(banned) };
 }
 
 /** Lowest role position among held roles (lower = higher rank), or null. */

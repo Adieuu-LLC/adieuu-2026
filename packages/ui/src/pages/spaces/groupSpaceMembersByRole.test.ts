@@ -121,7 +121,12 @@ describe('groupSpaceMembersByRole', () => {
 describe('resolveSpaceMemberColor', () => {
   const admin = role('admin', 0, { color: '#e74c3c' });
   const mod = role('mod', 100, { color: '#2ecc71' });
-  const everyone = role('everyone', 1000, { color: '#99aab5', isDefaultMember: true });
+  const everyone = role('everyone', 1000, {
+    color: '#99aab5',
+    isDefaultMember: true,
+    systemKey: 'member',
+    isSystem: true,
+  });
 
   test('prefers custom member colour', () => {
     expect(
@@ -152,17 +157,22 @@ describe('getMemberRoleBadges', () => {
   const mod = role('mod', 100, { name: 'Mod' });
   const helper = role('helper', 200, { name: 'Helper' });
   const vip = role('vip', 300, { name: 'VIP' });
-  const everyone = role('everyone', 1000, { name: 'Members', isDefaultMember: true });
+  const everyone = role('everyone', 1000, {
+    name: 'Members',
+    isDefaultMember: true,
+    systemKey: 'member',
+    isSystem: true,
+  });
   const roles = [admin, mod, helper, vip, everyone];
   const resolveName = (r: PublicSpaceRole) => r.name;
 
-  test('shows all roles when 3 or fewer', () => {
+  test('shows all roles when 3 or fewer, omitting Everyone', () => {
     const { visible, overflow } = getMemberRoleBadges(
       member('a', ['mod', 'helper', 'everyone']),
       roles,
       resolveName,
     );
-    expect(visible.map((b) => b.name)).toEqual(['Mod', 'Helper', 'Members']);
+    expect(visible.map((b) => b.name)).toEqual(['Mod', 'Helper']);
     expect(overflow).toHaveLength(0);
   });
 

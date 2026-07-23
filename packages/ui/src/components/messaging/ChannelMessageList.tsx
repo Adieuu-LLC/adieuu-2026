@@ -14,6 +14,7 @@ import {
   useCallback,
   useEffect,
   useRef,
+  type ReactElement,
   type ReactNode,
 } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -126,6 +127,9 @@ export interface ChannelMessageListProps {
   /** Loader for edit history entries. When provided, the "Edited" label becomes interactive. */
   loadEditHistory?: (messageId: string) => Promise<EditHistoryEntry[] | null>;
 
+  /** Optional Space moderation wrapper for message sender avatar/name. */
+  wrapSenderIdentity?: (identityId: string, node: ReactElement) => ReactElement;
+
   emptyMessage?: string;
   loadingLabel?: string;
   /** Rendered at the end of the messages content div (e.g. pending-outbox row). */
@@ -198,6 +202,7 @@ export function ChannelMessageList({
   systemMessageRenderer,
   freeTierBanner,
   loadEditHistory,
+  wrapSenderIdentity,
   emptyMessage,
   loadingLabel,
   trailingContent,
@@ -387,6 +392,7 @@ export function ChannelMessageList({
             hideUnmoderatedMedia={hideUnmoderatedMedia}
             pageTagCtx={pageTagCtx}
             loadEditHistory={loadEditHistory}
+            wrapSenderIdentity={wrapSenderIdentity}
           />
           {renderMessageExtras ? renderMessageExtras(msg) : null}
         </>
@@ -432,6 +438,7 @@ export function ChannelMessageList({
       systemMessageRenderer,
       renderMessageExtras,
       loadEditHistory,
+      wrapSenderIdentity,
     ],
   );
 

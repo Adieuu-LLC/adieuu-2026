@@ -211,6 +211,13 @@
         color: inherit;
         flex: 1;
         min-width: 0;
+        margin: 0;
+        padding: 0;
+        border: none;
+        background: transparent;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
       }
     }
 
@@ -556,12 +563,6 @@
   }
 }
 
-// Hover card: IdentityCard in members sidebar (padding handled by IdentityCard)
-.hover-card-content.conversation-member-hover-card-content {
-  padding: 0;
-  max-width: 300px;
-}
-
 // ---------------------------------------------------------------------------
 // Member security modal (conversation members sidebar)
 // ---------------------------------------------------------------------------
@@ -797,4 +798,97 @@
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
   }
+}
+
+.space-member-moderation-trigger {
+  display: block;
+  width: 100%;
+
+  &--inline {
+    display: inline-flex;
+    width: auto;
+    max-width: 100%;
+    vertical-align: middle;
+  }
+}
+
+.space-member-moderation-menu {
+  min-width: 200px;
+}
+
+.conversation-context-menu-separator {
+  height: 1px;
+  margin: var(--spacing-xs) 0;
+  border: 0;
+  background: var(--color-border);
+}
+
+.conversation-context-menu-item-chevron {
+  margin-left: auto;
+  width: 12px;
+  height: 12px;
+  opacity: 0.7;
+}
+
+/* Bridge the gap so the pointer can reach the submenu without closing it. */
+.space-member-roles-submenu-positioner {
+  padding-inline-start: 8px;
+  margin-inline-start: -8px;
+}
+
+.space-member-roles-submenu {
+  min-width: 220px;
+  max-height: min(50vh, 320px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: var(--spacing-xs) 0;
+}
+
+.space-member-roles-row {
+  padding: var(--spacing-xs) var(--spacing-md);
+
+  &:hover {
+    background: var(--color-bg-hover);
+  }
+
+  &--locked {
+    opacity: 0.55;
+
+    &:hover {
+      background: transparent;
+    }
+  }
+}
+
+.space-member-roles-locked-wrap {
+  width: 100%;
+}
+
+.space-member-roles-switch {
+  width: 100%;
+  min-height: 32px;
+  padding: 2px 0;
+  gap: var(--spacing-md);
+
+  &--locked {
+    cursor: not-allowed;
+  }
+}
+
+.space-member-roles-switch-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  min-width: 0;
+  flex: 1;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+}
+
+.space-member-roles-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-border) 70%, transparent);
 }

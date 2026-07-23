@@ -17,7 +17,9 @@ export function useSpaceChannelMembers(params: {
 }): {
   memberRoles: PublicSpaceRole[];
   memberSettings: MemberSettingsMap;
+  spaceMembersById: Record<string, PublicSpaceMember>;
   upsertSpaceMembers: (list: readonly PublicSpaceMember[]) => void;
+  removeSpaceMember: (identityId: string) => void;
   handleSidebarMembersChange: (list: readonly PublicSpaceMember[]) => void;
 } {
   const { spaceId, api, resolveProfiles } = params;
@@ -117,10 +119,21 @@ export function useSpaceChannelMembers(params: {
     [upsertSpaceMembers, resolveProfiles],
   );
 
+  const removeSpaceMember = useCallback((identityId: string) => {
+    setSpaceMembersById((prev) => {
+      if (!(identityId in prev)) return prev;
+      const next = { ...prev };
+      delete next[identityId];
+      return next;
+    });
+  }, []);
+
   return {
     memberRoles,
     memberSettings,
+    spaceMembersById,
     upsertSpaceMembers,
+    removeSpaceMember,
     handleSidebarMembersChange,
   };
 }

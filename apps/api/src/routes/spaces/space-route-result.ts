@@ -75,6 +75,7 @@ export function mapSpaceError(
     case 'NOT_AUTHOR':
     case 'OWNER_CANNOT_LEAVE':
     case 'CANNOT_REMOVE_OWNER':
+    case 'MEMBER_BANNED':
     case 'SYSTEM_ROLE':
     case 'ESCALATION':
     case 'NOT_VOICE_CHANNEL':

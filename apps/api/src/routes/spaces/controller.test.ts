@@ -46,6 +46,10 @@ const svc = {
   updateSpaceRole: mock(async () => ({ success: true, role: { id: 'r1' } })) as AnyMock,
   deleteSpaceRole: mock(async () => ({ success: true })) as AnyMock,
   setMemberRoles: mock(async () => ({ success: true, member: { id: 'm1' } })) as AnyMock,
+  banSpaceMember: mock(async () => ({
+    success: true,
+    member: { id: 'm1', status: 'banned' },
+  })) as AnyMock,
   listRoleMembers: mock(async () => ({ success: true, members: [], cursor: null })) as AnyMock,
   createSpaceInvite: mock(async () => ({ success: true, invite: { id: 'i1' } })) as AnyMock,
   acceptSpaceInvite: mock(async () => ({ success: true, invite: { id: 'i1' } })) as AnyMock,

@@ -184,6 +184,10 @@ export function JoinSpaceInterstitial({
     setJoining(true);
     try {
       const res = await api.spaces.join(space.id);
+      if (res.error?.code === 'MEMBER_BANNED') {
+        toast.error(t('spaces.bannedCannotJoin', 'You are banned from this Space'));
+        return;
+      }
       if (res.success || res.error?.code === 'ALREADY_MEMBER') {
         if (res.success) {
           toast.success(t('spaces.joinSuccess', { name: displayName }));

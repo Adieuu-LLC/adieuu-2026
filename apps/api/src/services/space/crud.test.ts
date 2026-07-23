@@ -62,6 +62,7 @@ const memberRepo = {
   })) as AnyMock,
   findMember: mock(async (_s: ObjectId, _i: ObjectId) => null) as AnyMock,
   findForIdentity: mock(async (_i: ObjectId, _l: number, _c?: ObjectId) => [] as any[]) as AnyMock,
+  findForIdentityInSpaces: mock(async (_i: ObjectId, _ids: ObjectId[]) => [] as any[]) as AnyMock,
   listRecentBySpace: mock(async (_id: ObjectId, _l: number) => [] as any[]) as AnyMock,
   deleteBySpace: mock(async (_id: ObjectId) => 0) as AnyMock,
 };

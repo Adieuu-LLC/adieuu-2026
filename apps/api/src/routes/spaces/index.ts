@@ -122,6 +122,10 @@ router.delete('/spaces/:id/members/:identityId', async (ctx) => {
   return spaceRespond(ctx, await spaceController.removeMemberCtrl(ctx));
 });
 
+router.post('/spaces/:id/members/:identityId/ban', async (ctx) => {
+  return spaceRespond(ctx, await spaceController.banMemberCtrl(ctx));
+});
+
 router.patch('/spaces/:id/members/:identityId/profile', async (ctx) => {
   return spaceRespond(ctx, await spaceController.updateMemberProfileCtrl(ctx));
 });

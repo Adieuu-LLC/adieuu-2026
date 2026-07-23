@@ -61,6 +61,7 @@ export {
   CreateSpaceRoleSchema,
   UpdateSpaceRoleSchema,
   SetMemberRolesSchema,
+  BanSpaceMemberSchema,
   UpdateSpaceMemberProfileSchema,
   UpdateSpacePreferencesSchema,
   CreateSpaceChannelSchema,
@@ -77,6 +78,7 @@ export {
   type CreateSpaceChannelCategoryBody,
   type UpdateSpaceChannelCategoryBody,
   type UpdateSpaceChannelLayoutBody,
+  type BanSpaceMemberBody,
   type UpdateSpaceMemberProfileBody,
   type UpdateSpacePreferencesBody,
 } from './spaces';

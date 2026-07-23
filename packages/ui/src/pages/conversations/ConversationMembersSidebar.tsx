@@ -1,18 +1,17 @@
+import type { PublicGroupInvite, PublicIdentity } from '@adieuu/shared';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import type { PublicGroupInvite, PublicIdentity } from '@adieuu/shared';
-import type { MemberSettingsMap } from '../../services/conversationCryptoService';
 import { Button } from '../../components/Button';
 import { HoverCard } from '../../components/HoverCard';
-import { IdentityCard } from '../../components/IdentityCard';
+import { IdentityHoverCardContent } from '../../components/IdentityHoverCard';
+import { MemberColorDisplayControl } from '../../components/MemberColorDisplayControl';
 import { Tooltip } from '../../components/Tooltip';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import { Icon } from '../../icons/Icon';
+import type { MemberSettingsMap } from '../../services/conversationCryptoService';
 import { resolveDisplayName } from './conversationUtils';
 import { MemberEditPanel } from './MemberEditPanel';
-import { MemberColorDisplayControl } from '../../components/MemberColorDisplayControl';
-import { useFriends } from '../../hooks/useFriends';
-import { useIsMobile } from '../../hooks/useIsMobile';
 
 export function ConversationMembersSidebar({
   participants,
@@ -60,7 +59,6 @@ export function ConversationMembersSidebar({
   onClose?: () => void;
 }) {
   const { t } = useTranslation();
-  const { getFriendshipStatus } = useFriends();
   const isMobile = useIsMobile();
   /** Which member/invite hover card is open (`member:id` | `invite:inviteId`); closed before Security dialog opens. */
   const [memberHoverKey, setMemberHoverKey] = useState<string | null>(null);
@@ -191,7 +189,7 @@ export function ConversationMembersSidebar({
             <div key={participantId} className="conversation-member-item-wrap">
               {profile ? (
                 <HoverCard
-                  className="conversation-member-hover-card-content"
+                  className="identity-hover-card"
                   positioning={{ placement: 'left-start', gutter: 10 }}
                   open={memberHoverKey === `member:${participantId}`}
                   onOpenChange={(d) => {
@@ -200,12 +198,8 @@ export function ConversationMembersSidebar({
                   }}
                   trigger={<div className="conversation-member-item">{rowInner}</div>}
                 >
-                  <IdentityCard
+                  <IdentityHoverCardContent
                     identity={profile}
-                    showActions
-                    selfIdentityId={selfId}
-                    onGetFriendshipStatus={selfId ? getFriendshipStatus : undefined}
-                    showFriendshipLength={!isSelf}
                     extraFooter={
                       <button
                         type="button"
@@ -300,7 +294,7 @@ export function ConversationMembersSidebar({
                 <div key={inv.id} className="conversation-member-item-wrap">
                   {profile ? (
                     <HoverCard
-                      className="conversation-member-hover-card-content"
+                      className="identity-hover-card"
                       positioning={{ placement: 'left-start', gutter: 10 }}
                       open={memberHoverKey === `invite:${inv.id}`}
                       onOpenChange={(d) => {
@@ -313,10 +307,8 @@ export function ConversationMembersSidebar({
                         </div>
                       }
                     >
-                      <IdentityCard
+                      <IdentityHoverCardContent
                         identity={profile}
-                        showActions
-                        selfIdentityId={selfId}
                         extraFooter={
                           <button
                             type="button"

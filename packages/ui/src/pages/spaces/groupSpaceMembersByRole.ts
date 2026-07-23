@@ -3,8 +3,12 @@
  * by hierarchy (lower `position` = higher), then a leftover Members bucket.
  */
 
-import type { PublicIdentity, PublicSpaceMember, PublicSpaceRole } from '@adieuu/shared';
-import { findEveryoneRole } from './channelRoleHierarchy';
+import {
+  isSpaceEveryoneRole,
+  type PublicIdentity,
+  type PublicSpaceMember,
+  type PublicSpaceRole,
+} from '@adieuu/shared';
 
 export interface SpaceMemberGroup {
   /** Role id for hoisted groups; `null` for the leftover Members section. */
@@ -48,7 +52,7 @@ export function groupSpaceMembersByRole(
   membersFallbackTitle = 'Members',
 ): SpaceMemberGroup[] {
   const hoisted = roles
-    .filter((r) => r.displaySeparately)
+    .filter((r) => r.displaySeparately && !isSpaceEveryoneRole(r))
     .slice()
     .sort((a, b) => a.position - b.position);
 
@@ -87,10 +91,9 @@ export function groupSpaceMembersByRole(
   }
 
   if (leftovers.length > 0) {
-    const everyone = findEveryoneRole(roles);
     groups.push({
       roleId: null,
-      title: everyone?.name || membersFallbackTitle,
+      title: membersFallbackTitle,
       members: sortMembers(leftovers),
     });
   }
@@ -107,7 +110,7 @@ export function resolveSpaceMemberColor(
   const held = new Set(member.roleIds);
   let best: PublicSpaceRole | null = null;
   for (const role of roles) {
-    if (!held.has(role.id) || !role.color) continue;
+    if (!held.has(role.id) || !role.color || isSpaceEveryoneRole(role)) continue;
     if (!best || role.position < best.position) best = role;
   }
   return best?.color;
@@ -149,7 +152,7 @@ export function getMemberRoleBadges(
 ): { visible: MemberRoleBadge[]; overflow: MemberRoleBadge[] } {
   const held = new Set(member.roleIds);
   const sorted = roles
-    .filter((r) => held.has(r.id))
+    .filter((r) => held.has(r.id) && !isSpaceEveryoneRole(r))
     .slice()
     .sort((a, b) => a.position - b.position);
 

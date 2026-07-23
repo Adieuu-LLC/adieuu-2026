@@ -28,11 +28,14 @@ export {
   joinSpace,
   leaveSpace,
   removeSpaceMember,
+  banSpaceMember,
   updateSpaceMemberProfile,
   listSpaceMembers,
   listSpaceRoles,
   addSpaceMembership,
   resolveEffectiveTier,
+  isSpaceBanActive,
+  banExpiresAtForDuration,
 } from './members';
 export {
   createSpaceRole,

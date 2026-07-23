@@ -2,13 +2,10 @@
  * Modal to create or edit a Space text channel (name, role ACL, encryption).
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Dialog, Portal } from '@ark-ui/react';
-import { useTranslation } from 'react-i18next';
 import {
-  createApiClient,
   type CipherCheck,
   type CreateSpaceChannelParams,
+  createApiClient,
   type PublicSpace,
   type PublicSpaceChannel,
   type PublicSpaceChannelCategory,
@@ -16,11 +13,14 @@ import {
   type SpaceChannelType,
   type UpdateSpaceChannelParams,
 } from '@adieuu/shared';
+import { Dialog, Portal } from '@ark-ui/react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '../../components/Button';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Input } from '../../components/Input';
-import { useAppConfig } from '../../config';
 import { useToast } from '../../components/Toast';
+import { useAppConfig } from '../../config';
 import { useCipherStore } from '../../hooks/useCipherStore';
 import {
   getCategoryCipherLink,
@@ -28,28 +28,28 @@ import {
   getSpaceCipherLink,
   registerChannelCipherLink,
 } from '../../services/spaceCipherService';
-import { useSpaceCipher } from './useSpaceCipher';
+import { ChannelRoleMultiselect } from './ChannelRoleMultiselect';
+import { ChannelSettingsEncryption } from './ChannelSettingsEncryption';
+import {
+  actorTopRolePosition,
+  roleIdsForAclPicker,
+  rolesAtOrBelowHierarchy,
+} from './channelRoleHierarchy';
+import type { CipherSource, EntropyRow } from './SpaceCipherFormFields';
 import {
   encryptSpaceMetadataField,
   resolveChannelDisplayName,
 } from './spaceMetadataCipher';
-import {
-  actorTopRolePosition,
-  findEveryoneRole,
-  rolesAtOrBelowHierarchy,
-} from './channelRoleHierarchy';
-import type { CipherSource, EntropyRow } from './SpaceCipherFormFields';
-import { ChannelSettingsEncryption } from './ChannelSettingsEncryption';
-import { ChannelRoleMultiselect } from './ChannelRoleMultiselect';
 import {
   ancestorForceFlags,
   resolveParentCipherCheck,
   resolveParentRoleIds,
 } from './spaceSettingsInherit';
 import {
-  useChannelEncryptionPayload,
   type ResolvedChannelEncryption,
+  useChannelEncryptionPayload,
 } from './useChannelEncryptionPayload';
+import { useSpaceCipher } from './useSpaceCipher';
 
 export interface ChannelSettingsModalProps {
   open: boolean;
@@ -153,7 +153,9 @@ export function ChannelSettingsModal({
 
   const applyParentAcl = useCallback(
     (roleList: readonly PublicSpaceRole[]) => {
-      setSelectedRoleIds(new Set(resolveParentRoleIds(parentCategory, roleList)));
+      setSelectedRoleIds(
+        new Set(roleIdsForAclPicker(resolveParentRoleIds(parentCategory, roleList), roleList)),
+      );
     },
     [parentCategory],
   );
@@ -202,6 +204,7 @@ export function ChannelSettingsModal({
       const hasChannelCipher = !!channel.cipherCheck;
       setEncrypt(hasChannelCipher || !!space.e2ee);
       setStoredCipherCheck(channel.cipherCheck ?? null);
+      // Stripped once roles load; placeholder until then.
       setSelectedRoleIds(new Set(channel.allowedRoleIds));
       setInheritAcl(channel.inheritAllowedRoleIds || forceInfo.forceAcl);
       setInheritCipher(channel.inheritCipherCheck || forceInfo.forceCipher);
@@ -231,12 +234,14 @@ export function ChannelSettingsModal({
         setRoles(list);
         if (!channel) {
           if (initialAllowedRoleIds && initialAllowedRoleIds.length > 0) {
-            setSelectedRoleIds(new Set(initialAllowedRoleIds));
+            setSelectedRoleIds(new Set(roleIdsForAclPicker(initialAllowedRoleIds, list)));
           } else {
             applyParentAcl(list);
           }
         } else if (channel.inheritAllowedRoleIds || forceInfo.forceAcl) {
           applyParentAcl(list);
+        } else {
+          setSelectedRoleIds(new Set(roleIdsForAclPicker(channel.allowedRoleIds, list)));
         }
       });
     } else {

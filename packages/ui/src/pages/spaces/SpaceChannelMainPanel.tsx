@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, type ReactNode, type RefObject } from 'react';
+import { memo, useCallback, useMemo, type ReactElement, type ReactNode, type RefObject } from 'react';
 import type { TFunction } from 'i18next';
 import type { PublicIdentity } from '@adieuu/shared';
 import type { ComposerSendFn, ComposerReplyContext } from '../../components/composer/composerTypes';
@@ -131,6 +131,8 @@ export interface SpaceChannelMainPanelProps {
   editingInitialPlaintext: string;
   editingInitialAttachments: { media: import('../../services/messagePayload').MediaAttachment[]; gifs: import('../../services/messagePayload').GifAttachment[] } | undefined;
 
+  wrapSenderIdentity?: (identityId: string, node: ReactElement) => ReactElement;
+
   t: TFunction;
 }
 
@@ -189,6 +191,7 @@ export function SpaceChannelMainPanel(props: SpaceChannelMainPanelProps): ReactN
     setEditingMessage,
     editingInitialPlaintext,
     editingInitialAttachments,
+    wrapSenderIdentity,
     t,
   } = props;
 
@@ -240,6 +243,7 @@ export function SpaceChannelMainPanel(props: SpaceChannelMainPanelProps): ReactN
           scrollToMessageId={scrollToMessageId}
           flashingMessageId={flashingMessageId}
           loadEditHistory={loadEditHistory}
+          wrapSenderIdentity={wrapSenderIdentity}
         />
       </div>
 

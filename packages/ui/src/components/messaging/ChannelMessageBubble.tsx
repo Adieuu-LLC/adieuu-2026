@@ -79,6 +79,11 @@ export interface ChannelMessageBubbleProps {
   hideUnmoderatedMedia?: boolean;
   pageTagCtx?: PageTagRenderContext;
   loadEditHistory?: (messageId: string) => Promise<EditHistoryEntry[] | null>;
+  /**
+   * Optional Space moderation wrapper for the sender avatar/name.
+   * Must stopPropagation on contextmenu so the message menu does not open.
+   */
+  wrapSenderIdentity?: (identityId: string, node: ReactElement) => ReactElement;
 }
 
 export const ChannelMessageBubble = memo(function ChannelMessageBubble({
@@ -94,6 +99,7 @@ export const ChannelMessageBubble = memo(function ChannelMessageBubble({
   customEmojisDisabled = false, customEmojis,
   hideUnmoderatedMedia = false, pageTagCtx,
   loadEditHistory,
+  wrapSenderIdentity,
 }: ChannelMessageBubbleProps) {
   const { t } = useTranslation();
   const { block: blockIdentity } = useBlockContext();
@@ -284,6 +290,12 @@ export const ChannelMessageBubble = memo(function ChannelMessageBubble({
       : undefined;
   const linearMessageBorderMarker = senderColor && memberColorDisplay.messageBorder;
 
+  const withSenderMenu = useCallback(
+    (node: ReactElement) =>
+      wrapSenderIdentity ? wrapSenderIdentity(message.fromIdentityId, node) : node,
+    [wrapSenderIdentity, message.fromIdentityId],
+  );
+
   const mouseHandlers = {
     onMouseEnter: () => setShowActions(true),
     onMouseLeave: () => { if (!actionBarPopoverOpen) setShowActions(false); },
@@ -313,21 +325,25 @@ export const ChannelMessageBubble = memo(function ChannelMessageBubble({
       <div tabIndex={0} className={`dm-message dm-message--linear${isPinned ? ' dm-message--pinned' : ''}${isFlashHighlight ? ' dm-message--flash-highlight' : ''}`}
         style={linearHoverStyle} {...mouseHandlers}>
         {linearMessageBorderMarker && <div className="dm-message-linear-tint-marker" style={{ background: senderColor }} aria-hidden />}
-        {profile ? (
-          <IdentityHoverCard identity={profile} positioning={{ placement: 'right', gutter: 8 }} extraFooter={memberSecurityHoverFooter}>
-            <button type="button" className="dm-message-avatar-btn" style={avatarAccentStyle}>{avatarContent}</button>
-          </IdentityHoverCard>
-        ) : (
-          <div className="dm-message-avatar" style={avatarAccentStyle}>{avatarContent}</div>
+        {withSenderMenu(
+          profile ? (
+            <IdentityHoverCard identity={profile} positioning={{ placement: 'right', gutter: 8 }} extraFooter={memberSecurityHoverFooter}>
+              <button type="button" className="dm-message-avatar-btn" style={avatarAccentStyle}>{avatarContent}</button>
+            </IdentityHoverCard>
+          ) : (
+            <div className="dm-message-avatar" style={avatarAccentStyle}>{avatarContent}</div>
+          ),
         )}
         <div className="dm-message-content">
           <div className="dm-message-header">
-            {profile ? (
-              <IdentityHoverCard identity={profile} positioning={{ placement: 'right', gutter: 8 }} extraFooter={memberSecurityHoverFooter}>
-                <button type="button" className="dm-message-sender" style={senderNameStyle}>{displayName}</button>
-              </IdentityHoverCard>
-            ) : (
-              <span className="dm-message-sender" style={senderNameStyle}>{displayName}</span>
+            {withSenderMenu(
+              profile ? (
+                <IdentityHoverCard identity={profile} positioning={{ placement: 'right', gutter: 8 }} extraFooter={memberSecurityHoverFooter}>
+                  <button type="button" className="dm-message-sender" style={senderNameStyle}>{displayName}</button>
+                </IdentityHoverCard>
+              ) : (
+                <span className="dm-message-sender" style={senderNameStyle}>{displayName}</span>
+              ),
             )}
             <Tooltip content={formatAbsoluteTime(message.createdAt)} position="top">
               <span className="dm-message-time">{formatMessageTime(message.createdAt)}</span>
@@ -366,12 +382,12 @@ export const ChannelMessageBubble = memo(function ChannelMessageBubble({
     // biome-ignore lint/a11y/noNoninteractiveTabindex: focusable row reveals the action bar for keyboard users
     <div tabIndex={0} className={`dm-message${applyOwnAlignment ? ' dm-message--own' : ''}${isPinned ? ' dm-message--pinned' : ''}${isFlashHighlight ? ' dm-message--flash-highlight' : ''}`}
       {...mouseHandlers}>
-      {!isOwn && senderProfile && (
+      {!isOwn && senderProfile && withSenderMenu(
         <IdentityHoverCard identity={senderProfile} positioning={{ placement: 'right', gutter: 8 }} extraFooter={memberSecurityHoverFooter}>
           <button type="button" className="dm-message-sender" style={senderNameStyle}>
             {resolveDisplayName(message.fromIdentityId, participantProfiles, memberSettings)}
           </button>
-        </IdentityHoverCard>
+        </IdentityHoverCard>,
       )}
       <div className="dm-message-bubble-wrapper">
         {showActions && actionBar}

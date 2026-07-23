@@ -2,9 +2,9 @@
  * Role Settings tab: name, color, hoist, mentionable, default role, preview.
  */
 
+import type { PublicSpaceRole } from '@adieuu/shared';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { PublicSpaceRole } from '@adieuu/shared';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 
@@ -19,7 +19,6 @@ interface SpaceRoleDisplayTabProps {
     color?: string;
     displaySeparately?: boolean;
     mentionable?: boolean;
-    isDefaultMember?: boolean;
   }) => Promise<boolean>;
   onPreview: () => void;
   onExitPreview: () => void;
@@ -38,22 +37,19 @@ export function SpaceRoleDisplayTab({
   const [color, setColor] = useState(role.color);
   const [displaySeparately, setDisplaySeparately] = useState(role.displaySeparately);
   const [mentionable, setMentionable] = useState(role.mentionable);
-  const [isDefaultMember, setIsDefaultMember] = useState(role.isDefaultMember);
 
   useEffect(() => {
     setName(role.name);
     setColor(role.color);
     setDisplaySeparately(role.displaySeparately);
     setMentionable(role.mentionable);
-    setIsDefaultMember(role.isDefaultMember);
   }, [role]);
 
   const dirty =
     name !== role.name ||
     color !== role.color ||
     displaySeparately !== role.displaySeparately ||
-    mentionable !== role.mentionable ||
-    isDefaultMember !== role.isDefaultMember;
+    mentionable !== role.mentionable;
 
   const handleSave = () => {
     if (!HEX_COLOR_RE.test(color)) {
@@ -67,7 +63,6 @@ export function SpaceRoleDisplayTab({
       color: normalizedColor,
       displaySeparately,
       mentionable,
-      isDefaultMember,
     });
   };
 
@@ -127,22 +122,9 @@ export function SpaceRoleDisplayTab({
         <p className="admin-hint">{t('spaces.manage.roles.settings.mentionableHint')}</p>
       </div>
 
-      <div>
-        <label className={`admin-toggle${role.isDefaultMember && isDefaultMember ? ' admin-toggle--disabled' : ''}`}>
-          <input
-            type="checkbox"
-            checked={isDefaultMember}
-            disabled={role.isDefaultMember && isDefaultMember}
-            onChange={(e) => setIsDefaultMember(e.target.checked)}
-          />
-          <span>{t('spaces.manage.roles.settings.isDefault')}</span>
-        </label>
-        <p className="admin-hint">
-          {role.isDefaultMember && isDefaultMember
-            ? t('spaces.manage.roles.settings.isDefaultCurrentHint')
-            : t('spaces.manage.roles.settings.isDefaultHint')}
-        </p>
-      </div>
+      {role.systemKey === 'member' && (
+        <p className="admin-hint">{t('spaces.manage.roles.settings.everyoneAlwaysDefault')}</p>
+      )}
 
       <div className="space-role-display-actions">
         <Button

@@ -51,7 +51,13 @@ export interface SpaceSocketHandlerContext {
   fireNotification?: (
     title: string,
     body: string,
-    options: { isMention?: boolean; channelId: string; spaceId?: string; spaceSlug?: string; onClick?: () => void },
+    options?: {
+      isMention?: boolean;
+      channelId?: string;
+      spaceId?: string;
+      spaceSlug?: string;
+      onClick?: () => void;
+    },
   ) => void;
   /** Resolved channel names keyed by channel ID, used for notification copy. */
   channelNames?: Record<string, string>;
@@ -61,6 +67,8 @@ export interface SpaceSocketHandlerContext {
   activeChannelMessages?: PublicSpaceMessage[];
   /** Called when a Space is permanently deleted (after local list cleanup). */
   onSpaceDeleted?: (spaceId: string) => void;
+  /** Optional i18n helper for membership notifications. */
+  t?: (key: string, options?: Record<string, unknown>) => string;
 }
 
 /**
@@ -367,9 +375,43 @@ export function handleSpaceSocketMessage(
     }
 
     case 'space_member_left': {
-      const { spaceId, identityId } = message.data;
+      const { spaceId, identityId, reason } = message.data;
       if (identityId === ctx.identityId) {
-        ctx.setSpaces((prev) => prev.filter((s) => s.id !== spaceId));
+        let leavingName: string | undefined;
+        ctx.setSpaces((prev) => {
+          leavingName = prev.find((s) => s.id === spaceId)?.name;
+          return prev.filter((s) => s.id !== spaceId);
+        });
+        const t = ctx.t;
+        if (reason === 'banned') {
+          ctx.fireNotification?.(
+            t?.('spaces.notifications.bannedTitle', { defaultValue: 'Banned from Space' })
+              ?? 'Banned from Space',
+            leavingName
+              ? (t?.('spaces.notifications.bannedBody', {
+                  name: leavingName,
+                  defaultValue: `You were banned from ${leavingName}`,
+                }) ?? `You were banned from ${leavingName}`)
+              : (t?.('spaces.notifications.bannedBodyGeneric', {
+                  defaultValue: 'You were banned from a Space',
+                }) ?? 'You were banned from a Space'),
+            { spaceId, onClick: () => undefined },
+          );
+        } else if (reason === 'kicked') {
+          ctx.fireNotification?.(
+            t?.('spaces.notifications.kickedTitle', { defaultValue: 'Removed from Space' })
+              ?? 'Removed from Space',
+            leavingName
+              ? (t?.('spaces.notifications.kickedBody', {
+                  name: leavingName,
+                  defaultValue: `You were removed from ${leavingName}`,
+                }) ?? `You were removed from ${leavingName}`)
+              : (t?.('spaces.notifications.kickedBodyGeneric', {
+                  defaultValue: 'You were removed from a Space',
+                }) ?? 'You were removed from a Space'),
+            { spaceId, onClick: () => undefined },
+          );
+        }
         emitSpacesChanged();
       } else {
         ctx.setSpaces((prev) =>

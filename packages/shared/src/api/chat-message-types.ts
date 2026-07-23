@@ -475,7 +475,12 @@ export interface ChatSpaceMemberJoinedMessage extends ChatMessageBase {
 /** A member left or was removed. Fanned out on the `space:{spaceId}` channel. */
 export interface ChatSpaceMemberLeftMessage extends ChatMessageBase {
   type: 'space_member_left';
-  data: { spaceId: string; identityId: string };
+  data: {
+    spaceId: string;
+    identityId: string;
+    /** Present on newer events; omit/undefined treated as leave/kick by clients. */
+    reason?: import('./spaces-types').SpaceMemberLeftReason;
+  };
 }
 
 /** A member's Space profile (nickname/colour) changed. Fanned out on `space:{spaceId}`. */

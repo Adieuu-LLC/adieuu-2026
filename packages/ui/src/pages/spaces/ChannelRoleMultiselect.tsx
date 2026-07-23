@@ -3,10 +3,10 @@
  * Inline search + chips (no portaled Combobox/Popover) so Ark Dialog focus trap works.
  */
 
+import type { CommunityCipher } from '@adieuu/crypto';
+import { isSpaceEveryoneRole, type PublicSpaceRole } from '@adieuu/shared';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { CommunityCipher } from '@adieuu/crypto';
-import type { PublicSpaceRole } from '@adieuu/shared';
 import { Icon } from '../../icons/Icon';
 import { resolveRoleDisplayName } from './spaceMetadataCipher';
 
@@ -54,27 +54,32 @@ export function ChannelRoleMultiselect({
       encryptedRole: encryptedRolePlaceholder,
     });
 
+  const pickableRoles = useMemo(
+    () => roles.filter((role) => !isSpaceEveryoneRole(role)),
+    [roles],
+  );
+
   const selectedRoles = useMemo(() => {
     const byId = new Map(roleCatalog.map((r) => [r.id, r]));
     const resolved: PublicSpaceRole[] = [];
     for (const id of selectedRoleIds) {
       const role = byId.get(id);
-      if (role) resolved.push(role);
+      if (role && !isSpaceEveryoneRole(role)) resolved.push(role);
     }
     return resolved;
   }, [roleCatalog, selectedRoleIds]);
 
   const filteredRoles = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return [...roles];
-    return roles.filter((role) =>
+    if (!q) return [...pickableRoles];
+    return pickableRoles.filter((role) =>
       resolveRoleDisplayName(role, spaceCipher, {
         encryptedRole: encryptedRolePlaceholder,
       })
         .toLowerCase()
         .includes(q),
     );
-  }, [roles, query, spaceCipher, encryptedRolePlaceholder]);
+  }, [pickableRoles, query, spaceCipher, encryptedRolePlaceholder]);
 
   return (
     <fieldset className="create-channel-roles" disabled={disabled || loading}>

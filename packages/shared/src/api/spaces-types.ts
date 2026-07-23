@@ -28,6 +28,18 @@ export const SPACE_VOICE_EMPTY_GRACE_SEC = 60;
 export const SPACE_MEMBER_STATUSES = ['active', 'banned'] as const;
 export type SpaceMemberStatus = (typeof SPACE_MEMBER_STATUSES)[number];
 
+/** Ban duration presets for Space moderation. */
+export const SPACE_BAN_DURATIONS = ['1h', '1d', '7d', '30d', 'permanent'] as const;
+export type SpaceBanDuration = (typeof SPACE_BAN_DURATIONS)[number];
+
+/** Viewer membership relative to a discover/directory Space card. */
+export const SPACE_MEMBERSHIP_STATUSES = ['none', 'active', 'banned'] as const;
+export type SpaceMembershipStatus = (typeof SPACE_MEMBERSHIP_STATUSES)[number];
+
+/** Why a member left a Space (`space_member_left` socket payload). */
+export const SPACE_MEMBER_LEFT_REASONS = ['left', 'kicked', 'banned'] as const;
+export type SpaceMemberLeftReason = (typeof SPACE_MEMBER_LEFT_REASONS)[number];
+
 /** Invite lifecycle states (mirrors group invites). */
 export const SPACE_INVITE_STATUSES = ['pending', 'accepted', 'declined', 'revoked'] as const;
 export type SpaceInviteStatus = (typeof SPACE_INVITE_STATUSES)[number];
@@ -50,6 +62,7 @@ export {
   applySpacePermissionToggle,
   spacePermissionToggleOptions,
   spacePermissionsSubsetOf,
+  canGrantSpaceMemberRole,
   type SpacePermission,
   type SpacePermissionCategory,
   type SpacePermissionToggleKind,
@@ -110,6 +123,13 @@ export const DEFAULT_SPACE_CATEGORY_NAME = 'Text Channels';
 /** System role names seeded with every new Space (plaintext labels for client encrypt). */
 export const DEFAULT_ADMIN_ROLE_NAME = 'Admin';
 export const DEFAULT_MEMBER_ROLE_NAME = 'Everyone';
+
+/** System Everyone role — always held; never listed for assignment/membership display. */
+export function isSpaceEveryoneRole(role: {
+  systemKey?: string | null;
+}): boolean {
+  return role.systemKey === 'member';
+}
 
 /** Max length for plaintext (non-E2EE) channel messages. */
 export const SPACE_MESSAGE_MAX_LENGTH = 4000;
@@ -200,6 +220,13 @@ export interface PublicSpace {
   memberCount: number;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Present on discover responses for the authenticated viewer.
+   * Omitted on other Space payloads.
+   */
+  membershipStatus?: SpaceMembershipStatus;
+  /** ISO timestamp when a temporary ban ends; null/omitted when permanent or not banned. */
+  banExpiresAt?: string | null;
 }
 
 /** Public channel representation. */
@@ -326,6 +353,10 @@ export interface PublicSpaceMember {
   nickname?: string;
   /** Space-scoped display colour (hex, e.g. `#e57373`). */
   color?: string;
+  banReason?: string;
+  bannedAt?: string;
+  /** ISO timestamp; null means permanent ban. */
+  banExpiresAt?: string | null;
 }
 
 /** Viewer membership + effective permissions within a Space. */

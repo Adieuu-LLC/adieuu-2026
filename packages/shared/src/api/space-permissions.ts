@@ -26,6 +26,7 @@ export const SPACE_PERMISSIONS = [
   'manageNicknames',
   'kickMembers',
   'banMembers',
+  'manageMemberRoles',
   'manageApplications',
   // text
   'sendMessages',
@@ -114,6 +115,12 @@ export const SPACE_PERMISSION_DEFS: readonly SpacePermissionDef[] = [
   },
   { id: 'kickMembers', category: 'members', toggle: 'yesNo', permission: 'kickMembers' },
   { id: 'banMembers', category: 'members', toggle: 'yesNo', permission: 'banMembers' },
+  {
+    id: 'manageMemberRoles',
+    category: 'members',
+    toggle: 'yesNo',
+    permission: 'manageMemberRoles',
+  },
   {
     id: 'manageApplications',
     category: 'members',
@@ -301,4 +308,23 @@ export function spacePermissionsSubsetOf(
 ): boolean {
   const holderSet = new Set(normalizeSpacePermissions(holder));
   return normalizeSpacePermissions(granted).every((p) => holderSet.has(p));
+}
+
+/**
+ * Whether the actor may newly grant a specific Space role to a member.
+ *
+ * - System Admin: only system Admins may assign it.
+ * - `manageRoles`: any other role.
+ * - `manageMemberRoles` only: role permissions must be ⊆ actor's.
+ */
+export function canGrantSpaceMemberRole(params: {
+  role: { systemKey?: string | null; permissions: readonly string[] };
+  actorPermissions: readonly string[];
+  actorIsAdmin: boolean;
+  actorCanManageRoles: boolean;
+}): boolean {
+  const { role, actorPermissions, actorIsAdmin, actorCanManageRoles } = params;
+  if (role.systemKey === 'admin') return actorIsAdmin;
+  if (actorCanManageRoles) return true;
+  return spacePermissionsSubsetOf(role.permissions, actorPermissions);
 }

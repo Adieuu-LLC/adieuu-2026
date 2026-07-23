@@ -6,17 +6,39 @@
  * and {@link SpaceMembersSidebar}.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { Navigate, useParams } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import type { CommunityCipher } from '@adieuu/crypto';
-import { createApiClient, type PublicSpaceRole } from '@adieuu/shared';
-import { useSpaces } from '../../hooks/useSpaces';
-import { useOptionalVoiceChannelSession } from '../../hooks/useVoiceChannelSession';
-import { useIdentity } from '../../hooks/useIdentity';
+import {
+  createApiClient,
+  type PublicSpaceMember,
+  type PublicSpaceRole,
+  type SpaceBanDuration,
+} from '@adieuu/shared';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Navigate, useParams } from 'react-router-dom';
+import { Spinner } from '../../components/Spinner';
+import { useToast } from '../../components/Toast';
 import { useAppConfig } from '../../config';
+import { createSpacePinsAdapter } from '../../hooks/adapters/spacePinsAdapter';
+import { createSpaceReactionsAdapter } from '../../hooks/adapters/spaceReactionsAdapter';
+import { createSpaceReplyAdapter } from '../../hooks/adapters/spaceReplyAdapter';
+import { useSpaceChannelComposer } from '../../hooks/spaces/useSpaceChannelComposer';
+import { useSpaceChannelMembers } from '../../hooks/spaces/useSpaceChannelMembers';
+import { useSpaceChannelMessageActions } from '../../hooks/spaces/useSpaceChannelMessageActions';
+import { useSpaceChannelMessages } from '../../hooks/spaces/useSpaceChannelMessages';
+import { useSpaceChannelScrollToMessage } from '../../hooks/spaces/useSpaceChannelScrollToMessage';
+import { useChannelPins } from '../../hooks/useChannelPins';
+import { useChannelReactions } from '../../hooks/useChannelReactions';
 import { useCipherStore } from '../../hooks/useCipherStore';
+import { useFavoriteEmojis } from '../../hooks/useFavoriteEmojis';
+import { useIdentity } from '../../hooks/useIdentity';
 import { useMemberColorPreference } from '../../hooks/useMemberColorPreference';
+import { useMessageScroll } from '../../hooks/useMessageScroll';
+import { useMessageScrollOrchestration } from '../../hooks/useMessageScrollOrchestration';
+import { buildChannelReplyQuote, useReplyParentHydration } from '../../hooks/useReplyParentHydration';
+import { useSpaces } from '../../hooks/useSpaces';
+import { useViewportReactionFetch } from '../../hooks/useViewportReactionFetch';
+import { useOptionalVoiceChannelSession } from '../../hooks/useVoiceChannelSession';
 import {
   bumpCipherLinkEpoch,
   getChannelCipherLink,
@@ -24,32 +46,15 @@ import {
   getSpaceCipherLink,
   subscribeCipherLinks,
 } from '../../services/spaceCipherService';
-import { Spinner } from '../../components/Spinner';
-import { useToast } from '../../components/Toast';
-import { SpaceMembersSidebar } from './SpaceMembersSidebar';
-import { useMessageScroll } from '../../hooks/useMessageScroll';
-import { useMessageScrollOrchestration } from '../../hooks/useMessageScrollOrchestration';
-import { useViewportReactionFetch } from '../../hooks/useViewportReactionFetch';
-import { useChannelReactions } from '../../hooks/useChannelReactions';
-import { createSpaceReactionsAdapter } from '../../hooks/adapters/spaceReactionsAdapter';
-import { useFavoriteEmojis } from '../../hooks/useFavoriteEmojis';
-import { useChannelPins } from '../../hooks/useChannelPins';
-import { createSpacePinsAdapter } from '../../hooks/adapters/spacePinsAdapter';
-import { useReplyParentHydration, buildChannelReplyQuote } from '../../hooks/useReplyParentHydration';
-import { createSpaceReplyAdapter } from '../../hooks/adapters/spaceReplyAdapter';
 import { scrollViewportCanScroll } from '../../utils/messageScrollUtils';
 import type { ReplyQuotePayload } from '../conversations/conversationUtils';
-
-import { decryptBody, type DecryptableMessage } from './spaceChannelCipher';
-import { resolveChannelDisplayName, resolveRoleDisplayName } from './spaceMetadataCipher';
-import { resolveLatestPinInfo } from './spaceChannelViewModel';
-import { useSpaceChannelMessages } from '../../hooks/spaces/useSpaceChannelMessages';
-import { useSpaceChannelScrollToMessage } from '../../hooks/spaces/useSpaceChannelScrollToMessage';
-import { useSpaceChannelMessageActions } from '../../hooks/spaces/useSpaceChannelMessageActions';
-import { useSpaceChannelComposer } from '../../hooks/spaces/useSpaceChannelComposer';
-import { useSpaceChannelMembers } from '../../hooks/spaces/useSpaceChannelMembers';
-import { SpaceChannelToolbar } from './SpaceChannelToolbar';
 import { SpaceChannelMainPanel } from './SpaceChannelMainPanel';
+import { SpaceChannelToolbar } from './SpaceChannelToolbar';
+import { SpaceMembersSidebar } from './SpaceMembersSidebar';
+import { type DecryptableMessage, decryptBody } from './spaceChannelCipher';
+import { resolveLatestPinInfo } from './spaceChannelViewModel';
+import { resolveChannelDisplayName, resolveRoleDisplayName } from './spaceMetadataCipher';
+import { useSpaceSenderModeration } from './useSpaceSenderModeration';
 
 export function SpaceChannelView() {
   const { t } = useTranslation();
@@ -79,6 +84,8 @@ export function SpaceChannelView() {
     isActiveSpaceMember,
     hasActiveSpacePermission,
     activeSpaceRoleIds,
+    activeSpacePermissions,
+    isActiveSpaceAdmin,
   } = useSpaces();
 
   const { identity } = useIdentity();
@@ -430,7 +437,14 @@ export function SpaceChannelView() {
   const [showMembers, setShowMembers] = useState(false);
   const toggleMembers = useCallback(() => setShowMembers((v) => !v), []);
 
-  const { memberRoles, memberSettings, handleSidebarMembersChange } = useSpaceChannelMembers({
+  const {
+    memberRoles,
+    memberSettings,
+    spaceMembersById,
+    upsertSpaceMembers,
+    removeSpaceMember,
+    handleSidebarMembersChange,
+  } = useSpaceChannelMembers({
     spaceId,
     api,
     resolveProfiles,
@@ -443,6 +457,49 @@ export function SpaceChannelView() {
       }),
     [spaceCipher, t],
   );
+
+  const canKick = hasActiveSpacePermission('kickMembers');
+  const canBan = hasActiveSpacePermission('banMembers');
+  const canManageMemberRoles = hasActiveSpacePermission('manageMemberRoles');
+  const canManageRoles = hasActiveSpacePermission('manageRoles');
+
+  const moderationRemoveMember = useCallback(
+    (id: string) => api.spaces.removeMember(spaceId, id),
+    [api.spaces, spaceId],
+  );
+  const moderationBanMember = useCallback(
+    (id: string, body: { reason: string; duration: SpaceBanDuration }) =>
+      api.spaces.banMember(spaceId, id, body),
+    [api.spaces, spaceId],
+  );
+  const moderationSetMemberRoles = useCallback(
+    (id: string, roleIds: string[]) => api.spaces.setMemberRoles(spaceId, id, roleIds),
+    [api.spaces, spaceId],
+  );
+  const moderationMemberUpdated = useCallback(
+    (updated: PublicSpaceMember) => upsertSpaceMembers([updated]),
+    [upsertSpaceMembers],
+  );
+
+  const wrapSenderIdentity = useSpaceSenderModeration({
+    spaceId,
+    selfId: identity?.id,
+    ownerIdentityId: activeSpace?.ownerIdentityId,
+    actorPermissions: activeSpacePermissions,
+    memberRoles,
+    spaceMembersById,
+    canKick,
+    canBan,
+    canManageMemberRoles,
+    canManageRoles,
+    actorIsAdmin: isActiveSpaceAdmin,
+    resolveRoleName,
+    removeMember: moderationRemoveMember,
+    banMember: moderationBanMember,
+    setMemberRoles: moderationSetMemberRoles,
+    onMemberUpdated: moderationMemberUpdated,
+    onMemberRemoved: removeSpaceMember,
+  });
 
   // ---------------------------------------------------------------------------
   // Pin preview for toolbar subtitle
@@ -593,6 +650,7 @@ export function SpaceChannelView() {
           setEditingMessage={setEditingMessage}
           editingInitialPlaintext={editingInitialPlaintext}
           editingInitialAttachments={editingInitialAttachments}
+          wrapSenderIdentity={wrapSenderIdentity}
           t={t}
         />
       </div>
@@ -603,11 +661,23 @@ export function SpaceChannelView() {
           roles={memberRoles}
           selfId={identity?.id}
           actorRoleIds={activeSpaceRoleIds}
+          actorPermissions={activeSpacePermissions}
+          ownerIdentityId={activeSpace?.ownerIdentityId}
           canChangeNickname={hasActiveSpacePermission('changeNickname')}
           canManageNicknames={hasActiveSpacePermission('manageNicknames')}
+          canKick={canKick}
+          canBan={canBan}
+          canManageMemberRoles={canManageMemberRoles}
+          canManageRoles={canManageRoles}
+          actorIsAdmin={isActiveSpaceAdmin}
           listMembers={(sid, opts) => api.spaces.listMembers(sid, opts)}
           updateMemberProfile={(sid, identityId, body) =>
             api.spaces.updateMemberProfile(sid, identityId, body)
+          }
+          removeMember={(sid, identityId) => api.spaces.removeMember(sid, identityId)}
+          banMember={(sid, identityId, body) => api.spaces.banMember(sid, identityId, body)}
+          setMemberRoles={(sid, identityId, roleIds) =>
+            api.spaces.setMemberRoles(sid, identityId, roleIds)
           }
           resolveProfile={(id) => participantProfiles[id]}
           resolveRoleName={resolveRoleName}

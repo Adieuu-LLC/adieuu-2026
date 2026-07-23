@@ -47,6 +47,7 @@ export function areChannelMessageBubblePropsEqual(
   if (pm.customEmojis !== nm.customEmojis) return false;
 
   if (prev.onStartEdit !== next.onStartEdit) return false;
+  if (prev.wrapSenderIdentity !== next.wrapSenderIdentity) return false;
 
   if (prev.senderProfile?.id !== next.senderProfile?.id) return false;
   if (prev.senderProfile?.avatarUrl !== next.senderProfile?.avatarUrl) return false;

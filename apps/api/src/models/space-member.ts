@@ -19,6 +19,10 @@ export interface SpaceMemberDocument extends BaseDocument {
   nickname?: string;
   /** Space-scoped display colour (hex). */
   color?: string;
+  banReason?: string;
+  bannedAt?: Date;
+  /** When set, ban ends at this time; null means permanent. */
+  banExpiresAt?: Date | null;
 }
 
 export interface CreateSpaceMemberInput {
@@ -39,5 +43,10 @@ export function toPublicSpaceMember(doc: SpaceMemberDocument): PublicSpaceMember
     joinedAt: doc.joinedAt.toISOString(),
     ...(doc.nickname ? { nickname: doc.nickname } : {}),
     ...(doc.color ? { color: doc.color } : {}),
+    ...(doc.banReason ? { banReason: doc.banReason } : {}),
+    ...(doc.bannedAt ? { bannedAt: doc.bannedAt.toISOString() } : {}),
+    ...(doc.status === 'banned'
+      ? { banExpiresAt: doc.banExpiresAt ? doc.banExpiresAt.toISOString() : null }
+      : {}),
   };
 }

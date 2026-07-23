@@ -311,6 +311,11 @@ export const SetMemberRolesSchema = z.object({
   roleIds: z.array(z.string().length(24)).max(50),
 });
 
+export const BanSpaceMemberSchema = z.object({
+  reason: z.string().trim().min(1).max(500),
+  duration: z.enum(['1h', '1d', '7d', '30d', 'permanent']),
+});
+
 /** Patch Space-scoped nickname / colour for a member. Null clears a field. */
 export const UpdateSpaceMemberProfileSchema = z
   .object({
@@ -482,5 +487,6 @@ export type UpdateSpaceChannelLayoutBody = z.infer<typeof UpdateSpaceChannelLayo
 export type CreateSpaceRoleBody = z.infer<typeof CreateSpaceRoleSchema>;
 export type UpdateSpaceRoleBody = z.infer<typeof UpdateSpaceRoleSchema>;
 export type SetMemberRolesBody = z.infer<typeof SetMemberRolesSchema>;
+export type BanSpaceMemberBody = z.infer<typeof BanSpaceMemberSchema>;
 export type UpdateSpaceMemberProfileBody = z.infer<typeof UpdateSpaceMemberProfileSchema>;
 export type UpdateSpacePreferencesBody = z.infer<typeof UpdateSpacePreferencesSchema>;

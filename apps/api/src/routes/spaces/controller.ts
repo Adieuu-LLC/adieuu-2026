@@ -32,6 +32,7 @@ import {
   joinSpace,
   leaveSpace,
   removeSpaceMember,
+  banSpaceMember,
   updateSpaceMemberProfile,
   listSpaceMembers,
   listSpaceRoles,
@@ -55,6 +56,7 @@ import {
   CreateSpaceRoleSchema,
   UpdateSpaceRoleSchema,
   SetMemberRolesSchema,
+  BanSpaceMemberSchema,
   UpdateSpaceMemberProfileSchema,
   UpdateSpacePreferencesSchema,
 } from '@adieuu/shared/schemas';
@@ -186,6 +188,7 @@ export async function discoverSpacesCtrl(
   ctx: RouteContext,
 ): Promise<SpaceRouteResult<{ spaces: unknown[]; cursor: string | null }>> {
   if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
 
   const q = sanitizeSpaceSearchTerm(ctx.query.get('q'));
   const limit = clampSpaceListLimit(ctx.query.get('limit'), 30, 100);
@@ -195,6 +198,7 @@ export async function discoverSpacesCtrl(
     ...(q ? { q } : {}),
     limit,
     ...(cursor ? { cursor } : {}),
+    viewerIdentityId: identity._id,
   });
   return { kind: 'ok', data: { spaces: result.spaces, cursor: result.cursor } };
 }
@@ -392,6 +396,26 @@ export async function removeMemberCtrl(ctx: RouteContext): Promise<SpaceRouteRes
     return mapSpaceError(result.errorCode, result.error ?? 'Failed to remove member.');
   }
   return { kind: 'ok', data: undefined, message: 'Member removed.' };
+}
+
+export async function banMemberCtrl(
+  ctx: RouteContext,
+): Promise<SpaceRouteResult<{ member: unknown }>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const id = sanitizeSpaceObjectId(ctx.params.id);
+  const target = sanitizeSpaceObjectId(ctx.params.identityId);
+  if (!id.ok || !target.ok) return { kind: 'bad_request', message: 'Invalid id.' };
+
+  const parsed = BanSpaceMemberSchema.safeParse(ctx.body);
+  if (!parsed.success) return { kind: 'validation_failed' };
+
+  const result = await banSpaceMember(id.id, identity._id, target.id, parsed.data);
+  if (!result.success) {
+    return mapSpaceError(result.errorCode, result.error ?? 'Failed to ban member.');
+  }
+  return { kind: 'ok', data: { member: result.member }, message: 'Member banned.' };
 }
 
 export async function updateMemberProfileCtrl(

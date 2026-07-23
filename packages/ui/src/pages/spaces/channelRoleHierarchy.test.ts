@@ -3,6 +3,7 @@ import type { PublicSpaceRole } from '@adieuu/shared';
 import {
   actorTopRolePosition,
   findEveryoneRole,
+  roleIdsForAclPicker,
   rolesAtOrBelowHierarchy,
 } from './channelRoleHierarchy';
 
@@ -43,14 +44,17 @@ describe('channelRoleHierarchy', () => {
     expect(actorTopRolePosition(['admin'], roles)).toBe(0);
   });
 
-  test('rolesAtOrBelowHierarchy includes own role and lower', () => {
-    expect(rolesAtOrBelowHierarchy(roles, 100).map((r) => r.id)).toEqual([
-      'mod',
-      'everyone',
-    ]);
+  test('rolesAtOrBelowHierarchy includes own role and lower, excluding Everyone', () => {
+    expect(rolesAtOrBelowHierarchy(roles, 100).map((r) => r.id)).toEqual(['mod']);
   });
 
-  test('findEveryoneRole prefers default member / system member', () => {
+  test('findEveryoneRole prefers system member', () => {
     expect(findEveryoneRole(roles)?.id).toBe('everyone');
+  });
+
+  test('roleIdsForAclPicker treats Everyone allowlist as unrestricted', () => {
+    expect(roleIdsForAclPicker(['everyone'], roles)).toEqual([]);
+    expect(roleIdsForAclPicker(['everyone', 'mod'], roles)).toEqual([]);
+    expect(roleIdsForAclPicker(['mod'], roles)).toEqual(['mod']);
   });
 });

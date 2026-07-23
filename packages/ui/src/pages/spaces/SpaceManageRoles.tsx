@@ -3,29 +3,29 @@
  * (Settings / Permissions / Manage Members), similar to Appearance settings.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import { Select, Portal, createListCollection } from '@ark-ui/react';
 import {
   createApiClient,
   DEFAULT_CUSTOM_ROLE_COLOR,
   type PublicSpaceRole,
   type SpacePermission,
 } from '@adieuu/shared';
-import { useAppConfig } from '../../config';
-import { useSpaces } from '../../hooks/useSpaces';
-import { useToast } from '../../components/Toast';
+import { createListCollection, Portal, Select } from '@ark-ui/react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../components/Button';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Spinner } from '../../components/Spinner';
-import { Tabs, TabList, TabTrigger, TabContent } from '../../components/Tabs';
+import { TabContent, TabList, Tabs, TabTrigger } from '../../components/Tabs';
+import { useToast } from '../../components/Toast';
+import { useAppConfig } from '../../config';
+import { useSpaces } from '../../hooks/useSpaces';
 import { Icon } from '../../icons/Icon';
-import { useSpaceCipher } from './useSpaceCipher';
-import { resolveRoleDisplayName } from './spaceMetadataCipher';
 import { SpaceRoleDisplayTab } from './SpaceRoleDisplayTab';
-import { SpaceRolePermissionsTab } from './SpaceRolePermissionsTab';
 import { SpaceRoleMembersTab } from './SpaceRoleMembersTab';
+import { SpaceRolePermissionsTab } from './SpaceRolePermissionsTab';
+import { resolveRoleDisplayName } from './spaceMetadataCipher';
+import { useSpaceCipher } from './useSpaceCipher';
 
 const VALID_TABS = ['settings', 'permissions', 'members'] as const;
 type RoleTab = (typeof VALID_TABS)[number];
@@ -106,6 +106,13 @@ export function SpaceManageRoles() {
     navigate(`/s/${slug}/manage/roles/${roleId}/settings`, { replace: true });
   }, [slug, roleId, tabParam, navigate]);
 
+  // Everyone has no Manage Members tab (every member holds it).
+  useEffect(() => {
+    if (!slug || !roleId || !selectedRole || selectedRole.systemKey !== 'member') return;
+    if (activeTab !== 'members') return;
+    navigate(`/s/${slug}/manage/roles/${roleId}/settings`, { replace: true });
+  }, [slug, roleId, selectedRole, activeTab, navigate]);
+
   if (!canManage) {
     return <Navigate to={`/s/${slug ?? activeSpace?.slug}/manage`} replace />;
   }
@@ -113,7 +120,10 @@ export function SpaceManageRoles() {
   const roleBase = (id: string) => `/s/${slug}/manage/roles/${id}`;
 
   const selectRole = (id: string) => {
-    navigate(`${roleBase(id)}/${activeTab}`, { replace: true });
+    const next = roles.find((r) => r.id === id);
+    const tab =
+      next?.systemKey === 'member' && activeTab === 'members' ? 'settings' : activeTab;
+    navigate(`${roleBase(id)}/${tab}`, { replace: true });
   };
 
   const handleTabChange = (next: string) => {
@@ -367,12 +377,18 @@ export function SpaceManageRoles() {
 
                 <Tabs value={activeTab} onValueChange={handleTabChange}>
                   <TabList
-                    mobileItems={VALID_TABS.map((value) => ({
+                    mobileItems={(selectedRole.systemKey === 'member'
+                      ? (['settings', 'permissions'] as const)
+                      : VALID_TABS
+                    ).map((value) => ({
                       value,
                       label: t(`spaces.manage.roles.tabs.${value}` as never),
                     }))}
                   >
-                    {VALID_TABS.map((value) => (
+                    {(selectedRole.systemKey === 'member'
+                      ? (['settings', 'permissions'] as const)
+                      : VALID_TABS
+                    ).map((value) => (
                       <TabTrigger key={value} value={value}>
                         {t(`spaces.manage.roles.tabs.${value}` as never)}
                       </TabTrigger>
@@ -403,9 +419,11 @@ export function SpaceManageRoles() {
                     />
                   </TabContent>
 
-                  <TabContent value="members" className="space-manage-role-tabpanel">
-                    <SpaceRoleMembersTab role={selectedRole} allRoles={roles} />
-                  </TabContent>
+                  {selectedRole.systemKey !== 'member' && (
+                    <TabContent value="members" className="space-manage-role-tabpanel">
+                      <SpaceRoleMembersTab role={selectedRole} allRoles={roles} />
+                    </TabContent>
+                  )}
                 </Tabs>
               </>
             )}

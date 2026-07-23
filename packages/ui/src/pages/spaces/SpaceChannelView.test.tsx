@@ -62,6 +62,7 @@ mock.module('../../components/Toast', () => ({
 
 mock.module('../../components/IdentityHoverCard', () => ({
   IdentityHoverCard: ({ children }: { children: import('react').ReactElement }) => children,
+  IdentityHoverCardContent: () => null,
 }));
 
 mock.module('../../components/Tooltip', () => ({

@@ -3,25 +3,26 @@
  * other roles, and remove-from-role.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import {
   createApiClient,
+  isSpaceEveryoneRole,
   type PublicIdentity,
   type PublicSpaceMember,
   type PublicSpaceRole,
 } from '@adieuu/shared';
-import { useAppConfig } from '../../config';
-import { useSpaces } from '../../hooks/useSpaces';
-import { useIdentity } from '../../hooks/useIdentity';
-import { useToast } from '../../components/Toast';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
-import { Spinner } from '../../components/Spinner';
 import { IdentityHoverCard } from '../../components/IdentityHoverCard';
+import { Spinner } from '../../components/Spinner';
+import { useToast } from '../../components/Toast';
+import { useAppConfig } from '../../config';
+import { useIdentity } from '../../hooks/useIdentity';
+import { useSpaces } from '../../hooks/useSpaces';
 import { resolveDisplayName } from '../conversations/conversationUtils';
-import { useSpaceCipher } from './useSpaceCipher';
 import { resolveRoleDisplayName } from './spaceMetadataCipher';
+import { useSpaceCipher } from './useSpaceCipher';
 
 interface SpaceRoleMembersTabProps {
   role: PublicSpaceRole;
@@ -33,9 +34,19 @@ export function SpaceRoleMembersTab({ role, allRoles }: SpaceRoleMembersTabProps
   const toast = useToast();
   const { apiBaseUrl } = useAppConfig();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
-  const { activeSpace, resolveProfiles, participantProfiles } = useSpaces();
+  const {
+    activeSpace,
+    resolveProfiles,
+    participantProfiles,
+    hasActiveSpacePermission,
+    isActiveSpaceAdmin,
+  } = useSpaces();
   const { identity } = useIdentity();
   const { spaceCipher } = useSpaceCipher(activeSpace?.id);
+  const canAssignRoles =
+    hasActiveSpacePermission('manageMemberRoles') || hasActiveSpacePermission('manageRoles');
+  /** Non-admins cannot newly attach the system Admin role. */
+  const canAddToThisRole = canAssignRoles && (role.systemKey !== 'admin' || isActiveSpaceAdmin);
 
   const [members, setMembers] = useState<PublicSpaceMember[]>([]);
   const [allMembers, setAllMembers] = useState<PublicSpaceMember[]>([]);
@@ -88,7 +99,7 @@ export function SpaceRoleMembersTab({ role, allRoles }: SpaceRoleMembersTabProps
   const isLastAdminRole = role.systemKey === 'admin' && members.length <= 1;
 
   const setRolesFor = async (identityId: string, roleIds: string[]) => {
-    if (!activeSpace) return;
+    if (!activeSpace || !canAssignRoles) return;
     setBusyId(identityId);
     const res = await api.spaces.setMemberRoles(activeSpace.id, identityId, roleIds);
     setBusyId(null);
@@ -124,7 +135,7 @@ export function SpaceRoleMembersTab({ role, allRoles }: SpaceRoleMembersTabProps
     const isSelf = member.identityId === identity?.id;
     const otherRoles = member.roleIds
       .map((id) => roleById.get(id))
-      .filter((r): r is PublicSpaceRole => !!r);
+      .filter((r): r is PublicSpaceRole => !!r && !isSpaceEveryoneRole(r));
 
     const identityBlock = (
       <div className="space-role-member-identity">
@@ -176,7 +187,7 @@ export function SpaceRoleMembersTab({ role, allRoles }: SpaceRoleMembersTabProps
           ) : (
             identityBlock
           )}
-          {canRemoveFromRole && (
+          {canAssignRoles && canRemoveFromRole && (
             <Button
               variant="ghost"
               size="sm"
@@ -206,31 +217,37 @@ export function SpaceRoleMembersTab({ role, allRoles }: SpaceRoleMembersTabProps
 
   return (
     <Card className="admin-card space-role-tab-card">
-      <div className="space-role-members-add">
-        <label className="admin-field-label">
-          {t('spaces.manage.roles.members.addLabel')}
-          <select
-            className="admin-select"
-            value={addIdentityId}
-            onChange={(e) => setAddIdentityId(e.target.value)}
+      {canAddToThisRole ? (
+        <div className="space-role-members-add">
+          <label className="admin-field-label">
+            {t('spaces.manage.roles.members.addLabel')}
+            <select
+              className="admin-select"
+              value={addIdentityId}
+              onChange={(e) => setAddIdentityId(e.target.value)}
+            >
+              <option value="">{t('spaces.manage.roles.members.addPlaceholder')}</option>
+              {candidates.map((m) => (
+                <option key={m.identityId} value={m.identityId}>
+                  {profileName(m.identityId)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={!addIdentityId || busyId === addIdentityId}
+            onClick={handleAdd}
           >
-            <option value="">{t('spaces.manage.roles.members.addPlaceholder')}</option>
-            {candidates.map((m) => (
-              <option key={m.identityId} value={m.identityId}>
-                {profileName(m.identityId)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <Button
-          variant="primary"
-          size="sm"
-          disabled={!addIdentityId || busyId === addIdentityId}
-          onClick={handleAdd}
-        >
-          {t('spaces.manage.roles.members.add')}
-        </Button>
-      </div>
+            {t('spaces.manage.roles.members.add')}
+          </Button>
+        </div>
+      ) : canAssignRoles && role.systemKey === 'admin' && !isActiveSpaceAdmin ? (
+        <p className="admin-hint">{t('spaces.members.adminRoleAssignLocked')}</p>
+      ) : !canAssignRoles ? (
+        <p className="admin-hint">{t('spaces.members.needsManageMemberRoles')}</p>
+      ) : null}
 
       {role.isDefaultMember && (
         <p className="admin-hint">{t('spaces.manage.roles.members.defaultRoleHint')}</p>

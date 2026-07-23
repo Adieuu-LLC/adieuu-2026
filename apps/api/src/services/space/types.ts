@@ -43,6 +43,7 @@ export type SpaceErrorCode =
   | 'FORBIDDEN'
   | 'OWNER_CANNOT_LEAVE'
   | 'CANNOT_REMOVE_OWNER'
+  | 'MEMBER_BANNED'
   | 'MEMBER_NOT_FOUND'
   | 'NOT_AUTHORIZED'
   | 'INVITE_NOT_FOUND'

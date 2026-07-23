@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   createApiClient,
   type PublicIdentity,
@@ -9,25 +8,27 @@ import {
   type SpacePermission,
   type UpdateSpaceChannelLayoutParams,
 } from '@adieuu/shared';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { useAppConfig, usePlatformCapabilities } from '../../config';
-import { useIdentity } from '../useIdentity';
-import { useChatSocket } from '../useChatSocket';
 import { useToast } from '../../components/Toast';
-import {
-  useNotificationSoundPreference,
-  useMentionNotificationSoundPreference,
-} from '../useNotificationSoundPreference';
-import { useClaimAchievement } from '../useClaimAchievement';
-import { fireSpaceNotification } from '../../utils/spaceNotifications';
-import { onSpacesChanged } from '../../services/spacesMembershipEvents';
+import { useAppConfig, usePlatformCapabilities } from '../../config';
 import type { SpaceChannelUnreadState } from '../../services/spaceSocketHandlers';
+import { onSpacesChanged } from '../../services/spacesMembershipEvents';
+import { fireSpaceNotification } from '../../utils/spaceNotifications';
+import { useChatSocket } from '../useChatSocket';
+import { useClaimAchievement } from '../useClaimAchievement';
+import { useIdentity } from '../useIdentity';
+import {
+  useMentionNotificationSoundPreference,
+  useNotificationSoundPreference,
+} from '../useNotificationSoundPreference';
 import { SpacesContext } from './context';
+import { MAX_SPACE_LOADED_MESSAGES, trimSpaceMessages } from './spaceScrollUtils';
+import type { SpaceChannelMessagesState, SpacesContextValue } from './types';
 import { useSpaceDataFetching } from './useSpaceDataFetching';
 import { useSpaceSend } from './useSpaceSend';
 import { useSpacesSocketEffects } from './useSpacesSocketEffects';
-import { MAX_SPACE_LOADED_MESSAGES, trimSpaceMessages } from './spaceScrollUtils';
-import type { SpaceChannelMessagesState, SpacesContextValue } from './types';
 
 export function SpacesProvider({ children }: { children: ReactNode }) {
   const { apiBaseUrl } = useAppConfig();
@@ -36,6 +37,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   const { subscribe, onStateChange } = useChatSocket();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const toast = useToast();
   const { notifications, audio } = usePlatformCapabilities();
   const soundPref = useNotificationSoundPreference();
@@ -574,17 +576,27 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   spacesRef.current = spaces;
 
   const fireNotification = useCallback(
-    (title: string, body: string, options: { isMention?: boolean; channelId: string; spaceId?: string; spaceSlug?: string; onClick?: () => void }) => {
-      const slug = options.spaceSlug
-        ?? (options.spaceId ? spacesRef.current.find((s) => s.id === options.spaceId)?.slug : undefined)
+    (
+      title: string,
+      body: string,
+      options?: {
+        isMention?: boolean;
+        channelId?: string;
+        spaceId?: string;
+        spaceSlug?: string;
+        onClick?: () => void;
+      },
+    ) => {
+      const slug = options?.spaceSlug
+        ?? (options?.spaceId ? spacesRef.current.find((s) => s.id === options.spaceId)?.slug : undefined)
         ?? activeSpaceInternal?.slug;
-      const navTo = options.onClick ?? (() => {
-        if (slug) navigate(`/s/${slug}/c/${options.channelId}`);
+      const navTo = options?.onClick ?? (() => {
+        if (slug && options?.channelId) navigate(`/s/${slug}/c/${options.channelId}`);
       });
       fireSpaceNotification(
         title,
         body,
-        { onClick: navTo, nativeTag: 'space-channel-event', isMention: options.isMention },
+        { onClick: navTo, nativeTag: 'space-channel-event', isMention: options?.isMention },
         { toast, soundPref, mentionSoundPref, notifications, audio, onWilhelmScream: () => claimAchievement('wilhelm_scream') },
       );
     },
@@ -593,6 +605,9 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
 
   const fireNotificationRef = useRef(fireNotification);
   fireNotificationRef.current = fireNotification;
+
+  const tRef = useRef(t);
+  tRef.current = t;
 
   const channelNamesRef = useRef<Record<string, string>>({});
   channelNamesRef.current = useMemo(
@@ -643,6 +658,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     participantProfilesRef,
     activeChannelMessagesRef,
     onSpaceDeleted: handleSpaceDeleted,
+    tRef,
   });
 
   const activeChannelState = activeChannelId ? messagesByChannel[activeChannelId] : undefined;
