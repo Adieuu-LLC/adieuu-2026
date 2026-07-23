@@ -2,7 +2,7 @@
  * Recognition helpers for seeded Space system roles.
  *
  * Newer Spaces persist `systemKey: 'everyone'`. Older seeds used
- * `systemKey: 'everyone'` or only `isSystem` + name (and Admin often carried a
+ * `systemKey: 'member'` or only `isSystem` + name (and Admin often carried a
  * legacy `"admin"` permission string).
  *
  * @module api/space-system-roles
@@ -29,13 +29,13 @@ export interface SpaceSystemRoleLike {
  * Resolve the seeded system identity for a role document.
  *
  * Always returns the canonical keys (`admin` / `everyone`). Legacy
- * `systemKey: 'everyone'` maps to `everyone`.
+ * `systemKey: 'member'` maps to `everyone`.
  */
 export function resolveSpaceRoleSystemKey(
   role: SpaceSystemRoleLike,
 ): SpaceRoleSystemKey | undefined {
   if (role.systemKey === 'admin') return 'admin';
-  if (role.systemKey === 'everyone' || role.systemKey === 'everyone') return 'everyone';
+  if (role.systemKey === 'everyone' || role.systemKey === 'member') return 'everyone';
   if (!role.isSystem) return undefined;
 
   const name = (role.name ?? '').trim();

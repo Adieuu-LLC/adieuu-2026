@@ -95,7 +95,7 @@ export class SpaceRoleRepository extends BaseRepository<SpaceRoleDocument> {
     if (systemKey === 'everyone') {
       const legacyKeyed = await this.findOne({
         spaceId,
-        systemKey: 'everyone',
+        systemKey: 'member',
       } as Filter<SpaceRoleDocument>);
       if (legacyKeyed) {
         await this.repairLegacySystemRoles([legacyKeyed]);

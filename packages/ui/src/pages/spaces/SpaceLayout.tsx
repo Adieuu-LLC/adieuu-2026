@@ -116,7 +116,7 @@ function SpaceLayoutSession() {
     );
   }
 
-  if (activeSpaceError === 'not_found' || (!activeSpace && !activeSpaceLoading)) {
+  if (activeSpaceError === 'not_found' || !activeSpace) {
     return (
       <div className="page-content">
         <div className="container">

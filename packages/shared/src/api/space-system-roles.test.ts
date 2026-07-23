@@ -15,10 +15,10 @@ describe('space-system-roles', () => {
   test('prefers persisted systemKey and maps legacy member → everyone', () => {
     expect(resolveSpaceRoleSystemKey({ systemKey: 'admin', isSystem: true })).toBe('admin');
     expect(resolveSpaceRoleSystemKey({ systemKey: 'everyone', isSystem: true })).toBe('everyone');
-    expect(resolveSpaceRoleSystemKey({ systemKey: 'everyone', isSystem: true })).toBe('everyone');
+    expect(resolveSpaceRoleSystemKey({ systemKey: 'member', isSystem: true })).toBe('everyone');
     expect(isSpaceAdminRole({ systemKey: 'admin' })).toBe(true);
     expect(isSpaceEveryoneRole({ systemKey: 'everyone' })).toBe(true);
-    expect(isSpaceEveryoneRole({ systemKey: 'everyone' })).toBe(true);
+    expect(isSpaceEveryoneRole({ systemKey: 'member' })).toBe(true);
   });
 
   test('recognizes legacy isSystem Admin by name or legacy permission', () => {
